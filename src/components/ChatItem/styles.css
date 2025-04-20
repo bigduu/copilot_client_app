@@ -1,0 +1,37 @@
+.chat-item {
+    display: flex;
+    align-items: center;
+    padding: 8px;
+    border-radius: 6px;
+    margin-bottom: 4px;
+    cursor: pointer;
+    transition: background-color 0.2s;
+    color: #333333;
+}
+
+.chat-item:hover {
+    background-color: rgba(0, 0, 0, 0.05);
+}
+
+.chat-item.selected {
+    background-color: #e6f7ff;
+    color: #1890ff;
+    font-weight: 500;
+}
+
+.chat-item .title {
+    flex: 1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-size: 13px;
+}
+
+.chat-item .delete-button {
+    opacity: 0;
+    transition: opacity 0.2s;
+}
+
+.chat-item:hover .delete-button {
+    opacity: 1;
+} 

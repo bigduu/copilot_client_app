@@ -1,0 +1,103 @@
+.chat-sidebar {
+  border-right: 1px solid #f0f0f0;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  background-color: #f6f8fa;
+  color: #333333;
+}
+
+.sidebar-header {
+  margin-bottom: 16px;
+}
+
+.new-chat-button {
+  margin-bottom: 0;
+  font-weight: 500;
+}
+
+.sidebar-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.system-prompt-button,
+.delete-all-button {
+  text-align: left;
+  justify-content: flex-start;
+  height: auto;
+  padding: 6px 10px;
+}
+
+.system-prompt-button .anticon,
+.delete-all-button .anticon {
+  margin-right: 8px;
+}
+
+.chat-list {
+  flex-grow: 1;
+  overflow-y: auto;
+}
+
+.chat-date-group {
+  margin-bottom: 16px;
+}
+
+.date-header {
+  font-size: 12px;
+  color: #666;
+  padding: 4px 8px;
+  margin-bottom: 8px;
+  background-color: rgba(0, 0, 0, 0.03);
+  border-radius: 4px;
+  font-weight: 500;
+}
+
+/* Styles for the chat item */
+.chat-item {
+  display: flex;
+  align-items: center;
+  padding: 8px;
+  border-radius: 6px;
+  margin-bottom: 4px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.chat-item:hover {
+  background-color: rgba(0, 0, 0, 0.05);
+}
+
+.chat-item.selected {
+  background-color: #e6f7ff;
+}
+
+.chat-item .title {
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.chat-item .delete-button {
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.chat-item:hover .delete-button {
+  opacity: 1;
+}
+
+/* System prompt modal styles */
+.system-prompt-modal-content {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.system-prompt-textarea {
+  font-family: monospace;
+  margin-top: 8px;
+} 
