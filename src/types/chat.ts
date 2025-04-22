@@ -8,6 +8,7 @@ export interface ChatItem {
     title: string;
     messages: Message[];
     createdAt: number;
+    systemPrompt?: string; // Optional for backward compatibility
 }
 
 export interface ChatCompletionResponse {
@@ -82,4 +83,4 @@ export interface Usage {
     completion_tokens: number;
     prompt_tokens: number;
     total_tokens: number;
-} 
+}

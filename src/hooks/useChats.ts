@@ -4,27 +4,44 @@ import { ChatItem } from "../types/chat";
 import { generateChatTitle } from "../utils/chatUtils";
 
 const STORAGE_KEY = "copilot_chats";
+const SYSTEM_PROMPT_KEY = "system_prompt";
+const DEFAULT_SYSTEM_PROMPT = `# Hello! I'm your AI Assistant 👋\n\nI'm here to help you with:\n\n* Writing and reviewing code\n* Answering questions\n* Solving problems\n* Explaining concepts\n* And much more!\n\nI'll respond using markdown formatting to make information clear and well-structured. Feel free to ask me anything!\n\n---\nLet's get started - what can I help you with today?`;
 
 export const useChats = () => {
   const [chats, setChats] = useState<ChatItem[]>([]);
   const [currentChatId, setCurrentChatId] = useState<string | null>(null);
+
+  const migrateExistingChats = useCallback((chats: ChatItem[]): ChatItem[] => {
+    return chats.map(chat => {
+      if (chat.systemPrompt) return chat; // Already migrated
+
+      // Look for system message in existing messages
+      const systemMessage = chat.messages.find(m => m.role === "system");
+      return {
+        ...chat,
+        systemPrompt: systemMessage?.content || localStorage.getItem(SYSTEM_PROMPT_KEY) || DEFAULT_SYSTEM_PROMPT
+      };
+    });
+  }, []);
 
   const loadChats = useCallback(() => {
     try {
       const savedChats = localStorage.getItem(STORAGE_KEY);
       if (savedChats) {
         const parsedChats = JSON.parse(savedChats) as ChatItem[];
-        setChats(parsedChats);
+        // Migrate existing chats to include system prompts
+        const migratedChats = migrateExistingChats(parsedChats);
+        setChats(migratedChats);
         
-        if (!currentChatId && parsedChats.length > 0) {
-          parsedChats.sort((a, b) => b.createdAt - a.createdAt);
-          setCurrentChatId(parsedChats[0].id);
+        if (!currentChatId && migratedChats.length > 0) {
+          migratedChats.sort((a, b) => b.createdAt - a.createdAt);
+          setCurrentChatId(migratedChats[0].id);
         }
       }
     } catch (error) {
       console.error("Failed to load chats from storage:", error);
     }
-  }, [currentChatId]);
+  }, [currentChatId, migrateExistingChats]);
 
   const saveChats = useCallback(() => {
     try {
@@ -43,11 +60,14 @@ export const useChats = () => {
   const addChat = useCallback((): string => {
     const newChatId = uuidv4();
     const chatNumber = chats.length + 1;
+    const currentSystemPrompt = localStorage.getItem(SYSTEM_PROMPT_KEY) || DEFAULT_SYSTEM_PROMPT;
+    
     const newChat: ChatItem = {
       id: newChatId,
       title: generateChatTitle(chatNumber),
       messages: [],
       createdAt: Date.now(),
+      systemPrompt: currentSystemPrompt,
     };
 
     console.log("Creating new chat:", newChatId);
@@ -177,4 +197,4 @@ export const useChats = () => {
     saveChats,
     deleteAllChats
   };
-}; 
+};

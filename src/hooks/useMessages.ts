@@ -1,14 +1,34 @@
 import { useState, useCallback } from "react";
 import { invoke, Channel } from "@tauri-apps/api/core";
-import { Message } from "../types/chat";
+import { Message, ChatItem } from "../types/chat";
 
 // System prompt storage key
 const SYSTEM_PROMPT_KEY = "system_prompt";
+const DEFAULT_SYSTEM_PROMPT = `# Hello! I'm your AI Assistant 👋\n\nI'm here to help you with:\n\n* Writing and reviewing code\n* Answering questions\n* Solving problems\n* Explaining concepts\n* And much more!\n\nI'll respond using markdown formatting to make information clear and well-structured. Feel free to ask me anything!\n\n---\nLet's get started - what can I help you with today?`;
+
+const getEffectiveSystemPrompt = (chat: ChatItem | null) => {
+  if (!chat) return localStorage.getItem(SYSTEM_PROMPT_KEY) || DEFAULT_SYSTEM_PROMPT;
+  
+  // First try to use chat's stored systemPrompt
+  if (chat.systemPrompt) {
+    return chat.systemPrompt;
+  }
+  
+  // Look for existing system message
+  const systemMessage = chat.messages.find(m => m.role === "system");
+  if (systemMessage) {
+    return systemMessage.content;
+  }
+  
+  // Fall back to current global system prompt
+  return localStorage.getItem(SYSTEM_PROMPT_KEY) || DEFAULT_SYSTEM_PROMPT;
+};
 
 export const useMessages = (
   currentChatId: string | null,
   updateChatMessages: (chatId: string, messages: Message[]) => void,
-  currentMessages: Message[]
+  currentMessages: Message[],
+  currentChat: ChatItem | null = null
 ) => {
   const [isStreaming, setIsStreaming] = useState(false);
   const [activeChannel, setActiveChannel] = useState<Channel<string> | null>(null);
@@ -83,20 +103,13 @@ export const useMessages = (
         // Small delay to ensure streaming state is set before invoking backend
         await new Promise((resolve) => setTimeout(resolve, 100));
 
-        // Get the system prompt from localStorage
-        let systemPromptMessage = null;
-        try {
-          const systemPromptContent = localStorage.getItem(SYSTEM_PROMPT_KEY);
-          if (systemPromptContent && systemPromptContent.trim()) {
-            systemPromptMessage = {
-              role: "system",
-              content: systemPromptContent
-            };
-            console.log("Including system prompt in request, length:", systemPromptContent.length);
-          }
-        } catch (error) {
-          console.error("Error reading system prompt from localStorage:", error);
-        }
+        // Get the effective system prompt for this chat
+        const systemPromptContent = getEffectiveSystemPrompt(currentChat);
+        const systemPromptMessage = {
+          role: "system" as const,
+          content: systemPromptContent
+        };
+        console.log("Including system prompt in request, length:", systemPromptContent.length);
 
         // Prepare messages array with system prompt if available
         const messagesWithSystemPrompt = systemPromptMessage 
@@ -126,6 +139,7 @@ export const useMessages = (
       currentChatId,
       isStreaming,
       currentMessages,
+      currentChat,
       addAssistantMessage,
       updateChatMessages,
     ]
@@ -138,4 +152,4 @@ export const useMessages = (
     sendMessage,
     addAssistantMessage,
   };
-}; 
+};

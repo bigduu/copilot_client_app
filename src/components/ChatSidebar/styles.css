@@ -1,14 +1,19 @@
 .chat-sidebar {
   border-right: 1px solid #f0f0f0;
-  padding: 10px;
-  display: flex;
-  flex-direction: column;
   background-color: #f6f8fa;
   color: #333333;
+  position: relative;
+  height: 100%;
 }
 
 .sidebar-header {
-  margin-bottom: 16px;
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  padding: 10px;
+  background-color: #f6f8fa;
+  z-index: 1;
 }
 
 .new-chat-button {
@@ -17,10 +22,16 @@
 }
 
 .sidebar-buttons {
+  position: absolute;
+  top: 60px;
+  left: 0;
+  right: 0;
+  padding: 0 10px;
   display: flex;
   flex-direction: column;
   gap: 8px;
-  margin-bottom: 16px;
+  background-color: #f6f8fa;
+  z-index: 1;
 }
 
 .system-prompt-button,
@@ -37,8 +48,13 @@
 }
 
 .chat-list {
-  flex-grow: 1;
+  position: absolute;
+  top: 140px;
+  bottom: 0;
+  left: 0;
+  right: 0;
   overflow-y: auto;
+  padding: 0 10px;
 }
 
 .chat-date-group {
@@ -100,4 +116,4 @@
 .system-prompt-textarea {
   font-family: monospace;
   margin-top: 8px;
-} 
+}

@@ -73,6 +73,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
   const {
     chats,
     currentChatId,
+    currentChat,
     currentMessages,
     addChat,
     selectChat,
@@ -89,7 +90,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     activeChannel,
     sendMessage,
     addAssistantMessage,
-  } = useMessages(currentChatId, updateChatMessages, currentMessages);
+  } = useMessages(currentChatId, updateChatMessages, currentMessages, currentChat);
 
   // Create the context value by combining hook values
   const contextValue: ChatContextType = {
@@ -106,19 +107,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     deleteAllChats,
     saveChats,
     addAssistantMessage,
-    // System prompt is managed directly from localStorage for now
-    // This simplifies the implementation
-    systemPrompt: (() => {
-      try {
-        const savedPrompt = localStorage.getItem(SYSTEM_PROMPT_KEY);
-        return savedPrompt && savedPrompt.trim()
-          ? savedPrompt
-          : DEFAULT_SYSTEM_PROMPT;
-      } catch (e) {
-        console.error("Error reading system prompt:", e);
-        return DEFAULT_SYSTEM_PROMPT;
-      }
-    })(),
+    systemPrompt: localStorage.getItem(SYSTEM_PROMPT_KEY) || DEFAULT_SYSTEM_PROMPT,
     updateSystemPrompt: (prompt: string) => {
       try {
         const promptToSave =
