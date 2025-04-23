@@ -10,15 +10,37 @@
     "frontendDist": "../dist"
   },
   "app": {
+    "macOSPrivateApi": true,
     "windows": [
       {
         "title": "copilot_chat",
         "width": 800,
-        "height": 600
+        "height": 600,
+        "decorations": true,
+        "transparent": false,
+        "center": true,
+        "visible": true,
+        "alwaysOnTop": true,
+        "skipTaskbar": true,
+        "label": "main"
+      },
+      {
+        "title": "Spotlight",
+        "width": 600,
+        "height": 50,
+        "url": "search.html",
+        "decorations": false,
+        "transparent": true,
+        "center": true,
+        "visible": false,
+        "alwaysOnTop": true,
+        "skipTaskbar": true,
+        "label": "spotlight"
       }
     ],
     "security": {
-      "csp": null
+      "csp": null,
+      "capabilities": ["default"]
     }
   },
   "bundle": {

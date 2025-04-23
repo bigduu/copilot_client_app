@@ -31,9 +31,9 @@ export const MessageInput: React.FC = () => {
   }, [isStreaming]);
 
   const handleSend = () => {
-    if (inputValue.trim()) {
+    if (inputValue.length > 0) {
       console.log("Attempting to send message:", {
-        inputValue: inputValue.trim(),
+        inputValue: inputValue,
         isStreaming,
         hasChatId: !!currentChatId,
       });
@@ -44,7 +44,7 @@ export const MessageInput: React.FC = () => {
       }
 
       try {
-        sendMessage(inputValue.trim());
+        sendMessage(inputValue);
         setInputValue("");
       } catch (error) {
         console.error("Error sending message:", error);

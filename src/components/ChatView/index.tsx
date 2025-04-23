@@ -4,44 +4,36 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism";
-import type { Components } from "react-markdown";
 import { useChat } from "../../contexts/ChatContext";
 import { Message } from "../../types/chat";
 import StreamingMessageItem from "../StreamingMessageItem";
 import SystemMessage from "../SystemMessage";
 import "./styles.css";
 
-const { Paragraph, Text } = Typography;
-
-// Typing indicator component for streaming messages
-const TypingIndicator: React.FC = () => (
-  <div className="typing-indicator">
-    <div className="typing-dot" />
-    <div className="typing-dot" />
-    <div className="typing-dot" />
-  </div>
-);
+const { Text } = Typography;
 
 interface MessageContentProps {
   message: Message;
 }
 
 const MessageContent: React.FC<MessageContentProps> = ({ message }) => {
-  if (message.role === "user") {
-    return <Paragraph className="user-message">{message.content}</Paragraph>;
-  }
-
-  // For assistant messages, render the markdown content
+  // Use ReactMarkdown for both user and assistant messages
   return (
     <ReactMarkdown
+      children={message.content}
       remarkPlugins={[remarkGfm]}
       components={{
-        p: ({ children }) => <p className="markdown-paragraph">{children}</p>,
+        p: ({ children }) => (
+          <p className="markdown-paragraph" style={{ whiteSpace: "pre-line" }}>
+            {children}
+          </p>
+        ),
         ol: ({ children }) => <ol className="markdown-list">{children}</ol>,
         ul: ({ children }) => <ul className="markdown-list">{children}</ul>,
         li: ({ children }) => (
           <li className="markdown-list-item">{children}</li>
         ),
+        br: () => <br />,
         code({ className, children, ...props }) {
           const match = /language-(\w+)/.exec(className || "");
           const language = match ? match[1] : "";
@@ -71,9 +63,7 @@ const MessageContent: React.FC<MessageContentProps> = ({ message }) => {
           );
         },
       }}
-    >
-      {message.content}
-    </ReactMarkdown>
+    />
   );
 };
 

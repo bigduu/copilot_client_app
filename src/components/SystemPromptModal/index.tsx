@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from "react";
 import { Modal, Input, Button, Typography } from "antd";
-import { useChat } from "../../contexts/ChatContext";
 
 const { TextArea } = Input;
 const { Text } = Typography;
@@ -51,7 +50,7 @@ const SystemPromptModal: React.FC<SystemPromptModalProps> = ({
   console.log("SystemPromptModal rendering, visible:", visible);
 
   // Get the current system prompt from localStorage directly
-  const [systemPrompt, setSystemPrompt] = useState<string>(() => {
+  const systemPrompt = (() => {
     try {
       const saved = localStorage.getItem("system_prompt");
       return saved && saved.trim() ? saved : DEFAULT_PROMPT;
@@ -59,7 +58,7 @@ const SystemPromptModal: React.FC<SystemPromptModalProps> = ({
       console.error("Error reading from localStorage:", e);
       return DEFAULT_PROMPT;
     }
-  });
+  })();
 
   // Initialize local state with current prompt
   const [prompt, setPrompt] = useState<string>(systemPrompt);

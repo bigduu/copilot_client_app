@@ -19,7 +19,7 @@ tauri-build = { version = "2", features = [] }
 
 [dependencies]
 # Tauri core and plugins
-tauri = { version = "2", features = [] }
+tauri = { version = "2", features = ["macos-private-api"] }
 
 # Serialization
 serde = { version = "1", features = ["derive"] }
@@ -48,3 +48,6 @@ async-compression = { version = "0.4", features = ["gzip", "tokio"] }
 webbrowser = "1"
 
 crossbeam = "0.8.2"
+
+[target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
+tauri-plugin-global-shortcut = "2"

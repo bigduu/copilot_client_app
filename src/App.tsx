@@ -1,13 +1,16 @@
-import React from "react";
-import { MainLayout } from "./layouts/MainLayout";
-import { ChatProvider } from "./contexts/ChatContext";
 import "antd/dist/reset.css";
 import "./App.css";
+import SpotlightInput from "./components/SpotlightInput";
+import { ChatProvider } from "./contexts/ChatContext";
+import { MainLayout } from "./layouts/MainLayout";
 
 function App() {
   return (
     <ChatProvider>
-      <MainLayout />
+      <div style={{ position: "relative" }}>
+        <MainLayout />
+        <SpotlightInput />
+      </div>
     </ChatProvider>
   );
 }

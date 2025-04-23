@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Window URL Manager</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+            max-width: 600px;
+            margin: 0 auto;
+        }
+        .search-container {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+        input {
+            flex: 1;
+            padding: 8px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+        button {
+            padding: 8px 16px;
+            background-color: #0066cc;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #0052a3;
+        }
+    </style>
+</head>
+<body>
+    <div class="search-container">
+        <input type="text" id="mainWindowUrl" placeholder="Main Window URL">
+        <button onclick="sendMainUrl()">Set Main URL</button>
+    </div>
+    <div class="search-container">
+        <input type="text" id="secondWindowUrl" placeholder="Second Window URL">
+        <button onclick="sendSecondUrl()">Set Second URL</button>
+    </div>
+
+    <script>
+        async function sendMainUrl() {
+            const url = document.getElementById('mainWindowUrl').value;
+            await window.__TAURI__.invoke('set_main_window_url', { url });
+        }
+
+        async function sendSecondUrl() {
+            const url = document.getElementById('secondWindowUrl').value;
+            await window.__TAURI__.invoke('set_second_window_url', { url });
+        }
+    </script>
+</body>
+</html> 
