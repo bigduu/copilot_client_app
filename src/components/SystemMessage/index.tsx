@@ -1,6 +1,8 @@
-import React, { useState, useEffect } from "react";
-import { Card, Typography } from "antd";
+import React from "react";
+import { Card, Typography, Alert } from "antd";
 import ReactMarkdown from "react-markdown";
+import { useChat } from "../../contexts/ChatContext";
+import { InfoCircleOutlined } from "@ant-design/icons";
 import "../ChatView/styles.css";
 
 const { Text } = Typography;
@@ -24,62 +26,42 @@ Let's get started - what can I help you with today?`;
 const SystemMessage: React.FC = () => {
   console.log("SystemMessage component rendering");
 
-  // Get system prompt directly from localStorage
-  const [systemPrompt, setSystemPrompt] = useState<string>(() => {
-    try {
-      const saved = localStorage.getItem("system_prompt");
-      if (saved && saved.trim()) {
-        console.log(
-          "Found system prompt in localStorage, length:",
-          saved.length
-        );
-        return saved;
-      }
-      console.log("No system prompt in localStorage, using default");
-      return DEFAULT_MESSAGE;
-    } catch (e) {
-      console.error("Error reading from localStorage:", e);
-      return DEFAULT_MESSAGE;
-    }
-  });
+  // Get the system prompt from the current chat context
+  const { currentChat, systemPrompt } = useChat();
 
-  // Listen for storage events to update when prompt changes
-  useEffect(() => {
-    const handleStorageChange = (event: StorageEvent) => {
-      if (event.key === "system_prompt" && event.newValue) {
-        console.log("System prompt changed in storage, updating");
-        setSystemPrompt(event.newValue);
-      }
-    };
-
-    window.addEventListener("storage", handleStorageChange);
-    return () => window.removeEventListener("storage", handleStorageChange);
-  }, []);
-
-  // Use default text if system prompt is somehow empty
+  // Use the current chat's system prompt if available, otherwise fall back to global
   const promptToDisplay =
-    systemPrompt && systemPrompt.trim() ? systemPrompt : DEFAULT_MESSAGE;
+    (currentChat?.systemPrompt || systemPrompt || DEFAULT_MESSAGE).trim() ||
+    DEFAULT_MESSAGE;
 
   return (
-    <div className="message-container assistant system-message">
-      <Text strong>System</Text>
-      <Card size="small" className="message-card assistant system">
-        <ReactMarkdown
-          components={{
-            p: ({ children }) => (
-              <p className="markdown-paragraph">{children}</p>
-            ),
-            ol: ({ children }) => <ol className="markdown-list">{children}</ol>,
-            ul: ({ children }) => <ul className="markdown-list">{children}</ul>,
-            li: ({ children }) => (
-              <li className="markdown-list-item">{children}</li>
-            ),
-          }}
-        >
-          {promptToDisplay}
-        </ReactMarkdown>
-      </Card>
-    </div>
+    <Alert
+      type="info"
+      icon={<InfoCircleOutlined />}
+      className="system-message"
+      message={
+        <div className="system-message-content">
+          <ReactMarkdown
+            components={{
+              p: ({ children }) => (
+                <p className="markdown-paragraph">{children}</p>
+              ),
+              ol: ({ children }) => (
+                <ol className="markdown-list">{children}</ol>
+              ),
+              ul: ({ children }) => (
+                <ul className="markdown-list">{children}</ul>
+              ),
+              li: ({ children }) => (
+                <li className="markdown-list-item">{children}</li>
+              ),
+            }}
+          >
+            {promptToDisplay}
+          </ReactMarkdown>
+        </div>
+      }
+    />
   );
 };
 

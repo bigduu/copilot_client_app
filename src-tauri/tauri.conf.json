@@ -13,21 +13,21 @@
     "macOSPrivateApi": true,
     "windows": [
       {
-        "title": "copilot_chat",
-        "width": 800,
-        "height": 600,
+        "title": "Copilot Chat",
+        "width": 1200,
+        "height": 800,
         "decorations": true,
         "transparent": false,
         "center": true,
         "visible": true,
-        "alwaysOnTop": true,
-        "skipTaskbar": true,
+        "alwaysOnTop": false,
+        "skipTaskbar": false,
         "label": "main"
       },
       {
         "title": "Spotlight",
         "width": 600,
-        "height": 50,
+        "height": 300,
         "url": "search.html",
         "decorations": false,
         "transparent": true,
@@ -35,7 +35,15 @@
         "visible": false,
         "alwaysOnTop": true,
         "skipTaskbar": true,
-        "label": "spotlight"
+        "label": "spotlight",
+        "focus": true,
+        "acceptFirstMouse": true,
+        "fullscreen": false,
+        "resizable": false,
+        "theme": "Dark",
+        "hiddenTitle": true,
+        "minimizable": false,
+        "maximizable": false
       }
     ],
     "security": {

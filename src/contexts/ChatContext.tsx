@@ -25,25 +25,30 @@ Let's get started - what can I help you with today?`;
 interface ChatContextType {
   chats: ChatItem[];
   currentChatId: string | null;
+  currentChat: ChatItem | null;
   currentMessages: Message[];
   isStreaming: boolean;
   setIsStreaming: (isStreaming: boolean) => void;
   activeChannel?: Channel<string> | null;
-  addChat: () => string;
+  addChat: (firstUserMessageContent?: string) => string;
   selectChat: (chatId: string | null) => void;
   sendMessage: (content: string) => Promise<void>;
+  initiateAIResponse: () => Promise<void>;
   deleteChat: (chatId: string) => void;
   deleteAllChats: () => void;
   saveChats: () => void;
   addAssistantMessage: (assistantMessage: Message) => void;
   systemPrompt: string;
   updateSystemPrompt: (prompt: string) => void;
+  updateCurrentChatSystemPrompt: (prompt: string) => void;
+  currentChatSystemPrompt: string | null;
 }
 
 // Create a default context with empty/no-op implementations
 const defaultContext: ChatContextType = {
   chats: [],
   currentChatId: null,
+  currentChat: null,
   currentMessages: [],
   isStreaming: false,
   setIsStreaming: () => {},
@@ -51,12 +56,15 @@ const defaultContext: ChatContextType = {
   addChat: () => "",
   selectChat: () => {},
   sendMessage: async () => {},
+  initiateAIResponse: async () => {},
   deleteChat: () => {},
   deleteAllChats: () => {},
   saveChats: () => {},
   addAssistantMessage: () => {},
   systemPrompt: DEFAULT_SYSTEM_PROMPT,
   updateSystemPrompt: () => {},
+  updateCurrentChatSystemPrompt: () => {},
+  currentChatSystemPrompt: null,
 };
 
 // Create the context with the default value
@@ -79,6 +87,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     selectChat,
     deleteChat,
     updateChatMessages,
+    updateChatSystemPrompt,
     saveChats,
     deleteAllChats,
   } = useChats();
@@ -90,12 +99,19 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     activeChannel,
     sendMessage,
     addAssistantMessage,
-  } = useMessages(currentChatId, updateChatMessages, currentMessages, currentChat);
+    initiateAIResponse,
+  } = useMessages(
+    currentChatId,
+    updateChatMessages,
+    currentMessages,
+    currentChat
+  );
 
   // Create the context value by combining hook values
   const contextValue: ChatContextType = {
     chats,
     currentChatId,
+    currentChat,
     currentMessages,
     isStreaming,
     setIsStreaming,
@@ -103,21 +119,35 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     addChat,
     selectChat,
     sendMessage,
+    initiateAIResponse,
     deleteChat,
     deleteAllChats,
     saveChats,
     addAssistantMessage,
-    systemPrompt: localStorage.getItem(SYSTEM_PROMPT_KEY) || DEFAULT_SYSTEM_PROMPT,
+    systemPrompt:
+      localStorage.getItem(SYSTEM_PROMPT_KEY) || DEFAULT_SYSTEM_PROMPT,
     updateSystemPrompt: (prompt: string) => {
       try {
         const promptToSave =
           prompt && prompt.trim() ? prompt : DEFAULT_SYSTEM_PROMPT;
         localStorage.setItem(SYSTEM_PROMPT_KEY, promptToSave);
-        console.log("System prompt updated successfully");
+        console.log("Global system prompt updated successfully");
       } catch (e) {
         console.error("Error saving system prompt:", e);
       }
     },
+    updateCurrentChatSystemPrompt: (prompt: string) => {
+      if (!currentChatId) {
+        console.error("Cannot update system prompt: No current chat");
+        return;
+      }
+
+      const promptToSave =
+        prompt && prompt.trim() ? prompt : DEFAULT_SYSTEM_PROMPT;
+      updateChatSystemPrompt(currentChatId, promptToSave);
+      console.log("Current chat system prompt updated successfully");
+    },
+    currentChatSystemPrompt: currentChat?.systemPrompt || null,
   };
 
   // Log context value for debugging

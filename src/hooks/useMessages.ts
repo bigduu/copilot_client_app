@@ -145,11 +145,71 @@ export const useMessages = (
     ]
   );
 
+  const initiateAIResponse = useCallback(async () => {
+    if (isStreaming) {
+      console.error("Cannot initiate AI response while already streaming");
+      return;
+    }
+    if (!currentChatId || !currentChat || currentMessages.length === 0) {
+      console.error("Cannot initiate AI response: No current chat, or chat is empty.");
+      return;
+    }
+
+    // Ensure the last message is from the user, otherwise, AI might respond to itself or system.
+    const lastMessage = currentMessages[currentMessages.length - 1];
+    if (lastMessage.role !== 'user') {
+        console.warn("Last message not from user, AI response not initiated.");
+        return;
+    }
+
+    // Create channel and send message to backend
+    try {
+      console.log("[useMessages] Initiating AI response. Creating channel.");
+      const channel = new Channel<string>();
+      setActiveChannel(channel);
+      setIsStreaming(true);
+
+      await new Promise((resolve) => setTimeout(resolve, 100)); // Small delay
+
+      const systemPromptContent = getEffectiveSystemPrompt(currentChat);
+      const systemPromptMessage = {
+        role: "system" as const,
+        content: systemPromptContent
+      };
+      
+      const messagesWithSystemPrompt = [systemPromptMessage, ...currentMessages];
+
+      console.log("[useMessages] Invoking execute_prompt for AI response. Message count:", messagesWithSystemPrompt.length);
+      await invoke("execute_prompt", {
+        messages: messagesWithSystemPrompt,
+        channel: channel,
+      }).catch((error) => {
+        console.error("Error invoking execute_prompt for AI response:", error);
+        throw error;
+      });
+    } catch (error) {
+      console.error("Failed to invoke execute_prompt for AI response:", error);
+      addAssistantMessage({
+        role: "assistant",
+        content: `Error: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      });
+    }
+  }, [
+    currentChatId,
+    isStreaming,
+    currentMessages,
+    currentChat,
+    addAssistantMessage,
+  ]);
+
   return {
     isStreaming,
     setIsStreaming,
     activeChannel,
     sendMessage,
     addAssistantMessage,
+    initiateAIResponse,
   };
 };

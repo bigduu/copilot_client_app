@@ -1,0 +1,98 @@
+.search-window-container {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  justify-content: center;
+  padding-top: 100px;
+  background-color: rgba(0, 0, 0, 0.15);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  z-index: 1000;
+  animation: fadeIn 0.12s ease-out;
+}
+
+.search-window {
+  width: 620px;
+  background: rgba(36, 36, 36, 0.9);
+  border-radius: 10px;
+  box-shadow: 
+    0 0 0 0.5px rgba(255, 255, 255, 0.1),
+    0 10px 30px rgba(0, 0, 0, 0.35);
+  overflow: hidden;
+  animation: slideDown 0.12s ease-out;
+}
+
+.search-window .ant-input-affix-wrapper {
+  background: transparent;
+  border-color: rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.95);
+  font-size: 16px;
+}
+
+.search-window .ant-input {
+  background: transparent;
+  color: rgba(255, 255, 255, 0.95);
+}
+
+.search-window .ant-input::placeholder {
+  color: rgba(255, 255, 255, 0.4);
+}
+
+.search-window .ant-input-affix-wrapper:focus,
+.search-window .ant-input-affix-wrapper-focused {
+  border-color: #1677ff;
+  box-shadow: 0 0 0 2px rgba(22, 119, 255, 0.15);
+}
+
+.search-window .anticon {
+  color: rgba(255, 255, 255, 0.45);
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes slideDown {
+  from {
+    transform: translateY(-8px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+@media (prefers-color-scheme: light) {
+  .search-window {
+    background: rgba(255, 255, 255, 0.9);
+    box-shadow: 
+      0 0 0 0.5px rgba(0, 0, 0, 0.05),
+      0 10px 30px rgba(0, 0, 0, 0.15);
+  }
+
+  .search-window .ant-input-affix-wrapper {
+    border-color: rgba(0, 0, 0, 0.1);
+    color: rgba(0, 0, 0, 0.85);
+  }
+
+  .search-window .ant-input {
+    color: rgba(0, 0, 0, 0.85);
+  }
+
+  .search-window .ant-input::placeholder {
+    color: rgba(0, 0, 0, 0.3);
+  }
+
+  .search-window .anticon {
+    color: rgba(0, 0, 0, 0.45);
+  }
+} 

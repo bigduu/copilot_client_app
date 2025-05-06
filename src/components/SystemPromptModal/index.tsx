@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from "react";
-import { Modal, Input, Button, Typography } from "antd";
+import { Modal, Input, Button, Typography, Tabs, Space, message } from "antd";
+import { useChat } from "../../contexts/ChatContext";
 
 const { TextArea } = Input;
 const { Text } = Typography;
+const { TabPane } = Tabs;
 
 // Default system prompt as fallback
 const DEFAULT_PROMPT = `# Hello! I'm your AI Assistant 👋
@@ -21,68 +23,57 @@ I'll respond using markdown formatting to make information clear and well-struct
 Let's get started - what can I help you with today?`;
 
 interface SystemPromptModalProps {
-  visible: boolean;
+  open: boolean;
   onClose: () => void;
 }
 
-// Function to directly save the system prompt to localStorage
-function saveSystemPromptToStorage(prompt: string): void {
-  try {
-    const promptToSave = prompt && prompt.trim() ? prompt : DEFAULT_PROMPT;
-    console.log(
-      "Directly saving prompt to localStorage, length:",
-      promptToSave.length
-    );
-    localStorage.setItem("system_prompt", promptToSave);
-    console.log("Successfully saved prompt to localStorage");
-
-    // Force a page reload to ensure the new prompt is used
-    window.location.reload();
-  } catch (error) {
-    console.error("Error saving prompt to localStorage:", error);
-  }
-}
-
 const SystemPromptModal: React.FC<SystemPromptModalProps> = ({
-  visible,
+  open,
   onClose,
 }) => {
-  console.log("SystemPromptModal rendering, visible:", visible);
+  console.log("SystemPromptModal rendering, open:", open);
 
-  // Get the current system prompt from localStorage directly
-  const systemPrompt = (() => {
-    try {
-      const saved = localStorage.getItem("system_prompt");
-      return saved && saved.trim() ? saved : DEFAULT_PROMPT;
-    } catch (e) {
-      console.error("Error reading from localStorage:", e);
-      return DEFAULT_PROMPT;
-    }
-  })();
+  const {
+    systemPrompt: globalSystemPrompt,
+    updateSystemPrompt,
+    currentChatId,
+    currentChat,
+    updateCurrentChatSystemPrompt,
+  } = useChat();
 
-  // Initialize local state with current prompt
-  const [prompt, setPrompt] = useState<string>(systemPrompt);
+  // Get the current chat system prompt if available, otherwise use the global one
+  const currentChatSystemPrompt =
+    currentChat?.systemPrompt || globalSystemPrompt;
+
+  // Initialize local state with global and current chat prompts
+  const [globalPrompt, setGlobalPrompt] = useState<string>(globalSystemPrompt);
+  const [chatPrompt, setChatPrompt] = useState<string>(currentChatSystemPrompt);
+  const [activeTab, setActiveTab] = useState<string>("current");
+  const [messageApi, contextHolder] = message.useMessage();
 
   // Update local state when modal becomes visible
   useEffect(() => {
-    if (visible) {
-      try {
-        const currentPrompt = localStorage.getItem("system_prompt");
-        console.log("Modal opened, getting prompt from localStorage");
-        setPrompt(
-          currentPrompt && currentPrompt.trim() ? currentPrompt : DEFAULT_PROMPT
-        );
-      } catch (e) {
-        console.error("Error reading from localStorage:", e);
-        setPrompt(DEFAULT_PROMPT);
-      }
+    if (open) {
+      setGlobalPrompt(globalSystemPrompt);
+      setChatPrompt(currentChatSystemPrompt);
+      // Set active tab to current chat if one is selected, otherwise to global
+      setActiveTab(currentChatId ? "current" : "global");
     }
-  }, [visible]);
+  }, [open, globalSystemPrompt, currentChatSystemPrompt, currentChatId]);
 
   const handleSave = () => {
-    console.log("Save button clicked");
-    // Use the direct save function instead of context
-    saveSystemPromptToStorage(prompt);
+    console.log("Save button clicked for tab:", activeTab);
+
+    if (activeTab === "global") {
+      updateSystemPrompt(globalPrompt);
+      messageApi.success("Global system prompt updated successfully");
+    } else if (currentChatId) {
+      updateCurrentChatSystemPrompt(chatPrompt);
+      messageApi.success("Current chat system prompt updated successfully");
+    } else {
+      messageApi.error("No chat selected to update system prompt");
+    }
+
     onClose();
   };
 
@@ -91,45 +82,88 @@ const SystemPromptModal: React.FC<SystemPromptModalProps> = ({
     onClose();
   };
 
-  const handleReset = () => {
-    console.log("Resetting to current system prompt");
-    setPrompt(systemPrompt);
+  const handleResetGlobal = () => {
+    console.log("Resetting to default global system prompt");
+    setGlobalPrompt(DEFAULT_PROMPT);
   };
 
-  console.log("Modal rendering with prompt length:", prompt?.length || 0);
+  const handleResetCurrent = () => {
+    console.log("Resetting current chat system prompt to global");
+    setChatPrompt(globalSystemPrompt);
+  };
 
   return (
-    <Modal
-      title="Customize System Prompt"
-      open={visible}
-      onCancel={handleCancel}
-      footer={[
-        <Button key="reset" onClick={handleReset}>
-          Reset
-        </Button>,
-        <Button key="cancel" onClick={handleCancel}>
-          Cancel
-        </Button>,
-        <Button key="submit" type="primary" onClick={handleSave}>
-          Save
-        </Button>,
-      ]}
-      width={600}
-    >
-      <div className="system-prompt-modal-content">
-        <Text>
-          Customize how the AI assistant introduces itself and describes its
-          capabilities. Use markdown formatting for better presentation.
-        </Text>
-        <TextArea
-          value={prompt}
-          onChange={(e) => setPrompt(e.target.value)}
-          autoSize={{ minRows: 10, maxRows: 20 }}
-          placeholder="Enter your custom system prompt..."
-          className="system-prompt-textarea"
+    <>
+      {contextHolder}
+      <Modal
+        title="Customize System Prompt"
+        open={open}
+        onCancel={handleCancel}
+        footer={[
+          <Button key="cancel" onClick={handleCancel}>
+            Cancel
+          </Button>,
+          <Button key="submit" type="primary" onClick={handleSave}>
+            Save
+          </Button>,
+        ]}
+        width={700}
+      >
+        <Tabs
+          activeKey={activeTab}
+          onChange={setActiveTab}
+          items={[
+            {
+              key: "current",
+              label: "Current Chat",
+              disabled: !currentChatId,
+              children: (
+                <div className="system-prompt-tab-content">
+                  <Space direction="vertical" style={{ width: "100%" }}>
+                    <Text>
+                      Customize the system prompt for the current chat only.
+                      This won't affect other chats.
+                    </Text>
+                    <TextArea
+                      value={chatPrompt}
+                      onChange={(e) => setChatPrompt(e.target.value)}
+                      autoSize={{ minRows: 12, maxRows: 20 }}
+                      placeholder="Enter your custom system prompt..."
+                    />
+                    <Button onClick={handleResetCurrent}>
+                      Reset to Global Prompt
+                    </Button>
+                  </Space>
+                </div>
+              ),
+            },
+            {
+              key: "global",
+              label: "Global Default",
+              children: (
+                <div className="system-prompt-tab-content">
+                  <Space direction="vertical" style={{ width: "100%" }}>
+                    <Text>
+                      Customize the default system prompt for all new chats.
+                      This won't affect existing chats.
+                    </Text>
+                    <TextArea
+                      value={globalPrompt}
+                      onChange={(e) => setGlobalPrompt(e.target.value)}
+                      autoSize={{ minRows: 12, maxRows: 20 }}
+                      placeholder="Enter your custom system prompt..."
+                    />
+                    <Button onClick={handleResetGlobal}>
+                      Reset to Default
+                    </Button>
+                  </Space>
+                </div>
+              ),
+            },
+          ]}
         />
-      </div>
-    </Modal>
+      </Modal>
+    </>
   );
 };
 

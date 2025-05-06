@@ -57,15 +57,22 @@ export const useChats = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const addChat = useCallback((): string => {
+  const addChat = useCallback((firstUserMessageContent?: string): string => {
     const newChatId = uuidv4();
     const chatNumber = chats.length + 1;
     const currentSystemPrompt = localStorage.getItem(SYSTEM_PROMPT_KEY) || DEFAULT_SYSTEM_PROMPT;
     
+    let initialMessages: ChatItem["messages"] = [];
+    if (firstUserMessageContent) {
+      initialMessages.push({ role: "user", content: firstUserMessageContent });
+    }
+
     const newChat: ChatItem = {
       id: newChatId,
-      title: generateChatTitle(chatNumber),
-      messages: [],
+      title: firstUserMessageContent 
+             ? firstUserMessageContent.substring(0, 30) + (firstUserMessageContent.length > 30 ? "..." : "") 
+             : generateChatTitle(chatNumber),
+      messages: initialMessages,
       createdAt: Date.now(),
       systemPrompt: currentSystemPrompt,
     };
@@ -109,26 +116,66 @@ export const useChats = () => {
   );
 
   const updateChatMessages = useCallback(
-    (chatId: string, messages: ChatItem["messages"]) => {
+    (chatId: string, newMessages: ChatItem["messages"]) => {
+      console.log(`[useChats] updateChatMessages called for chatId: ${chatId}. New messages count: ${newMessages.length}`);
+      if (newMessages.length > 0) {
+        console.log(`[useChats] First new message content: ${newMessages[0].content.substring(0,50)}...`);
+      }
       setChats((prevChats) => {
+        const chatExists = prevChats.some(chat => chat.id === chatId);
+        if (!chatExists) {
+          console.error(`[useChats] Attempted to update messages for non-existent chat ID: ${chatId}`);
+          return prevChats;
+        }
         const updatedChats = prevChats.map((chat) =>
           chat.id === chatId
             ? {
                 ...chat,
-                messages,
-                // Update title if this is the first message
+                messages: newMessages, // Directly use the newMessages array passed in
+                // Update title if this is the first user message in an empty chat
                 title:
-                  chat.messages.length === 0 && 
-                  chat.title.startsWith("Chat ") &&
-                  messages.length > 0 && 
-                  messages[0].role === "user"
-                    ? messages[0].content.substring(0, 30) +
-                      (messages[0].content.length > 30 ? "..." : "")
+                  chat.messages.length === 0 && // old messages were empty
+                  newMessages.length > 0 &&    // new messages are not
+                  newMessages[0].role === "user" &&
+                  chat.title.startsWith("Chat ") // only update default titles
+                    ? newMessages[0].content.substring(0, 30) +
+                      (newMessages[0].content.length > 30 ? "..." : "")
                     : chat.title,
               }
             : chat
         );
+        
+        console.log(`[useChats] Chat ${chatId} updated. New total messages: ${updatedChats.find(c=>c.id === chatId)?.messages.length}`);
+        // Save to storage
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedChats));
+        return updatedChats;
+      });
+    },
+    []
+  );
 
+  // Add new function to update a chat's system prompt
+  const updateChatSystemPrompt = useCallback(
+    (chatId: string, systemPrompt: string) => {
+      console.log(`[useChats] updateChatSystemPrompt called for chatId: ${chatId}`);
+      
+      setChats((prevChats) => {
+        const chatExists = prevChats.some(chat => chat.id === chatId);
+        if (!chatExists) {
+          console.error(`[useChats] Attempted to update system prompt for non-existent chat ID: ${chatId}`);
+          return prevChats;
+        }
+        
+        const updatedChats = prevChats.map((chat) =>
+          chat.id === chatId
+            ? {
+                ...chat,
+                systemPrompt,
+              }
+            : chat
+        );
+        
+        console.log(`[useChats] Chat ${chatId} system prompt updated.`);
         // Save to storage
         localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedChats));
         return updatedChats;
@@ -194,6 +241,7 @@ export const useChats = () => {
     selectChat,
     deleteChat,
     updateChatMessages,
+    updateChatSystemPrompt,
     saveChats,
     deleteAllChats
   };

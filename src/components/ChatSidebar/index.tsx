@@ -23,7 +23,7 @@ export const ChatSidebar: React.FC = () => {
     deleteChat,
     deleteAllChats,
   } = useChat();
-  const [isPromptModalVisible, setIsPromptModalVisible] = useState(false);
+  const [isPromptModalOpen, setIsPromptModalOpen] = useState(false);
 
   // Group chats by date
   const groupedChats = groupChatsByDate(chats);
@@ -48,23 +48,26 @@ export const ChatSidebar: React.FC = () => {
 
   const handleOpenSystemPrompt = () => {
     console.log("Opening system prompt modal");
-    setIsPromptModalVisible(true);
+    setIsPromptModalOpen(true);
   };
 
   const handleCloseSystemPrompt = () => {
     console.log("Closing system prompt modal");
-    setIsPromptModalVisible(false);
+    setIsPromptModalOpen(false);
   };
 
   return (
-    <Sider width={250} theme="light" className="chat-sidebar">
+    <Sider className="chat-sidebar" width={250}>
       <div className="sidebar-header">
         <Button
           type="primary"
-          onClick={addChat}
-          className="new-chat-button"
           icon={<PlusOutlined />}
+          onClick={() => {
+            const newChatId = addChat();
+            selectChat(newChatId);
+          }}
           block
+          className="new-chat-button"
         >
           New Chat
         </Button>
@@ -72,42 +75,42 @@ export const ChatSidebar: React.FC = () => {
 
       <div className="sidebar-buttons">
         <Button
+          icon={<SettingOutlined />}
           onClick={handleOpenSystemPrompt}
           className="system-prompt-button"
-          icon={<SettingOutlined />}
         >
           System Prompt
         </Button>
 
         <Popconfirm
           title="Delete all chats"
-          description="Are you sure you want to delete all your chats? This action cannot be undone."
+          description="Are you sure? This action cannot be undone."
           onConfirm={handleDeleteAll}
-          okText="Delete All"
+          okText="Yes, delete all"
           cancelText="Cancel"
-          okButtonProps={{ danger: true }}
+          placement="right"
         >
           <Button
             danger
-            className="delete-all-button"
             icon={<DeleteOutlined />}
+            className="delete-all-button"
           >
-            Delete All
+            Delete All Chats
           </Button>
         </Popconfirm>
       </div>
 
       <div className="chat-list">
-        {Object.entries(groupedChats).map(([date, dateChats]) => (
+        {Object.entries(groupedChats).map(([date, chatsInGroup]) => (
           <div key={date} className="chat-date-group">
             <div className="date-header">{date}</div>
-            {dateChats.map((chat: ChatItem) => (
+            {chatsInGroup.map((chat) => (
               <ChatItemComponent
                 key={chat.id}
                 chat={chat}
                 isSelected={chat.id === currentChatId}
-                onSelect={selectChat}
-                onDelete={handleDelete}
+                onSelect={() => selectChat(chat.id)}
+                onDelete={() => handleDelete(chat.id)}
               />
             ))}
           </div>
@@ -115,7 +118,7 @@ export const ChatSidebar: React.FC = () => {
       </div>
 
       <SystemPromptModal
-        visible={isPromptModalVisible}
+        open={isPromptModalOpen}
         onClose={handleCloseSystemPrompt}
       />
     </Sider>

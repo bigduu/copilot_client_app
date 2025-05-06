@@ -41,4 +41,51 @@
   .spotlight-input::placeholder {
     color: rgba(0, 0, 0, 0.5);
   }
+}
+
+.spotlight-modal .ant-modal-content {
+  background: rgba(255, 255, 255, 0.8);
+  backdrop-filter: blur(10px);
+  border-radius: 12px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+  padding: 16px;
+}
+
+.spotlight-modal .ant-input-affix-wrapper {
+  background: transparent;
+  border-radius: 8px;
+}
+
+.spotlight-modal .ant-input-affix-wrapper:focus,
+.spotlight-modal .ant-input-affix-wrapper-focused {
+  box-shadow: none;
+  border-color: #1890ff;
+}
+
+.spotlight-modal .ant-input {
+  background: transparent;
+}
+
+@media (prefers-color-scheme: dark) {
+  .spotlight-modal .ant-modal-content {
+    background: rgba(0, 0, 0, 0.7);
+  }
+  
+  .spotlight-modal .ant-input {
+    color: rgba(255, 255, 255, 0.85);
+  }
+  
+  .spotlight-modal .ant-input-affix-wrapper {
+    background: transparent;
+    border-color: rgba(255, 255, 255, 0.15);
+  }
+  
+  .spotlight-modal .ant-input-affix-wrapper:focus,
+  .spotlight-modal .ant-input-affix-wrapper-focused {
+    border-color: #1890ff;
+  }
+  
+  .spotlight-modal .anticon {
+    color: rgba(255, 255, 255, 0.45);
+  }
 } 

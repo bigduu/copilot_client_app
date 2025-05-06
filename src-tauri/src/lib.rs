@@ -1,5 +1,6 @@
+use arboard::Clipboard;
 use copilot::{client::CopilotClinet, config::Config, model::Message};
-use tauri::{ipc::Channel, AppHandle, Emitter, Manager};
+use tauri::{ipc::Channel, AppHandle, Emitter, Listener, Manager, State, WindowEvent};
 use tauri_plugin_global_shortcut::{Code, Modifiers, ShortcutState};
 
 pub mod copilot;
@@ -36,14 +37,38 @@ async fn execute_prompt(
     Ok(())
 }
 
+#[tauri::command]
+async fn forward_message_to_main(app_handle: AppHandle, message: String) -> Result<(), String> {
+    let main_window = app_handle
+        .get_webview_window("main")
+        .ok_or("Main window not found")?;
+
+    // Just emit the event directly to the main window
+    main_window
+        .emit("new-chat-message", Some(message))
+        .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+#[tauri::command]
+fn copy_to_clipboard(text: String) -> Result<(), String> {
+    let mut clipboard = Clipboard::new().map_err(|e| e.to_string())?;
+    clipboard.set_text(text).map_err(|e| e.to_string())?;
+    Ok(())
+}
+
 fn toggle_launchbar(app: &AppHandle) {
     let window = app
         .get_webview_window("spotlight")
         .expect("Did you label your window?");
+
     if let Ok(true) = window.is_visible() {
         let _ = window.hide();
     } else {
+        let _ = window.unminimize();
         let _ = window.show();
+        let _ = window.set_focus();
+        let _ = window.center();
     }
 }
 
@@ -53,9 +78,16 @@ pub fn run() {
     env_logger::init();
 
     let client = CopilotClinet::new(Config::new());
+
+    let main_window_label = "main";
     tauri::Builder::default()
         .setup(|app| {
             let handle = app.handle();
+            // Listen for create-chat event
+            let main_window = app.get_webview_window(main_window_label).unwrap();
+            let client_state = app.state::<CopilotClinet>();
+
+            // The global shortcut handler remains
             handle.plugin(
                 tauri_plugin_global_shortcut::Builder::new()
                     .with_shortcuts(["ctrl+j", "alt+space"])?
@@ -78,7 +110,11 @@ pub fn run() {
             Ok(())
         })
         .manage(client)
-        .invoke_handler(tauri::generate_handler!(execute_prompt))
+        .invoke_handler(tauri::generate_handler![
+            execute_prompt,
+            forward_message_to_main,
+            copy_to_clipboard
+        ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

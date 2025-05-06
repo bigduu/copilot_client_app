@@ -1,161 +1,172 @@
 import React, { useEffect, useRef } from "react";
-import { Typography, Card, Empty } from "antd";
+import { Layout, Empty, Typography, Spin, Button, Tooltip } from "antd";
+import { useChat } from "../../contexts/ChatContext";
+import SystemMessage from "../SystemMessage";
+import StreamingMessageItem from "../StreamingMessageItem";
+import { MessageInput } from "../MessageInput";
+import "./styles.css";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism";
-import { useChat } from "../../contexts/ChatContext";
-import { Message } from "../../types/chat";
-import StreamingMessageItem from "../StreamingMessageItem";
-import SystemMessage from "../SystemMessage";
-import "./styles.css";
+import { CopyOutlined } from "@ant-design/icons";
+import { invoke } from "@tauri-apps/api/core";
 
+const { Content } = Layout;
 const { Text } = Typography;
-
-interface MessageContentProps {
-  message: Message;
-}
-
-const MessageContent: React.FC<MessageContentProps> = ({ message }) => {
-  // Use ReactMarkdown for both user and assistant messages
-  return (
-    <ReactMarkdown
-      children={message.content}
-      remarkPlugins={[remarkGfm]}
-      components={{
-        p: ({ children }) => (
-          <p className="markdown-paragraph" style={{ whiteSpace: "pre-line" }}>
-            {children}
-          </p>
-        ),
-        ol: ({ children }) => <ol className="markdown-list">{children}</ol>,
-        ul: ({ children }) => <ul className="markdown-list">{children}</ul>,
-        li: ({ children }) => (
-          <li className="markdown-list-item">{children}</li>
-        ),
-        br: () => <br />,
-        code({ className, children, ...props }) {
-          const match = /language-(\w+)/.exec(className || "");
-          const language = match ? match[1] : "";
-          const isInline = !match && !className;
-
-          if (isInline) {
-            return (
-              <code className={className} {...props}>
-                {children}
-              </code>
-            );
-          }
-
-          return (
-            <SyntaxHighlighter
-              style={oneDark}
-              language={language || "text"}
-              PreTag="div"
-              customStyle={{
-                margin: "0.5em 0",
-                borderRadius: "6px",
-                fontSize: "14px",
-              }}
-            >
-              {String(children).replace(/\n$/, "")}
-            </SyntaxHighlighter>
-          );
-        },
-      }}
-    />
-  );
-};
 
 export const ChatView: React.FC = () => {
   const {
+    currentChatId,
     currentMessages,
     isStreaming,
     activeChannel,
     addAssistantMessage,
-    currentChatId,
-    chats,
   } = useChat();
-
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // Filter out system messages for display
-  const displayMessages = currentMessages.filter(
-    (message) => message.role === "user" || message.role === "assistant"
-  );
-
-  // Add debugging logs
+  // Scroll to bottom whenever messages change
   useEffect(() => {
-    console.log("ChatView state:", {
-      isStreaming,
-      hasActiveChannel: !!activeChannel,
-      messagesCount: displayMessages.length,
-      currentChatId,
-      hasChats: chats.length > 0,
-    });
-  }, [
-    isStreaming,
-    activeChannel,
-    displayMessages.length,
-    currentChatId,
-    chats,
-  ]);
+    if (messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
+    }
+  }, [currentMessages, isStreaming]);
 
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  };
-
-  // Scroll whenever messages or streaming state updates
-  useEffect(() => {
-    scrollToBottom();
-  }, [displayMessages, isStreaming]);
-
-  // If there are no chats at all
-  if (chats.length === 0) {
+  if (!currentChatId) {
     return (
-      <div className="chat-view">
-        <SystemMessage />
-        <Empty description="No messages yet" className="empty-message" />
-      </div>
-    );
-  }
-
-  // If the current chat has no messages
-  if (displayMessages.length === 0 && !isStreaming) {
-    return (
-      <div className="chat-view">
-        <SystemMessage />
-        <Empty description="Start chatting!" className="empty-message" />
-      </div>
+      <Content className="chat-view-empty">
+        <Empty
+          description="Select a chat or start a new one"
+          image={Empty.PRESENTED_IMAGE_SIMPLE}
+        />
+      </Content>
     );
   }
 
   return (
-    <div className="chat-view">
-      <SystemMessage />
-      {/* Render completed messages */}
-      {displayMessages.map((message, index) => (
-        <div
-          key={`${message.role}-${index}`}
-          className={`message-container ${message.role}`}
-        >
-          <Text strong>{message.role === "user" ? "You" : "Assistant"}</Text>
-          <Card size="small" className={`message-card ${message.role}`}>
-            <MessageContent message={message} />
-          </Card>
-        </div>
-      ))}
+    <Content className="chat-view">
+      <div className="messages-container">
+        <SystemMessage />
 
-      {/* Render the streaming message component if we're streaming */}
-      {isStreaming && activeChannel && currentChatId && (
-        <StreamingMessageItem
-          channel={activeChannel}
-          onComplete={addAssistantMessage}
-        />
-      )}
+        {currentMessages.map((message, index) => (
+          <div key={index} className={`message-container ${message.role}`}>
+            <Text strong className="message-role">
+              {message.role === "user" ? "You" : "Assistant"}
+            </Text>
+            <div className={`message-content ${message.role}`}>
+              {message.role === "assistant" ? (
+                <ReactMarkdown
+                  remarkPlugins={[remarkGfm]}
+                  components={{
+                    p: ({ children }) => (
+                      <p className="markdown-paragraph">{children}</p>
+                    ),
+                    ol: ({ children }) => (
+                      <ol className="markdown-list">{children}</ol>
+                    ),
+                    ul: ({ children }) => (
+                      <ul className="markdown-list">{children}</ul>
+                    ),
+                    li: ({ children }) => (
+                      <li className="markdown-list-item">{children}</li>
+                    ),
+                    code({ className, children, ...props }) {
+                      const match = /language-(\w+)/.exec(className || "");
+                      const language = match ? match[1] : "";
+                      const isInline = !match && !className;
+                      const codeString = String(children).replace(/\n$/, "");
+                      const [copied, setCopied] = React.useState(false);
+                      const handleCopy = async () => {
+                        try {
+                          await invoke("copy_to_clipboard", {
+                            text: codeString,
+                          });
+                          setCopied(true);
+                          setTimeout(() => setCopied(false), 1200);
+                        } catch (e) {
+                          setCopied(false);
+                        }
+                      };
+                      if (isInline) {
+                        return (
+                          <code className={className} {...props}>
+                            {children}
+                          </code>
+                        );
+                      }
+                      return (
+                        <div style={{ position: "relative" }}>
+                          <Tooltip
+                            title={copied ? "Copied!" : "Copy"}
+                            placement="left"
+                          >
+                            <Button
+                              icon={<CopyOutlined />}
+                              size="small"
+                              style={{
+                                position: "absolute",
+                                top: 8,
+                                right: 8,
+                                zIndex: 2,
+                                background: "rgba(255,255,255,0.8)",
+                                border: "none",
+                                boxShadow: "0 1px 4px rgba(0,0,0,0.08)",
+                              }}
+                              onClick={handleCopy}
+                            />
+                          </Tooltip>
+                          <SyntaxHighlighter
+                            style={oneDark}
+                            language={language || "text"}
+                            PreTag="div"
+                            customStyle={{
+                              margin: "0.5em 0",
+                              borderRadius: "6px",
+                              fontSize: "14px",
+                            }}
+                          >
+                            {codeString}
+                          </SyntaxHighlighter>
+                        </div>
+                      );
+                    },
+                  }}
+                >
+                  {message.content}
+                </ReactMarkdown>
+              ) : (
+                message.content
+              )}
+            </div>
+          </div>
+        ))}
 
-      {/* Element to scroll to */}
-      <div ref={messagesEndRef} />
-    </div>
+        {isStreaming && activeChannel && (
+          <div className="message-container assistant">
+            <Text strong className="message-role">
+              Assistant
+            </Text>
+            <div className="message-content assistant streaming">
+              <StreamingMessageItem
+                channel={activeChannel}
+                onComplete={addAssistantMessage}
+              />
+            </div>
+          </div>
+        )}
+
+        <div ref={messagesEndRef} />
+      </div>
+
+      <div className="input-container">
+        <MessageInput isStreamingInProgress={isStreaming} />
+        {isStreaming && (
+          <div className="streaming-indicator">
+            <Spin size="small" />
+            <span>AI is thinking...</span>
+          </div>
+        )}
+      </div>
+    </Content>
   );
 };
