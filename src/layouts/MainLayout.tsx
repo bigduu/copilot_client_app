@@ -1,4 +1,4 @@
-import React, { useEffect } from "react";
+import React, { useEffect, useRef } from "react";
 import { Layout } from "antd";
 import { ChatSidebar } from "../components/ChatSidebar";
 import { ChatView } from "../components/ChatView";
@@ -7,7 +7,14 @@ import { useChat } from "../contexts/ChatContext";
 import "./styles.css";
 
 export const MainLayout: React.FC = () => {
-  const { addChat, selectChat, initiateAIResponse } = useChat();
+  const {
+    addChat,
+    selectChat,
+    initiateAIResponse,
+    currentMessages,
+    currentChatId,
+  } = useChat();
+  const pendingAIRef = useRef(false);
 
   useEffect(() => {
     const unlisten = listen<{ message: string }>(
@@ -30,19 +37,30 @@ export const MainLayout: React.FC = () => {
         // Ensure the new chat is selected (addChat should already do this)
         selectChat(chatId);
 
-        // Initiate AI response for the new chat
-        // Small delay to ensure state propagation before initiating AI response
-        await new Promise((resolve) => setTimeout(resolve, 50));
-        console.log("[MainLayout] Calling initiateAIResponse for new chat.");
-        await initiateAIResponse();
-        console.log("[MainLayout] initiateAIResponse call completed.");
+        // 标记需要自动触发 AI 回复
+        pendingAIRef.current = true;
       }
     );
 
     return () => {
       unlisten.then((f) => f());
     };
-  }, [addChat, selectChat, initiateAIResponse]);
+  }, [addChat, selectChat]);
+
+  useEffect(() => {
+    // 只有在 pendingAIRef 标记为 true，且当前 chat 只有一条 user 消息时才触发
+    if (
+      pendingAIRef.current &&
+      currentMessages.length === 1 &&
+      currentMessages[0].role === "user"
+    ) {
+      console.log(
+        "[MainLayout] useEffect: Auto triggering AI response for new chat."
+      );
+      initiateAIResponse();
+      pendingAIRef.current = false;
+    }
+  }, [currentMessages, initiateAIResponse]);
 
   return (
     <Layout className="main-layout">

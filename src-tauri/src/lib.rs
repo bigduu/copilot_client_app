@@ -1,5 +1,6 @@
 use arboard::Clipboard;
 use copilot::{client::CopilotClinet, config::Config, model::Message};
+use serde_json::json;
 use tauri::{ipc::Channel, AppHandle, Emitter, Listener, Manager, State, WindowEvent};
 use tauri_plugin_global_shortcut::{Code, Modifiers, ShortcutState};
 
@@ -39,14 +40,18 @@ async fn execute_prompt(
 
 #[tauri::command]
 async fn forward_message_to_main(app_handle: AppHandle, message: String) -> Result<(), String> {
+    println!("[forward_message_to_main] called with message: {}", message);
     let main_window = app_handle
         .get_webview_window("main")
         .ok_or("Main window not found")?;
 
-    // Just emit the event directly to the main window
-    main_window
-        .emit("new-chat-message", Some(message))
-        .map_err(|e| e.to_string())?;
+    // Emit event with object payload
+    let emit_result = main_window.emit("new-chat-message", Some(json!({ "message": message })));
+    println!(
+        "[forward_message_to_main] emit result: {:?}, message: {}",
+        emit_result, message
+    );
+    emit_result.map_err(|e| e.to_string())?;
     Ok(())
 }
 
