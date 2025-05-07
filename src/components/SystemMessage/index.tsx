@@ -1,11 +1,9 @@
 import React from "react";
-import { Card, Typography, Alert } from "antd";
+import { Alert } from "antd";
 import ReactMarkdown from "react-markdown";
 import { useChat } from "../../contexts/ChatContext";
 import { InfoCircleOutlined } from "@ant-design/icons";
 import "../ChatView/styles.css";
-
-const { Text } = Typography;
 
 // Default message to use as fallback
 const DEFAULT_MESSAGE = `# Hello! I'm your AI Assistant 👋

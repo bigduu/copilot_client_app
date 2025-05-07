@@ -7,13 +7,8 @@ import { useChat } from "../contexts/ChatContext";
 import "./styles.css";
 
 export const MainLayout: React.FC = () => {
-  const {
-    addChat,
-    selectChat,
-    initiateAIResponse,
-    currentMessages,
-    currentChatId,
-  } = useChat();
+  const { addChat, selectChat, initiateAIResponse, currentMessages } =
+    useChat();
   const pendingAIRef = useRef(false);
 
   useEffect(() => {

@@ -4,7 +4,6 @@ import { useChat } from "../../contexts/ChatContext";
 
 const { TextArea } = Input;
 const { Text } = Typography;
-const { TabPane } = Tabs;
 
 // Default system prompt as fallback
 const DEFAULT_PROMPT = `# Hello! I'm your AI Assistant 👋
