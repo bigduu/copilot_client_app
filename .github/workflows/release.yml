@@ -58,6 +58,19 @@ jobs:
           tagName: app-v__VERSION__ # Templates out the app version from Cargo.toml
           releaseName: "App v__VERSION__"
           releaseBody: "See the assets to download this version and install."
-          releaseDraft: true # Create a draft release
+          releaseDraft: false # Release directly (was true for draft)
           prerelease: false
           args: ${{ matrix.args }}
+
+      - name: Upload Build Artifacts to Workflow
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-build-${{ matrix.platform }} # Unique name for each platform's artifact
+          path: | # Paths to the expected build outputs for Tauri
+            src-tauri/target/release/bundle/dmg/*.dmg
+            src-tauri/target/release/bundle/macos/*.app.tar.gz
+            src-tauri/target/release/bundle/appimage/*.AppImage
+            src-tauri/target/release/bundle/deb/*.deb
+            src-tauri/target/release/bundle/msi/*.msi
+            src-tauri/target/release/bundle/msi/*.msi.zip
+          if-no-files-found: warn # Warn if some patterns don't match (expected, as not all artifacts are built on all OSes)
