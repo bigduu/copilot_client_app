@@ -21,6 +21,7 @@ import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism";
 import { CopyOutlined } from "@ant-design/icons";
 import { invoke } from "@tauri-apps/api/core";
 import { InputContainer } from "../InputContainer";
+import "./ChatView.css"; // Import a new CSS file for animations and specific styles
 
 const { Content } = Layout;
 const { Text } = Typography;
@@ -38,40 +39,67 @@ export const ChatView: React.FC = () => {
   const { token } = useToken();
 
   useEffect(() => {
-    if (messagesEndRef.current) {
+    if (messagesEndRef.current && currentMessages.length > 0) {
       messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
     }
   }, [currentMessages, isStreaming]);
 
-  if (!currentChatId) {
-    return (
-      <Content
-        style={{
-          display: "flex",
-          justifyContent: "center",
-          alignItems: "center",
-          height: "100vh",
-          background: token.colorBgContainer,
-        }}
-      >
-        <Empty
-          description="Select a chat or start a new one"
-          image={Empty.PRESENTED_IMAGE_SIMPLE}
-        />
-      </Content>
-    );
-  }
+  const hasMessages = currentMessages.length > 0;
+  const showMessagesView =
+    currentChatId && (hasMessages || (isStreaming && activeChannel));
 
   return (
     <Layout
       style={{
         height: "100vh",
         background: token.colorBgContainer,
-        display: "flex",
-        flexDirection: "column",
+        position: "relative", // For positioning animated elements
+        overflow: "hidden", // Prevent scrollbars from animated elements moving out
       }}
     >
+      {/* System Message Area - transitions between top-of-messages and centered view */}
+      <div
+        className={`chat-view-system-message-container ${
+          showMessagesView ? "messages-view" : "centered-view"
+        }`}
+        style={{
+          paddingTop: showMessagesView ? token.padding : token.paddingXL,
+          paddingLeft: showMessagesView
+            ? token.padding
+            : token.paddingContentHorizontal,
+          paddingRight: showMessagesView
+            ? token.padding
+            : token.paddingContentHorizontal,
+          paddingBottom: showMessagesView ? 0 : token.marginXL,
+        }}
+      >
+        {currentChatId ? (
+          <>
+            <SystemMessage isExpandedView={!showMessagesView} />
+            {!showMessagesView && !hasMessages && (
+              <Empty
+                description="Send a message to start the conversation."
+                image={Empty.PRESENTED_IMAGE_SIMPLE}
+                style={{ marginTop: token.marginMD, textAlign: "center" }}
+              />
+            )}
+          </>
+        ) : (
+          !showMessagesView && ( // Only show "Select a chat" if no chat is selected AND in centered view
+            <Empty
+              description="Select a chat or start a new one"
+              image={Empty.PRESENTED_IMAGE_SIMPLE}
+              style={{ textAlign: "center" }}
+            />
+          )
+        )}
+      </div>
+
+      {/* Messages List Area - only truly visible and scrollable in messages view */}
       <Content
+        className={`chat-view-messages-list ${
+          showMessagesView ? "visible" : "hidden"
+        }`}
         style={{
           flex: 1,
           padding: token.padding,
@@ -79,18 +107,13 @@ export const ChatView: React.FC = () => {
           display: "flex",
           flexDirection: "column",
           gap: token.marginMD,
+          opacity: showMessagesView ? 1 : 0,
         }}
       >
-        {/* 系统消息 */}
-        <SystemMessage />
-
-        {/* 聊天消息流 */}
-        <List
-          style={{ flex: 1 }}
-          split={false}
-          dataSource={currentMessages}
-          renderItem={(message) => (
+        {showMessagesView &&
+          currentMessages.map((message, index) => (
             <List.Item
+              key={index}
               style={{
                 padding: token.paddingXS,
                 border: "none",
@@ -105,7 +128,7 @@ export const ChatView: React.FC = () => {
                   background:
                     message.role === "user"
                       ? token.colorPrimaryBg
-                      : token.colorBgContainer,
+                      : token.colorBgLayout, // Changed for better contrast from main bg
                   borderRadius: token.borderRadiusLG,
                   boxShadow: token.boxShadow,
                   position: "relative",
@@ -159,11 +182,11 @@ export const ChatView: React.FC = () => {
                           </li>
                         ),
                         code({ className, children, ...props }) {
-                          const match = /language-(\w+)/.exec(className || "");
+                          const match = /language-(\\w+)/.exec(className || "");
                           const language = match ? match[1] : "";
                           const isInline = !match && !className;
                           const codeString = String(children).replace(
-                            /\n$/,
+                            /\\n$/,
                             ""
                           );
                           const [copied, setCopied] = React.useState(false);
@@ -263,11 +286,10 @@ export const ChatView: React.FC = () => {
                 </Space>
               </Card>
             </List.Item>
-          )}
-        />
+          ))}
 
-        {/* AI 流式消息 */}
-        {isStreaming && activeChannel && (
+        {/* AI 流式消息 - only shown when messagesView is active */}
+        {showMessagesView && isStreaming && activeChannel && (
           <List.Item
             style={{
               padding: token.paddingXS,
@@ -280,7 +302,7 @@ export const ChatView: React.FC = () => {
               bordered={false}
               style={{
                 maxWidth: "85%",
-                background: token.colorBgContainer,
+                background: token.colorBgLayout, // Changed for better contrast
                 borderRadius: token.borderRadiusLG,
                 boxShadow: token.boxShadow,
               }}
@@ -313,8 +335,19 @@ export const ChatView: React.FC = () => {
         <div ref={messagesEndRef} />
       </Content>
 
-      {/* 输入区 */}
-      <InputContainer isStreaming={isStreaming} />
+      {/* Input Container Area - transitions between bottom and centered view */}
+      <div
+        className={`chat-view-input-container-wrapper ${
+          showMessagesView ? "messages-view" : "centered-view"
+        }`}
+      >
+        <div style={{ width: "100%", maxWidth: "768px", margin: "0 auto" }}>
+          <InputContainer
+            isStreaming={isStreaming}
+            isCenteredLayout={!showMessagesView}
+          />
+        </div>
+      </div>
     </Layout>
   );
 };

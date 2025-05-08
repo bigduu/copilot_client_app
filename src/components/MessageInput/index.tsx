@@ -6,11 +6,13 @@ import { useChat } from "../../contexts/ChatContext";
 interface MessageInputProps {
   onSubmit?: (content: string) => void;
   isStreamingInProgress: boolean;
+  isCenteredLayout?: boolean;
 }
 
 export const MessageInput: React.FC<MessageInputProps> = ({
   onSubmit,
   isStreamingInProgress,
+  isCenteredLayout = false,
 }) => {
   const [content, setContent] = useState("");
   const textAreaRef = useRef<HTMLTextAreaElement>(null);
@@ -58,7 +60,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
     <Space.Compact block style={{ width: "100%" }}>
       <Input.TextArea
         ref={textAreaRef}
-        autoSize={{ minRows: 1, maxRows: 5 }}
+        autoSize={{ minRows: isCenteredLayout ? 3 : 1, maxRows: 8 }}
         value={content}
         onChange={(e) => setContent(e.target.value)}
         onKeyDown={handleKeyDown}
@@ -68,6 +70,10 @@ export const MessageInput: React.FC<MessageInputProps> = ({
           resize: "none",
           borderRadius: 0,
           backgroundColor: token.colorBgContainer,
+          padding: isCenteredLayout
+            ? `${token.paddingSM}px ${token.padding}px`
+            : undefined,
+          fontSize: isCenteredLayout ? token.fontSizeLG : undefined,
         }}
       />
       <Button
@@ -75,9 +81,9 @@ export const MessageInput: React.FC<MessageInputProps> = ({
         icon={<SendOutlined />}
         onClick={handleSubmit}
         disabled={!content.trim() || isStreamingInProgress}
+        size={isCenteredLayout ? "large" : "middle"}
         style={{
-          borderTopRightRadius: 0,
-          borderBottomRightRadius: 0,
+          height: isCenteredLayout ? "auto" : undefined,
         }}
       >
         Send
@@ -88,6 +94,10 @@ export const MessageInput: React.FC<MessageInputProps> = ({
           onClick={handleAIRetry}
           disabled={isStreamingInProgress}
           title="Regenerate last AI response"
+          size={isCenteredLayout ? "large" : "middle"}
+          style={{
+            height: isCenteredLayout ? "auto" : undefined,
+          }}
         />
       )}
     </Space.Compact>

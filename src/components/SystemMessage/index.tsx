@@ -22,7 +22,13 @@ I'll respond using markdown formatting to make information clear and well-struct
 ---
 Let's get started - what can I help you with today?`;
 
-const SystemMessage: React.FC = () => {
+interface SystemMessageProps {
+  isExpandedView?: boolean;
+}
+
+const SystemMessage: React.FC<SystemMessageProps> = ({
+  isExpandedView = false,
+}) => {
   console.log("SystemMessage component rendering");
   const { token } = useToken();
 
@@ -39,7 +45,7 @@ const SystemMessage: React.FC = () => {
       style={{
         position: "relative",
         width: "100%",
-        maxHeight: "30vh",
+        maxHeight: isExpandedView ? "80vh" : "30vh",
         overflowY: "auto",
         borderRadius: token.borderRadiusLG,
         boxShadow: token.boxShadow,

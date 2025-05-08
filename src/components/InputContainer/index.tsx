@@ -8,10 +8,12 @@ const { useToken } = theme;
 
 interface InputContainerProps {
   isStreaming: boolean;
+  isCenteredLayout?: boolean;
 }
 
 export const InputContainer: React.FC<InputContainerProps> = ({
   isStreaming,
+  isCenteredLayout = false,
 }) => {
   const [isPromptModalOpen, setPromptModalOpen] = React.useState(false);
   const { token } = useToken();
@@ -21,8 +23,11 @@ export const InputContainer: React.FC<InputContainerProps> = ({
       style={{
         padding: token.paddingMD,
         background: token.colorBgContainer,
-        borderTop: `1px solid ${token.colorBorderSecondary}`,
-        boxShadow: "0 -2px 8px rgba(0,0,0,0.06)",
+        borderTop: isCenteredLayout
+          ? "none"
+          : `1px solid ${token.colorBorderSecondary}`,
+        boxShadow: isCenteredLayout ? "none" : "0 -2px 8px rgba(0,0,0,0.06)",
+        width: "100%",
       }}
     >
       <Space.Compact block>
@@ -31,9 +36,21 @@ export const InputContainer: React.FC<InputContainerProps> = ({
             icon={<SettingOutlined />}
             onClick={() => setPromptModalOpen(true)}
             aria-label="Customize System Prompt"
+            size={isCenteredLayout ? "large" : "middle"}
+            style={
+              isCenteredLayout
+                ? {
+                    height: "auto",
+                    padding: `${token.paddingSM}px ${token.paddingContentHorizontal}px`,
+                  }
+                : {}
+            }
           />
         </Tooltip>
-        <MessageInput isStreamingInProgress={isStreaming} />
+        <MessageInput
+          isStreamingInProgress={isStreaming}
+          isCenteredLayout={isCenteredLayout}
+        />
       </Space.Compact>
 
       {isStreaming && (

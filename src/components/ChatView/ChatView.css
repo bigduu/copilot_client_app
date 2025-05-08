@@ -1,0 +1,67 @@
+/* ChatView.css */
+
+.chat-view-system-message-container,
+.chat-view-input-container-wrapper {
+  transition: transform 0.5s ease-in-out, opacity 0.5s ease-in-out;
+  width: 100%;
+  box-sizing: border-box; /* Ensure padding is included in width/height */
+}
+
+.chat-view-messages-list {
+  transition: opacity 0.5s ease-in-out;
+  will-change: opacity; /* Hint to browser for optimization */
+}
+
+/* Centered View State (No messages) */
+.chat-view-system-message-container.centered-view {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 50%; /* Occupies top half */
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end; /* Pushes content (SystemMessage) to its bottom */
+  align-items: center;
+  opacity: 1;
+  transform: translateY(0%);
+  z-index: 10;
+  overflow: auto; /* Allows SystemMessage to scroll if too tall for its space */
+}
+
+.chat-view-input-container-wrapper.centered-view {
+  position: absolute;
+  top: 50%; /* Starts at the vertical midpoint */
+  left: 0;
+  width: 100%;
+  transform: translateY(-50%); /* Vertically centers itself */
+  opacity: 1;
+  z-index: 10;
+}
+
+.chat-view-messages-list.hidden {
+  opacity: 0;
+  pointer-events: none; /* Prevent interaction when hidden */
+}
+
+/* Messages View State (Messages are present) */
+.chat-view-system-message-container.messages-view {
+  position: relative; /* Normal flow in messages view */
+  /* height: auto; Let content dictate height, padding is set inline */
+  opacity: 1;
+  transform: translateY(0);
+  /* padding-top, padding-left, padding-right set inline via style prop */
+  /* padding-bottom will be 0 as per inline style */
+}
+
+.chat-view-input-container-wrapper.messages-view {
+  position: relative; /* Normal flow, will be at the bottom */
+  /* transform: translateY(0); Default position */
+  opacity: 1;
+  margin-top: auto; /* Pushes it to the bottom of the flex container (ChatView Layout) */
+  /* The InputContainer itself has border-top when not centered */
+}
+
+.chat-view-messages-list.visible {
+  opacity: 1;
+} 
