@@ -33,6 +33,7 @@ const SystemSettingsModal = ({
     deleteSystemPromptPreset,
     selectSystemPromptPreset,
     selectedSystemPromptPresetId,
+    deleteEmptyChats,
   } = useChat();
   const [msgApi, contextHolder] = message.useMessage();
 
@@ -47,6 +48,11 @@ const SystemSettingsModal = ({
     deleteAllChats();
     msgApi.success("All chats deleted (except pinned)");
     onClose();
+  };
+
+  const handleDeleteEmpty = () => {
+    deleteEmptyChats();
+    msgApi.success("Empty chats deleted (except pinned)");
   };
 
   // Prompt管理相关
@@ -133,6 +139,24 @@ const SystemSettingsModal = ({
         >
           <Button danger block icon={<DeleteOutlined />}>
             Delete All Chats
+          </Button>
+        </Popconfirm>
+        <Popconfirm
+          title="Delete empty chats"
+          description="Are you sure? This will delete all chats with no messages (except pinned)."
+          onConfirm={handleDeleteEmpty}
+          okText="Yes, delete empty"
+          cancelText="Cancel"
+          placement="top"
+          style={{ marginTop: 8 }}
+        >
+          <Button
+            danger
+            block
+            icon={<DeleteOutlined />}
+            style={{ marginTop: 8 }}
+          >
+            Delete Empty Chats
           </Button>
         </Popconfirm>
       </div>

@@ -221,6 +221,36 @@ export const useChats = () => {
     }
   }, []);
 
+  // Add new function to delete empty chats (not pinned)
+  const deleteEmptyChats = useCallback(() => {
+    try {
+      console.log("Deleting empty chats (not pinned)");
+      let newCurrentChatId = currentChatId;
+      setChats((prevChats) => {
+        const chatsToKeep = prevChats.filter(
+          (chat) => chat.pinned || chat.messages.length > 0
+        );
+        
+        // If current chat is deleted, try to select another one
+        if (currentChatId && !chatsToKeep.find(c => c.id === currentChatId)) {
+          const remainingChatsSorted = [...chatsToKeep].sort(
+            (a, b) => b.createdAt - a.createdAt
+          );
+          newCurrentChatId = remainingChatsSorted.length > 0 ? remainingChatsSorted[0].id : null;
+        }
+        
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(chatsToKeep));
+        return chatsToKeep;
+      });
+      // Update currentChatId if it was part of the deleted empty chats
+      if (newCurrentChatId !== currentChatId) {
+        setCurrentChatId(newCurrentChatId);
+      }
+    } catch (error) {
+      console.error("Failed to delete empty chats:", error);
+    }
+  }, [currentChatId]);
+
   const currentChat = chats.find((chat) => chat.id === currentChatId) || null;
   const currentMessages = currentChat?.messages || [];
 
@@ -237,6 +267,7 @@ export const useChats = () => {
     updateChatSystemPrompt,
     saveChats,
     deleteAllChats,
+    deleteEmptyChats,
     pinChat,
     unpinChat
   };

@@ -43,6 +43,7 @@ interface ChatContextType {
   initiateAIResponse: () => Promise<void>;
   deleteChat: (chatId: string) => void;
   deleteAllChats: () => void;
+  deleteEmptyChats: () => void;
   saveChats: () => void;
   addAssistantMessage: (assistantMessage: Message) => void;
   systemPrompt: string;
@@ -77,6 +78,7 @@ const defaultContext: ChatContextType = {
   initiateAIResponse: async () => {},
   deleteChat: () => {},
   deleteAllChats: () => {},
+  deleteEmptyChats: () => {},
   saveChats: () => {},
   addAssistantMessage: () => {},
   systemPrompt: DEFAULT_SYSTEM_PROMPT,
@@ -118,6 +120,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     deleteAllChats,
     pinChat,
     unpinChat,
+    deleteEmptyChats,
   } = useChats();
 
   // Get message functionality from useMessages hook
@@ -224,6 +227,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     initiateAIResponse,
     deleteChat,
     deleteAllChats,
+    deleteEmptyChats,
     saveChats,
     addAssistantMessage,
     systemPrompt: getCurrentSystemPrompt(),
