@@ -258,7 +258,20 @@ impl CopilotClinet {
         use arboard::Clipboard;
         use webbrowser;
         let mut clipboard = Clipboard::new()?;
-        clipboard.set_text(device_code.user_code)?;
+        clipboard.set_text(device_code.user_code.clone())?;
+
+        // Show a dialog to the user using rfd
+        let dialog_message = format!(
+            "User code '{}' has been copied to your clipboard. Please paste it into the GitHub page that will open next.",
+            device_code.user_code
+        );
+        rfd::MessageDialog::new()
+            .set_title("User Code Copied")
+            .set_description(&dialog_message)
+            .set_level(rfd::MessageLevel::Info)
+            .set_buttons(rfd::MessageButtons::Ok)
+            .show();
+
         webbrowser::open(&device_code.verification_uri)?;
         loop {
             let response = self

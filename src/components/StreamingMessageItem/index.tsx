@@ -231,13 +231,13 @@ const StreamingMessageItem: React.FC<StreamingMessageItemProps> = ({
         isMountedRef.current
       ) {
         console.error(
-          "[StreamingMessageItem] No responses received after 10 seconds"
+          "[StreamingMessageItem] No responses received after 0 seconds"
         );
         completeMessage(
-          "Message interrupted - No response received after 10 seconds"
+          "Message interrupted - No response received after 0 seconds"
         );
       }
-    }, 10000);
+    }, 30000);
 
     return () => {
       // Mark component as unmounted
