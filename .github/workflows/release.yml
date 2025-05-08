@@ -1,0 +1,63 @@
+name: "publish"
+
+on:
+  workflow_dispatch: # Allows manual triggering
+  push:
+    branches:
+      - release # Triggers on push to the release branch
+
+jobs:
+  publish-tauri:
+    permissions:
+      contents: write # Needed to create a GitHub release
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: "macos-latest" # Intel and Apple Silicon (Rosetta)
+            args: "" # Tauri action automatically builds universal macOS binaries by default if no target is specified.
+          - platform: "ubuntu-22.04"
+            args: ""
+          - platform: "windows-latest"
+            args: ""
+
+    runs-on: ${{ matrix.platform }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies (Ubuntu only)
+        if: matrix.platform == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: lts/* # Use the latest Long-Term Support version of Node.js
+          cache: "yarn" # Or 'npm' or 'pnpm' depending on your project
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+        # No specific targets needed for macos-latest as tauri-action handles universal builds.
+        # For other platforms, specific targets might be required if not building for the host architecture.
+
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: "./src-tauri -> target" # Adjust if your tauri project is in a subdirectory
+
+      - name: Install frontend dependencies
+        # Adjust the command based on your package manager (e.g., npm install, pnpm install)
+        run: yarn install
+
+      - uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tagName: app-v__VERSION__ # Templates out the app version from Cargo.toml
+          releaseName: "App v__VERSION__"
+          releaseBody: "See the assets to download this version and install."
+          releaseDraft: true # Create a draft release
+          prerelease: false
+          args: ${{ matrix.args }}
