@@ -198,7 +198,6 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     }
   };
 
-  // 选择当前全局预设
   const selectSystemPromptPreset = (id: string) => {
     setSelectedSystemPromptPresetId(id);
     localStorage.setItem(SYSTEM_PROMPT_SELECTED_ID_KEY, id);
