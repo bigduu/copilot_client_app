@@ -6,7 +6,6 @@ import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism";
 import { Channel } from "@tauri-apps/api/core";
 import { Message } from "../../types/chat";
-import "../ChatView/styles.css";
 
 const { Text } = Typography;
 const { useToken } = theme;

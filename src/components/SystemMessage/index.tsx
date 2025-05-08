@@ -2,7 +2,6 @@ import React from "react";
 import { Card, Space, Typography, theme } from "antd";
 import ReactMarkdown from "react-markdown";
 import { useChat } from "../../contexts/ChatContext";
-import "../ChatView/styles.css";
 
 const { Text } = Typography;
 const { useToken } = theme;
@@ -38,7 +37,10 @@ const SystemMessage: React.FC = () => {
   return (
     <Card
       style={{
-        maxWidth: "85%",
+        position: "relative",
+        width: "100%",
+        maxHeight: "30vh",
+        overflowY: "auto",
         borderRadius: token.borderRadiusLG,
         boxShadow: token.boxShadow,
       }}

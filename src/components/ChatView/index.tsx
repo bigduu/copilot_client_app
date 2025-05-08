@@ -15,6 +15,7 @@ import SystemMessage from "../SystemMessage";
 import StreamingMessageItem from "../StreamingMessageItem";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import remarkBreaks from "remark-breaks";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism";
 import { CopyOutlined } from "@ant-design/icons";
@@ -107,6 +108,7 @@ export const ChatView: React.FC = () => {
                       : token.colorBgContainer,
                   borderRadius: token.borderRadiusLG,
                   boxShadow: token.boxShadow,
+                  position: "relative",
                 }}
               >
                 <Space
@@ -122,116 +124,142 @@ export const ChatView: React.FC = () => {
                     {message.role === "user" ? "You" : "Assistant"}
                   </Text>
                   <div>
-                    {message.role === "assistant" ? (
-                      <ReactMarkdown
-                        remarkPlugins={[remarkGfm]}
-                        components={{
-                          p: ({ children }) => (
-                            <Text style={{ marginBottom: token.marginSM }}>
-                              {children}
-                            </Text>
-                          ),
-                          ol: ({ children }) => (
-                            <ol
-                              style={{
-                                marginBottom: token.marginSM,
-                                paddingLeft: 20,
-                              }}
-                            >
-                              {children}
-                            </ol>
-                          ),
-                          ul: ({ children }) => (
-                            <ul
-                              style={{
-                                marginBottom: token.marginSM,
-                                paddingLeft: 20,
-                              }}
-                            >
-                              {children}
-                            </ul>
-                          ),
-                          li: ({ children }) => (
-                            <li style={{ marginBottom: token.marginXS }}>
-                              {children}
-                            </li>
-                          ),
-                          code({ className, children, ...props }) {
-                            const match = /language-(\w+)/.exec(
-                              className || ""
-                            );
-                            const language = match ? match[1] : "";
-                            const isInline = !match && !className;
-                            const codeString = String(children).replace(
-                              /\n$/,
-                              ""
-                            );
-                            const [copied, setCopied] = React.useState(false);
+                    <ReactMarkdown
+                      remarkPlugins={[remarkGfm, remarkBreaks]}
+                      components={{
+                        br: () => <br />,
+                        p: ({ children }) => (
+                          <Text style={{ marginBottom: token.marginSM }}>
+                            {children}
+                          </Text>
+                        ),
+                        ol: ({ children }) => (
+                          <ol
+                            style={{
+                              marginBottom: token.marginSM,
+                              paddingLeft: 20,
+                            }}
+                          >
+                            {children}
+                          </ol>
+                        ),
+                        ul: ({ children }) => (
+                          <ul
+                            style={{
+                              marginBottom: token.marginSM,
+                              paddingLeft: 20,
+                            }}
+                          >
+                            {children}
+                          </ul>
+                        ),
+                        li: ({ children }) => (
+                          <li style={{ marginBottom: token.marginXS }}>
+                            {children}
+                          </li>
+                        ),
+                        code({ className, children, ...props }) {
+                          const match = /language-(\w+)/.exec(className || "");
+                          const language = match ? match[1] : "";
+                          const isInline = !match && !className;
+                          const codeString = String(children).replace(
+                            /\n$/,
+                            ""
+                          );
+                          const [copied, setCopied] = React.useState(false);
 
-                            const handleCopy = async () => {
-                              try {
-                                await invoke("copy_to_clipboard", {
-                                  text: codeString,
-                                });
-                                setCopied(true);
-                                setTimeout(() => setCopied(false), 1200);
-                              } catch (e) {
-                                setCopied(false);
-                              }
-                            };
-
-                            if (isInline) {
-                              return (
-                                <Text code className={className} {...props}>
-                                  {children}
-                                </Text>
-                              );
+                          const handleCopy = async () => {
+                            try {
+                              await invoke("copy_to_clipboard", {
+                                text: codeString,
+                              });
+                              setCopied(true);
+                              setTimeout(() => setCopied(false), 1200);
+                            } catch (e) {
+                              setCopied(false);
                             }
+                          };
 
+                          if (isInline) {
                             return (
-                              <div style={{ position: "relative" }}>
-                                <Tooltip
-                                  title={copied ? "Copied!" : "Copy"}
-                                  placement="left"
-                                >
-                                  <Button
-                                    icon={<CopyOutlined />}
-                                    size="small"
-                                    type="text"
-                                    style={{
-                                      position: "absolute",
-                                      top: token.marginXS,
-                                      right: token.marginXS,
-                                      zIndex: 2,
-                                      background: token.colorBgContainer,
-                                      borderRadius: token.borderRadiusSM,
-                                    }}
-                                    onClick={handleCopy}
-                                  />
-                                </Tooltip>
-                                <SyntaxHighlighter
-                                  style={oneDark}
-                                  language={language || "text"}
-                                  PreTag="div"
-                                  customStyle={{
-                                    margin: `${token.marginXS}px 0`,
-                                    borderRadius: token.borderRadiusSM,
-                                    fontSize: token.fontSizeSM,
-                                  }}
-                                >
-                                  {codeString}
-                                </SyntaxHighlighter>
-                              </div>
+                              <Text code className={className} {...props}>
+                                {children}
+                              </Text>
                             );
-                          },
-                        }}
-                      >
-                        {message.content}
-                      </ReactMarkdown>
-                    ) : (
-                      <Text>{message.content}</Text>
-                    )}
+                          }
+
+                          return (
+                            <div style={{ position: "relative" }}>
+                              <Tooltip
+                                title={copied ? "Copied!" : "Copy"}
+                                placement="left"
+                              >
+                                <Button
+                                  icon={<CopyOutlined />}
+                                  size="small"
+                                  type="text"
+                                  style={{
+                                    position: "absolute",
+                                    top: token.marginXS,
+                                    right: token.marginXS,
+                                    zIndex: 2,
+                                    background: token.colorBgContainer,
+                                    borderRadius: token.borderRadiusSM,
+                                  }}
+                                  onClick={handleCopy}
+                                />
+                              </Tooltip>
+                              <SyntaxHighlighter
+                                style={oneDark}
+                                language={language || "text"}
+                                PreTag="div"
+                                customStyle={{
+                                  margin: `${token.marginXS}px 0`,
+                                  borderRadius: token.borderRadiusSM,
+                                  fontSize: token.fontSizeSM,
+                                }}
+                              >
+                                {codeString}
+                              </SyntaxHighlighter>
+                            </div>
+                          );
+                        },
+                      }}
+                    >
+                      {message.content}
+                    </ReactMarkdown>
                   </div>
+                  {message.role === "assistant" && (
+                    <div
+                      style={{
+                        position: "absolute",
+                        bottom: token.paddingXS,
+                        right: token.paddingXS,
+                        zIndex: 1,
+                      }}
+                    >
+                      <Tooltip title={"Copy message"} placement="topRight">
+                        <Button
+                          icon={<CopyOutlined />}
+                          size="small"
+                          type="text"
+                          onClick={async () => {
+                            try {
+                              await invoke("copy_to_clipboard", {
+                                text: message.content,
+                              });
+                            } catch (e) {
+                              console.error("Failed to copy message:", e);
+                            }
+                          }}
+                          style={{
+                            background: token.colorBgElevated,
+                            borderRadius: token.borderRadiusSM,
+                          }}
+                        />
+                      </Tooltip>
+                    </div>
+                  )}
                 </Space>
               </Card>
             </List.Item>
