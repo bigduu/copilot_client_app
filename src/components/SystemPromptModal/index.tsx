@@ -48,7 +48,7 @@ const SystemPromptModal: React.FC<SystemPromptModalProps> = ({
     <>
       {contextHolder}
       <Modal
-        title="选择系统Prompt"
+        title="Select System Prompt"
         open={open}
         onCancel={onClose}
         footer={null}
