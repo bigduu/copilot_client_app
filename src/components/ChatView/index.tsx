@@ -1,20 +1,29 @@
 import React, { useEffect, useRef } from "react";
-import { Layout, Empty, Typography, Spin, Button, Tooltip } from "antd";
+import {
+  Layout,
+  Empty,
+  Typography,
+  List,
+  Card,
+  Space,
+  theme,
+  Button,
+  Tooltip,
+} from "antd";
 import { useChat } from "../../contexts/ChatContext";
 import SystemMessage from "../SystemMessage";
 import StreamingMessageItem from "../StreamingMessageItem";
-import { MessageInput } from "../MessageInput";
-import "./styles.css";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism";
-import { CopyOutlined, SettingOutlined } from "@ant-design/icons";
+import { CopyOutlined } from "@ant-design/icons";
 import { invoke } from "@tauri-apps/api/core";
-import SystemPromptModal from "../SystemPromptModal";
+import { InputContainer } from "../InputContainer";
 
 const { Content } = Layout;
 const { Text } = Typography;
+const { useToken } = theme;
 
 export const ChatView: React.FC = () => {
   const {
@@ -25,9 +34,8 @@ export const ChatView: React.FC = () => {
     addAssistantMessage,
   } = useChat();
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const [isPromptModalOpen, setPromptModalOpen] = React.useState(false);
+  const { token } = useToken();
 
-  // Scroll to bottom whenever messages change
   useEffect(() => {
     if (messagesEndRef.current) {
       messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
@@ -36,7 +44,15 @@ export const ChatView: React.FC = () => {
 
   if (!currentChatId) {
     return (
-      <Content className="chat-view-empty">
+      <Content
+        style={{
+          display: "flex",
+          justifyContent: "center",
+          alignItems: "center",
+          height: "100vh",
+          background: token.colorBgContainer,
+        }}
+      >
         <Empty
           description="Select a chat or start a new one"
           image={Empty.PRESENTED_IMAGE_SIMPLE}
@@ -46,155 +62,231 @@ export const ChatView: React.FC = () => {
   }
 
   return (
-    <Content className="chat-view">
-      <div className="messages-container">
+    <Layout
+      style={{
+        height: "100vh",
+        background: token.colorBgContainer,
+        display: "flex",
+        flexDirection: "column",
+      }}
+    >
+      <Content
+        style={{
+          flex: 1,
+          padding: token.padding,
+          overflowY: "auto",
+          display: "flex",
+          flexDirection: "column",
+          gap: token.marginMD,
+        }}
+      >
+        {/* 系统消息 */}
         <SystemMessage />
 
-        {currentMessages.map((message, index) => (
-          <div key={index} className={`message-container ${message.role}`}>
-            <Text strong className="message-role">
-              {message.role === "user" ? "You" : "Assistant"}
-            </Text>
-            <div className={`message-content ${message.role}`}>
-              {message.role === "assistant" ? (
-                <ReactMarkdown
-                  remarkPlugins={[remarkGfm]}
-                  components={{
-                    p: ({ children }) => (
-                      <p className="markdown-paragraph">{children}</p>
-                    ),
-                    ol: ({ children }) => (
-                      <ol className="markdown-list">{children}</ol>
-                    ),
-                    ul: ({ children }) => (
-                      <ul className="markdown-list">{children}</ul>
-                    ),
-                    li: ({ children }) => (
-                      <li className="markdown-list-item">{children}</li>
-                    ),
-                    code({ className, children, ...props }) {
-                      const match = /language-(\w+)/.exec(className || "");
-                      const language = match ? match[1] : "";
-                      const isInline = !match && !className;
-                      const codeString = String(children).replace(/\n$/, "");
-                      const [copied, setCopied] = React.useState(false);
-                      const handleCopy = async () => {
-                        try {
-                          await invoke("copy_to_clipboard", {
-                            text: codeString,
-                          });
-                          setCopied(true);
-                          setTimeout(() => setCopied(false), 1200);
-                        } catch (e) {
-                          setCopied(false);
-                        }
-                      };
-                      if (isInline) {
-                        return (
-                          <code className={className} {...props}>
-                            {children}
-                          </code>
-                        );
-                      }
-                      return (
-                        <div style={{ position: "relative" }}>
-                          <Tooltip
-                            title={copied ? "Copied!" : "Copy"}
-                            placement="left"
-                          >
-                            <Button
-                              icon={<CopyOutlined />}
-                              size="small"
-                              style={{
-                                position: "absolute",
-                                top: 8,
-                                right: 8,
-                                zIndex: 2,
-                                background: "rgba(255,255,255,0.8)",
-                                border: "none",
-                                boxShadow: "0 1px 4px rgba(0,0,0,0.08)",
-                              }}
-                              onClick={handleCopy}
-                            />
-                          </Tooltip>
-                          <SyntaxHighlighter
-                            style={oneDark}
-                            language={language || "text"}
-                            PreTag="div"
-                            customStyle={{
-                              margin: "0.5em 0",
-                              borderRadius: "6px",
-                              fontSize: "14px",
-                            }}
-                          >
-                            {codeString}
-                          </SyntaxHighlighter>
-                        </div>
-                      );
-                    },
-                  }}
-                >
-                  {message.content}
-                </ReactMarkdown>
-              ) : (
-                message.content
-              )}
-            </div>
-          </div>
-        ))}
-
-        {isStreaming && activeChannel && (
-          <div className="message-container assistant">
-            <Text strong className="message-role">
-              Assistant
-            </Text>
-            <div className="message-content assistant streaming">
-              <StreamingMessageItem
-                channel={activeChannel}
-                onComplete={addAssistantMessage}
-              />
-            </div>
-          </div>
-        )}
-
-        <div ref={messagesEndRef} />
-      </div>
-
-      <div className="input-container">
-        <div style={{ display: "flex", alignItems: "center" }}>
-          <Tooltip title="Customize System Prompt">
-            <Button
-              icon={<SettingOutlined />}
-              className="system-prompt-btn"
+        {/* 聊天消息流 */}
+        <List
+          style={{ flex: 1 }}
+          split={false}
+          dataSource={currentMessages}
+          renderItem={(message) => (
+            <List.Item
               style={{
-                marginLeft: 0,
-                marginRight: 0,
-                padding: 0,
-                width: 32,
-                height: 32,
-                minWidth: 32,
-                flex: "none",
+                padding: token.paddingXS,
+                border: "none",
+                display: "flex",
+                justifyContent:
+                  message.role === "user" ? "flex-end" : "flex-start",
               }}
-              type="text"
-              onClick={() => setPromptModalOpen(true)}
-              aria-label="Customize System Prompt"
-            />
-          </Tooltip>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <MessageInput isStreamingInProgress={isStreaming} />
-          </div>
-        </div>
-        {isStreaming && (
-          <div className="streaming-indicator">
-            <Spin size="small" />
-            <span>AI is thinking...</span>
-          </div>
-        )}
-        <SystemPromptModal
-          open={isPromptModalOpen}
-          onClose={() => setPromptModalOpen(false)}
+            >
+              <Card
+                style={{
+                  maxWidth: "85%",
+                  background:
+                    message.role === "user"
+                      ? token.colorPrimaryBg
+                      : token.colorBgContainer,
+                  borderRadius: token.borderRadiusLG,
+                  boxShadow: token.boxShadow,
+                }}
+              >
+                <Space
+                  direction="vertical"
+                  size={token.marginXS}
+                  style={{ width: "100%" }}
+                >
+                  <Text
+                    type="secondary"
+                    strong
+                    style={{ fontSize: token.fontSizeSM }}
+                  >
+                    {message.role === "user" ? "You" : "Assistant"}
+                  </Text>
+                  <div>
+                    {message.role === "assistant" ? (
+                      <ReactMarkdown
+                        remarkPlugins={[remarkGfm]}
+                        components={{
+                          p: ({ children }) => (
+                            <Text style={{ marginBottom: token.marginSM }}>
+                              {children}
+                            </Text>
+                          ),
+                          ol: ({ children }) => (
+                            <ol
+                              style={{
+                                marginBottom: token.marginSM,
+                                paddingLeft: 20,
+                              }}
+                            >
+                              {children}
+                            </ol>
+                          ),
+                          ul: ({ children }) => (
+                            <ul
+                              style={{
+                                marginBottom: token.marginSM,
+                                paddingLeft: 20,
+                              }}
+                            >
+                              {children}
+                            </ul>
+                          ),
+                          li: ({ children }) => (
+                            <li style={{ marginBottom: token.marginXS }}>
+                              {children}
+                            </li>
+                          ),
+                          code({ className, children, ...props }) {
+                            const match = /language-(\w+)/.exec(
+                              className || ""
+                            );
+                            const language = match ? match[1] : "";
+                            const isInline = !match && !className;
+                            const codeString = String(children).replace(
+                              /\n$/,
+                              ""
+                            );
+                            const [copied, setCopied] = React.useState(false);
+
+                            const handleCopy = async () => {
+                              try {
+                                await invoke("copy_to_clipboard", {
+                                  text: codeString,
+                                });
+                                setCopied(true);
+                                setTimeout(() => setCopied(false), 1200);
+                              } catch (e) {
+                                setCopied(false);
+                              }
+                            };
+
+                            if (isInline) {
+                              return (
+                                <Text code className={className} {...props}>
+                                  {children}
+                                </Text>
+                              );
+                            }
+
+                            return (
+                              <div style={{ position: "relative" }}>
+                                <Tooltip
+                                  title={copied ? "Copied!" : "Copy"}
+                                  placement="left"
+                                >
+                                  <Button
+                                    icon={<CopyOutlined />}
+                                    size="small"
+                                    type="text"
+                                    style={{
+                                      position: "absolute",
+                                      top: token.marginXS,
+                                      right: token.marginXS,
+                                      zIndex: 2,
+                                      background: token.colorBgContainer,
+                                      borderRadius: token.borderRadiusSM,
+                                    }}
+                                    onClick={handleCopy}
+                                  />
+                                </Tooltip>
+                                <SyntaxHighlighter
+                                  style={oneDark}
+                                  language={language || "text"}
+                                  PreTag="div"
+                                  customStyle={{
+                                    margin: `${token.marginXS}px 0`,
+                                    borderRadius: token.borderRadiusSM,
+                                    fontSize: token.fontSizeSM,
+                                  }}
+                                >
+                                  {codeString}
+                                </SyntaxHighlighter>
+                              </div>
+                            );
+                          },
+                        }}
+                      >
+                        {message.content}
+                      </ReactMarkdown>
+                    ) : (
+                      <Text>{message.content}</Text>
+                    )}
+                  </div>
+                </Space>
+              </Card>
+            </List.Item>
+          )}
         />
-      </div>
-    </Content>
+
+        {/* AI 流式消息 */}
+        {isStreaming && activeChannel && (
+          <List.Item
+            style={{
+              padding: token.paddingXS,
+              border: "none",
+              display: "flex",
+              justifyContent: "flex-start",
+            }}
+          >
+            <Card
+              bordered={false}
+              style={{
+                maxWidth: "85%",
+                background: token.colorBgContainer,
+                borderRadius: token.borderRadiusLG,
+                boxShadow: token.boxShadow,
+              }}
+              bodyStyle={{
+                padding: token.paddingMD,
+              }}
+            >
+              <Space
+                direction="vertical"
+                size={token.marginXS}
+                style={{ width: "100%" }}
+              >
+                <Text
+                  type="secondary"
+                  strong
+                  style={{ fontSize: token.fontSizeSM }}
+                >
+                  Assistant
+                </Text>
+                <div>
+                  <StreamingMessageItem
+                    channel={activeChannel}
+                    onComplete={addAssistantMessage}
+                  />
+                </div>
+              </Space>
+            </Card>
+          </List.Item>
+        )}
+        <div ref={messagesEndRef} />
+      </Content>
+
+      {/* 输入区 */}
+      <InputContainer isStreaming={isStreaming} />
+    </Layout>
   );
 };

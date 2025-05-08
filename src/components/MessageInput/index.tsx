@@ -1,8 +1,7 @@
 import React, { useState, useRef } from "react";
-import { Input, Button, Space } from "antd";
+import { Input, Button, Space, theme } from "antd";
 import { SendOutlined, SyncOutlined } from "@ant-design/icons";
 import { useChat } from "../../contexts/ChatContext";
-import "./styles.css";
 
 interface MessageInputProps {
   onSubmit?: (content: string) => void;
@@ -15,6 +14,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
 }) => {
   const [content, setContent] = useState("");
   const textAreaRef = useRef<HTMLTextAreaElement>(null);
+  const { token } = theme.useToken();
 
   const { sendMessage, initiateAIResponse, currentMessages } = useChat();
 
@@ -55,37 +55,41 @@ export const MessageInput: React.FC<MessageInputProps> = ({
   };
 
   return (
-    <div className="message-input-container">
-      <Space.Compact style={{ width: "100%" }}>
-        <Input.TextArea
-          ref={textAreaRef}
-          autoSize={{ minRows: 1, maxRows: 5 }}
-          value={content}
-          onChange={(e) => setContent(e.target.value)}
-          onKeyDown={handleKeyDown}
-          placeholder="Send a message..."
-          disabled={isStreamingInProgress}
-          className="message-input"
-        />
+    <Space.Compact block style={{ width: "100%" }}>
+      <Input.TextArea
+        ref={textAreaRef}
+        autoSize={{ minRows: 1, maxRows: 5 }}
+        value={content}
+        onChange={(e) => setContent(e.target.value)}
+        onKeyDown={handleKeyDown}
+        placeholder="Send a message..."
+        disabled={isStreamingInProgress}
+        style={{
+          resize: "none",
+          borderRadius: 0,
+          backgroundColor: token.colorBgContainer,
+        }}
+      />
+      <Button
+        type="primary"
+        icon={<SendOutlined />}
+        onClick={handleSubmit}
+        disabled={!content.trim() || isStreamingInProgress}
+        style={{
+          borderTopRightRadius: 0,
+          borderBottomRightRadius: 0,
+        }}
+      >
+        Send
+      </Button>
+      {currentMessages.length > 0 && (
         <Button
-          type="primary"
-          icon={<SendOutlined />}
-          onClick={handleSubmit}
-          disabled={!content.trim() || isStreamingInProgress}
-          className="send-button"
-        >
-          Send
-        </Button>
-        {currentMessages.length > 0 && (
-          <Button
-            icon={<SyncOutlined />}
-            onClick={handleAIRetry}
-            disabled={isStreamingInProgress}
-            title="Regenerate last AI response"
-            className="retry-button"
-          />
-        )}
-      </Space.Compact>
-    </div>
+          icon={<SyncOutlined spin={isStreamingInProgress} />}
+          onClick={handleAIRetry}
+          disabled={isStreamingInProgress}
+          title="Regenerate last AI response"
+        />
+      )}
+    </Space.Compact>
   );
 };

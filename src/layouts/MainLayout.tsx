@@ -6,7 +6,10 @@ import { listen } from "@tauri-apps/api/event";
 import { useChat } from "../contexts/ChatContext";
 import "./styles.css";
 
-export const MainLayout: React.FC = () => {
+export const MainLayout: React.FC<{
+  themeMode: "light" | "dark";
+  onThemeModeChange: (mode: "light" | "dark") => void;
+}> = ({ themeMode, onThemeModeChange }) => {
   const { addChat, selectChat, initiateAIResponse, currentMessages } =
     useChat();
   const pendingAIRef = useRef(false);
@@ -59,7 +62,10 @@ export const MainLayout: React.FC = () => {
 
   return (
     <Layout className="main-layout">
-      <ChatSidebar />
+      <ChatSidebar
+        themeMode={themeMode}
+        onThemeModeChange={onThemeModeChange}
+      />
       <Layout className="content-layout">
         <ChatView />
       </Layout>

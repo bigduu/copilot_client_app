@@ -1,14 +1,29 @@
 import { useState } from "react";
-import { Modal, Input, Button, Popconfirm, List, Radio, message } from "antd";
+import {
+  Modal,
+  Input,
+  Button,
+  Popconfirm,
+  List,
+  Radio,
+  message,
+  Switch,
+} from "antd";
 import { DeleteOutlined, EditOutlined } from "@ant-design/icons";
 import { useChat } from "../../contexts/ChatContext";
+
+const DARK_MODE_KEY = "copilot_dark_mode";
 
 const SystemSettingsModal = ({
   open,
   onClose,
+  themeMode,
+  onThemeModeChange,
 }: {
   open: boolean;
   onClose: () => void;
+  themeMode: "light" | "dark";
+  onThemeModeChange: (mode: "light" | "dark") => void;
 }) => {
   const {
     deleteAllChats,
@@ -85,6 +100,7 @@ const SystemSettingsModal = ({
       width={520}
     >
       {contextHolder}
+      {/* Dark Mode Switch */}
       <div
         style={{
           borderTop: "1px solid #eee",
@@ -92,6 +108,21 @@ const SystemSettingsModal = ({
           marginBottom: 24,
         }}
       >
+        <div
+          style={{ display: "flex", alignItems: "center", marginBottom: 12 }}
+        >
+          <span style={{ marginRight: 12, fontWeight: 500 }}>Dark Mode</span>
+          <Switch
+            checked={themeMode === "dark"}
+            onChange={(checked) => {
+              const mode = checked ? "dark" : "light";
+              onThemeModeChange(mode);
+              localStorage.setItem(DARK_MODE_KEY, mode);
+            }}
+            checkedChildren="Dark"
+            unCheckedChildren="Light"
+          />
+        </div>
         <Popconfirm
           title="Delete all chats"
           description="Are you sure? This will delete all chats except pinned."

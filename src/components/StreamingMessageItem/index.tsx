@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { Card, Typography } from "antd";
+import { Typography, theme } from "antd";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
@@ -9,15 +9,36 @@ import { Message } from "../../types/chat";
 import "../ChatView/styles.css";
 
 const { Text } = Typography;
+const { useToken } = theme;
 
 // Typing indicator component
-const TypingIndicator: React.FC = () => (
-  <div className="typing-indicator">
-    <div className="typing-dot" />
-    <div className="typing-dot" />
-    <div className="typing-dot" />
-  </div>
-);
+const TypingIndicator: React.FC = () => {
+  const { token } = useToken();
+  return (
+    <div
+      style={{
+        display: "flex",
+        gap: token.marginXXS,
+        padding: token.paddingXXS,
+        alignItems: "center",
+      }}
+    >
+      {[1, 2, 3].map((i) => (
+        <span
+          key={i}
+          style={{
+            width: 4,
+            height: 4,
+            borderRadius: "50%",
+            background: token.colorTextSecondary,
+            opacity: 0.6,
+            animation: `typing-dot ${0.8 + i * 0.2}s infinite ease-in-out`,
+          }}
+        />
+      ))}
+    </div>
+  );
+};
 
 interface StreamingMessageItemProps {
   channel: Channel<string>;
@@ -36,6 +57,7 @@ const StreamingMessageItem: React.FC<StreamingMessageItemProps> = ({
   const startTimeRef = useRef(Date.now());
   const isMountedRef = useRef(true);
   const minTimeElapsedRef = useRef(false);
+  const { token } = useToken();
 
   // Complete message and prevent duplicate completions
   const completeMessage = (finalContent: string) => {
@@ -262,61 +284,64 @@ const StreamingMessageItem: React.FC<StreamingMessageItemProps> = ({
   }, []);
 
   return (
-    <div className="message-container assistant streaming">
-      <Text strong>Assistant {!isComplete && <TypingIndicator />}</Text>
-      <Card size="small" className="message-card assistant streaming">
-        {content ? (
-          <ReactMarkdown
-            remarkPlugins={[remarkGfm]}
-            components={{
-              p: ({ children }) => (
-                <p className="markdown-paragraph">{children}</p>
-              ),
-              ol: ({ children }) => (
-                <ol className="markdown-list">{children}</ol>
-              ),
-              ul: ({ children }) => (
-                <ul className="markdown-list">{children}</ul>
-              ),
-              li: ({ children }) => (
-                <li className="markdown-list-item">{children}</li>
-              ),
-              code({ className, children, ...props }) {
-                const match = /language-(\w+)/.exec(className || "");
-                const language = match ? match[1] : "";
-                const isInline = !match && !className;
+    <div style={{ position: "relative" }}>
+      <ReactMarkdown
+        remarkPlugins={[remarkGfm]}
+        components={{
+          p: ({ children }) => (
+            <Text style={{ marginBottom: token.marginSM, display: "block" }}>
+              {children}
+            </Text>
+          ),
+          ol: ({ children }) => (
+            <ol style={{ marginBottom: token.marginSM, paddingLeft: 20 }}>
+              {children}
+            </ol>
+          ),
+          ul: ({ children }) => (
+            <ul style={{ marginBottom: token.marginSM, paddingLeft: 20 }}>
+              {children}
+            </ul>
+          ),
+          li: ({ children }) => (
+            <li style={{ marginBottom: token.marginXS }}>{children}</li>
+          ),
+          code({ className, children, ...props }) {
+            const match = /language-(\w+)/.exec(className || "");
+            const language = match ? match[1] : "";
+            const isInline = !match && !className;
+            const codeString = String(children).replace(/\n$/, "");
 
-                if (isInline) {
-                  return (
-                    <code className={className} {...props}>
-                      {children}
-                    </code>
-                  );
-                }
+            if (isInline) {
+              return (
+                <Text code className={className} {...props}>
+                  {children}
+                </Text>
+              );
+            }
 
-                return (
-                  <SyntaxHighlighter
-                    style={oneDark}
-                    language={language || "text"}
-                    PreTag="div"
-                    customStyle={{
-                      margin: "0.5em 0",
-                      borderRadius: "6px",
-                      fontSize: "14px",
-                    }}
-                  >
-                    {String(children).replace(/\n$/, "")}
-                  </SyntaxHighlighter>
-                );
-              },
-            }}
-          >
-            {content}
-          </ReactMarkdown>
-        ) : (
-          <div className="placeholder-text">Generating response...</div>
-        )}
-      </Card>
+            return (
+              <div style={{ position: "relative" }}>
+                <SyntaxHighlighter
+                  style={oneDark}
+                  language={language || "text"}
+                  PreTag="div"
+                  customStyle={{
+                    margin: `${token.marginXS}px 0`,
+                    borderRadius: token.borderRadiusSM,
+                    fontSize: token.fontSizeSM,
+                  }}
+                >
+                  {codeString}
+                </SyntaxHighlighter>
+              </div>
+            );
+          },
+        }}
+      >
+        {content || " "}
+      </ReactMarkdown>
+      {!isComplete && <TypingIndicator />}
     </div>
   );
 };

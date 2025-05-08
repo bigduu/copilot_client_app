@@ -1,9 +1,11 @@
 import React from "react";
-import { Alert } from "antd";
+import { Card, Space, Typography, theme } from "antd";
 import ReactMarkdown from "react-markdown";
 import { useChat } from "../../contexts/ChatContext";
-import { InfoCircleOutlined } from "@ant-design/icons";
 import "../ChatView/styles.css";
+
+const { Text } = Typography;
+const { useToken } = theme;
 
 // Default message to use as fallback
 const DEFAULT_MESSAGE = `# Hello! I'm your AI Assistant 👋
@@ -23,6 +25,7 @@ Let's get started - what can I help you with today?`;
 
 const SystemMessage: React.FC = () => {
   console.log("SystemMessage component rendering");
+  const { token } = useToken();
 
   // Get the system prompt from the current chat context
   const { currentChat, systemPrompt } = useChat();
@@ -33,33 +36,66 @@ const SystemMessage: React.FC = () => {
     DEFAULT_MESSAGE;
 
   return (
-    <Alert
-      type="info"
-      icon={<InfoCircleOutlined />}
-      className="system-message"
-      message={
-        <div className="system-message-content">
-          <ReactMarkdown
-            components={{
-              p: ({ children }) => (
-                <p className="markdown-paragraph">{children}</p>
-              ),
-              ol: ({ children }) => (
-                <ol className="markdown-list">{children}</ol>
-              ),
-              ul: ({ children }) => (
-                <ul className="markdown-list">{children}</ul>
-              ),
-              li: ({ children }) => (
-                <li className="markdown-list-item">{children}</li>
-              ),
-            }}
-          >
-            {promptToDisplay}
-          </ReactMarkdown>
+    <Card
+      style={{
+        maxWidth: "85%",
+        borderRadius: token.borderRadiusLG,
+        boxShadow: token.boxShadow,
+      }}
+    >
+      <Space
+        direction="vertical"
+        size={token.marginXS}
+        style={{ width: "100%" }}
+      >
+        <Text type="secondary" strong style={{ fontSize: token.fontSizeSM }}>
+          System Prompt
+        </Text>
+
+        <div style={{ display: "flex", gap: token.marginSM }}>
+          <div style={{ flex: 1 }}>
+            <ReactMarkdown
+              components={{
+                p: ({ children }) => (
+                  <Text
+                    style={{ marginBottom: token.marginSM, display: "block" }}
+                  >
+                    {children}
+                  </Text>
+                ),
+                ol: ({ children }) => (
+                  <ol style={{ marginBottom: token.marginSM, paddingLeft: 20 }}>
+                    {children}
+                  </ol>
+                ),
+                ul: ({ children }) => (
+                  <ul style={{ marginBottom: token.marginSM, paddingLeft: 20 }}>
+                    {children}
+                  </ul>
+                ),
+                li: ({ children }) => (
+                  <li style={{ marginBottom: token.marginXS }}>{children}</li>
+                ),
+                h1: ({ children }) => (
+                  <Text
+                    strong
+                    style={{
+                      fontSize: token.fontSizeHeading3,
+                      marginBottom: token.marginSM,
+                      display: "block",
+                    }}
+                  >
+                    {children}
+                  </Text>
+                ),
+              }}
+            >
+              {promptToDisplay}
+            </ReactMarkdown>
+          </div>
         </div>
-      }
-    />
+      </Space>
+    </Card>
   );
 };
 
