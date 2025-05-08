@@ -1,5 +1,15 @@
 import React, { useState, useEffect } from "react";
-import { Modal, Input, Button, Typography, Tabs, Space, message } from "antd";
+import {
+  Modal,
+  Input,
+  Button,
+  Typography,
+  Tabs,
+  Space,
+  message,
+  List,
+  Radio,
+} from "antd";
 import { useChat } from "../../contexts/ChatContext";
 
 const { TextArea } = Input;
@@ -30,137 +40,69 @@ const SystemPromptModal: React.FC<SystemPromptModalProps> = ({
   open,
   onClose,
 }) => {
-  console.log("SystemPromptModal rendering, open:", open);
-
   const {
-    systemPrompt: globalSystemPrompt,
-    updateSystemPrompt,
     currentChatId,
     currentChat,
     updateCurrentChatSystemPrompt,
+    systemPromptPresets,
   } = useChat();
-
-  // Get the current chat system prompt if available, otherwise use the global one
-  const currentChatSystemPrompt =
-    currentChat?.systemPrompt || globalSystemPrompt;
-
-  // Initialize local state with global and current chat prompts
-  const [globalPrompt, setGlobalPrompt] = useState<string>(globalSystemPrompt);
-  const [chatPrompt, setChatPrompt] = useState<string>(currentChatSystemPrompt);
-  const [activeTab, setActiveTab] = useState<string>("current");
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [messageApi, contextHolder] = message.useMessage();
 
-  // Update local state when modal becomes visible
   useEffect(() => {
     if (open) {
-      setGlobalPrompt(globalSystemPrompt);
-      setChatPrompt(currentChatSystemPrompt);
-      // Set active tab to current chat if one is selected, otherwise to global
-      setActiveTab(currentChatId ? "current" : "global");
+      // 预选当前chat的systemPrompt对应的preset id（如有）
+      if (currentChat?.systemPrompt) {
+        const found = systemPromptPresets.find(
+          (p) => p.content === currentChat.systemPrompt
+        );
+        setSelectedId(found ? found.id : null);
+      } else {
+        setSelectedId(null);
+      }
     }
-  }, [open, globalSystemPrompt, currentChatSystemPrompt, currentChatId]);
+  }, [open, currentChat, systemPromptPresets]);
 
-  const handleSave = () => {
-    console.log("Save button clicked for tab:", activeTab);
-
-    if (activeTab === "global") {
-      updateSystemPrompt(globalPrompt);
-      messageApi.success("Global system prompt updated successfully");
-    } else if (currentChatId) {
-      updateCurrentChatSystemPrompt(chatPrompt);
-      messageApi.success("Current chat system prompt updated successfully");
-    } else {
-      messageApi.error("No chat selected to update system prompt");
+  const handleSelect = (id: string) => {
+    setSelectedId(id);
+    const preset = systemPromptPresets.find((p) => p.id === id);
+    if (preset && currentChatId) {
+      updateCurrentChatSystemPrompt(preset.content);
+      messageApi.success("System prompt applied to current chat");
     }
-
     onClose();
-  };
-
-  const handleCancel = () => {
-    console.log("Cancelling prompt edit");
-    onClose();
-  };
-
-  const handleResetGlobal = () => {
-    console.log("Resetting to default global system prompt");
-    setGlobalPrompt(DEFAULT_PROMPT);
-  };
-
-  const handleResetCurrent = () => {
-    console.log("Resetting current chat system prompt to global");
-    setChatPrompt(globalSystemPrompt);
   };
 
   return (
     <>
       {contextHolder}
       <Modal
-        title="Customize System Prompt"
+        title="选择系统Prompt"
         open={open}
-        onCancel={handleCancel}
-        footer={[
-          <Button key="cancel" onClick={handleCancel}>
-            Cancel
-          </Button>,
-          <Button key="submit" type="primary" onClick={handleSave}>
-            Save
-          </Button>,
-        ]}
-        width={700}
+        onCancel={onClose}
+        footer={null}
+        width={480}
       >
-        <Tabs
-          activeKey={activeTab}
-          onChange={setActiveTab}
-          items={[
-            {
-              key: "current",
-              label: "Current Chat",
-              disabled: !currentChatId,
-              children: (
-                <div className="system-prompt-tab-content">
-                  <Space direction="vertical" style={{ width: "100%" }}>
-                    <Text>
-                      Customize the system prompt for the current chat only.
-                      This won't affect other chats.
-                    </Text>
-                    <TextArea
-                      value={chatPrompt}
-                      onChange={(e) => setChatPrompt(e.target.value)}
-                      autoSize={{ minRows: 12, maxRows: 20 }}
-                      placeholder="Enter your custom system prompt..."
-                    />
-                    <Button onClick={handleResetCurrent}>
-                      Reset to Global Prompt
-                    </Button>
-                  </Space>
+        <Radio.Group
+          value={selectedId}
+          onChange={(e) => handleSelect(e.target.value)}
+          style={{ width: "100%" }}
+        >
+          <List
+            bordered
+            dataSource={systemPromptPresets}
+            renderItem={(item) => (
+              <List.Item>
+                <Radio value={item.id} style={{ marginRight: 8 }}>
+                  {item.name}
+                </Radio>
+                <div style={{ color: "#888", fontSize: 12, marginTop: 4 }}>
+                  {item.content.slice(0, 40)}...
                 </div>
-              ),
-            },
-            {
-              key: "global",
-              label: "Global Default",
-              children: (
-                <div className="system-prompt-tab-content">
-                  <Space direction="vertical" style={{ width: "100%" }}>
-                    <Text>
-                      Customize the default system prompt for all new chats.
-                      This won't affect existing chats.
-                    </Text>
-                    <TextArea
-                      value={globalPrompt}
-                      onChange={(e) => setGlobalPrompt(e.target.value)}
-                      autoSize={{ minRows: 12, maxRows: 20 }}
-                      placeholder="Enter your custom system prompt..."
-                    />
-                    <Button onClick={handleResetGlobal}>
-                      Reset to Default
-                    </Button>
-                  </Space>
-                </div>
-              ),
-            },
-          ]}
-        />
+              </List.Item>
+            )}
+          />
+        </Radio.Group>
       </Modal>
     </>
   );

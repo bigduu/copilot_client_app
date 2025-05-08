@@ -9,8 +9,9 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism";
-import { CopyOutlined } from "@ant-design/icons";
+import { CopyOutlined, SettingOutlined } from "@ant-design/icons";
 import { invoke } from "@tauri-apps/api/core";
+import SystemPromptModal from "../SystemPromptModal";
 
 const { Content } = Layout;
 const { Text } = Typography;
@@ -24,6 +25,7 @@ export const ChatView: React.FC = () => {
     addAssistantMessage,
   } = useChat();
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const [isPromptModalOpen, setPromptModalOpen] = React.useState(false);
 
   // Scroll to bottom whenever messages change
   useEffect(() => {
@@ -159,13 +161,39 @@ export const ChatView: React.FC = () => {
       </div>
 
       <div className="input-container">
-        <MessageInput isStreamingInProgress={isStreaming} />
+        <div style={{ display: "flex", alignItems: "center" }}>
+          <Tooltip title="Customize System Prompt">
+            <Button
+              icon={<SettingOutlined />}
+              className="system-prompt-btn"
+              style={{
+                marginLeft: 0,
+                marginRight: 0,
+                padding: 0,
+                width: 32,
+                height: 32,
+                minWidth: 32,
+                flex: "none",
+              }}
+              type="text"
+              onClick={() => setPromptModalOpen(true)}
+              aria-label="Customize System Prompt"
+            />
+          </Tooltip>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <MessageInput isStreamingInProgress={isStreaming} />
+          </div>
+        </div>
         {isStreaming && (
           <div className="streaming-indicator">
             <Spin size="small" />
             <span>AI is thinking...</span>
           </div>
         )}
+        <SystemPromptModal
+          open={isPromptModalOpen}
+          onClose={() => setPromptModalOpen(false)}
+        />
       </div>
     </Content>
   );

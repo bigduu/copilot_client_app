@@ -1,9 +1,7 @@
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef } from "react";
 import { Input, Button, Space } from "antd";
 import { SendOutlined, SyncOutlined } from "@ant-design/icons";
 import { useChat } from "../../contexts/ChatContext";
-import { invoke, Channel } from "@tauri-apps/api/core";
-import { Message } from "../../types/chat";
 import "./styles.css";
 
 interface MessageInputProps {
@@ -18,16 +16,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
   const [content, setContent] = useState("");
   const textAreaRef = useRef<HTMLTextAreaElement>(null);
 
-  const {
-    sendMessage,
-    initiateAIResponse,
-    currentChatId,
-    currentChat,
-    currentMessages,
-    updateCurrentChatSystemPrompt,
-    setIsStreaming,
-    addAssistantMessage,
-  } = useChat();
+  const { sendMessage, initiateAIResponse, currentMessages } = useChat();
 
   const handleKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (event.key === "Enter" && !event.shiftKey && !isStreamingInProgress) {
@@ -62,57 +51,6 @@ export const MessageInput: React.FC<MessageInputProps> = ({
       await initiateAIResponse();
     } catch (error) {
       console.error("Error initiating AI response:", error);
-    }
-  };
-
-  const sendMessageDirectly = async (content: string) => {
-    if (!currentChatId || isStreamingInProgress) {
-      console.error(
-        "Cannot send message: No current chat or streaming in progress"
-      );
-      return;
-    }
-
-    try {
-      // Create user message
-      const userMessage: Message = {
-        role: "user",
-        content,
-      };
-
-      // Update messages with user message
-      const updatedMessages = [...currentMessages, userMessage];
-
-      // Create channel for streaming response
-      const channel = new Channel<string>();
-      setIsStreaming(true);
-
-      // Get the effective system prompt for this chat
-      const systemPromptContent = currentChat?.systemPrompt || "";
-      const systemPromptMessage = {
-        role: "system" as const,
-        content: systemPromptContent,
-      };
-
-      // Prepare messages array with system prompt
-      const messagesWithSystemPrompt = systemPromptMessage.content
-        ? [systemPromptMessage, ...updatedMessages]
-        : updatedMessages;
-
-      // Invoke Tauri API to get AI response
-      await invoke("execute_prompt", {
-        messages: messagesWithSystemPrompt,
-        channel: channel,
-      });
-    } catch (error) {
-      console.error("Error sending message:", error);
-      setIsStreaming(false);
-      addAssistantMessage({
-        role: "assistant",
-        content: `Error: ${
-          error instanceof Error ? error.message : String(error)
-        }`,
-      });
     }
   };
 

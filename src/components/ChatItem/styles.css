@@ -34,4 +34,14 @@
 
 .chat-item:hover .delete-button {
     opacity: 1;
+}
+
+.chat-item .pin-button {
+    opacity: 0;
+    margin-right: 4px;
+    transition: opacity 0.2s;
+}
+
+.chat-item:hover .pin-button, .pin-button .pin-button-active {
+    opacity: 1;
 } 

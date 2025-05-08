@@ -1,6 +1,10 @@
 import React from "react";
 import { Button, Tooltip } from "antd";
-import { DeleteOutlined } from "@ant-design/icons";
+import {
+  DeleteOutlined,
+  PushpinFilled,
+  PushpinOutlined,
+} from "@ant-design/icons";
 import { ChatItem as ChatItemType } from "../../types/chat";
 import "./styles.css";
 
@@ -9,6 +13,8 @@ interface ChatItemProps {
   isSelected: boolean;
   onSelect: (chatId: string) => void;
   onDelete: (chatId: string) => void;
+  onPin: (chatId: string) => void;
+  onUnpin: (chatId: string) => void;
 }
 
 export const ChatItem: React.FC<ChatItemProps> = ({
@@ -16,6 +22,8 @@ export const ChatItem: React.FC<ChatItemProps> = ({
   isSelected,
   onSelect,
   onDelete,
+  onPin,
+  onUnpin,
 }) => {
   const handleDelete = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -30,6 +38,22 @@ export const ChatItem: React.FC<ChatItemProps> = ({
       <Tooltip title={chat.title} placement="right">
         <div className="title">{chat.title}</div>
       </Tooltip>
+      <Button
+        type="text"
+        size="small"
+        icon={
+          chat.pinned ? (
+            <PushpinFilled style={{ color: "#faad14" }} />
+          ) : (
+            <PushpinOutlined />
+          )
+        }
+        onClick={(e) => {
+          e.stopPropagation();
+          chat.pinned ? onUnpin(chat.id) : onPin(chat.id);
+        }}
+        className={`${chat.pinned ? "pin-button-active" : "pin-button"}`}
+      />
       <Button
         type="text"
         size="small"

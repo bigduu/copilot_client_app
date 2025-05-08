@@ -1,11 +1,18 @@
 import React, { createContext, useContext, ReactNode } from "react";
 import { Channel } from "@tauri-apps/api/core";
-import { Message, ChatItem } from "../types/chat";
+import {
+  Message,
+  ChatItem,
+  SystemPromptPreset,
+  SystemPromptPresetList,
+} from "../types/chat";
 import { useChats } from "../hooks/useChats";
 import { useMessages } from "../hooks/useMessages";
 
 // System prompt default and storage key
 const SYSTEM_PROMPT_KEY = "system_prompt";
+const SYSTEM_PROMPT_PRESETS_KEY = "system_prompt_presets";
+const SYSTEM_PROMPT_SELECTED_ID_KEY = "system_prompt_selected_id";
 const DEFAULT_SYSTEM_PROMPT = `# Hello! I'm your AI Assistant 👋
 
 I'm here to help you with:
@@ -42,6 +49,17 @@ interface ChatContextType {
   updateSystemPrompt: (prompt: string) => void;
   updateCurrentChatSystemPrompt: (prompt: string) => void;
   currentChatSystemPrompt: string | null;
+  pinChat: (chatId: string) => void;
+  unpinChat: (chatId: string) => void;
+  systemPromptPresets: SystemPromptPresetList;
+  addSystemPromptPreset: (preset: Omit<SystemPromptPreset, "id">) => void;
+  updateSystemPromptPreset: (
+    id: string,
+    preset: Omit<SystemPromptPreset, "id">
+  ) => void;
+  deleteSystemPromptPreset: (id: string) => void;
+  selectSystemPromptPreset: (id: string) => void;
+  selectedSystemPromptPresetId: string | null;
 }
 
 // Create a default context with empty/no-op implementations
@@ -65,6 +83,14 @@ const defaultContext: ChatContextType = {
   updateSystemPrompt: () => {},
   updateCurrentChatSystemPrompt: () => {},
   currentChatSystemPrompt: null,
+  pinChat: () => {},
+  unpinChat: () => {},
+  systemPromptPresets: [],
+  addSystemPromptPreset: () => {},
+  updateSystemPromptPreset: () => {},
+  deleteSystemPromptPreset: () => {},
+  selectSystemPromptPreset: () => {},
+  selectedSystemPromptPresetId: null,
 };
 
 // Create the context with the default value
@@ -90,6 +116,8 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     updateChatSystemPrompt,
     saveChats,
     deleteAllChats,
+    pinChat,
+    unpinChat,
   } = useChats();
 
   // Get message functionality from useMessages hook
@@ -106,6 +134,80 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     currentMessages,
     currentChat
   );
+
+  // ====== System Prompt Preset 管理 ======
+  // 读取本地存储的预设列表
+  const getSystemPromptPresets = (): SystemPromptPresetList => {
+    try {
+      const raw = localStorage.getItem(SYSTEM_PROMPT_PRESETS_KEY);
+      if (raw) return JSON.parse(raw);
+    } catch {}
+    // 如果没有，初始化一个默认
+    return [
+      {
+        id: "default",
+        name: "默认助手",
+        content: DEFAULT_SYSTEM_PROMPT,
+      },
+    ];
+  };
+
+  // 当前选中的preset id
+  const getSelectedSystemPromptPresetId = (): string => {
+    return localStorage.getItem(SYSTEM_PROMPT_SELECTED_ID_KEY) || "default";
+  };
+
+  const [systemPromptPresets, setSystemPromptPresets] =
+    React.useState<SystemPromptPresetList>(getSystemPromptPresets());
+  const [selectedSystemPromptPresetId, setSelectedSystemPromptPresetId] =
+    React.useState<string>(getSelectedSystemPromptPresetId());
+
+  // 添加预设
+  const addSystemPromptPreset = (preset: Omit<SystemPromptPreset, "id">) => {
+    const id = crypto.randomUUID();
+    const newPreset = { ...preset, id };
+    const newList = [...systemPromptPresets, newPreset];
+    setSystemPromptPresets(newList);
+    localStorage.setItem(SYSTEM_PROMPT_PRESETS_KEY, JSON.stringify(newList));
+  };
+
+  // 编辑预设
+  const updateSystemPromptPreset = (
+    id: string,
+    preset: Omit<SystemPromptPreset, "id">
+  ) => {
+    const newList = systemPromptPresets.map((p) =>
+      p.id === id ? { ...preset, id } : p
+    );
+    setSystemPromptPresets(newList);
+    localStorage.setItem(SYSTEM_PROMPT_PRESETS_KEY, JSON.stringify(newList));
+  };
+
+  // 删除预设
+  const deleteSystemPromptPreset = (id: string) => {
+    const newList = systemPromptPresets.filter((p) => p.id !== id);
+    setSystemPromptPresets(newList);
+    localStorage.setItem(SYSTEM_PROMPT_PRESETS_KEY, JSON.stringify(newList));
+    // 如果删除的是当前选中，重置为default
+    if (selectedSystemPromptPresetId === id) {
+      setSelectedSystemPromptPresetId("default");
+      localStorage.setItem(SYSTEM_PROMPT_SELECTED_ID_KEY, "default");
+    }
+  };
+
+  // 选择当前全局预设
+  const selectSystemPromptPreset = (id: string) => {
+    setSelectedSystemPromptPresetId(id);
+    localStorage.setItem(SYSTEM_PROMPT_SELECTED_ID_KEY, id);
+  };
+
+  // 获取当前全局prompt内容
+  const getCurrentSystemPrompt = (): string => {
+    const preset = systemPromptPresets.find(
+      (p) => p.id === selectedSystemPromptPresetId
+    );
+    return preset?.content || DEFAULT_SYSTEM_PROMPT;
+  };
 
   // Create the context value by combining hook values
   const contextValue: ChatContextType = {
@@ -124,8 +226,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     deleteAllChats,
     saveChats,
     addAssistantMessage,
-    systemPrompt:
-      localStorage.getItem(SYSTEM_PROMPT_KEY) || DEFAULT_SYSTEM_PROMPT,
+    systemPrompt: getCurrentSystemPrompt(),
     updateSystemPrompt: (prompt: string) => {
       try {
         const promptToSave =
@@ -148,6 +249,14 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
       console.log("Current chat system prompt updated successfully");
     },
     currentChatSystemPrompt: currentChat?.systemPrompt || null,
+    pinChat,
+    unpinChat,
+    systemPromptPresets,
+    addSystemPromptPreset,
+    updateSystemPromptPreset,
+    deleteSystemPromptPreset,
+    selectSystemPromptPreset,
+    selectedSystemPromptPresetId,
   };
 
   // Log context value for debugging

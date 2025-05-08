@@ -157,9 +157,15 @@ export const useMessages = (
 
     // Ensure the last message is from the user, otherwise, AI might respond to itself or system.
     const lastMessage = currentMessages[currentMessages.length - 1];
-    if (lastMessage.role !== 'user') {
-        console.warn("Last message not from user, AI response not initiated.");
+    if (lastMessage.role === 'system') {
+        console.warn("Last message is system, AI response not initiated.");
         return;
+    }
+
+    if (lastMessage.role === 'assistant') {
+      //remove the last message
+      const updatedMessages = currentMessages.slice(0, -1);
+      updateChatMessages(currentChatId, updatedMessages);
     }
 
     // Create channel and send message to backend

@@ -75,6 +75,7 @@ export const useChats = () => {
       messages: initialMessages,
       createdAt: Date.now(),
       systemPrompt: currentSystemPrompt,
+      pinned: false, // New chats are not pinned by default
     };
 
     console.log("Creating new chat:", newChatId);
@@ -184,49 +185,41 @@ export const useChats = () => {
     []
   );
 
-  // Delete all chats
+  // Add pin/unpin chat functions
+  const pinChat = useCallback((chatId: string) => {
+    setChats((prevChats) => {
+      const updatedChats = prevChats.map((chat) =>
+        chat.id === chatId ? { ...chat, pinned: true } : chat
+      );
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedChats));
+      return updatedChats;
+    });
+  }, []);
+
+  const unpinChat = useCallback((chatId: string) => {
+    setChats((prevChats) => {
+      const updatedChats = prevChats.map((chat) =>
+        chat.id === chatId ? { ...chat, pinned: false } : chat
+      );
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedChats));
+      return updatedChats;
+    });
+  }, []);
+
+  // Delete all chats except pinned
   const deleteAllChats = useCallback(() => {
     try {
       console.log("Deleting all chats");
-
-      // Create a copy of chat IDs first since we'll be modifying the array during deletion
-      const chatIds = [...chats].map((chat) => chat.id);
-
-      // Delete each chat individually
-      chatIds.forEach((chatId) => {
-        console.log(`Deleting chat: ${chatId}`);
-        // Use this direct approach instead of calling deleteChat to avoid complexity
-        // with changing selectedChat during iteration
-        setChats((prevChats) => prevChats.filter((chat) => chat.id !== chatId));
+      setChats((prevChats) => {
+        const filtered = prevChats.filter((chat) => chat.pinned);
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(filtered));
+        return filtered;
       });
-
-      // Clear current chat ID
       setCurrentChatId(null);
-
-      // Ensure localStorage is cleared
-      localStorage.setItem(STORAGE_KEY, JSON.stringify([]));
-
-      // Create a new chat automatically
-      setTimeout(() => {
-        const newChatId = addChat();
-        console.log(`Created new chat after deletion: ${newChatId}`);
-      }, 100); // Small delay to ensure state updates have completed
-
-      console.log("All chats deleted successfully");
     } catch (error) {
       console.error("Failed to delete all chats:", error);
-
-      // Fallback: clear state directly
-      setChats([]);
-      setCurrentChatId(null);
-      localStorage.setItem(STORAGE_KEY, JSON.stringify([]));
-
-      // Still try to create a new chat
-      setTimeout(() => {
-        addChat();
-      }, 100);
     }
-  }, [chats, addChat]);
+  }, []);
 
   const currentChat = chats.find((chat) => chat.id === currentChatId) || null;
   const currentMessages = currentChat?.messages || [];
@@ -243,6 +236,8 @@ export const useChats = () => {
     updateChatMessages,
     updateChatSystemPrompt,
     saveChats,
-    deleteAllChats
+    deleteAllChats,
+    pinChat,
+    unpinChat
   };
 };

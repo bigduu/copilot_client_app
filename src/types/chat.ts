@@ -9,6 +9,7 @@ export interface ChatItem {
     messages: Message[];
     createdAt: number;
     systemPrompt?: string; // Optional for backward compatibility
+    pinned?: boolean;
 }
 
 export interface ChatCompletionResponse {
@@ -84,3 +85,11 @@ export interface Usage {
     prompt_tokens: number;
     total_tokens: number;
 }
+
+export interface SystemPromptPreset {
+    id: string; // uuid
+    name: string;
+    content: string;
+}
+
+export type SystemPromptPresetList = SystemPromptPreset[];

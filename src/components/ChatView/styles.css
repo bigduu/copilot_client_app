@@ -259,4 +259,24 @@
   border: none;
   border-top: 1px solid #b7eb8f;
   margin: 16px 0;
+}
+
+.system-prompt-btn {
+  margin-left: 8px;
+  padding: 0;
+  width: 32px;
+  height: 32px;
+  min-width: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #888;
+  background: none;
+  border: none;
+  box-shadow: none;
+  transition: color 0.2s;
+}
+.system-prompt-btn:hover, .system-prompt-btn:focus {
+  color: #1677ff;
+  background: #f0f5ff;
 } 
