@@ -1,9 +1,8 @@
 import React from "react";
-import { Card, Space, Typography, Button, Tooltip, theme } from "antd";
+import { Card, Space, Typography, theme } from "antd";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import remarkBreaks from "remark-breaks";
-import { CopyOutlined } from "@ant-design/icons";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism";
 
