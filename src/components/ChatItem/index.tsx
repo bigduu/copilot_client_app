@@ -1,9 +1,12 @@
-import React from "react";
-import { Button, Tooltip } from "antd";
+import React, { useState } from "react";
+import { Button, Input } from "antd";
 import {
   DeleteOutlined,
   PushpinFilled,
   PushpinOutlined,
+  EditOutlined,
+  CheckOutlined,
+  CloseOutlined,
 } from "@ant-design/icons";
 import { ChatItem as ChatItemType } from "../../types/chat";
 import "./styles.css";
@@ -15,6 +18,7 @@ interface ChatItemProps {
   onDelete: (chatId: string) => void;
   onPin: (chatId: string) => void;
   onUnpin: (chatId: string) => void;
+  onEdit?: (chatId: string, newTitle: string) => void;
 }
 
 export const ChatItem: React.FC<ChatItemProps> = ({
@@ -24,43 +28,106 @@ export const ChatItem: React.FC<ChatItemProps> = ({
   onDelete,
   onPin,
   onUnpin,
+  onEdit,
 }) => {
+  const [isEditing, setIsEditing] = useState(false);
+  const [editValue, setEditValue] = useState(chat.title);
+
   const handleDelete = (e: React.MouseEvent) => {
     e.stopPropagation();
     onDelete(chat.id);
   };
 
+  const handleEdit = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setIsEditing(true);
+  };
+
+  const handleSave = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (onEdit && editValue.trim()) {
+      onEdit(chat.id, editValue.trim());
+    }
+    setIsEditing(false);
+  };
+
+  const handleCancel = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setEditValue(chat.title);
+    setIsEditing(false);
+  };
+
   return (
     <div
-      onClick={() => onSelect(chat.id)}
+      onClick={() => !isEditing && onSelect(chat.id)}
       className={`chat-item ${isSelected ? "selected" : ""}`}
     >
-      <Tooltip title={chat.title} placement="right">
+      {isEditing ? (
+        <Input
+          value={editValue}
+          onChange={(e) => setEditValue(e.target.value)}
+          onClick={(e) => e.stopPropagation()}
+          onPressEnter={(e) => {
+            e.preventDefault();
+            handleSave(e as any);
+          }}
+          autoFocus
+          className="edit-input"
+        />
+      ) : (
         <div className="title">{chat.title}</div>
-      </Tooltip>
-      <Button
-        type="text"
-        size="small"
-        icon={
-          chat.pinned ? (
-            <PushpinFilled style={{ color: "#faad14" }} />
-          ) : (
-            <PushpinOutlined />
-          )
-        }
-        onClick={(e) => {
-          e.stopPropagation();
-          chat.pinned ? onUnpin(chat.id) : onPin(chat.id);
-        }}
-        className={`${chat.pinned ? "pin-button-active" : "pin-button"}`}
-      />
-      <Button
-        type="text"
-        size="small"
-        icon={<DeleteOutlined />}
-        onClick={handleDelete}
-        className="delete-button"
-      />
+      )}
+      <div className="button-group">
+        <Button
+          type="text"
+          size="small"
+          icon={
+            chat.pinned ? (
+              <PushpinFilled style={{ color: "#faad14" }} />
+            ) : (
+              <PushpinOutlined />
+            )
+          }
+          onClick={(e) => {
+            e.stopPropagation();
+            chat.pinned ? onUnpin(chat.id) : onPin(chat.id);
+          }}
+          className={`${chat.pinned ? "pin-button-active" : "pin-button"}`}
+        />
+        {isEditing ? (
+          <>
+            <Button
+              type="text"
+              size="small"
+              icon={<CheckOutlined style={{ color: "#52c41a" }} />}
+              onClick={handleSave}
+              className="edit-button"
+            />
+            <Button
+              type="text"
+              size="small"
+              icon={<CloseOutlined style={{ color: "#ff4d4f" }} />}
+              onClick={handleCancel}
+              className="edit-button"
+            />
+          </>
+        ) : (
+          <Button
+            type="text"
+            size="small"
+            icon={<EditOutlined />}
+            onClick={handleEdit}
+            className="edit-button"
+          />
+        )}
+        <Button
+          type="text"
+          size="small"
+          icon={<DeleteOutlined />}
+          onClick={handleDelete}
+          className="delete-button"
+        />
+      </div>
     </div>
   );
 };

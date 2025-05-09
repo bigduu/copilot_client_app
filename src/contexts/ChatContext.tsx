@@ -49,6 +49,7 @@ interface ChatContextType {
   deleteSystemPromptPreset: (id: string) => void;
   selectSystemPromptPreset: (id: string) => void;
   selectedSystemPromptPresetId: string | null;
+  updateChat: (chatId: string, updates: Partial<ChatItem>) => void;
 }
 
 // Create a default context with empty/no-op implementations
@@ -82,6 +83,7 @@ const defaultContext: ChatContextType = {
   deleteSystemPromptPreset: () => {},
   selectSystemPromptPreset: () => {},
   selectedSystemPromptPresetId: null,
+  updateChat: () => {},
 };
 
 // Create the context with the default value
@@ -233,6 +235,14 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     saveChats();
   };
 
+  const updateChat = (chatId: string, updates: Partial<ChatItem>) => {
+    const newChats = chats.map((chat) =>
+      chat.id === chatId ? { ...chat, ...updates } : chat
+    );
+    setChats(newChats);
+    saveChats();
+  };
+
   // Create the context value by combining hook values
   const contextValue: ChatContextType = {
     chats,
@@ -272,6 +282,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     deleteSystemPromptPreset,
     selectSystemPromptPreset,
     selectedSystemPromptPresetId,
+    updateChat,
   };
 
   // Log context value for debugging

@@ -5,17 +5,23 @@
     border-radius: 6px;
     margin-bottom: 4px;
     cursor: pointer;
-    transition: background-color 0.2s;
-    color: #333333;
+    transition: all 0.3s;
+    color: var(--ant-color-text);
 }
 
 .chat-item:hover {
-    background-color: rgba(0, 0, 0, 0.05);
+    background-color: var(--ant-color-bg-elevated);
 }
 
-.chat-item.selected {
-    background-color: #e6f7ff;
-    color: #1890ff;
+[data-theme='dark'] .chat-item.selected {
+    background-color: #2b2b2b;
+    color: #fff;
+    font-weight: 500;
+}
+
+[data-theme='light'] .chat-item.selected {
+    background-color: #dddddd;
+    color: var(--ant-color-primary);
     font-weight: 500;
 }
 
@@ -27,21 +33,28 @@
     font-size: 13px;
 }
 
-.chat-item .delete-button {
-    opacity: 0;
-    transition: opacity 0.2s;
+.chat-item .edit-input {
+    flex: 1;
+    font-size: 13px;
+    margin-right: 8px;
 }
 
-.chat-item:hover .delete-button {
-    opacity: 1;
+.chat-item .button-group {
+    display: flex;
+    gap: 4px;
+    align-items: center;
 }
 
+.chat-item .delete-button,
+.chat-item .edit-button,
 .chat-item .pin-button {
     opacity: 0;
-    margin-right: 4px;
     transition: opacity 0.2s;
 }
 
-.chat-item:hover .pin-button, .pin-button .pin-button-active {
+.chat-item:hover .delete-button,
+.chat-item:hover .edit-button,
+.chat-item:hover .pin-button,
+.chat-item .pin-button-active {
     opacity: 1;
 } 

@@ -8,17 +8,19 @@ import {
   Divider,
   Space,
   Tooltip,
+  Avatar,
 } from "antd";
 import {
   PlusOutlined,
   SettingOutlined,
-  PushpinFilled,
-  PushpinOutlined,
-  DeleteOutlined,
+  MenuFoldOutlined,
+  MenuUnfoldOutlined,
+  MessageOutlined,
 } from "@ant-design/icons";
 import { useChat } from "../../contexts/ChatContext";
 import { groupChatsByDate } from "../../utils/chatUtils";
 import { SystemSettingsModal } from "../SystemSettingsModal";
+import { ChatItem } from "../ChatItem";
 
 const { Sider } = Layout;
 const { Text } = Typography;
@@ -35,8 +37,10 @@ export const ChatSidebar: React.FC<{
     deleteChat,
     pinChat,
     unpinChat,
+    updateChat,
   } = useChat();
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
+  const [collapsed, setCollapsed] = useState(false);
 
   // Group chats by date
   const groupedChats = groupChatsByDate(chats);
@@ -63,20 +67,42 @@ export const ChatSidebar: React.FC<{
     setIsSettingsModalOpen(false);
   };
 
+  const handleEditTitle = (chatId: string, newTitle: string) => {
+    updateChat(chatId, { title: newTitle });
+  };
+
   return (
     <Sider
-      width={250}
+      width={300}
+      collapsible
+      collapsed={collapsed}
+      onCollapse={(value) => setCollapsed(value)}
+      trigger={null}
+      collapsedWidth={80}
       style={{
-        paddingTop: 16,
+        paddingTop: 8,
         background: "var(--ant-color-bg-container)",
         borderRight: "1px solid var(--ant-color-border)",
       }}
     >
+      <Button
+        type="text"
+        icon={collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
+        onClick={() => setCollapsed(!collapsed)}
+        style={{
+          position: "absolute",
+          right: collapsed ? "50%" : 8,
+          top: 8,
+          transform: collapsed ? "translateX(50%)" : "none",
+          zIndex: 1,
+        }}
+      />
       <div
         style={{
           height: "calc(100vh - 120px)",
           overflowY: "auto",
           padding: "0 8px",
+          marginTop: 24,
           /* Hide scrollbar for Webkit browsers */
           scrollbarWidth: "none" /* Firefox */,
           msOverflowStyle: "none" /* IE and Edge */,
@@ -87,92 +113,94 @@ export const ChatSidebar: React.FC<{
           .chat-sidebar-scroll::-webkit-scrollbar {
             display: none;
           }
+          .chat-item-collapsed {
+            padding: 8px 0;
+            margin: 10px 0;
+            text-align: center;
+            cursor: pointer;
+            border-radius: 6px;
+            transition: all 0.3s;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+          }
+          .chat-item-collapsed:hover {
+            background: var(--ant-color-bg-elevated);
+          }
+          [data-theme='dark'] .chat-item-collapsed.selected {
+            background-color: #2b2b2b;
+          }
+          [data-theme='light'] .chat-item-collapsed.selected {
+            background-color: #aaaaaa;
+          }
         `}</style>
         <div className="chat-sidebar-scroll" style={{ height: "100%" }}>
-          {Object.entries(groupedChats).map(([date, chatsInGroup], idx) => (
-            <div key={date}>
-              {idx > 0 && <Divider style={{ margin: "8px 0" }} />}
-              <Text
-                type="secondary"
-                style={{ fontSize: 12, margin: "8px 0", display: "block" }}
-              >
-                {date}
-              </Text>
-              <List
-                itemLayout="horizontal"
-                dataSource={chatsInGroup}
-                renderItem={(chat) => (
-                  <List.Item
-                    style={{
-                      background:
-                        chat.id === currentChatId
-                          ? "var(--ant-color-primary-bg)"
-                          : undefined,
-                      borderRadius: 6,
-                      marginBottom: 4,
-                      cursor: "pointer",
-                      padding: 8,
-                      border:
-                        chat.id === currentChatId
-                          ? `1px solid var(--ant-color-primary-border)`
-                          : "1px solid transparent",
-                      transition: "background 0.2s",
-                    }}
+          {!collapsed &&
+            Object.entries(groupedChats).map(([date, chatsInGroup], idx) => (
+              <div key={date}>
+                {idx > 0 && <Divider style={{ margin: "8px 0" }} />}
+                <Text
+                  type="secondary"
+                  style={{ fontSize: 12, margin: "8px 0", display: "block" }}
+                >
+                  {date}
+                </Text>
+                <List
+                  itemLayout="horizontal"
+                  dataSource={chatsInGroup}
+                  renderItem={(chat) => (
+                    <ChatItem
+                      key={chat.id}
+                      chat={chat}
+                      isSelected={chat.id === currentChatId}
+                      onSelect={(chatId) => selectChat(chatId)}
+                      onDelete={handleDelete}
+                      onPin={pinChat}
+                      onUnpin={unpinChat}
+                      onEdit={handleEditTitle}
+                    />
+                  )}
+                />
+              </div>
+            ))}
+          {collapsed && (
+            <List
+              itemLayout="horizontal"
+              dataSource={Object.values(groupedChats).flat()}
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                gap: "4px",
+                padding: "0 8px",
+              }}
+              renderItem={(chat) => (
+                <Tooltip placement="right" title={chat.title}>
+                  <div
+                    className={`chat-item-collapsed ${
+                      chat.id === currentChatId ? "selected" : ""
+                    }`}
                     onClick={() => selectChat(chat.id)}
-                    actions={[
-                      <Tooltip title={chat.pinned ? "Unpin" : "Pin"} key="pin">
-                        <Button
-                          type="text"
-                          size="small"
-                          icon={
-                            chat.pinned ? (
-                              <PushpinFilled style={{ color: "#faad14" }} />
-                            ) : (
-                              <PushpinOutlined />
-                            )
-                          }
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            chat.pinned ? unpinChat(chat.id) : pinChat(chat.id);
-                          }}
-                          style={{ marginRight: 4 }}
-                        />
-                      </Tooltip>,
-                      <Tooltip title="Delete" key="delete">
-                        <Button
-                          type="text"
-                          size="small"
-                          icon={<DeleteOutlined />}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleDelete(chat.id);
-                          }}
-                        />
-                      </Tooltip>,
-                    ]}
                   >
-                    <Tooltip title={chat.title} placement="right">
-                      <div
-                        style={{
-                          flex: 1,
-                          whiteSpace: "nowrap",
-                          overflow: "hidden",
-                          textOverflow: "ellipsis",
-                          fontWeight: chat.id === currentChatId ? 600 : 400,
-                          color:
-                            chat.id === currentChatId
-                              ? "var(--ant-color-primary)"
-                              : "var(--ant-color-text)",
-                        }}
-                      >
-                        {chat.title}
-                      </div>
-                    </Tooltip>
-                  </List.Item>
-                )}
-              />
-            </div>
-          ))}
+                    <Avatar
+                      style={{
+                        backgroundColor:
+                          chat.id === currentChatId
+                            ? "var(--ant-color-primary)"
+                            : "var(--ant-color-bg-container)",
+                        color:
+                          chat.id === currentChatId
+                            ? "#fff"
+                            : "var(--ant-color-text)",
+                      }}
+                      icon={<MessageOutlined />}
+                    >
+                      {chat.title.charAt(0).toUpperCase()}
+                    </Avatar>
+                  </div>
+                </Tooltip>
+              )}
+            />
+          )}
         </div>
       </div>
       <div
@@ -181,26 +209,37 @@ export const ChatSidebar: React.FC<{
           left: 0,
           right: 0,
           bottom: 0,
-          padding: 16,
+          padding: collapsed ? "16px 8px" : 16,
           background: "var(--ant-color-bg-container)",
           borderTop: "1px solid var(--ant-color-border)",
         }}
       >
         <Space direction="vertical" style={{ width: "100%" }} size="middle">
-          <Button
-            type="primary"
-            icon={<PlusOutlined />}
-            onClick={() => {
-              const newChatId = addChat();
-              selectChat(newChatId);
-            }}
-            block
+          <Tooltip placement={collapsed ? "right" : "top"} title="New Chat">
+            <Button
+              type="primary"
+              icon={<PlusOutlined />}
+              onClick={() => {
+                const newChatId = addChat();
+                selectChat(newChatId);
+              }}
+              block
+            >
+              {!collapsed && "New Chat"}
+            </Button>
+          </Tooltip>
+          <Tooltip
+            placement={collapsed ? "right" : "top"}
+            title="System Settings"
           >
-            New Chat
-          </Button>
-          <Button icon={<SettingOutlined />} onClick={handleOpenSettings} block>
-            System Settings
-          </Button>
+            <Button
+              icon={<SettingOutlined />}
+              onClick={handleOpenSettings}
+              block
+            >
+              {!collapsed && "System Settings"}
+            </Button>
+          </Tooltip>
         </Space>
       </div>
       <SystemSettingsModal
