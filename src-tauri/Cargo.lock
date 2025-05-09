@@ -675,7 +675,7 @@ dependencies = [
 
 [[package]]
 name = "copilot_chat"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "anyhow",
  "arboard",
