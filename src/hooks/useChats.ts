@@ -1,13 +1,32 @@
+import React from 'react';
 import { useState, useCallback, useEffect } from "react";
 import { v4 as uuidv4 } from "uuid";
-import { ChatItem } from "../types/chat";
+import { ChatItem, Message } from "../types/chat";
 import { generateChatTitle } from "../utils/chatUtils";
+import { DEFAULT_MESSAGE } from "../constants";
 
 const STORAGE_KEY = "copilot_chats";
 const SYSTEM_PROMPT_KEY = "system_prompt";
-const DEFAULT_SYSTEM_PROMPT = `# Hello! I'm your AI Assistant 👋\n\nI'm here to help you with:\n\n* Writing and reviewing code\n* Answering questions\n* Solving problems\n* Explaining concepts\n* And much more!\n\nI'll respond using markdown formatting to make information clear and well-structured. Feel free to ask me anything!\n\n---\nLet's get started - what can I help you with today?`;
 
-export const useChats = () => {
+interface UseChatsReturn {
+  chats: ChatItem[];
+  currentChatId: string | null;
+  currentChat: ChatItem | null;
+  currentMessages: Message[];
+  addChat: (firstUserMessageContent?: string) => string;
+  selectChat: (chatId: string | null) => void;
+  deleteChat: (chatId: string) => void;
+  saveChats: () => void;
+  deleteAllChats: () => void;
+  pinChat: (chatId: string) => void;
+  unpinChat: (chatId: string) => void;
+  deleteEmptyChats: () => void;
+  setChats: React.Dispatch<React.SetStateAction<ChatItem[]>>;
+  updateChatMessages: (chatId: string, messages: Message[]) => void;
+  updateChatSystemPrompt: (chatId: string, systemPrompt: string) => void;
+}
+
+export const useChats = (): UseChatsReturn => {
   const [chats, setChats] = useState<ChatItem[]>([]);
   const [currentChatId, setCurrentChatId] = useState<string | null>(null);
 
@@ -19,7 +38,7 @@ export const useChats = () => {
       const systemMessage = chat.messages.find(m => m.role === "system");
       return {
         ...chat,
-        systemPrompt: systemMessage?.content || localStorage.getItem(SYSTEM_PROMPT_KEY) || DEFAULT_SYSTEM_PROMPT
+        systemPrompt: systemMessage?.content || localStorage.getItem(SYSTEM_PROMPT_KEY) || DEFAULT_MESSAGE
       };
     });
   }, []);
@@ -60,7 +79,7 @@ export const useChats = () => {
   const addChat = useCallback((firstUserMessageContent?: string): string => {
     const newChatId = uuidv4();
     const chatNumber = chats.length + 1;
-    const currentSystemPrompt = localStorage.getItem(SYSTEM_PROMPT_KEY) || DEFAULT_SYSTEM_PROMPT;
+    const currentSystemPrompt = localStorage.getItem(SYSTEM_PROMPT_KEY) || DEFAULT_MESSAGE;
     
     let initialMessages: ChatItem["messages"] = [];
     if (firstUserMessageContent) {
@@ -269,6 +288,7 @@ export const useChats = () => {
     deleteAllChats,
     deleteEmptyChats,
     pinChat,
-    unpinChat
+    unpinChat,
+    setChats,
   };
 };

@@ -10,6 +10,7 @@ export interface ChatItem {
     createdAt: number;
     systemPrompt?: string; // Optional for backward compatibility
     pinned?: boolean;
+    model?: string; // Optional model selection for the chat
 }
 
 export interface ChatCompletionResponse {

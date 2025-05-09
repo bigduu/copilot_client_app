@@ -77,92 +77,103 @@ export const ChatSidebar: React.FC<{
           height: "calc(100vh - 120px)",
           overflowY: "auto",
           padding: "0 8px",
+          /* Hide scrollbar for Webkit browsers */
+          scrollbarWidth: "none" /* Firefox */,
+          msOverflowStyle: "none" /* IE and Edge */,
         }}
       >
-        {Object.entries(groupedChats).map(([date, chatsInGroup], idx) => (
-          <div key={date}>
-            {idx > 0 && <Divider style={{ margin: "8px 0" }} />}
-            <Text
-              type="secondary"
-              style={{ fontSize: 12, margin: "8px 0", display: "block" }}
-            >
-              {date}
-            </Text>
-            <List
-              itemLayout="horizontal"
-              dataSource={chatsInGroup}
-              renderItem={(chat) => (
-                <List.Item
-                  style={{
-                    background:
-                      chat.id === currentChatId
-                        ? "var(--ant-color-primary-bg)"
-                        : undefined,
-                    borderRadius: 6,
-                    marginBottom: 4,
-                    cursor: "pointer",
-                    padding: 8,
-                    border:
-                      chat.id === currentChatId
-                        ? `1px solid var(--ant-color-primary-border)`
-                        : "1px solid transparent",
-                    transition: "background 0.2s",
-                  }}
-                  onClick={() => selectChat(chat.id)}
-                  actions={[
-                    <Tooltip title={chat.pinned ? "Unpin" : "Pin"} key="pin">
-                      <Button
-                        type="text"
-                        size="small"
-                        icon={
-                          chat.pinned ? (
-                            <PushpinFilled style={{ color: "#faad14" }} />
-                          ) : (
-                            <PushpinOutlined />
-                          )
-                        }
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          chat.pinned ? unpinChat(chat.id) : pinChat(chat.id);
+        <style>{`
+          /* Hide scrollbar for Chrome, Safari and Opera */
+          .chat-sidebar-scroll::-webkit-scrollbar {
+            display: none;
+          }
+        `}</style>
+        <div className="chat-sidebar-scroll" style={{ height: "100%" }}>
+          {Object.entries(groupedChats).map(([date, chatsInGroup], idx) => (
+            <div key={date}>
+              {idx > 0 && <Divider style={{ margin: "8px 0" }} />}
+              <Text
+                type="secondary"
+                style={{ fontSize: 12, margin: "8px 0", display: "block" }}
+              >
+                {date}
+              </Text>
+              <List
+                itemLayout="horizontal"
+                dataSource={chatsInGroup}
+                renderItem={(chat) => (
+                  <List.Item
+                    style={{
+                      background:
+                        chat.id === currentChatId
+                          ? "var(--ant-color-primary-bg)"
+                          : undefined,
+                      borderRadius: 6,
+                      marginBottom: 4,
+                      cursor: "pointer",
+                      padding: 8,
+                      border:
+                        chat.id === currentChatId
+                          ? `1px solid var(--ant-color-primary-border)`
+                          : "1px solid transparent",
+                      transition: "background 0.2s",
+                    }}
+                    onClick={() => selectChat(chat.id)}
+                    actions={[
+                      <Tooltip title={chat.pinned ? "Unpin" : "Pin"} key="pin">
+                        <Button
+                          type="text"
+                          size="small"
+                          icon={
+                            chat.pinned ? (
+                              <PushpinFilled style={{ color: "#faad14" }} />
+                            ) : (
+                              <PushpinOutlined />
+                            )
+                          }
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            chat.pinned ? unpinChat(chat.id) : pinChat(chat.id);
+                          }}
+                          style={{ marginRight: 4 }}
+                        />
+                      </Tooltip>,
+                      <Tooltip title="Delete" key="delete">
+                        <Button
+                          type="text"
+                          size="small"
+                          icon={<DeleteOutlined />}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDelete(chat.id);
+                          }}
+                        />
+                      </Tooltip>,
+                    ]}
+                  >
+                    <Tooltip title={chat.title} placement="right">
+                      <div
+                        style={{
+                          flex: 1,
+                          whiteSpace: "nowrap",
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                          fontWeight: chat.id === currentChatId ? 600 : 400,
+                          color:
+                            chat.id === currentChatId
+                              ? "var(--ant-color-primary)"
+                              : "var(--ant-color-text)",
                         }}
-                        style={{ marginRight: 4 }}
-                      />
-                    </Tooltip>,
-                    <Tooltip title="Delete" key="delete">
-                      <Button
-                        type="text"
-                        size="small"
-                        icon={<DeleteOutlined />}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleDelete(chat.id);
-                        }}
-                      />
-                    </Tooltip>,
-                  ]}
-                >
-                  <Tooltip title={chat.title} placement="right">
-                    <div
-                      style={{
-                        flex: 1,
-                        whiteSpace: "nowrap",
-                        overflow: "hidden",
-                        textOverflow: "ellipsis",
-                        fontWeight: chat.id === currentChatId ? 600 : 400,
-                        color:
-                          chat.id === currentChatId
-                            ? "var(--ant-color-primary)"
-                            : "var(--ant-color-text)",
-                      }}
-                    >
-                      {chat.title}
-                    </div>
-                  </Tooltip>
-                </List.Item>
-              )}
-            />
-          </div>
-        ))}
+                      >
+                        {chat.title}
+                      </div>
+                    </Tooltip>
+                  </List.Item>
+                )}
+              />
+            </div>
+          ))}
+        </div>
       </div>
       <div
         style={{

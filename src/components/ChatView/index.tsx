@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   Layout,
   Empty,
@@ -13,15 +13,11 @@ import {
 import { useChat } from "../../contexts/ChatContext";
 import SystemMessage from "../SystemMessage";
 import StreamingMessageItem from "../StreamingMessageItem";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
-import remarkBreaks from "remark-breaks";
-import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
-import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism";
-import { CopyOutlined } from "@ant-design/icons";
+import { CopyOutlined, DownOutlined } from "@ant-design/icons";
 import { invoke } from "@tauri-apps/api/core";
 import { InputContainer } from "../InputContainer";
 import "./ChatView.css"; // Import a new CSS file for animations and specific styles
+import MessageCard from "../MessageCard";
 
 const { Content } = Layout;
 const { Text } = Typography;
@@ -36,12 +32,62 @@ export const ChatView: React.FC = () => {
     addAssistantMessage,
   } = useChat();
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messagesListRef = useRef<HTMLDivElement>(null);
   const { token } = useToken();
+
+  // SystemMessage expand/collapse state
+  const [systemMsgExpanded, setSystemMsgExpanded] = useState(true);
+  // Track last chatId to detect chat change
+  const lastChatIdRef = useRef<string | null>(null);
+  // Scroll-to-bottom button state
+  const [showScrollToBottom, setShowScrollToBottom] = useState(false);
+
+  // Auto-expand on new chat, auto-collapse after first user message
+  useEffect(() => {
+    if (currentChatId !== lastChatIdRef.current) {
+      // Only expand if it's a new chat with no messages
+      if (currentMessages.length === 0) {
+        setSystemMsgExpanded(true);
+      } else {
+        setSystemMsgExpanded(false);
+      }
+      lastChatIdRef.current = currentChatId;
+    } else if (
+      currentMessages.length === 1 &&
+      currentMessages[0]?.role === "user"
+    ) {
+      setSystemMsgExpanded(false); // First user message: collapse
+    }
+  }, [currentChatId, currentMessages]);
 
   useEffect(() => {
     if (messagesEndRef.current && currentMessages.length > 0) {
       messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
     }
+  }, [currentMessages, isStreaming]);
+
+  // Handler to show/hide scroll-to-bottom button
+  const handleMessagesScroll = () => {
+    const el = messagesListRef.current;
+    if (!el) return;
+    // Show button if not at bottom (allowing a small threshold)
+    const threshold = 40;
+    const atBottom =
+      el.scrollHeight - el.scrollTop - el.clientHeight < threshold;
+    setShowScrollToBottom(!atBottom);
+  };
+
+  // Scroll to bottom function
+  const scrollToBottom = () => {
+    if (messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
+    }
+  };
+
+  useEffect(() => {
+    // Hide button when new messages arrive (auto scroll)
+    scrollToBottom();
+    setShowScrollToBottom(false);
   }, [currentMessages, isStreaming]);
 
   const hasMessages = currentMessages.length > 0;
@@ -75,7 +121,11 @@ export const ChatView: React.FC = () => {
       >
         {currentChatId ? (
           <>
-            <SystemMessage isExpandedView={!showMessagesView} />
+            <SystemMessage
+              isExpandedView={!showMessagesView}
+              expanded={systemMsgExpanded}
+              onExpandChange={setSystemMsgExpanded}
+            />
             {!showMessagesView && !hasMessages && (
               <Empty
                 description="Send a message to start the conversation."
@@ -108,150 +158,30 @@ export const ChatView: React.FC = () => {
           flexDirection: "column",
           gap: token.marginMD,
           opacity: showMessagesView ? 1 : 0,
+          scrollbarWidth: "none", // Firefox
+          msOverflowStyle: "none", // IE and Edge
         }}
+        ref={messagesListRef}
+        onScroll={handleMessagesScroll}
       >
         {showMessagesView &&
-          currentMessages.map((message, index) => (
-            <List.Item
-              key={index}
-              style={{
-                padding: token.paddingXS,
-                border: "none",
-                display: "flex",
-                justifyContent:
-                  message.role === "user" ? "flex-end" : "flex-start",
-              }}
-            >
-              <Card
+          currentMessages
+            .filter(
+              (message) =>
+                message.role === "user" || message.role === "assistant"
+            )
+            .map((message, index) => (
+              <List.Item
+                key={index}
                 style={{
-                  maxWidth: "85%",
-                  background:
-                    message.role === "user"
-                      ? token.colorPrimaryBg
-                      : token.colorBgLayout, // Changed for better contrast from main bg
-                  borderRadius: token.borderRadiusLG,
-                  boxShadow: token.boxShadow,
-                  position: "relative",
+                  padding: token.paddingXS,
+                  border: "none",
+                  display: "flex",
+                  justifyContent:
+                    message.role === "user" ? "flex-end" : "flex-start",
                 }}
               >
-                <Space
-                  direction="vertical"
-                  size={token.marginXS}
-                  style={{ width: "100%" }}
-                >
-                  <Text
-                    type="secondary"
-                    strong
-                    style={{ fontSize: token.fontSizeSM }}
-                  >
-                    {message.role === "user" ? "You" : "Assistant"}
-                  </Text>
-                  <div>
-                    <ReactMarkdown
-                      remarkPlugins={[remarkGfm, remarkBreaks]}
-                      components={{
-                        br: () => <br />,
-                        p: ({ children }) => (
-                          <Text style={{ marginBottom: token.marginSM }}>
-                            {children}
-                          </Text>
-                        ),
-                        ol: ({ children }) => (
-                          <ol
-                            style={{
-                              marginBottom: token.marginSM,
-                              paddingLeft: 20,
-                            }}
-                          >
-                            {children}
-                          </ol>
-                        ),
-                        ul: ({ children }) => (
-                          <ul
-                            style={{
-                              marginBottom: token.marginSM,
-                              paddingLeft: 20,
-                            }}
-                          >
-                            {children}
-                          </ul>
-                        ),
-                        li: ({ children }) => (
-                          <li style={{ marginBottom: token.marginXS }}>
-                            {children}
-                          </li>
-                        ),
-                        code({ className, children, ...props }) {
-                          const match = /language-(\\w+)/.exec(className || "");
-                          const language = match ? match[1] : "";
-                          const isInline = !match && !className;
-                          const codeString = String(children).replace(
-                            /\\n$/,
-                            ""
-                          );
-                          const [copied, setCopied] = React.useState(false);
-
-                          const handleCopy = async () => {
-                            try {
-                              await invoke("copy_to_clipboard", {
-                                text: codeString,
-                              });
-                              setCopied(true);
-                              setTimeout(() => setCopied(false), 1200);
-                            } catch (e) {
-                              setCopied(false);
-                            }
-                          };
-
-                          if (isInline) {
-                            return (
-                              <Text code className={className} {...props}>
-                                {children}
-                              </Text>
-                            );
-                          }
-
-                          return (
-                            <div style={{ position: "relative" }}>
-                              <Tooltip
-                                title={copied ? "Copied!" : "Copy"}
-                                placement="left"
-                              >
-                                <Button
-                                  icon={<CopyOutlined />}
-                                  size="small"
-                                  type="text"
-                                  style={{
-                                    position: "absolute",
-                                    top: token.marginXS,
-                                    right: token.marginXS,
-                                    zIndex: 2,
-                                    background: token.colorBgContainer,
-                                    borderRadius: token.borderRadiusSM,
-                                  }}
-                                  onClick={handleCopy}
-                                />
-                              </Tooltip>
-                              <SyntaxHighlighter
-                                style={oneDark}
-                                language={language || "text"}
-                                PreTag="div"
-                                customStyle={{
-                                  margin: `${token.marginXS}px 0`,
-                                  borderRadius: token.borderRadiusSM,
-                                  fontSize: token.fontSizeSM,
-                                }}
-                              >
-                                {codeString}
-                              </SyntaxHighlighter>
-                            </div>
-                          );
-                        },
-                      }}
-                    >
-                      {message.content}
-                    </ReactMarkdown>
-                  </div>
+                <MessageCard role={message.role} content={message.content}>
                   {message.role === "assistant" && (
                     <div
                       style={{
@@ -283,10 +213,9 @@ export const ChatView: React.FC = () => {
                       </Tooltip>
                     </div>
                   )}
-                </Space>
-              </Card>
-            </List.Item>
-          ))}
+                </MessageCard>
+              </List.Item>
+            ))}
 
         {/* AI 流式消息 - only shown when messagesView is active */}
         {showMessagesView && isStreaming && activeChannel && (
@@ -334,6 +263,26 @@ export const ChatView: React.FC = () => {
         )}
         <div ref={messagesEndRef} />
       </Content>
+
+      {/* Scroll to Bottom Button */}
+      {showScrollToBottom && (
+        <Button
+          type="primary"
+          shape="circle"
+          icon={<DownOutlined />}
+          size="large"
+          style={{
+            position: "fixed",
+            right: 32,
+            bottom: 96,
+            zIndex: 100,
+            boxShadow: token.boxShadow,
+            background: token.colorPrimary,
+            color: token.colorBgContainer,
+          }}
+          onClick={scrollToBottom}
+        />
+      )}
 
       {/* Input Container Area - transitions between bottom and centered view */}
       <div

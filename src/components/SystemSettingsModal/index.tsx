@@ -1,4 +1,4 @@
-import { useState } from "react";
+import React, { useState } from "react";
 import {
   Modal,
   Input,
@@ -8,9 +8,17 @@ import {
   Radio,
   message,
   Switch,
+  Space,
+  Typography,
+  Select,
+  Divider,
+  Spin,
 } from "antd";
-import { DeleteOutlined, EditOutlined } from "@ant-design/icons";
+import { DeleteOutlined, EditOutlined, PlusOutlined } from "@ant-design/icons";
 import { useChat } from "../../contexts/ChatContext";
+import { useModels } from "../../hooks/useModels";
+
+const { Text } = Typography;
 
 const DARK_MODE_KEY = "copilot_dark_mode";
 
@@ -34,15 +42,21 @@ const SystemSettingsModal = ({
     selectSystemPromptPreset,
     selectedSystemPromptPresetId,
     deleteEmptyChats,
+    currentChat,
+    updateCurrentChatModel,
   } = useChat();
   const [msgApi, contextHolder] = message.useMessage();
-
-  // Prompt管理Tab相关状态
+  const [showEditModal, setShowEditModal] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingName, setEditingName] = useState("");
   const [editingContent, setEditingContent] = useState("");
-  const [showEditModal, setShowEditModal] = useState(false);
-  const [isNew, setIsNew] = useState(false);
+  const {
+    models,
+    isLoading: isLoadingModels,
+    error: modelsError,
+  } = useModels();
+
+  const isNew = !editingId;
 
   const handleDeleteAll = () => {
     deleteAllChats();
@@ -55,21 +69,6 @@ const SystemSettingsModal = ({
     msgApi.success("Empty chats deleted (except pinned)");
   };
 
-  // Prompt管理相关
-  const openEditModal = (preset?: (typeof systemPromptPresets)[0]) => {
-    if (preset) {
-      setEditingId(preset.id);
-      setEditingName(preset.name);
-      setEditingContent(preset.content);
-      setIsNew(false);
-    } else {
-      setEditingId(null);
-      setEditingName("");
-      setEditingContent("");
-      setIsNew(true);
-    }
-    setShowEditModal(true);
-  };
   const handleEditSave = () => {
     if (!editingName.trim() || !editingContent.trim()) {
       msgApi.error("Name and content required");
@@ -87,6 +86,7 @@ const SystemSettingsModal = ({
     }
     setShowEditModal(false);
   };
+
   const handleDelete = (id: string) => {
     Modal.confirm({
       title: "Delete this prompt?",
@@ -106,6 +106,38 @@ const SystemSettingsModal = ({
       width={520}
     >
       {contextHolder}
+
+      {/* Model Selection Section */}
+      <div style={{ marginBottom: 24 }}>
+        <Text strong>Model Selection</Text>
+        <div style={{ marginTop: 8 }}>
+          {isLoadingModels ? (
+            <Spin size="small" />
+          ) : modelsError ? (
+            <Text type="danger">{modelsError}</Text>
+          ) : (
+            <Select
+              style={{ width: "100%" }}
+              placeholder="Select a model"
+              value={currentChat?.model}
+              onChange={(value) => {
+                if (currentChat) {
+                  updateCurrentChatModel(value);
+                }
+              }}
+            >
+              {models.map((model) => (
+                <Select.Option key={model} value={model}>
+                  {model}
+                </Select.Option>
+              ))}
+            </Select>
+          )}
+        </div>
+      </div>
+
+      <Divider />
+
       {/* Dark Mode Switch */}
       <div
         style={{
@@ -160,18 +192,28 @@ const SystemSettingsModal = ({
           </Button>
         </Popconfirm>
       </div>
+
       {/* Prompt Management Section */}
       <div style={{ borderTop: "1px solid #eee", paddingTop: 16 }}>
         <div style={{ fontWeight: 500, marginBottom: 8 }}>
           Prompt Management
         </div>
-        <Button
-          type="primary"
-          onClick={() => openEditModal()}
-          style={{ marginBottom: 12 }}
-        >
-          New Prompt
-        </Button>
+        <Space style={{ marginBottom: 16 }} align="center">
+          <Text strong>System Prompts</Text>
+          <Button
+            type="primary"
+            icon={<PlusOutlined />}
+            onClick={() => {
+              setEditingId(null);
+              setEditingName("");
+              setEditingContent("");
+              setShowEditModal(true);
+            }}
+            size="small"
+          >
+            Add New
+          </Button>
+        </Space>
         <Radio.Group
           value={selectedSystemPromptPresetId}
           onChange={(e) => selectSystemPromptPreset(e.target.value)}
@@ -186,7 +228,12 @@ const SystemSettingsModal = ({
                   <Button
                     type="text"
                     icon={<EditOutlined />}
-                    onClick={() => openEditModal(item)}
+                    onClick={() => {
+                      setEditingId(item.id);
+                      setEditingName(item.name);
+                      setEditingContent(item.content);
+                      setShowEditModal(true);
+                    }}
                   />,
                   item.id !== "default" && (
                     <Button
@@ -205,26 +252,28 @@ const SystemSettingsModal = ({
             )}
           />
         </Radio.Group>
-        <Modal
-          open={showEditModal}
-          title={isNew ? "New Prompt" : "Edit Prompt"}
-          onCancel={() => setShowEditModal(false)}
-          onOk={handleEditSave}
-        >
-          <Input
-            placeholder="Prompt Name"
-            value={editingName}
-            onChange={(e) => setEditingName(e.target.value)}
-            style={{ marginBottom: 12 }}
-          />
-          <Input.TextArea
-            placeholder="Prompt Content"
-            value={editingContent}
-            onChange={(e) => setEditingContent(e.target.value)}
-            autoSize={{ minRows: 6, maxRows: 16 }}
-          />
-        </Modal>
       </div>
+
+      {/* Edit Modal */}
+      <Modal
+        open={showEditModal}
+        title={isNew ? "New Prompt" : "Edit Prompt"}
+        onCancel={() => setShowEditModal(false)}
+        onOk={handleEditSave}
+      >
+        <Input
+          placeholder="Prompt Name"
+          value={editingName}
+          onChange={(e) => setEditingName(e.target.value)}
+          style={{ marginBottom: 12 }}
+        />
+        <Input.TextArea
+          placeholder="Prompt Content"
+          value={editingContent}
+          onChange={(e) => setEditingContent(e.target.value)}
+          autoSize={{ minRows: 6, maxRows: 16 }}
+        />
+      </Modal>
     </Modal>
   );
 };

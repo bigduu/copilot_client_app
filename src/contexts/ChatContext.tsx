@@ -8,25 +8,12 @@ import {
 } from "../types/chat";
 import { useChats } from "../hooks/useChats";
 import { useMessages } from "../hooks/useMessages";
+import { DEFAULT_MESSAGE } from "../constants";
 
 // System prompt default and storage key
 const SYSTEM_PROMPT_KEY = "system_prompt";
 const SYSTEM_PROMPT_PRESETS_KEY = "system_prompt_presets";
 const SYSTEM_PROMPT_SELECTED_ID_KEY = "system_prompt_selected_id";
-const DEFAULT_SYSTEM_PROMPT = `# Hello! I'm your AI Assistant 👋
-
-I'm here to help you with:
-
-* Writing and reviewing code
-* Answering questions
-* Solving problems
-* Explaining concepts
-* And much more!
-
-I'll respond using markdown formatting to make information clear and well-structured. Feel free to ask me anything!
-
----
-Let's get started - what can I help you with today?`;
 
 // Define the context type
 interface ChatContextType {
@@ -49,6 +36,7 @@ interface ChatContextType {
   systemPrompt: string;
   updateSystemPrompt: (prompt: string) => void;
   updateCurrentChatSystemPrompt: (prompt: string) => void;
+  updateCurrentChatModel: (model: string) => void;
   currentChatSystemPrompt: string | null;
   pinChat: (chatId: string) => void;
   unpinChat: (chatId: string) => void;
@@ -81,9 +69,10 @@ const defaultContext: ChatContextType = {
   deleteEmptyChats: () => {},
   saveChats: () => {},
   addAssistantMessage: () => {},
-  systemPrompt: DEFAULT_SYSTEM_PROMPT,
+  systemPrompt: DEFAULT_MESSAGE,
   updateSystemPrompt: () => {},
   updateCurrentChatSystemPrompt: () => {},
+  updateCurrentChatModel: () => {},
   currentChatSystemPrompt: null,
   pinChat: () => {},
   unpinChat: () => {},
@@ -115,12 +104,12 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     selectChat,
     deleteChat,
     updateChatMessages,
-    updateChatSystemPrompt,
     saveChats,
     deleteAllChats,
     pinChat,
     unpinChat,
     deleteEmptyChats,
+    setChats,
   } = useChats();
 
   // Get message functionality from useMessages hook
@@ -150,7 +139,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
       {
         id: "default",
         name: "默认助手",
-        content: DEFAULT_SYSTEM_PROMPT,
+        content: DEFAULT_MESSAGE,
       },
     ];
   };
@@ -205,10 +194,43 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
 
   // 获取当前全局prompt内容
   const getCurrentSystemPrompt = (): string => {
-    const preset = systemPromptPresets.find(
+    const selectedPreset = systemPromptPresets.find(
       (p) => p.id === selectedSystemPromptPresetId
     );
-    return preset?.content || DEFAULT_SYSTEM_PROMPT;
+    if (selectedPreset) return selectedPreset.content;
+
+    // Fallback to global or default if selected preset not found or content is empty
+    return localStorage.getItem(SYSTEM_PROMPT_KEY) || DEFAULT_MESSAGE;
+  };
+
+  const updateCurrentChatSystemPrompt = (prompt: string) => {
+    if (!currentChatId || !currentChat) return;
+
+    const updatedChat = {
+      ...currentChat,
+      systemPrompt: prompt,
+    };
+
+    const newChats = chats.map((chat) =>
+      chat.id === currentChatId ? updatedChat : chat
+    );
+    setChats(newChats);
+    saveChats();
+  };
+
+  const updateCurrentChatModel = (model: string) => {
+    if (!currentChatId || !currentChat) return;
+
+    const updatedChat = {
+      ...currentChat,
+      model: model,
+    };
+
+    const newChats = chats.map((chat) =>
+      chat.id === currentChatId ? updatedChat : chat
+    );
+    setChats(newChats);
+    saveChats();
   };
 
   // Create the context value by combining hook values
@@ -232,25 +254,15 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     systemPrompt: getCurrentSystemPrompt(),
     updateSystemPrompt: (prompt: string) => {
       try {
-        const promptToSave =
-          prompt && prompt.trim() ? prompt : DEFAULT_SYSTEM_PROMPT;
+        const promptToSave = prompt && prompt.trim() ? prompt : DEFAULT_MESSAGE;
         localStorage.setItem(SYSTEM_PROMPT_KEY, promptToSave);
         console.log("Global system prompt updated successfully");
       } catch (e) {
         console.error("Error saving system prompt:", e);
       }
     },
-    updateCurrentChatSystemPrompt: (prompt: string) => {
-      if (!currentChatId) {
-        console.error("Cannot update system prompt: No current chat");
-        return;
-      }
-
-      const promptToSave =
-        prompt && prompt.trim() ? prompt : DEFAULT_SYSTEM_PROMPT;
-      updateChatSystemPrompt(currentChatId, promptToSave);
-      console.log("Current chat system prompt updated successfully");
-    },
+    updateCurrentChatSystemPrompt,
+    updateCurrentChatModel,
     currentChatSystemPrompt: currentChat?.systemPrompt || null,
     pinChat,
     unpinChat,

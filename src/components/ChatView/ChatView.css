@@ -10,6 +10,13 @@
 .chat-view-messages-list {
   transition: opacity 0.5s ease-in-out;
   will-change: opacity; /* Hint to browser for optimization */
+  /* Hide scrollbar for Webkit browsers */
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE and Edge */
+}
+
+.chat-view-messages-list::-webkit-scrollbar {
+  display: none;
 }
 
 /* Centered View State (No messages) */
@@ -46,8 +53,9 @@
 
 /* Messages View State (Messages are present) */
 .chat-view-system-message-container.messages-view {
-  position: relative; /* Normal flow in messages view */
-  /* height: auto; Let content dictate height, padding is set inline */
+  position: sticky;
+  top: 0;
+  z-index: 20;
   opacity: 1;
   transform: translateY(0);
   /* padding-top, padding-left, padding-right set inline via style prop */

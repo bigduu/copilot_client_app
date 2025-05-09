@@ -50,5 +50,7 @@ webbrowser = "1"
 crossbeam = "0.8.2"
 rfd = "0.14"
 
+lazy_static = "1.4.0"
+
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
 tauri-plugin-global-shortcut = "2"

@@ -1,33 +1,25 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { Card, Space, Typography, theme } from "antd";
 import ReactMarkdown from "react-markdown";
 import { useChat } from "../../contexts/ChatContext";
+import { DEFAULT_MESSAGE } from "../../constants";
+import { ArrowsAltOutlined } from "@ant-design/icons";
 
 const { Text } = Typography;
 const { useToken } = theme;
 
 // Default message to use as fallback
-const DEFAULT_MESSAGE = `# Hello! I'm your AI Assistant 👋
-
-I'm here to help you with:
-
-* Writing and reviewing code
-* Answering questions
-* Solving problems
-* Explaining concepts
-* And much more!
-
-I'll respond using markdown formatting to make information clear and well-structured. Feel free to ask me anything!
-
----
-Let's get started - what can I help you with today?`;
 
 interface SystemMessageProps {
   isExpandedView?: boolean;
+  expanded?: boolean;
+  onExpandChange?: (expanded: boolean) => void;
 }
 
 const SystemMessage: React.FC<SystemMessageProps> = ({
   isExpandedView = false,
+  expanded: controlledExpanded,
+  onExpandChange,
 }) => {
   console.log("SystemMessage component rendering");
   const { token } = useToken();
@@ -40,13 +32,26 @@ const SystemMessage: React.FC<SystemMessageProps> = ({
     (currentChat?.systemPrompt || systemPrompt || DEFAULT_MESSAGE).trim() ||
     DEFAULT_MESSAGE;
 
+  // Local state for expand/collapse
+  const [uncontrolledExpanded, setUncontrolledExpanded] =
+    useState(isExpandedView);
+  const expanded =
+    controlledExpanded !== undefined
+      ? controlledExpanded
+      : uncontrolledExpanded;
+
+  // Get summary (first line or truncated)
+  const summary =
+    promptToDisplay.split("\n")[0].slice(0, 80) +
+    (promptToDisplay.length > 80 ? "..." : "");
+
   return (
     <Card
       style={{
         position: "relative",
         width: "100%",
-        maxHeight: isExpandedView ? "80vh" : "30vh",
-        overflowY: "auto",
+        maxHeight: expanded ? "80vh" : "8vh",
+        overflowY: expanded ? "auto" : "hidden",
         borderRadius: token.borderRadiusLG,
         boxShadow: token.boxShadow,
       }}
@@ -59,48 +64,87 @@ const SystemMessage: React.FC<SystemMessageProps> = ({
         <Text type="secondary" strong style={{ fontSize: token.fontSizeSM }}>
           System Prompt
         </Text>
-
-        <div style={{ display: "flex", gap: token.marginSM }}>
+        <div
+          style={{
+            display: "flex",
+            gap: token.marginSM,
+            alignItems: "flex-start",
+          }}
+        >
           <div style={{ flex: 1 }}>
-            <ReactMarkdown
-              components={{
-                p: ({ children }) => (
-                  <Text
-                    style={{ marginBottom: token.marginSM, display: "block" }}
-                  >
-                    {children}
-                  </Text>
-                ),
-                ol: ({ children }) => (
-                  <ol style={{ marginBottom: token.marginSM, paddingLeft: 20 }}>
-                    {children}
-                  </ol>
-                ),
-                ul: ({ children }) => (
-                  <ul style={{ marginBottom: token.marginSM, paddingLeft: 20 }}>
-                    {children}
-                  </ul>
-                ),
-                li: ({ children }) => (
-                  <li style={{ marginBottom: token.marginXS }}>{children}</li>
-                ),
-                h1: ({ children }) => (
-                  <Text
-                    strong
-                    style={{
-                      fontSize: token.fontSizeHeading3,
-                      marginBottom: token.marginSM,
-                      display: "block",
-                    }}
-                  >
-                    {children}
-                  </Text>
-                ),
-              }}
-            >
-              {promptToDisplay}
-            </ReactMarkdown>
+            {expanded ? (
+              <ReactMarkdown
+                components={{
+                  p: ({ children }) => (
+                    <Text
+                      style={{ marginBottom: token.marginSM, display: "block" }}
+                    >
+                      {children}
+                    </Text>
+                  ),
+                  ol: ({ children }) => (
+                    <ol
+                      style={{ marginBottom: token.marginSM, paddingLeft: 20 }}
+                    >
+                      {children}
+                    </ol>
+                  ),
+                  ul: ({ children }) => (
+                    <ul
+                      style={{ marginBottom: token.marginSM, paddingLeft: 20 }}
+                    >
+                      {children}
+                    </ul>
+                  ),
+                  li: ({ children }) => (
+                    <li style={{ marginBottom: token.marginXS }}>{children}</li>
+                  ),
+                  h1: ({ children }) => (
+                    <Text
+                      strong
+                      style={{
+                        fontSize: token.fontSizeHeading3,
+                        marginBottom: token.marginSM,
+                        display: "block",
+                      }}
+                    >
+                      {children}
+                    </Text>
+                  ),
+                }}
+              >
+                {promptToDisplay}
+              </ReactMarkdown>
+            ) : (
+              <Text style={{ color: token.colorTextSecondary }}>{summary}</Text>
+            )}
           </div>
+          <button
+            style={{
+              minWidth: 32,
+              height: 32,
+              border: "none",
+              background: "none",
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              marginLeft: token.marginXS,
+              transition: "transform 0.2s",
+              transform: expanded ? "rotate(45deg)" : "none",
+            }}
+            onClick={() => {
+              if (onExpandChange) {
+                onExpandChange(!expanded);
+              } else {
+                setUncontrolledExpanded((prev) => !prev);
+              }
+            }}
+            aria-label={expanded ? "Collapse" : "Expand"}
+            title={expanded ? "Collapse" : "Expand"}
+          >
+            <ArrowsAltOutlined style={{ fontSize: 20 }} />
+          </button>
         </div>
       </Space>
     </Card>

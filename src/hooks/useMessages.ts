@@ -1,13 +1,13 @@
 import { useState, useCallback } from "react";
 import { invoke, Channel } from "@tauri-apps/api/core";
 import { Message, ChatItem } from "../types/chat";
+import { DEFAULT_MESSAGE } from "../constants";
 
 // System prompt storage key
 const SYSTEM_PROMPT_KEY = "system_prompt";
-const DEFAULT_SYSTEM_PROMPT = `# Hello! I'm your AI Assistant 👋\n\nI'm here to help you with:\n\n* Writing and reviewing code\n* Answering questions\n* Solving problems\n* Explaining concepts\n* And much more!\n\nI'll respond using markdown formatting to make information clear and well-structured. Feel free to ask me anything!\n\n---\nLet's get started - what can I help you with today?`;
 
 const getEffectiveSystemPrompt = (chat: ChatItem | null) => {
-  if (!chat) return localStorage.getItem(SYSTEM_PROMPT_KEY) || DEFAULT_SYSTEM_PROMPT;
+  if (!chat) return localStorage.getItem(SYSTEM_PROMPT_KEY) || DEFAULT_MESSAGE;
   
   // First try to use chat's stored systemPrompt
   if (chat.systemPrompt) {
@@ -21,7 +21,7 @@ const getEffectiveSystemPrompt = (chat: ChatItem | null) => {
   }
   
   // Fall back to current global system prompt
-  return localStorage.getItem(SYSTEM_PROMPT_KEY) || DEFAULT_SYSTEM_PROMPT;
+  return localStorage.getItem(SYSTEM_PROMPT_KEY) || DEFAULT_MESSAGE;
 };
 
 export const useMessages = (
@@ -121,6 +121,7 @@ export const useMessages = (
         await invoke("execute_prompt", {
           messages: messagesWithSystemPrompt,
           channel: channel,
+          model: currentChat?.model,
         }).catch((error) => {
           console.error("Error invoking execute_prompt:", error);
           throw error;
@@ -189,6 +190,7 @@ export const useMessages = (
       await invoke("execute_prompt", {
         messages: messagesWithSystemPrompt,
         channel: channel,
+        model: currentChat?.model,
       }).catch((error) => {
         console.error("Error invoking execute_prompt for AI response:", error);
         throw error;

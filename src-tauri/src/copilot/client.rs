@@ -6,14 +6,15 @@ use std::{
     time::Duration,
 };
 
+use lazy_static::lazy_static;
 use reqwest::{Client, Proxy, Response};
 use serde::{de::DeserializeOwned, Serialize};
 use tauri::{
     http::{HeaderMap, HeaderName},
     ipc::Channel,
 };
-use tokio::io::AsyncReadExt;
 use tokio::time::sleep;
+use tokio::{io::AsyncReadExt, sync::Mutex};
 
 use crate::copilot::model::ChatCompletionRequest;
 
@@ -21,6 +22,11 @@ use super::{
     config::Config,
     model::{AccessTokenResponse, CopilotConfig, DeviceCodeResponse, Message},
 };
+
+// Add a static variable to store the models
+lazy_static! {
+    static ref CACHED_MODELS: Mutex<Option<Vec<String>>> = Mutex::new(None);
+}
 
 #[derive(Debug)]
 pub struct CopilotClinet {
@@ -98,6 +104,7 @@ impl CopilotClinet {
         &self,
         messages: Vec<Message>,
         channel: Channel<String>,
+        model: Option<String>,
     ) -> anyhow::Result<()> {
         println!("=== EXCHANGE_CHAT_COMPLETION START ===");
         let start_time = std::time::Instant::now();
@@ -122,7 +129,10 @@ impl CopilotClinet {
 
         let url = "https://api.githubcopilot.com/chat/completions";
         println!("Preparing request with {} messages", messages.len());
-        let request = ChatCompletionRequest::new("gpt-4o".to_string(), messages);
+
+        // Use the provided model or fall back to default
+        let model = model.unwrap_or_else(|| "gpt-4.1".to_string());
+        let request = ChatCompletionRequest::new(model, messages);
 
         // Create the request
         println!("Sending request to Copilot API...");
@@ -225,6 +235,100 @@ impl CopilotClinet {
 
                 println!("=== EXCHANGE_CHAT_COMPLETION FAILED ===");
                 Ok(())
+            }
+        }
+    }
+
+    pub async fn get_models(&self) -> anyhow::Result<Vec<String>> {
+        // First check if we have cached models
+        let mut cached = CACHED_MODELS.lock().await;
+        if let Some(models) = cached.as_ref() {
+            println!("Returning cached models");
+            return Ok(models.clone());
+        } else {
+            let models = self.do_get_models().await?;
+            *cached = Some(models.clone());
+            Ok(models)
+        }
+    }
+
+    async fn do_get_models(&self) -> anyhow::Result<Vec<String>> {
+        println!("=== GET_MODELS START ===");
+        let start_time = std::time::Instant::now();
+
+        let access_token = match self.get_chat_token().await {
+            Ok(token) => {
+                println!("Successfully got chat token");
+                token
+            }
+            Err(e) => {
+                println!("Failed to get chat token: {:?}", e);
+                return Err(e);
+            }
+        };
+
+        let mut headers = HeaderMap::new();
+        headers.insert("Editor-Version", "vscode/1.90.0".parse()?);
+        headers.insert("Editor-Plugin-Version", "copilot-chat/0.20.3".parse()?);
+        headers.insert("User-Agent", "GitHubCopilot/1.155.0".parse()?);
+        headers.insert("Content-Type", "application/json".parse()?);
+        headers.insert("Authorization", format!("Bearer {}", access_token).parse()?);
+
+        let url = "https://api.githubcopilot.com/models";
+        println!("Fetching available models...");
+
+        let response = match self.client.get(url).headers(headers).send().await {
+            Ok(resp) => {
+                println!(
+                    "Got response from Copilot API after {:?}",
+                    start_time.elapsed()
+                );
+                println!("Response status: {}", resp.status());
+                resp
+            }
+            Err(e) => {
+                let error_msg = format!("Failed to fetch models: {}", e);
+                println!("{}", error_msg);
+                return Err(anyhow::anyhow!(error_msg));
+            }
+        };
+
+        match response.status() {
+            reqwest::StatusCode::OK => {
+                let decompressed = self.decompressed_response(response).await?;
+                let models: serde_json::Value = serde_json::from_str(&decompressed)?;
+                println!("Models: {:?}", models);
+
+                // Extract model IDs from the response
+                let model_ids = if let Some(data) = models.get("data").and_then(|d| d.as_array()) {
+                    data.iter()
+                        .filter_map(|model| {
+                            let id = model.get("id").and_then(|id| id.as_str())?;
+                            let model_picker_enabled = model
+                                .get("model_picker_enabled")
+                                .and_then(|v| v.as_bool())
+                                .unwrap_or(false);
+
+                            // Only include models where model_picker_enabled is true
+                            if model_picker_enabled {
+                                Some(id.to_string())
+                            } else {
+                                None
+                            }
+                        })
+                        .collect::<Vec<String>>()
+                } else {
+                    return Err(anyhow::anyhow!("Invalid models response format"));
+                };
+
+                println!("=== GET_MODELS COMPLETE ===");
+                Ok(model_ids)
+            }
+            s => {
+                let body = response.text().await.unwrap_or_default();
+                let error_msg = format!("Failed to get models: {} with status {}", body, s);
+                println!("{}", error_msg);
+                Err(anyhow::anyhow!(error_msg))
             }
         }
     }

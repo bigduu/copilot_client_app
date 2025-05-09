@@ -11,6 +11,7 @@ async fn execute_prompt(
     messages: Vec<Message>,
     state: tauri::State<'_, CopilotClinet>,
     channel: Channel<String>,
+    model: Option<String>,
 ) -> Result<(), String> {
     println!("=== EXECUTE_PROMPT START ===");
     println!("The latest message: {}", messages.last().unwrap().content);
@@ -19,7 +20,7 @@ async fn execute_prompt(
 
     println!("Calling exchange_chat_completion...");
     match client
-        .exchange_chat_completion(messages, channel.clone())
+        .exchange_chat_completion(messages, channel.clone(), model)
         .await
     {
         Ok(_) => {}
@@ -60,6 +61,15 @@ fn copy_to_clipboard(text: String) -> Result<(), String> {
     let mut clipboard = Clipboard::new().map_err(|e| e.to_string())?;
     clipboard.set_text(text).map_err(|e| e.to_string())?;
     Ok(())
+}
+
+#[tauri::command(async)]
+async fn get_models(state: tauri::State<'_, CopilotClinet>) -> Result<Vec<String>, String> {
+    let client = state.clone();
+    match client.get_models().await {
+        Ok(models) => Ok(models),
+        Err(e) => Err(format!("Failed to get models: {}", e)),
+    }
 }
 
 fn toggle_launchbar(app: &AppHandle) {
@@ -118,7 +128,8 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             execute_prompt,
             forward_message_to_main,
-            copy_to_clipboard
+            copy_to_clipboard,
+            get_models
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
