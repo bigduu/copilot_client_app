@@ -1,7 +1,7 @@
 use arboard::Clipboard;
 use copilot::{client::CopilotClinet, config::Config, model::Message};
 use serde_json::json;
-use tauri::{ipc::Channel, AppHandle, Emitter, Listener, Manager, State, WindowEvent};
+use tauri::{ipc::Channel, AppHandle, Emitter, Manager};
 use tauri_plugin_global_shortcut::{Code, Modifiers, ShortcutState};
 
 pub mod copilot;
@@ -25,8 +25,8 @@ async fn execute_prompt(
     {
         Ok(_) => {}
         Err(e) => {
-            let error_msg = format!("Error in exchange_chat_completion: {}", e);
-            println!("{}", error_msg);
+            let error_msg = format!("Error in exchange_chat_completion: {e}");
+            println!("{error_msg}");
             channel
                 .send(format!(
                     r#"{{"error": "{}"}}"#,
@@ -41,17 +41,16 @@ async fn execute_prompt(
 
 #[tauri::command]
 async fn forward_message_to_main(app_handle: AppHandle, message: String) -> Result<(), String> {
-    println!("[forward_message_to_main] called with message: {}", message);
+    println!("[forward_message_to_main] called with message: {message}");
     let main_window = app_handle
         .get_webview_window("main")
         .ok_or("Main window not found")?;
 
     // Emit event with object payload
     let emit_result = main_window.emit("new-chat-message", Some(json!({ "message": message })));
-    println!(
-        "[forward_message_to_main] emit result: {:?}, message: {}",
-        emit_result, message
-    );
+    println! {
+        "[forward_message_to_main] emit result: {emit_result:?}, message: {message}"
+    };
     emit_result.map_err(|e| e.to_string())?;
     Ok(())
 }
@@ -68,7 +67,7 @@ async fn get_models(state: tauri::State<'_, CopilotClinet>) -> Result<Vec<String
     let client = state.clone();
     match client.get_models().await {
         Ok(models) => Ok(models),
-        Err(e) => Err(format!("Failed to get models: {}", e)),
+        Err(e) => Err(format!("Failed to get models: {e}")),
     }
 }
 
@@ -92,15 +91,12 @@ pub fn run() {
     // Initialize logger for development
     env_logger::init();
 
-    let client = CopilotClinet::new(Config::new());
-
-    let main_window_label = "main";
     tauri::Builder::default()
         .setup(|app| {
             let handle = app.handle();
-            // Listen for create-chat event
-            let main_window = app.get_webview_window(main_window_label).unwrap();
-            let client_state = app.state::<CopilotClinet>();
+            let app_data_dir = handle.path().app_data_dir().unwrap();
+            let client = CopilotClinet::new(Config::new(), app_data_dir);
+            app.manage(client);
 
             // The global shortcut handler remains
             handle.plugin(
@@ -124,7 +120,6 @@ pub fn run() {
             )?;
             Ok(())
         })
-        .manage(client)
         .invoke_handler(tauri::generate_handler![
             execute_prompt,
             forward_message_to_main,

@@ -2,7 +2,7 @@ use std::{
     collections::HashMap,
     fs::{read_to_string, File},
     io::Write,
-    path::Path,
+    path::PathBuf,
     time::Duration,
 };
 
@@ -31,10 +31,11 @@ lazy_static! {
 #[derive(Debug)]
 pub struct CopilotClinet {
     client: reqwest::Client,
+    app_data_dir: PathBuf,
 }
 
 impl CopilotClinet {
-    pub fn new(config: Config) -> Self {
+    pub fn new(config: Config, app_data_dir: PathBuf) -> Self {
         let mut header: HeaderMap = HeaderMap::new();
         header.insert(
             HeaderName::from_static("editor-version"),
@@ -69,13 +70,21 @@ impl CopilotClinet {
         }
         let client: Client = builder.build().unwrap();
 
-        CopilotClinet { client }
+        CopilotClinet {
+            client,
+            app_data_dir,
+        }
     }
 
     async fn get_chat_token(&self) -> anyhow::Result<String> {
+        // Create the directory if it doesn't exist
+        std::fs::create_dir_all(&self.app_data_dir)?;
+
+        let token_path = self.app_data_dir.join(".token");
+
         //read the access token from the .token file if exists don't get the device code and access token
-        if Path::new(".token").exists() {
-            let access_token = read_to_string(".token")?;
+        if token_path.exists() {
+            let access_token = read_to_string(&token_path)?;
             let access_token = AccessTokenResponse::from_token(access_token);
             match self.get_copilot_token(access_token).await {
                 Ok(copilot_config) => {
@@ -83,10 +92,9 @@ impl CopilotClinet {
                 }
                 Err(e) => {
                     //remove the .token file
-                    std::fs::remove_file(".token")?;
+                    std::fs::remove_file(&token_path)?;
                     println!(
-                        "Failed to get copilot config, will get the device code and access token: {}",
-                        e
+                        "Failed to get copilot config, will get the device code and access token: {e}"
                     );
                 }
             };
@@ -94,7 +102,7 @@ impl CopilotClinet {
         let device_code = self.get_device_code().await?;
         let access_token = self.get_access_token(device_code).await?;
         //make sure the .token file is writable and write the access token to it
-        let mut file = File::create(".token")?;
+        let mut file = File::create(&token_path)?;
         file.write_all(access_token.clone().access_token.unwrap().as_bytes())?;
         let copilot_config = self.get_copilot_token(access_token).await?;
         Ok(copilot_config.token)
@@ -115,7 +123,7 @@ impl CopilotClinet {
                 token
             }
             Err(e) => {
-                println!("Failed to get chat token: {:?}", e);
+                println!("Failed to get chat token: {e:?}");
                 return Err(e);
             }
         };
@@ -125,7 +133,7 @@ impl CopilotClinet {
         headers.insert("Editor-Plugin-Version", "copilot-chat/0.20.3".parse()?);
         headers.insert("User-Agent", "GitHubCopilot/1.155.0".parse()?);
         headers.insert("Content-Type", "application/json".parse()?);
-        headers.insert("Authorization", format!("Bearer {}", access_token).parse()?);
+        headers.insert("Authorization", format!("Bearer {access_token}").parse()?);
 
         let url = "https://api.githubcopilot.com/chat/completions";
         println!("Preparing request with {} messages", messages.len());
@@ -154,14 +162,14 @@ impl CopilotClinet {
                 // Log headers for debugging
                 println!("Response headers:");
                 for (name, value) in resp.headers() {
-                    println!("  {}: {:?}", name, value);
+                    println!("  {name}: {value:?}");
                 }
 
                 resp
             }
             Err(e) => {
-                let error_msg = format!("Failed to send request: {}", e);
-                println!("{}", error_msg);
+                let error_msg = format!("Failed to send request: {e}");
+                println!("{error_msg}");
                 // Send error message to frontend
                 channel.send(format!(
                     r#"{{"error": "{}"}}"#,
@@ -188,7 +196,7 @@ impl CopilotClinet {
                                 while let Some(pos) = buffer.find("\n\n") {
                                     let line = buffer[..pos].trim().to_string();
                                     if !line.is_empty() {
-                                        println!("Sending line: {}", line);
+                                        println!("Sending line: {line}");
                                         channel.send(line)?;
                                     }
                                     buffer = buffer[pos + 1..].to_string();
@@ -196,8 +204,8 @@ impl CopilotClinet {
                             }
                         }
                         Err(e) => {
-                            let error_msg = format!("Error reading stream: {}", e);
-                            println!("{}", error_msg);
+                            let error_msg = format!("Error reading stream: {e}");
+                            println!("{error_msg}");
                             channel.send(format!(
                                 r#"{{"error": "{}"}}"#,
                                 error_msg.replace("\"", "\\\"")
@@ -218,14 +226,12 @@ impl CopilotClinet {
             s => {
                 let body = match response.text().await {
                     Ok(text) => text,
-                    Err(e) => format!("Failed to read error response: {}", e),
+                    Err(e) => format!("Failed to read error response: {e}"),
                 };
 
-                let error_msg = format!(
-                    "Failed to exchange chat completion: {} with status {}",
-                    body, s
-                );
-                println!("{}", error_msg);
+                let error_msg =
+                    format!("Failed to exchange chat completion: {body} with status {s}");
+                println!("{error_msg}");
 
                 // Send error message to frontend
                 channel.send(format!(
@@ -244,7 +250,7 @@ impl CopilotClinet {
         let mut cached = CACHED_MODELS.lock().await;
         if let Some(models) = cached.as_ref() {
             println!("Returning cached models");
-            return Ok(models.clone());
+            Ok(models.clone())
         } else {
             let models = self.do_get_models().await?;
             *cached = Some(models.clone());
@@ -262,7 +268,7 @@ impl CopilotClinet {
                 token
             }
             Err(e) => {
-                println!("Failed to get chat token: {:?}", e);
+                println!("Failed to get chat token: {e:?}");
                 return Err(e);
             }
         };
@@ -272,7 +278,7 @@ impl CopilotClinet {
         headers.insert("Editor-Plugin-Version", "copilot-chat/0.20.3".parse()?);
         headers.insert("User-Agent", "GitHubCopilot/1.155.0".parse()?);
         headers.insert("Content-Type", "application/json".parse()?);
-        headers.insert("Authorization", format!("Bearer {}", access_token).parse()?);
+        headers.insert("Authorization", format!("Bearer {access_token}").parse()?);
 
         let url = "https://api.githubcopilot.com/models";
         println!("Fetching available models...");
@@ -287,8 +293,8 @@ impl CopilotClinet {
                 resp
             }
             Err(e) => {
-                let error_msg = format!("Failed to fetch models: {}", e);
-                println!("{}", error_msg);
+                let error_msg = format!("Failed to fetch models: {e}");
+                println!("{error_msg}");
                 return Err(anyhow::anyhow!(error_msg));
             }
         };
@@ -297,7 +303,7 @@ impl CopilotClinet {
             reqwest::StatusCode::OK => {
                 let decompressed = self.decompressed_response(response).await?;
                 let models: serde_json::Value = serde_json::from_str(&decompressed)?;
-                println!("Models: {:?}", models);
+                println!("Models: {models:?}");
 
                 // Extract model IDs from the response
                 let model_ids = if let Some(data) = models.get("data").and_then(|d| d.as_array()) {
@@ -326,8 +332,8 @@ impl CopilotClinet {
             }
             s => {
                 let body = response.text().await.unwrap_or_default();
-                let error_msg = format!("Failed to get models: {} with status {}", body, s);
-                println!("{}", error_msg);
+                let error_msg = format!("Failed to get models: {body} with status {s}");
+                println!("{error_msg}");
                 Err(anyhow::anyhow!(error_msg))
             }
         }
@@ -426,10 +432,7 @@ impl CopilotClinet {
         let data: CopilotConfig = match serde_json::from_str(&decompressed) {
             Ok(data) => data,
             Err(e) => {
-                eprintln!(
-                    "Failed to parse copilot config: {}, the response is: {}",
-                    e, decompressed
-                );
+                eprintln!("Failed to parse copilot config: {e}, the response is: {decompressed}",);
                 return Err(anyhow::anyhow!("Failed to parse copilot config: {}", e));
             }
         };
@@ -448,8 +451,8 @@ impl CopilotClinet {
                 Ok(data)
             }
             Err(e) => {
-                eprintln!("Failed to send request: {}", e);
-                return Err(anyhow::anyhow!("Failed to send request: {}", e));
+                eprintln!("Failed to send request: {e}",);
+                Err(anyhow::anyhow!("Failed to send request: {e}"))
             }
         }
     }

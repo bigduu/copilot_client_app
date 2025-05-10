@@ -22,6 +22,49 @@ const { Text } = Typography;
 
 const DARK_MODE_KEY = "copilot_dark_mode";
 
+const ModelSelection = ({
+  isLoadingModels,
+  modelsError,
+  models,
+  currentModel,
+  onModelChange,
+}: {
+  isLoadingModels: boolean;
+  modelsError: string | null;
+  models: string[];
+  currentModel: string | undefined;
+  onModelChange: (model: string) => void;
+}) => {
+  const fallbackModel = "gpt-4o";
+  const modelOptions = models && models.length > 0 ? models : [fallbackModel];
+  const value = currentModel || fallbackModel;
+  return (
+    <div style={{ marginBottom: 24 }}>
+      <Text strong>Model Selection</Text>
+      <div style={{ marginTop: 8 }}>
+        {isLoadingModels ? (
+          <Spin size="small" />
+        ) : modelsError ? (
+          <Text type="danger">{modelsError}</Text>
+        ) : (
+          <Select
+            style={{ width: "100%" }}
+            placeholder="Select a model"
+            value={value}
+            onChange={onModelChange}
+          >
+            {modelOptions.map((model) => (
+              <Select.Option key={model} value={model}>
+                {model}
+              </Select.Option>
+            ))}
+          </Select>
+        )}
+      </div>
+    </div>
+  );
+};
+
 const SystemSettingsModal = ({
   open,
   onClose,
@@ -108,33 +151,17 @@ const SystemSettingsModal = ({
       {contextHolder}
 
       {/* Model Selection Section */}
-      <div style={{ marginBottom: 24 }}>
-        <Text strong>Model Selection</Text>
-        <div style={{ marginTop: 8 }}>
-          {isLoadingModels ? (
-            <Spin size="small" />
-          ) : modelsError ? (
-            <Text type="danger">{modelsError}</Text>
-          ) : (
-            <Select
-              style={{ width: "100%" }}
-              placeholder="Select a model"
-              value={currentChat?.model}
-              onChange={(value) => {
-                if (currentChat) {
-                  updateCurrentChatModel(value);
-                }
-              }}
-            >
-              {models.map((model) => (
-                <Select.Option key={model} value={model}>
-                  {model}
-                </Select.Option>
-              ))}
-            </Select>
-          )}
-        </div>
-      </div>
+      <ModelSelection
+        isLoadingModels={isLoadingModels}
+        modelsError={modelsError}
+        models={models}
+        currentModel={currentChat?.model}
+        onModelChange={(value) => {
+          if (currentChat) {
+            updateCurrentChatModel(value);
+          }
+        }}
+      />
 
       <Divider />
 
