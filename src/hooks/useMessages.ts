@@ -8,18 +8,18 @@ const SYSTEM_PROMPT_KEY = "system_prompt";
 
 const getEffectiveSystemPrompt = (chat: ChatItem | null) => {
   if (!chat) return localStorage.getItem(SYSTEM_PROMPT_KEY) || DEFAULT_MESSAGE;
-  
+
   // First try to use chat's stored systemPrompt
   if (chat.systemPrompt) {
     return chat.systemPrompt;
   }
-  
+
   // Look for existing system message
   const systemMessage = chat.messages.find(m => m.role === "system");
   if (systemMessage) {
     return systemMessage.content;
   }
-  
+
   // Fall back to current global system prompt
   return localStorage.getItem(SYSTEM_PROMPT_KEY) || DEFAULT_MESSAGE;
 };
@@ -41,7 +41,7 @@ export const useMessages = (
       if (currentChatId) {
         const updatedMessages = [...currentMessages, assistantMessage];
         updateChatMessages(currentChatId, updatedMessages);
-        
+
         // Reset streaming state and clear active channel
         setIsStreaming(false);
         setActiveChannel(null);
@@ -93,7 +93,7 @@ export const useMessages = (
       try {
         console.log("Creating channel for response");
         const channel = new Channel<string>();
-        
+
         // Store the active channel
         setActiveChannel(channel);
 
@@ -112,13 +112,13 @@ export const useMessages = (
         console.log("Including system prompt in request, length:", systemPromptContent.length);
 
         // Prepare messages array with system prompt if available
-        const messagesWithSystemPrompt = systemPromptMessage 
-          ? [systemPromptMessage, ...messagesToSend] 
+        const messagesWithSystemPrompt = systemPromptMessage
+          ? [systemPromptMessage, ...messagesToSend]
           : messagesToSend;
 
         console.log("Invoking execute_prompt with message count:", messagesWithSystemPrompt.length);
-        
-        await invoke("execute_prompt", {
+
+        await invoke("execute_prompt_stream", {
           messages: messagesWithSystemPrompt,
           channel: channel,
           model: currentChat?.model,
@@ -130,9 +130,8 @@ export const useMessages = (
         console.error("Failed to invoke execute_prompt:", error);
         addAssistantMessage({
           role: "assistant",
-          content: `Error: ${
-            error instanceof Error ? error.message : String(error)
-          }`,
+          content: `Error: ${error instanceof Error ? error.message : String(error)
+            }`,
         });
       }
     },
@@ -159,8 +158,8 @@ export const useMessages = (
     // Ensure the last message is from the user, otherwise, AI might respond to itself or system.
     const lastMessage = currentMessages[currentMessages.length - 1];
     if (lastMessage.role === 'system') {
-        console.warn("Last message is system, AI response not initiated.");
-        return;
+      console.warn("Last message is system, AI response not initiated.");
+      return;
     }
 
     if (lastMessage.role === 'assistant') {
@@ -183,11 +182,11 @@ export const useMessages = (
         role: "system" as const,
         content: systemPromptContent
       };
-      
+
       const messagesWithSystemPrompt = [systemPromptMessage, ...currentMessages];
 
       console.log("[useMessages] Invoking execute_prompt for AI response. Message count:", messagesWithSystemPrompt.length);
-      await invoke("execute_prompt", {
+      await invoke("execute_prompt_stream", {
         messages: messagesWithSystemPrompt,
         channel: channel,
         model: currentChat?.model,
@@ -199,9 +198,8 @@ export const useMessages = (
       console.error("Failed to invoke execute_prompt for AI response:", error);
       addAssistantMessage({
         role: "assistant",
-        content: `Error: ${
-          error instanceof Error ? error.message : String(error)
-        }`,
+        content: `Error: ${error instanceof Error ? error.message : String(error)
+          }`,
       });
     }
   }, [

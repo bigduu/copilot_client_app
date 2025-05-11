@@ -1,483 +1,252 @@
-use std::{
-    collections::HashMap,
-    fs::{read_to_string, File},
-    io::Write,
-    path::PathBuf,
-    time::Duration,
+use async_trait::async_trait;
+use futures_util::StreamExt;
+use llm_proxy_core::LLMClient;
+use llm_proxy_openai::StreamChunk;
+use std::sync::Arc;
+
+use bytes::Bytes;
+use llm_proxy_core::{ClientProvider, Error, TokenProvider, UrlProvider};
+use llm_proxy_openai::{ChatCompletionRequest, ErrorResponse};
+use tokio::sync::mpsc;
+use tracing::{debug, error, info, warn};
+
+use super::providers::{
+    client_provider::CopilotClientProvider, token_provider::CopilotTokenProvider,
+    url_provider::CopilotUrlProvider,
 };
 
-use lazy_static::lazy_static;
-use reqwest::{Client, Proxy, Response};
-use serde::{de::DeserializeOwned, Serialize};
-use tauri::{
-    http::{HeaderMap, HeaderName},
-    ipc::Channel,
-};
-use tokio::time::sleep;
-use tokio::{io::AsyncReadExt, sync::Mutex};
-
-use crate::copilot::model::ChatCompletionRequest;
-
-use super::{
-    config::Config,
-    model::{AccessTokenResponse, CopilotConfig, DeviceCodeResponse, Message},
-};
-
-// Add a static variable to store the models
-lazy_static! {
-    static ref CACHED_MODELS: Mutex<Option<Vec<String>>> = Mutex::new(None);
+/// OpenAI-specific implementation of `LLMClient`
+pub struct CopilotClient {
+    client: Arc<CopilotClientProvider>,
+    token: Arc<CopilotTokenProvider>,
+    url: Arc<CopilotUrlProvider>,
 }
 
-#[derive(Debug)]
-pub struct CopilotClinet {
-    client: reqwest::Client,
-    app_data_dir: PathBuf,
+impl Clone for CopilotClient {
+    fn clone(&self) -> Self {
+        Self {
+            client: self.client.clone(),
+            token: self.token.clone(),
+            url: self.url.clone(),
+        }
+    }
 }
 
-impl CopilotClinet {
-    pub fn new(config: Config, app_data_dir: PathBuf) -> Self {
-        let mut header: HeaderMap = HeaderMap::new();
-        header.insert(
-            HeaderName::from_static("editor-version"),
-            "Neovim/0.6.1".parse().unwrap(),
-        );
-        header.insert(
-            HeaderName::from_static("editor-plugin-version"),
-            "copilot.vim/1.16.0".parse().unwrap(),
-        );
-        header.insert(
-            HeaderName::from_static("accept-encoding"),
-            "gzip, deflate, br".parse().unwrap(),
-        );
-        header.insert(
-            HeaderName::from_static("user-agent"),
-            "GithubCopilot/1.155.0".parse().unwrap(),
-        );
-        header.insert(
-            HeaderName::from_static("accept"),
-            "application/json".parse().unwrap(),
-        );
-        header.insert(
-            HeaderName::from_static("content-type"),
-            "application/json".parse().unwrap(),
-        );
-        let mut builder = Client::builder().default_headers(header);
-        if !config.http_proxy.is_empty() {
-            builder = builder.proxy(Proxy::http(&config.http_proxy).unwrap());
-        }
-        if !config.https_proxy.is_empty() {
-            builder = builder.proxy(Proxy::https(&config.https_proxy).unwrap());
-        }
-        let client: Client = builder.build().unwrap();
-
-        CopilotClinet {
-            client,
-            app_data_dir,
+impl CopilotClient {
+    /// Create a new `OpenAI` client with the given providers
+    pub fn new(
+        client_provider: Arc<CopilotClientProvider>,
+        token_provider: Arc<CopilotTokenProvider>,
+        url_provider: Arc<CopilotUrlProvider>,
+    ) -> Self {
+        Self {
+            client: client_provider,
+            token: token_provider,
+            url: url_provider,
         }
     }
 
-    async fn get_chat_token(&self) -> anyhow::Result<String> {
-        // Create the directory if it doesn't exist
-        std::fs::create_dir_all(&self.app_data_dir)?;
-
-        let token_path = self.app_data_dir.join(".token");
-
-        //read the access token from the .token file if exists don't get the device code and access token
-        if token_path.exists() {
-            let access_token = read_to_string(&token_path)?;
-            let access_token = AccessTokenResponse::from_token(access_token);
-            match self.get_copilot_token(access_token).await {
-                Ok(copilot_config) => {
-                    return Ok(copilot_config.token);
-                }
-                Err(e) => {
-                    //remove the .token file
-                    std::fs::remove_file(&token_path)?;
-                    println!(
-                        "Failed to get copilot config, will get the device code and access token: {e}"
-                    );
-                }
-            };
-        }
-        let device_code = self.get_device_code().await?;
-        let access_token = self.get_access_token(device_code).await?;
-        //make sure the .token file is writable and write the access token to it
-        let mut file = File::create(&token_path)?;
-        file.write_all(access_token.clone().access_token.unwrap().as_bytes())?;
-        let copilot_config = self.get_copilot_token(access_token).await?;
-        Ok(copilot_config.token)
-    }
-
-    pub async fn exchange_chat_completion(
+    /// Send request to `OpenAI` and get response
+    async fn send_request(
         &self,
-        messages: Vec<Message>,
-        channel: Channel<String>,
-        model: Option<String>,
-    ) -> anyhow::Result<()> {
-        println!("=== EXCHANGE_CHAT_COMPLETION START ===");
-        let start_time = std::time::Instant::now();
-
-        let access_token = match self.get_chat_token().await {
-            Ok(token) => {
-                println!("Successfully got chat token");
-                token
-            }
-            Err(e) => {
-                println!("Failed to get chat token: {e:?}");
-                return Err(e);
-            }
-        };
-
-        let mut headers = HeaderMap::new();
-        headers.insert("Editor-Version", "vscode/1.90.0".parse()?);
-        headers.insert("Editor-Plugin-Version", "copilot-chat/0.20.3".parse()?);
-        headers.insert("User-Agent", "GitHubCopilot/1.155.0".parse()?);
-        headers.insert("Content-Type", "application/json".parse()?);
-        headers.insert("Authorization", format!("Bearer {access_token}").parse()?);
-
-        let url = "https://api.githubcopilot.com/chat/completions";
-        println!("Preparing request with {} messages", messages.len());
-
-        // Use the provided model or fall back to default
-        let model = model.unwrap_or_else(|| "gpt-4.1".to_string());
-        let request = ChatCompletionRequest::new(model, messages);
-
-        // Create the request
-        println!("Sending request to Copilot API...");
-        let response = match self
-            .client
+        request: &ChatCompletionRequest,
+        client: reqwest::Client,
+        token: String,
+        url: String,
+    ) -> Result<reqwest::Response, Error> {
+        let response = client
             .post(url)
-            .headers(headers)
+            .bearer_auth(token)
             .json(&request)
             .send()
             .await
-        {
-            Ok(resp) => {
-                println!(
-                    "Got response from Copilot API after {:?}",
-                    start_time.elapsed()
-                );
-                println!("Response status: {}", resp.status());
+            .map_err(|e| Error::LLMError(format!("Failed to send request to OpenAI: {e}")))?;
 
-                // Log headers for debugging
-                println!("Response headers:");
-                for (name, value) in resp.headers() {
-                    println!("  {name}: {value:?}");
-                }
-
-                resp
-            }
-            Err(e) => {
-                let error_msg = format!("Failed to send request: {e}");
-                println!("{error_msg}");
-                // Send error message to frontend
-                channel.send(format!(
-                    r#"{{"error": "{}"}}"#,
-                    error_msg.replace("\"", "\\\"")
-                ))?;
-                return Ok(());
-            }
-        };
-
-        // Check status code
-        match response.status() {
-            reqwest::StatusCode::OK => {
-                println!("Reading response body as stream...");
-                let mut stream = response.bytes_stream();
-                let mut buffer = String::new();
-
-                use futures_util::StreamExt;
-                while let Some(chunk) = stream.next().await {
-                    match chunk {
-                        Ok(bytes) => {
-                            if let Ok(text) = String::from_utf8(bytes.to_vec()) {
-                                buffer.push_str(&text);
-                                // Process complete lines
-                                while let Some(pos) = buffer.find("\n\n") {
-                                    let line = buffer[..pos].trim().to_string();
-                                    if !line.is_empty() {
-                                        println!("Sending line: {line}");
-                                        channel.send(line)?;
-                                    }
-                                    buffer = buffer[pos + 1..].to_string();
-                                }
-                            }
-                        }
-                        Err(e) => {
-                            let error_msg = format!("Error reading stream: {e}");
-                            println!("{error_msg}");
-                            channel.send(format!(
-                                r#"{{"error": "{}"}}"#,
-                                error_msg.replace("\"", "\\\"")
-                            ))?;
-                            break;
-                        }
-                    }
-                }
-
-                // Send any remaining data in buffer
-                if !buffer.is_empty() {
-                    channel.send(buffer)?;
-                }
-
-                println!("=== EXCHANGE_CHAT_COMPLETION COMPLETE ===");
-                Ok(())
-            }
-            s => {
-                let body = match response.text().await {
-                    Ok(text) => text,
-                    Err(e) => format!("Failed to read error response: {e}"),
-                };
-
-                let error_msg =
-                    format!("Failed to exchange chat completion: {body} with status {s}");
-                println!("{error_msg}");
-
-                // Send error message to frontend
-                channel.send(format!(
-                    r#"{{"error": "{}"}}"#,
-                    error_msg.replace("\"", "\\\"")
-                ))?;
-
-                println!("=== EXCHANGE_CHAT_COMPLETION FAILED ===");
-                Ok(())
-            }
+        if !response.status().is_success() {
+            let status = response.status();
+            let error_body = response.json::<ErrorResponse>().await.map_err(|e| {
+                Error::LLMError(format!(
+                    "Failed to parse OpenAI error response: {e}, status: {status}"
+                ))
+            })?;
+            return Err(Error::LLMError(format!(
+                "OpenAI request failed: {} ({})",
+                error_body.error.message, status
+            )));
         }
-    }
 
-    pub async fn get_models(&self) -> anyhow::Result<Vec<String>> {
-        // First check if we have cached models
-        let mut cached = CACHED_MODELS.lock().await;
-        if let Some(models) = cached.as_ref() {
-            println!("Returning cached models");
-            Ok(models.clone())
-        } else {
-            let models = self.do_get_models().await?;
-            *cached = Some(models.clone());
-            Ok(models)
-        }
-    }
-
-    async fn do_get_models(&self) -> anyhow::Result<Vec<String>> {
-        println!("=== GET_MODELS START ===");
-        let start_time = std::time::Instant::now();
-
-        let access_token = match self.get_chat_token().await {
-            Ok(token) => {
-                println!("Successfully got chat token");
-                token
-            }
-            Err(e) => {
-                println!("Failed to get chat token: {e:?}");
-                return Err(e);
-            }
-        };
-
-        let mut headers = HeaderMap::new();
-        headers.insert("Editor-Version", "vscode/1.90.0".parse()?);
-        headers.insert("Editor-Plugin-Version", "copilot-chat/0.20.3".parse()?);
-        headers.insert("User-Agent", "GitHubCopilot/1.155.0".parse()?);
-        headers.insert("Content-Type", "application/json".parse()?);
-        headers.insert("Authorization", format!("Bearer {access_token}").parse()?);
-
-        let url = "https://api.githubcopilot.com/models";
-        println!("Fetching available models...");
-
-        let response = match self.client.get(url).headers(headers).send().await {
-            Ok(resp) => {
-                println!(
-                    "Got response from Copilot API after {:?}",
-                    start_time.elapsed()
-                );
-                println!("Response status: {}", resp.status());
-                resp
-            }
-            Err(e) => {
-                let error_msg = format!("Failed to fetch models: {e}");
-                println!("{error_msg}");
-                return Err(anyhow::anyhow!(error_msg));
-            }
-        };
-
-        match response.status() {
-            reqwest::StatusCode::OK => {
-                let decompressed = self.decompressed_response(response).await?;
-                let models: serde_json::Value = serde_json::from_str(&decompressed)?;
-                println!("Models: {models:?}");
-
-                // Extract model IDs from the response
-                let model_ids = if let Some(data) = models.get("data").and_then(|d| d.as_array()) {
-                    data.iter()
-                        .filter_map(|model| {
-                            let id = model.get("id").and_then(|id| id.as_str())?;
-                            let model_picker_enabled = model
-                                .get("model_picker_enabled")
-                                .and_then(|v| v.as_bool())
-                                .unwrap_or(false);
-
-                            // Only include models where model_picker_enabled is true
-                            if model_picker_enabled {
-                                Some(id.to_string())
-                            } else {
-                                None
-                            }
-                        })
-                        .collect::<Vec<String>>()
-                } else {
-                    return Err(anyhow::anyhow!("Invalid models response format"));
-                };
-
-                println!("=== GET_MODELS COMPLETE ===");
-                Ok(model_ids)
-            }
-            s => {
-                let body = response.text().await.unwrap_or_default();
-                let error_msg = format!("Failed to get models: {body} with status {s}");
-                println!("{error_msg}");
-                Err(anyhow::anyhow!(error_msg))
-            }
-        }
-    }
-}
-
-impl CopilotClinet {
-    async fn get_device_code(&self) -> anyhow::Result<DeviceCodeResponse> {
-        let params = HashMap::from([
-            ("client_id", "Iv1.b507a08c87ecfe98"),
-            ("scope", "read:user"),
-        ]);
-        let response = self
-            .send_post_request::<_, DeviceCodeResponse>(
-                "https://github.com/login/device/code",
-                &params,
-            )
-            .await?;
         Ok(response)
     }
 
-    async fn get_access_token(
-        &self,
-        device_code: DeviceCodeResponse,
-    ) -> anyhow::Result<AccessTokenResponse> {
-        let params = HashMap::from([
-            ("client_id", "Iv1.b507a08c87ecfe98"),
-            ("device_code", &device_code.device_code),
-            ("grant_type", "urn:ietf:params:oauth:grant-type:device_code"),
-            ("expires_in", "3600"),
-        ]);
-        use arboard::Clipboard;
-        use webbrowser;
-        let mut clipboard = Clipboard::new()?;
-        clipboard.set_text(device_code.user_code.clone())?;
+    /// Process a streaming response from `OpenAI`
+    async fn handle_stream(
+        self,
+        response: reqwest::Response,
+        tx: mpsc::Sender<Result<Bytes, Error>>,
+    ) -> Result<(), Error> {
+        let mut stream = response.bytes_stream();
 
-        // Show a dialog to the user using rfd
-        let dialog_message = format!(
-            "User code '{}' has been copied to your clipboard. Please paste it into the GitHub page that will open next.",
-            device_code.user_code
-        );
-        rfd::MessageDialog::new()
-            .set_title("User Code Copied")
-            .set_description(&dialog_message)
-            .set_level(rfd::MessageLevel::Info)
-            .set_buttons(rfd::MessageButtons::Ok)
-            .show();
-
-        webbrowser::open(&device_code.verification_uri)?;
-        loop {
-            let response = self
-                .send_post_request::<_, AccessTokenResponse>(
-                    "https://github.com/login/oauth/access_token",
-                    &params,
-                )
-                .await?;
-            if response.access_token.is_some() {
-                return Ok(response);
+        while let Some(chunk_result) = stream.next().await {
+            match chunk_result {
+                Ok(chunk) => self.process_chunk(chunk, &tx).await?,
+                Err(e) => {
+                    self.send_error(&tx, format!("Error reading chunk from OpenAI: {e}"))
+                        .await?;
+                }
             }
-            sleep(Duration::from_secs(10)).await;
+        }
+
+        Ok(())
+    }
+
+    /// Process a single chunk of data from the stream
+    async fn process_chunk(
+        &self,
+        chunk: Bytes,
+        tx: &mpsc::Sender<Result<Bytes, Error>>,
+    ) -> Result<(), Error> {
+        let lines = String::from_utf8_lossy(&chunk);
+        debug!(chunk = %lines, "Received raw chunk");
+
+        for line in lines.lines() {
+            self.process_line(line, &chunk, tx).await?;
+        }
+
+        Ok(())
+    }
+
+    /// Process a single line from the chunk
+    async fn process_line(
+        &self,
+        line: &str,
+        original_chunk: &Bytes,
+        tx: &mpsc::Sender<Result<Bytes, Error>>,
+    ) -> Result<(), Error> {
+        if !line.starts_with("data: ") {
+            return Ok(());
+        }
+
+        let data = line[5..].trim();
+        debug!(data = %data, "Processing data line");
+
+        if data == "[DONE]" {
+            info!("Received [DONE] signal");
+            return Ok(());
+        }
+
+        self.parse_and_send_chunk(data, original_chunk, tx).await
+    }
+
+    /// Parse the chunk data and send it through the channel
+    async fn parse_and_send_chunk(
+        &self,
+        data: &str,
+        original_chunk: &Bytes,
+        tx: &mpsc::Sender<Result<Bytes, Error>>,
+    ) -> Result<(), Error> {
+        match serde_json::from_str::<StreamChunk>(data) {
+            Ok(chunk_data) => {
+                debug!(?chunk_data, "Successfully parsed chunk");
+                self.send_chunk(original_chunk, tx).await
+            }
+            Err(e) => {
+                error!(
+                    error = %e,
+                    data = %data,
+                    "Failed to parse OpenAI stream chunk"
+                );
+                self.send_error(tx, format!("Failed to parse OpenAI stream chunk: {e}"))
+                    .await
+            }
         }
     }
 
-    fn get_copilot_token_header(&self, access_token: AccessTokenResponse) -> HeaderMap {
-        let mut header: HeaderMap = HeaderMap::new();
-        header.insert("Editor-Version", "Neovim/0.6.1".parse().unwrap());
-        header.insert(
-            "Editor-Plugin-Version",
-            "copilot.vim/1.16.0".parse().unwrap(),
-        );
-        header.insert("Content-Type", "application/json".parse().unwrap());
-        header.insert("Accept-Encoding", "gzip, deflate, br".parse().unwrap());
-        header.insert("User-Agent", "GithubCopilot/1.155.0".parse().unwrap());
-        header.insert("Accept", "application/json".parse().unwrap());
-        header.insert(
-            "Authorization",
-            format!("token {}", access_token.access_token.unwrap())
-                .parse()
-                .unwrap(),
-        );
-        header
+    /// Send a chunk through the channel
+    async fn send_chunk(
+        &self,
+        chunk: &Bytes,
+        tx: &mpsc::Sender<Result<Bytes, Error>>,
+    ) -> Result<(), Error> {
+        if tx.send(Ok(chunk.clone())).await.is_err() {
+            warn!("Failed to send chunk - receiver dropped");
+        }
+        Ok(())
     }
 
-    async fn get_copilot_token(
+    /// Send an error message through the channel
+    async fn send_error(
         &self,
-        access_token: AccessTokenResponse,
-    ) -> anyhow::Result<CopilotConfig> {
-        let headers = self.get_copilot_token_header(access_token.clone());
-        let response = self
+        tx: &mpsc::Sender<Result<Bytes, Error>>,
+        error_message: String,
+    ) -> Result<(), Error> {
+        if tx.send(Err(Error::LLMError(error_message))).await.is_err() {
+            warn!("Failed to send error - receiver dropped");
+        }
+        Ok(())
+    }
+
+    /// Process a non-streaming response from `OpenAI`
+    async fn handle_non_stream(
+        self,
+        response: reqwest::Response,
+        tx: mpsc::Sender<Result<Bytes, Error>>,
+    ) -> Result<(), Error> {
+        let bytes = response.bytes().await.map_err(|e| {
+            Error::LLMError(format!("Failed to read OpenAI non-streaming response: {e}"))
+        })?;
+
+        if tx.send(Ok(bytes)).await.is_err() {
+            warn!("Failed to send response - receiver dropped");
+        }
+
+        Ok(())
+    }
+}
+
+#[async_trait]
+impl LLMClient<ChatCompletionRequest> for CopilotClient {
+    async fn execute(
+        &self,
+        request: ChatCompletionRequest,
+    ) -> Result<mpsc::Receiver<Result<Bytes, Error>>, Error> {
+        // 1. Get dependencies
+        let client = self
             .client
-            .get("https://api.github.com/copilot_internal/v2/token")
-            .headers(headers)
-            .send()
-            .await?;
-        let decompressed = self.decompressed_response(response).await?;
-        let data: CopilotConfig = match serde_json::from_str(&decompressed) {
-            Ok(data) => data,
-            Err(e) => {
-                eprintln!("Failed to parse copilot config: {e}, the response is: {decompressed}",);
-                return Err(anyhow::anyhow!("Failed to parse copilot config: {}", e));
-            }
-        };
-        Ok(data)
-    }
+            .get_client()
+            .await
+            .map_err(|e| Error::LLMError(format!("Failed to get HTTP client: {e}")))?;
+        let token = self
+            .token
+            .get_token()
+            .await
+            .map_err(|e| Error::LLMError(format!("Failed to get API token: {e}")))?;
+        let url = self
+            .url
+            .get_url()
+            .map_err(|e| Error::LLMError(format!("Failed to get API URL: {e}")))?;
 
-    async fn send_post_request<DATA: Serialize, T: DeserializeOwned>(
-        &self,
-        url: &str,
-        data: &DATA,
-    ) -> anyhow::Result<T> {
-        match self.client.post(url).json(data).send().await {
-            Ok(response) => {
-                let decompressed = self.decompressed_response(response).await?;
-                let data: T = serde_json::from_str(&decompressed)?;
-                Ok(data)
-            }
-            Err(e) => {
-                eprintln!("Failed to send request: {e}",);
-                Err(anyhow::anyhow!("Failed to send request: {e}"))
-            }
-        }
-    }
+        // 2. Create response channel
+        let (tx, rx) = mpsc::channel(100);
 
-    async fn decompressed_response(&self, response: Response) -> anyhow::Result<String> {
-        let encoding = response
-            .headers()
-            .get("Content-Encoding")
-            .and_then(|v| v.to_str().ok())
-            .unwrap_or("identity");
+        // 3. Send request and handle response
+        let response = self.send_request(&request, client, token, url).await?;
 
-        let decompressed = match encoding {
-            "gzip" => {
-                let body = response.bytes().await?;
-                let mut decoder =
-                    async_compression::tokio::bufread::GzipDecoder::new(body.as_ref());
-                let mut decompressed = String::new();
-                AsyncReadExt::read_to_string(&mut decoder, &mut decompressed).await?;
-                decompressed
+        // 4. Handle response based on streaming flag
+        let client = self.clone();
+        let stream = request.stream;
+        info!("The request is streaming: {}", stream);
+        tokio::spawn(async move {
+            let result = if stream {
+                client.handle_stream(response, tx).await
+            } else {
+                client.handle_non_stream(response, tx).await
+            };
+
+            if let Err(e) = result {
+                error!(error = %e, "Error handling OpenAI response");
             }
-            _ => {
-                let body = response.bytes().await?;
-                String::from_utf8(body.to_vec())?
-            }
-        };
-        Ok(decompressed)
+        });
+
+        Ok(rx)
     }
 }

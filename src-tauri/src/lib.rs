@@ -1,29 +1,49 @@
 use arboard::Clipboard;
-use copilot::{client::CopilotClinet, config::Config, model::Message};
+use copilot::o_client::CopilotClinet;
+use copilot::{config::Config, pipeline};
+use llm_proxy_core::Pipeline;
+use llm_proxy_openai::{ChatCompletionRequest, Message};
 use serde_json::json;
 use tauri::{ipc::Channel, AppHandle, Emitter, Manager};
-use tauri_plugin_global_shortcut::{Code, Modifiers, ShortcutState};
 
 pub mod copilot;
 
-#[tauri::command(async)]
-async fn execute_prompt(
+#[tauri::command]
+async fn execute_prompt_stream(
     messages: Vec<Message>,
-    state: tauri::State<'_, CopilotClinet>,
+    state: tauri::State<'_, Pipeline<ChatCompletionRequest>>,
     channel: Channel<String>,
     model: Option<String>,
 ) -> Result<(), String> {
-    println!("=== EXECUTE_PROMPT START ===");
-    println!("The latest message: {}", messages.last().unwrap().content);
-
-    let client = state.clone();
-
-    println!("Calling exchange_chat_completion...");
-    match client
-        .exchange_chat_completion(messages, channel.clone(), model)
-        .await
-    {
-        Ok(_) => {}
+    let model = model.unwrap_or("gpt-4o".into());
+    let request = ChatCompletionRequest::new_stream(model, messages);
+    let pipe = state.clone();
+    let json =
+        serde_json::to_vec(&request).map_err(|e| format!("Failed to serialize request: {e}"))?;
+    match pipe.execute(bytes::Bytes::copy_from_slice(&json)).await {
+        Ok(rev) => {
+            let emitter = channel.clone();
+            let mut stream = rev;
+            while let Some(chunk) = stream.recv().await {
+                match chunk {
+                    Ok(data) => {
+                        let data = String::from_utf8_lossy(&data);
+                        println!("Received chunk: {data}");
+                        emitter.send(data.to_string()).unwrap();
+                    }
+                    Err(e) => {
+                        let error_msg = format!("Error: {e}");
+                        println!("{error_msg}");
+                        emitter
+                            .send(format!(
+                                r#"{{"error": "{}"}}"#,
+                                error_msg.replace("\"", "\\\"")
+                            ))
+                            .unwrap();
+                    }
+                }
+            }
+        }
         Err(e) => {
             let error_msg = format!("Error in exchange_chat_completion: {e}");
             println!("{error_msg}");
@@ -35,7 +55,6 @@ async fn execute_prompt(
                 .unwrap();
         }
     }
-
     Ok(())
 }
 
@@ -71,21 +90,6 @@ async fn get_models(state: tauri::State<'_, CopilotClinet>) -> Result<Vec<String
     }
 }
 
-fn toggle_launchbar(app: &AppHandle) {
-    let window = app
-        .get_webview_window("spotlight")
-        .expect("Did you label your window?");
-
-    if let Ok(true) = window.is_visible() {
-        let _ = window.hide();
-    } else {
-        let _ = window.unminimize();
-        let _ = window.show();
-        let _ = window.set_focus();
-        let _ = window.center();
-    }
-}
-
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     // Initialize logger for development
@@ -95,33 +99,13 @@ pub fn run() {
         .setup(|app| {
             let handle = app.handle();
             let app_data_dir = handle.path().app_data_dir().unwrap();
-            let client = CopilotClinet::new(Config::new(), app_data_dir);
-            app.manage(client);
+            let pipe = pipeline::create_pipeline(app_data_dir.clone());
+            app.manage(pipe);
 
-            // The global shortcut handler remains
-            handle.plugin(
-                tauri_plugin_global_shortcut::Builder::new()
-                    .with_shortcuts(["ctrl+j", "alt+space"])?
-                    .with_handler(|app, shortcut, event| {
-                        println!("im here"); // not here
-                        if event.state == ShortcutState::Pressed {
-                            if shortcut.matches(Modifiers::CONTROL, Code::KeyJ) {
-                                println!("Ctrl+j triggered");
-                                let _ = app.emit("shortcut-event", "Ctrl+J triggered");
-                                toggle_launchbar(app);
-                            }
-                            if shortcut.matches(Modifiers::ALT, Code::Space) {
-                                println!("Alt+Space triggered");
-                                let _ = app.emit("shortcut-event", "Alt+Space triggered");
-                            }
-                        }
-                    })
-                    .build(),
-            )?;
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
-            execute_prompt,
+            execute_prompt_stream,
             forward_message_to_main,
             copy_to_clipboard,
             get_models
