@@ -99,25 +99,25 @@ pub fn run() {
             app.manage(client);
 
             // The global shortcut handler remains
-            handle.plugin(
-                tauri_plugin_global_shortcut::Builder::new()
-                    .with_shortcuts(["ctrl+j", "alt+space"])?
-                    .with_handler(|app, shortcut, event| {
-                        println!("im here"); // not here
-                        if event.state == ShortcutState::Pressed {
-                            if shortcut.matches(Modifiers::CONTROL, Code::KeyJ) {
-                                println!("Ctrl+j triggered");
-                                let _ = app.emit("shortcut-event", "Ctrl+J triggered");
-                                toggle_launchbar(app);
-                            }
-                            if shortcut.matches(Modifiers::ALT, Code::Space) {
-                                println!("Alt+Space triggered");
-                                let _ = app.emit("shortcut-event", "Alt+Space triggered");
-                            }
-                        }
-                    })
-                    .build(),
-            )?;
+            // handle.plugin(
+            //     // tauri_plugin_global_shortcut::Builder::new()
+            //     //     .with_shortcuts(["ctrl+j", "alt+space"])?
+            //     //     .with_handler(|app, shortcut, event| {
+            //     //         println!("im here"); // not here
+            //     //         if event.state == ShortcutState::Pressed {
+            //     //             if shortcut.matches(Modifiers::CONTROL, Code::KeyJ) {
+            //     //                 println!("Ctrl+j triggered");
+            //     //                 let _ = app.emit("shortcut-event", "Ctrl+J triggered");
+            //     //                 toggle_launchbar(app);
+            //     //             }
+            //     //             if shortcut.matches(Modifiers::ALT, Code::Space) {
+            //     //                 println!("Alt+Space triggered");
+            //     //                 let _ = app.emit("shortcut-event", "Alt+Space triggered");
+            //     //             }
+            //     //         }
+            //     //     })
+            //     //     .build(),
+            // )?;
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![

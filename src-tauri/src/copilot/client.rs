@@ -7,14 +7,13 @@ use std::{
 };
 
 use lazy_static::lazy_static;
-use reqwest::{Client, Proxy, Response};
-use serde::{de::DeserializeOwned, Serialize};
+use reqwest::{Client, Proxy};
 use tauri::{
     http::{HeaderMap, HeaderName},
     ipc::Channel,
 };
+use tokio::sync::Mutex;
 use tokio::time::sleep;
-use tokio::{io::AsyncReadExt, sync::Mutex};
 
 use crate::copilot::model::ChatCompletionRequest;
 
@@ -129,7 +128,7 @@ impl CopilotClinet {
         };
 
         let mut headers = HeaderMap::new();
-        headers.insert("Editor-Version", "vscode/1.90.0".parse()?);
+        headers.insert("Editor-Version", "vscode/1.99.2".parse()?);
         headers.insert("Editor-Plugin-Version", "copilot-chat/0.20.3".parse()?);
         headers.insert("User-Agent", "GitHubCopilot/1.155.0".parse()?);
         headers.insert("Content-Type", "application/json".parse()?);
@@ -301,8 +300,7 @@ impl CopilotClinet {
 
         match response.status() {
             reqwest::StatusCode::OK => {
-                let decompressed = self.decompressed_response(response).await?;
-                let models: serde_json::Value = serde_json::from_str(&decompressed)?;
+                let models: serde_json::Value = response.json().await?;
                 println!("Models: {models:?}");
 
                 // Extract model IDs from the response
@@ -347,10 +345,12 @@ impl CopilotClinet {
             ("scope", "read:user"),
         ]);
         let response = self
-            .send_post_request::<_, DeviceCodeResponse>(
-                "https://github.com/login/device/code",
-                &params,
-            )
+            .client
+            .post("https://github.com/login/device/code")
+            .query(&params)
+            .send()
+            .await?
+            .json::<DeviceCodeResponse>()
             .await?;
         Ok(response)
     }
@@ -385,10 +385,12 @@ impl CopilotClinet {
         webbrowser::open(&device_code.verification_uri)?;
         loop {
             let response = self
-                .send_post_request::<_, AccessTokenResponse>(
-                    "https://github.com/login/oauth/access_token",
-                    &params,
-                )
+                .client
+                .post("https://github.com/login/oauth/access_token")
+                .query(&params)
+                .send()
+                .await?
+                .json::<AccessTokenResponse>()
                 .await?;
             if response.access_token.is_some() {
                 return Ok(response);
@@ -428,56 +430,6 @@ impl CopilotClinet {
             .headers(headers)
             .send()
             .await?;
-        let decompressed = self.decompressed_response(response).await?;
-        let data: CopilotConfig = match serde_json::from_str(&decompressed) {
-            Ok(data) => data,
-            Err(e) => {
-                eprintln!("Failed to parse copilot config: {e}, the response is: {decompressed}",);
-                return Err(anyhow::anyhow!("Failed to parse copilot config: {}", e));
-            }
-        };
-        Ok(data)
-    }
-
-    async fn send_post_request<DATA: Serialize, T: DeserializeOwned>(
-        &self,
-        url: &str,
-        data: &DATA,
-    ) -> anyhow::Result<T> {
-        match self.client.post(url).json(data).send().await {
-            Ok(response) => {
-                let decompressed = self.decompressed_response(response).await?;
-                let data: T = serde_json::from_str(&decompressed)?;
-                Ok(data)
-            }
-            Err(e) => {
-                eprintln!("Failed to send request: {e}",);
-                Err(anyhow::anyhow!("Failed to send request: {e}"))
-            }
-        }
-    }
-
-    async fn decompressed_response(&self, response: Response) -> anyhow::Result<String> {
-        let encoding = response
-            .headers()
-            .get("Content-Encoding")
-            .and_then(|v| v.to_str().ok())
-            .unwrap_or("identity");
-
-        let decompressed = match encoding {
-            "gzip" => {
-                let body = response.bytes().await?;
-                let mut decoder =
-                    async_compression::tokio::bufread::GzipDecoder::new(body.as_ref());
-                let mut decompressed = String::new();
-                AsyncReadExt::read_to_string(&mut decoder, &mut decompressed).await?;
-                decompressed
-            }
-            _ => {
-                let body = response.bytes().await?;
-                String::from_utf8(body.to_vec())?
-            }
-        };
-        Ok(decompressed)
+        Ok(response.json::<CopilotConfig>().await?)
     }
 }

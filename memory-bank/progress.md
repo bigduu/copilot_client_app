@@ -15,6 +15,7 @@
    - System prompt modal
    - Search window interface
    - Authentication UI
+   - Persistent model selection (global default for new chats via `localStorage`)
 
 3. Backend Features
    - Copilot client integration
@@ -32,7 +33,7 @@
 2. Backend Development
    - Authentication flow optimization
    - API integration enhancements
-   - Message persistence
+   - Message persistence (server-side, beyond client-side model ID)
    - Error handling improvements
 
 ## What's Left to Build
@@ -42,7 +43,7 @@
    - Advanced search capabilities
    - Message organization tools
    - System prompt templates
-   - Settings management
+   - Settings management (beyond model selection)
    - Theme customization
 
 2. Improvements
@@ -102,6 +103,7 @@
    - Modular backend structure
 
 2. Features
+   - Implementation of persistent model selection using `localStorage` and React hooks.
    - Search implementation approach
    - Message streaming strategy
    - Authentication flow design
@@ -109,7 +111,7 @@
 
 ### Upcoming Decisions
 1. Technical
-   - State persistence strategy
+   - State persistence strategy (e.g., considering Tauri `Store` for more robust client-side storage if `localStorage` proves insufficient for future needs).
    - Performance optimization approach
    - Error handling patterns
    - Testing strategy
@@ -134,13 +136,14 @@
    - Authentication flow
    - Message display
    - Search interface
+   - Persistent model selection for new chats
 
 ### Current Phase
 1. Feature Development
    - Search functionality
    - Message streaming
    - System prompts
-   - Chat management
+   - Chat management (now includes default model selection for new chats)
 
 2. Improvements
    - Performance optimization
@@ -168,7 +171,7 @@
    - React Context patterns
    - TypeScript best practices
    - Component optimization
-   - State management
+   - State management (including `localStorage` for model preference)
 
 2. Backend
    - Tauri integration

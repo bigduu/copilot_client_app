@@ -37,10 +37,10 @@ graph TD
 ## Key Design Patterns
 
 1. Context-based State Management
-   - ChatContext for chat state and operations
-   - AuthContext for authentication state
-   - React Context API for global state
-   - Custom hooks for state access
+   - ChatContext for chat state and operations (consumes selected model from `useModels`).
+   - AuthContext for authentication state.
+   - React Context API for global state.
+   - Custom hooks for state access (e.g., `useModels` now handles model fetching, selection, and persistence to `localStorage`).
 
 2. Component Architecture
    - Functional components with TypeScript
@@ -63,7 +63,8 @@ graph TD
 ## Implementation Patterns
 
 1. Frontend Patterns
-   - Custom hooks for logic reuse
+   - Custom hooks for logic reuse (e.g., `useModels` for model management).
+   - `localStorage` for simple client-side persistence of user preferences (e.g., selected model).
    - CSS modules for styling
    - TypeScript interfaces for type safety
    - Component composition

@@ -26,18 +26,21 @@ const ModelSelection = ({
   isLoadingModels,
   modelsError,
   models,
-  currentModel,
+  selectedModel, // This was correctly changed in the destructuring
   onModelChange,
 }: {
   isLoadingModels: boolean;
   modelsError: string | null;
   models: string[];
-  currentModel: string | undefined;
+  selectedModel: string | undefined; // This is the prop name
   onModelChange: (model: string) => void;
 }) => {
   const fallbackModel = "gpt-4o";
-  const modelOptions = models && models.length > 0 ? models : [fallbackModel];
-  const value = currentModel || fallbackModel;
+  // Ensure modelOptions always has at least the fallback or the selected model if models array is empty
+  const modelOptions = models && models.length > 0 
+    ? models 
+    : (selectedModel ? [selectedModel] : [fallbackModel]); // Use selectedModel here
+  const value = selectedModel || fallbackModel; // And here
   return (
     <div style={{ marginBottom: 24 }}>
       <Text strong>Model Selection</Text>
@@ -85,8 +88,8 @@ const SystemSettingsModal = ({
     selectSystemPromptPreset,
     selectedSystemPromptPresetId,
     deleteEmptyChats,
-    currentChat,
-    updateCurrentChatModel,
+    // currentChat, // No longer needed for model selection here
+    // updateCurrentChatModel, // Will use setSelectedModel from useModels
   } = useChat();
   const [msgApi, contextHolder] = message.useMessage();
   const [showEditModal, setShowEditModal] = useState(false);
@@ -97,6 +100,8 @@ const SystemSettingsModal = ({
     models,
     isLoading: isLoadingModels,
     error: modelsError,
+    selectedModel,
+    setSelectedModel,
   } = useModels();
 
   const isNew = !editingId;
@@ -155,12 +160,8 @@ const SystemSettingsModal = ({
         isLoadingModels={isLoadingModels}
         modelsError={modelsError}
         models={models}
-        currentModel={currentChat?.model}
-        onModelChange={(value) => {
-          if (currentChat) {
-            updateCurrentChatModel(value);
-          }
-        }}
+        selectedModel={selectedModel}
+        onModelChange={setSelectedModel}
       />
 
       <Divider />

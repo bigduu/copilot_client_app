@@ -8,6 +8,7 @@ import {
 } from "../types/chat";
 import { useChats } from "../hooks/useChats";
 import { useMessages } from "../hooks/useMessages";
+import { useModels } from "../hooks/useModels"; // Import useModels
 import { DEFAULT_MESSAGE } from "../constants";
 
 // System prompt default and storage key
@@ -96,6 +97,9 @@ interface ChatProviderProps {
 
 // The actual provider implementation
 export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
+  // Get selected model from useModels hook first
+  const { selectedModel } = useModels();
+
   // Get chat functionality from useChats hook
   const {
     chats,
@@ -112,7 +116,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     unpinChat,
     deleteEmptyChats,
     setChats,
-  } = useChats();
+  } = useChats(selectedModel); // Pass selectedModel to useChats
 
   // Get message functionality from useMessages hook
   const {

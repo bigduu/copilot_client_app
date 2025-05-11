@@ -19,9 +19,13 @@
    - System prompt configuration
    - Chat management
    - Message handling
+   - Persistent model selection for new chats
 
 ### Recent Changes
 1. Frontend
+   - Implemented persistent model selection using `localStorage` via `useModels` hook.
+   - Updated `SystemSettingsModal` to use and set the global default model.
+   - Modified `ChatContext` and `useChats` hook to apply the selected default model to new chats.
    - Chat sidebar component implementation
    - Search window functionality
    - System prompt modal
@@ -40,7 +44,7 @@
    - Using React Context for global state
    - Chat context for message management
    - Auth context for authentication
-   - Custom hooks for state access
+   - Custom hooks for state access (`useModels` enhanced for global model persistence).
 
 2. UI/UX Decisions
    - Ant Design for component library
@@ -59,7 +63,7 @@
    - Authentication flow
    - API key handling
    - IPC security
-   - Data persistence
+   - Data persistence (model selection now persists via `localStorage`).
 
 ## Current Patterns & Preferences
 
@@ -72,7 +76,7 @@
 
 2. State Management
    - Context-based
-   - Custom hooks
+   - Custom hooks (e.g., `useModels` for model fetching and global selection persistence).
    - Immutable updates
    - Event-driven
 
@@ -106,10 +110,11 @@
 
 ### Implementation Learnings
 1. Frontend
-   - React context patterns
+   - React context patterns (`ChatContext` consuming `useModels` for default model).
    - TypeScript type safety
    - Component optimization
    - Event handling
+   - `localStorage` for simple client-side persistence (e.g., selected model ID).
 
 2. Backend
    - Tauri integration
@@ -130,7 +135,7 @@
    - Enhance error handling
    - Optimize API requests
    - Improve auth flow
-   - Add message persistence
+   - Add message persistence (beyond client-side model ID)
 
 ### Future Considerations
 1. Features
@@ -138,6 +143,7 @@
    - Message organization
    - System prompt templates
    - Performance optimizations
+   - Potentially move `localStorage` items to Tauri's `Store` plugin for more robust persistence if needed.
 
 2. Technical Debt
    - Code documentation

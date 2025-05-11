@@ -27,17 +27,17 @@ serde_json = "1"
 toml = "0.8"
 
 # HTTP Client & Async
-reqwest = { version = "0.12", features = ["json", "stream"] }
+reqwest = { version = "0.12", features = ["json", "stream", "gzip"] }
 tokio = { version = "1", features = [
     "full",
 ] } # Ensure tokio features are sufficient
 
 # Error Handling & Utilities
 thiserror = "2.0"
-uuid = { version = "1.8", features = ["v4"] }
-futures-util = "0.3"                          # For stream processing
-bytes = "1"                                   # For stream processing
-arboard = "3"                                 # Clipboard handling
+uuid = { version = "1.16", features = ["v4"] }
+futures-util = "0.3"                           # For stream processing
+bytes = "1"                                    # For stream processing
+arboard = "3"                                  # Clipboard handling
 anyhow = "1.0"
 
 # Logging (Optional but helpful)
@@ -47,10 +47,10 @@ env_logger = "0.11"
 async-compression = { version = "0.4", features = ["gzip", "tokio"] }
 webbrowser = "1"
 
-crossbeam = "0.8.2"
-rfd = "0.14"
+crossbeam = "0.8.4"
+rfd = "0.15"
 
-lazy_static = "1.4.0"
+lazy_static = "1.5.0"
 
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
 tauri-plugin-global-shortcut = "2"

@@ -24,6 +24,7 @@ This application serves as a desktop chat interface for AI-powered conversations
 2. Functionality
    - Real-time message streaming
    - System prompt customization
+   - Default model selection persistence
    - Chat organization and management
    - Search across conversations
    - Authentication persistence
@@ -69,4 +70,4 @@ This application serves as a desktop chat interface for AI-powered conversations
    - Modern, clean interface
    - Intuitive navigation
    - Responsive interactions
-   - Customizable settings
+   - Customizable settings (including preferred model)

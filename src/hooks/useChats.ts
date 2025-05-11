@@ -26,7 +26,9 @@ interface UseChatsReturn {
   updateChatSystemPrompt: (chatId: string, systemPrompt: string) => void;
 }
 
-export const useChats = (): UseChatsReturn => {
+const FALLBACK_MODEL_IN_CHATS = "gpt-4o"; // Consistent fallback
+
+export const useChats = (defaultModel?: string): UseChatsReturn => {
   const [chats, setChats] = useState<ChatItem[]>([]);
   const [currentChatId, setCurrentChatId] = useState<string | null>(null);
 
@@ -51,7 +53,7 @@ export const useChats = (): UseChatsReturn => {
         // Migrate existing chats to include system prompts
         const migratedChats = migrateExistingChats(parsedChats);
         setChats(migratedChats);
-        
+
         if (!currentChatId && migratedChats.length > 0) {
           migratedChats.sort((a, b) => b.createdAt - a.createdAt);
           setCurrentChatId(migratedChats[0].id);
@@ -80,7 +82,8 @@ export const useChats = (): UseChatsReturn => {
     const newChatId = uuidv4();
     const chatNumber = chats.length + 1;
     const currentSystemPrompt = localStorage.getItem(SYSTEM_PROMPT_KEY) || DEFAULT_MESSAGE;
-    
+    const newChatModel = defaultModel || FALLBACK_MODEL_IN_CHATS;
+
     let initialMessages: ChatItem["messages"] = [];
     if (firstUserMessageContent) {
       initialMessages.push({ role: "user", content: firstUserMessageContent });
@@ -88,16 +91,17 @@ export const useChats = (): UseChatsReturn => {
 
     const newChat: ChatItem = {
       id: newChatId,
-      title: firstUserMessageContent 
-             ? firstUserMessageContent.substring(0, 30) + (firstUserMessageContent.length > 30 ? "..." : "") 
-             : generateChatTitle(chatNumber),
+      title: firstUserMessageContent
+        ? firstUserMessageContent.substring(0, 30) + (firstUserMessageContent.length > 30 ? "..." : "")
+        : generateChatTitle(chatNumber),
       messages: initialMessages,
       createdAt: Date.now(),
       systemPrompt: currentSystemPrompt,
+      model: newChatModel, // Set the model for the new chat
       pinned: false, // New chats are not pinned by default
     };
 
-    console.log("Creating new chat:", newChatId);
+    console.log("Creating new chat:", newChatId, "with model:", newChatModel);
 
     // Update the chats state
     setChats((prevChats) => {
@@ -111,7 +115,7 @@ export const useChats = (): UseChatsReturn => {
     setCurrentChatId(newChatId);
 
     return newChatId;
-  }, [chats]);
+  }, [chats, defaultModel]);
 
   const selectChat = useCallback((chatId: string | null) => {
     setCurrentChatId(chatId);
@@ -139,7 +143,7 @@ export const useChats = (): UseChatsReturn => {
     (chatId: string, newMessages: ChatItem["messages"]) => {
       console.log(`[useChats] updateChatMessages called for chatId: ${chatId}. New messages count: ${newMessages.length}`);
       if (newMessages.length > 0) {
-        console.log(`[useChats] First new message content: ${newMessages[0].content.substring(0,50)}...`);
+        console.log(`[useChats] First new message content: ${newMessages[0].content.substring(0, 50)}...`);
       }
       setChats((prevChats) => {
         const chatExists = prevChats.some(chat => chat.id === chatId);
@@ -150,22 +154,22 @@ export const useChats = (): UseChatsReturn => {
         const updatedChats = prevChats.map((chat) =>
           chat.id === chatId
             ? {
-                ...chat,
-                messages: newMessages, // Directly use the newMessages array passed in
-                // Update title if this is the first user message in an empty chat
-                title:
-                  chat.messages.length === 0 && // old messages were empty
+              ...chat,
+              messages: newMessages, // Directly use the newMessages array passed in
+              // Update title if this is the first user message in an empty chat
+              title:
+                chat.messages.length === 0 && // old messages were empty
                   newMessages.length > 0 &&    // new messages are not
                   newMessages[0].role === "user" &&
                   chat.title.startsWith("Chat ") // only update default titles
-                    ? newMessages[0].content.substring(0, 30) +
-                      (newMessages[0].content.length > 30 ? "..." : "")
-                    : chat.title,
-              }
+                  ? newMessages[0].content.substring(0, 30) +
+                  (newMessages[0].content.length > 30 ? "..." : "")
+                  : chat.title,
+            }
             : chat
         );
-        
-        console.log(`[useChats] Chat ${chatId} updated. New total messages: ${updatedChats.find(c=>c.id === chatId)?.messages.length}`);
+
+        console.log(`[useChats] Chat ${chatId} updated. New total messages: ${updatedChats.find(c => c.id === chatId)?.messages.length}`);
         // Save to storage
         localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedChats));
         return updatedChats;
@@ -178,23 +182,23 @@ export const useChats = (): UseChatsReturn => {
   const updateChatSystemPrompt = useCallback(
     (chatId: string, systemPrompt: string) => {
       console.log(`[useChats] updateChatSystemPrompt called for chatId: ${chatId}`);
-      
+
       setChats((prevChats) => {
         const chatExists = prevChats.some(chat => chat.id === chatId);
         if (!chatExists) {
           console.error(`[useChats] Attempted to update system prompt for non-existent chat ID: ${chatId}`);
           return prevChats;
         }
-        
+
         const updatedChats = prevChats.map((chat) =>
           chat.id === chatId
             ? {
-                ...chat,
-                systemPrompt,
-              }
+              ...chat,
+              systemPrompt,
+            }
             : chat
         );
-        
+
         console.log(`[useChats] Chat ${chatId} system prompt updated.`);
         // Save to storage
         localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedChats));
@@ -249,7 +253,7 @@ export const useChats = (): UseChatsReturn => {
         const chatsToKeep = prevChats.filter(
           (chat) => chat.pinned || chat.messages.length > 0
         );
-        
+
         // If current chat is deleted, try to select another one
         if (currentChatId && !chatsToKeep.find(c => c.id === currentChatId)) {
           const remainingChatsSorted = [...chatsToKeep].sort(
@@ -257,7 +261,7 @@ export const useChats = (): UseChatsReturn => {
           );
           newCurrentChatId = remainingChatsSorted.length > 0 ? remainingChatsSorted[0].id : null;
         }
-        
+
         localStorage.setItem(STORAGE_KEY, JSON.stringify(chatsToKeep));
         return chatsToKeep;
       });
