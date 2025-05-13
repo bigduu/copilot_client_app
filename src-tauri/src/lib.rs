@@ -6,6 +6,7 @@ use tauri::Manager;
 
 mod command;
 pub mod copilot;
+mod processor;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
