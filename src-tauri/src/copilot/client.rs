@@ -16,11 +16,11 @@ use tokio::sync::Mutex;
 use tokio::sync::{mpsc, mpsc::Sender};
 use tokio::time::sleep;
 
-use crate::copilot::{block_model, model::ChatCompletionRequest, sse::extract_sse_message};
+use crate::copilot::{block_model, sse::extract_sse_message, stream_model::ChatCompletionRequest};
 
 use super::{
     config::Config,
-    model::{AccessTokenResponse, CopilotConfig, DeviceCodeResponse, Message, StreamChunk},
+    stream_model::{AccessTokenResponse, CopilotConfig, DeviceCodeResponse, Message, StreamChunk},
 };
 
 // Add a static variable to store the models

@@ -1,5 +1,5 @@
 use crate::copilot::client::CopilotClient;
-use crate::copilot::model::Message;
+use crate::copilot::stream_model::Message;
 use bytes::Bytes;
 use log::{error, info};
 
