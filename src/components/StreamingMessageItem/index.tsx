@@ -1,11 +1,11 @@
-import React, { useState, useEffect, useRef } from "react";
-import { Typography, theme } from "antd";
+import React, {useEffect, useRef, useState} from "react";
+import {theme, Typography} from "antd";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
-import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism";
-import { Channel } from "@tauri-apps/api/core";
-import { Message } from "../../types/chat";
+import {Prism as SyntaxHighlighter} from "react-syntax-highlighter";
+import {oneDark} from "react-syntax-highlighter/dist/esm/styles/prism";
+import {Channel} from "@tauri-apps/api/core";
+import {Message} from "../../types/chat";
 
 const { Text } = Typography;
 const { useToken } = theme;
@@ -284,62 +284,77 @@ const StreamingMessageItem: React.FC<StreamingMessageItemProps> = ({
 
   return (
     <div style={{ position: "relative" }}>
-      <ReactMarkdown
-        remarkPlugins={[remarkGfm]}
-        components={{
-          p: ({ children }) => (
-            <Text style={{ marginBottom: token.marginSM, display: "block" }}>
-              {children}
-            </Text>
-          ),
-          ol: ({ children }) => (
-            <ol style={{ marginBottom: token.marginSM, paddingLeft: 20 }}>
-              {children}
-            </ol>
-          ),
-          ul: ({ children }) => (
-            <ul style={{ marginBottom: token.marginSM, paddingLeft: 20 }}>
-              {children}
-            </ul>
-          ),
-          li: ({ children }) => (
-            <li style={{ marginBottom: token.marginXS }}>{children}</li>
-          ),
-          code({ className, children, ...props }) {
-            const match = /language-(\w+)/.exec(className || "");
-            const language = match ? match[1] : "";
-            const isInline = !match && !className;
-            const codeString = String(children).replace(/\n$/, "");
+        <div style={{display: "flex", flexDirection: "column"}}>
+            <ReactMarkdown
+                remarkPlugins={[remarkGfm]}
+                components={{
+                    p: ({children}) => (
+                        <Text style={{marginBottom: token.marginSM, display: "block"}}>
+                            {children}
+                        </Text>
+                    ),
+                    ol: ({children}) => (
+                        <ol style={{marginBottom: token.marginSM, paddingLeft: 20}}>
+                            {children}
+                        </ol>
+                    ),
+                    ul: ({children}) => (
+                        <ul style={{marginBottom: token.marginSM, paddingLeft: 20}}>
+                            {children}
+                        </ul>
+                    ),
+                    li: ({children}) => (
+                        <li style={{marginBottom: token.marginXS}}>{children}</li>
+                    ),
+                    code({className, children, ...props}) {
+                        const match = /language-(\w+)/.exec(className || "");
+                        const language = match ? match[1] : "";
+                        const isInline = !match && !className;
+                        const codeString = String(children).replace(/\n$/, "");
 
-            if (isInline) {
-              return (
-                <Text code className={className} {...props}>
-                  {children}
-                </Text>
-              );
-            }
+                        if (isInline) {
+                            return (
+                                <Text code className={className} {...props}>
+                                    {children}
+                                </Text>
+                            );
+                        }
 
-            return (
-              <div style={{ position: "relative" }}>
-                <SyntaxHighlighter
-                  style={oneDark}
-                  language={language || "text"}
-                  PreTag="div"
-                  customStyle={{
-                    margin: `${token.marginXS}px 0`,
-                    borderRadius: token.borderRadiusSM,
-                    fontSize: token.fontSizeSM,
-                  }}
-                >
-                  {codeString}
-                </SyntaxHighlighter>
-              </div>
-            );
-          },
-        }}
-      >
-        {content || " "}
-      </ReactMarkdown>
+                        return (
+                            <div style={{position: "relative"}}>
+                                <SyntaxHighlighter
+                                    style={oneDark}
+                                    language={language || "text"}
+                                    PreTag="div"
+                                    customStyle={{
+                                        margin: `${token.marginXS}px 0`,
+                                        borderRadius: token.borderRadiusSM,
+                                        fontSize: token.fontSizeSM,
+                                    }}
+                                >
+                                    {codeString}
+                                </SyntaxHighlighter>
+                            </div>
+                        );
+                    },
+                }}
+            >
+                {content || " "}
+            </ReactMarkdown>
+
+            {/* 在最后一行添加闪烁光标，只有在流式消息未完成时显示 */}
+            {!isComplete && content && (
+                <span
+                    className="blinking-cursor"
+                    style={{
+                        display: "inline-block",
+                        marginTop: "-1.2em", // 上移到最后一行文本处
+                        marginLeft: "0.2em", // 添加一点间距
+                        color: token.colorText,
+                    }}
+                />
+            )}
+        </div>
       {!isComplete && <TypingIndicator />}
     </div>
   );

@@ -1,4 +1,4 @@
-import { defineConfig } from "vite";
+import {defineConfig} from "vite";
 import react from "@vitejs/plugin-react";
 
 // @ts-expect-error process is a nodejs global
@@ -12,7 +12,6 @@ export default defineConfig(async () => ({
     rollupOptions: {
       input: {
         main: 'index.html',
-        search: 'search.html',
       },
     },
   },

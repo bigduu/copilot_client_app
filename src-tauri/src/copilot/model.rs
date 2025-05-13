@@ -41,12 +41,24 @@ pub(super) struct ChatCompletionRequest {
 }
 
 impl ChatCompletionRequest {
-    pub fn new(model: String, messages: Vec<Message>) -> Self {
+    pub fn new_stream(model: String, messages: Vec<Message>) -> Self {
         Self {
             model,
             messages,
             n: 1,
             stream: true,
+            temperature: 0.3,
+            top_p: 1.0,
+            max_tokens: Some(8000),
+        }
+    }
+
+    pub fn new_block(model: String, messages: Vec<Message>) -> Self {
+        Self {
+            model,
+            messages,
+            n: 1,
+            stream: false,
             temperature: 0.3,
             top_p: 1.0,
             max_tokens: Some(8000),
@@ -117,4 +129,53 @@ impl AccessTokenResponse {
             error: None,
         }
     }
+}
+
+/// A chunk in a streaming response
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct StreamChunk {
+    /// The ID of this chunk
+    pub id: String,
+    /// The object type (always "chat.completion.chunk")
+    pub object: Option<String>,
+    /// Unix timestamp of when the chunk was created
+    pub created: u64,
+    /// The model that generated this chunk
+    pub model: Option<String>,
+    /// Array of choices (usually just one) in this chunk
+    pub choices: Vec<StreamChoice>,
+}
+
+/// A choice in a streaming response chunk
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct StreamChoice {
+    /// Index of this choice
+    pub index: usize,
+    /// The delta (changes) in this chunk
+    pub delta: StreamDelta,
+    /// Reason why this chunk ended, if it did
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub finish_reason: Option<String>,
+}
+
+/// The changes in a streaming response chunk
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct StreamDelta {
+    /// Role of the message (usually only in first chunk)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub role: Option<String>,
+    /// Content of the message (the actual token)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub content: Option<String>,
+    /// Function call, if any
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub function_call: Option<FunctionCall>,
+}
+/// A function call in a message
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FunctionCall {
+    /// Name of the function to call
+    pub name: String,
+    /// Arguments to pass to the function, as a JSON string
+    pub arguments: String,
 }

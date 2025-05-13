@@ -1,10 +1,9 @@
-import { useState, useEffect } from "react";
-import { ConfigProvider, theme } from "antd";
+import {useEffect, useState} from "react";
+import {ConfigProvider, theme} from "antd";
 import "./App.css";
-import SpotlightInput from "./components/SpotlightInput";
-import { ChatProvider } from "./contexts/ChatContext";
-import { MainLayout } from "./layouts/MainLayout";
-import { SystemSettingsModal } from "./components/SystemSettingsModal";
+import {ChatProvider} from "./contexts/ChatContext";
+import {MainLayout} from "./layouts/MainLayout";
+import {SystemSettingsModal} from "./components/SystemSettingsModal";
 
 const DARK_MODE_KEY = "copilot_dark_mode";
 
@@ -33,7 +32,6 @@ function App() {
       <ChatProvider>
         <div style={{ position: "relative" }}>
           <MainLayout themeMode={themeMode} onThemeModeChange={setThemeMode} />
-          <SpotlightInput />
           <SystemSettingsModal
             open={settingsOpen}
             onClose={() => setSettingsOpen(false)}
