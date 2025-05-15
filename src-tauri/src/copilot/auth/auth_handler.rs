@@ -11,7 +11,8 @@ use std::{
 };
 use tokio::time::sleep;
 
-use super::stream_model::{AccessTokenResponse, CopilotConfig, DeviceCodeResponse};
+// This will be adjusted later once model/stream_model.rs is in place
+use crate::copilot::model::stream_model::{AccessTokenResponse, CopilotConfig, DeviceCodeResponse};
 
 // Struct for handling authentication logic
 #[derive(Debug)]
@@ -29,7 +30,7 @@ impl CopilotAuthHandler {
     }
 
     // get_chat_token remains in CopilotClient, delegates to auth_handler
-    pub(super) async fn get_chat_token(&self) -> anyhow::Result<String> {
+    pub(crate) async fn get_chat_token(&self) -> anyhow::Result<String> {
         // Create the directory if it doesn't exist
         create_dir_all(&self.app_data_dir)?;
 
@@ -96,7 +97,6 @@ impl CopilotAuthHandler {
         let mut clipboard = Clipboard::new()?;
         clipboard.set_text(device_code.user_code.clone())?;
 
-        // Show a dialog to the user using rfd
         let dialog_message = format!(
             "User code '{}' has been copied to your clipboard. Please paste it into the GitHub page that will open next.",
             device_code.user_code
@@ -129,15 +129,18 @@ impl CopilotAuthHandler {
         &self,
         access_token: AccessTokenResponse,
     ) -> anyhow::Result<CopilotConfig> {
+        let url = "https://api.github.com/copilot_internal/v2/token";
+        let actual_github_token = access_token
+            .access_token
+            .ok_or_else(|| anyhow!("Access token not found"))?;
+
         let response = self
             .client
-            .get("https://api.github.com/copilot_internal/v2/token")
-            .header(
-                "Authorization",
-                format!("token {}", access_token.access_token.unwrap()),
-            )
+            .get(url)
+            .header("Authorization", format!("token {}", actual_github_token))
             .send()
             .await?;
+
         let body = response.bytes().await?;
         match serde_json::from_slice::<CopilotConfig>(&body) {
             Ok(copilot_config) => Ok(copilot_config),

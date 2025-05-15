@@ -1,31 +1,29 @@
 use anyhow::anyhow;
 use bytes::Bytes;
-use lazy_static::lazy_static;
 use log::{error, info, warn};
 use reqwest::{Client, Proxy, Response};
 use std::{path::PathBuf, sync::Arc};
 use tauri::http::HeaderMap;
 use tokio::sync::mpsc::Sender;
-use tokio::sync::Mutex;
 
-use crate::copilot::{block_model, sse::extract_sse_message, stream_model::ChatCompletionRequest};
+// Tentative path adjustments - will be finalized in Phase 4
+// use super::http_utils::execute_request; // This should be correct as http_utils is in the same `api` module
+use crate::copilot::model::{block_model, stream_model::ChatCompletionRequest}; // Adjusted path
+use crate::copilot::utils::http_utils::execute_request;
+use crate::copilot::utils::sse::extract_sse_message; // Adjusted path
 
-use super::{
-    auth_handler::CopilotAuthHandler,
-    config::Config,
-    models_handler::CopilotModelsHandler,
-    stream_model::{Message, StreamChunk},
-};
+// use super::models_handler::CopilotModelsHandler; // This should be correct
+use super::models_handler::CopilotModelsHandler;
+use crate::copilot::auth::auth_handler::CopilotAuthHandler;
+use crate::copilot::config::Config;
+use crate::copilot::model::stream_model::{Message, StreamChunk}; // Adjusted path
 
-// Add a static variable to store the models
-lazy_static! {
-    static ref CACHED_MODELS: Mutex<Option<Vec<String>>> = Mutex::new(None);
-}
+const DEFAULT_COPILOT_MODEL: &str = "gpt-4.1";
 
 // Main Copilot Client struct
 #[derive(Debug)]
 pub struct CopilotClient {
-    client: Arc<Client>, // CopilotClient owns the Arc
+    client: Arc<Client>,
     auth_handler: CopilotAuthHandler,
     models_handler: CopilotModelsHandler,
 }
@@ -40,20 +38,19 @@ impl CopilotClient {
             builder = builder.proxy(Proxy::https(&config.https_proxy).unwrap());
         }
         let client: Client = builder.build().unwrap();
-        let shared_client = Arc::new(client); // Create the Arc
+        let shared_client = Arc::new(client);
 
-        // Create handlers, passing a clone of the Arc
-        let auth_handler = CopilotAuthHandler::new(Arc::clone(&shared_client), app_data_dir);
+        let auth_handler =
+            CopilotAuthHandler::new(Arc::clone(&shared_client), app_data_dir.clone()); // Pass app_data_dir
         let models_handler = CopilotModelsHandler::new(Arc::clone(&shared_client));
 
         CopilotClient {
-            client: shared_client, // Store the Arc
+            client: shared_client,
             auth_handler,
             models_handler,
         }
     }
 
-    // Public method to get models, delegates to models_handler
     pub async fn get_models(&self) -> anyhow::Result<Vec<String>> {
         let chat_token = self.auth_handler.get_chat_token().await?;
         self.models_handler.get_models(chat_token).await
@@ -65,19 +62,31 @@ impl CopilotClient {
         tx: Sender<anyhow::Result<Bytes>>,
         model: Option<String>,
     ) -> anyhow::Result<()> {
-        // Use the provided model or fall back to default
-        let model = model.unwrap_or_else(|| "gpt-4.1".to_string());
+        let model = model.unwrap_or_else(|| DEFAULT_COPILOT_MODEL.to_string());
         let request = ChatCompletionRequest::new_block(model, messages.clone());
         let response = self.send_request(messages, &request).await?;
+        self.process_block_response(response, tx).await
+    }
+
+    async fn process_block_response(
+        &self,
+        response: Response,
+        tx: Sender<anyhow::Result<Bytes>>,
+    ) -> anyhow::Result<()> {
         let response = response.json::<block_model::Response>().await?;
         let first = response.choices.first().unwrap();
         info!("{}", first.message.content.clone());
+
+        // Send the content
         tx.send(Ok(bytes::Bytes::from(first.message.content.clone())))
             .await
             .map_err(|_| anyhow!("Failed to send response"))?;
+
+        // Send the DONE signal
         tx.send(Ok(bytes::Bytes::from("[DONE]")))
             .await
             .map_err(|_| anyhow!("Failed to send [DONE]"))?;
+
         Ok(())
     }
 
@@ -87,12 +96,10 @@ impl CopilotClient {
         tx: Sender<anyhow::Result<Bytes>>,
         model: Option<String>,
     ) -> anyhow::Result<()> {
-        // Use the provided model or fall back to default
-        let model = model.unwrap_or_else(|| "gpt-4.1".to_string());
+        let model = model.unwrap_or_else(|| DEFAULT_COPILOT_MODEL.to_string());
         let request = ChatCompletionRequest::new_stream(model, messages.clone());
         let response = self.send_request(messages, &request).await?;
-
-        Ok(self.forward_message(response, tx).await?)
+        self.forward_message(response, tx).await
     }
 
     async fn send_request(
@@ -101,53 +108,25 @@ impl CopilotClient {
         request: &ChatCompletionRequest,
     ) -> anyhow::Result<Response> {
         info!("=== EXCHANGE_CHAT_COMPLETION START ===");
-        let start_time = std::time::Instant::now();
-        let access_token = match self.auth_handler.get_chat_token().await {
-            Ok(token) => {
-                info!("Successfully got chat token");
-                token
-            }
-            Err(e) => {
-                info!("Failed to get chat token: {e:?}");
-                return Err(e);
-            }
-        };
+        let access_token = self.auth_handler.get_chat_token().await.map_err(|e| {
+            info!("Failed to get chat token: {e:?}");
+            e
+        })?;
+
+        info!("Successfully got chat token");
 
         let url = "https://api.githubcopilot.com/chat/completions";
         info!("Preparing request with {} messages", messages.len());
+        info!("Sending request to Copilot API via http_utils...");
 
-        // Create the request
-        info!("Sending request to Copilot API...");
-        let response = match self
-            .client
-            .post(url)
-            .header("Authorization", format!("Bearer {access_token}"))
-            .json(&request)
-            .send()
-            .await
-        {
-            Ok(resp) => {
-                info!(
-                    "Got response from Copilot API after {:?}",
-                    start_time.elapsed()
-                );
-                info!("Response status: {}", resp.status());
-
-                // Log headers for debugging
-                info!("Response headers:");
-                for (name, value) in resp.headers() {
-                    info!("{name}: {value:?}");
-                }
-
-                resp
-            }
-            Err(e) => {
-                let error_msg = format!("Failed to send request: {e}");
-                error!("{error_msg}");
-                return Err(anyhow!(error_msg));
-            }
-        };
-        Ok(response)
+        execute_request(
+            &self.client,
+            reqwest::Method::POST,
+            url,
+            Some(&access_token),
+            Some(request),
+        )
+        .await
     }
 
     async fn forward_message(
@@ -156,22 +135,15 @@ impl CopilotClient {
         tx: Sender<anyhow::Result<Bytes>>,
     ) -> anyhow::Result<()> {
         use futures_util::StreamExt;
-        // handle the response stream
         let mut stream = response.bytes_stream();
         let mut buffer = String::new();
+
         while let Some(chunk_result) = stream.next().await {
             match chunk_result {
                 Ok(chunk) => {
                     let text = String::from_utf8_lossy(&chunk);
                     buffer.push_str(&text);
-                    while let Some((message, remaining)) = extract_sse_message(&buffer) {
-                        buffer = remaining.to_string();
-                        if message.trim() == "[DONE]" {
-                            info!("Received [DONE] signal");
-                            break;
-                        }
-                        self.process_message(&message, &tx).await?;
-                    }
+                    self.process_buffer(&mut buffer, &tx).await?;
                 }
                 Err(e) => {
                     self.send_error(&tx, format!("Error reading chunk from OpenAI: {e}"))
@@ -180,17 +152,41 @@ impl CopilotClient {
             }
         }
 
-        // Process any remaining data in the buffer
+        // Process any remaining data in buffer
         if !buffer.is_empty() {
             if let Some((message, _)) = extract_sse_message(&buffer) {
                 self.process_message(&message, &tx).await?;
             }
         }
+
         Ok(())
     }
 
-    /// Parse the chunk data and send it through the channel
+    async fn process_buffer(
+        &self,
+        buffer: &mut String,
+        tx: &Sender<anyhow::Result<Bytes>>,
+    ) -> anyhow::Result<()> {
+        while let Some((message, remaining)) = extract_sse_message(buffer) {
+            *buffer = remaining.to_string();
+            if message.trim() == "[DONE]" {
+                info!("Received [DONE] signal");
+                break;
+            }
+            self.process_message(&message, tx).await?;
+        }
+        Ok(())
+    }
+
     async fn process_message(
+        &self,
+        data: &str,
+        tx: &Sender<anyhow::Result<Bytes>>,
+    ) -> anyhow::Result<()> {
+        self.parse_and_send_chunk(data, tx).await
+    }
+
+    async fn parse_and_send_chunk(
         &self,
         data: &str,
         tx: &Sender<anyhow::Result<Bytes>>,
@@ -211,7 +207,6 @@ impl CopilotClient {
         }
     }
 
-    /// Send a chunk through the channel
     async fn send_chunk(
         &self,
         chunk: &Bytes,
@@ -223,7 +218,6 @@ impl CopilotClient {
         Ok(())
     }
 
-    /// Send an error message through the channel
     async fn send_error(
         &self,
         tx: &Sender<anyhow::Result<Bytes>>,

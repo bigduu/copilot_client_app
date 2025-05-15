@@ -29,7 +29,7 @@ impl Message {
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub(super) struct ChatCompletionRequest {
+pub(crate) struct ChatCompletionRequest {
     pub model: String,
     pub messages: Vec<Message>,
     pub n: u64,
@@ -66,7 +66,7 @@ impl ChatCompletionRequest {
     }
 }
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub(super) struct CopilotConfig {
+pub(crate) struct CopilotConfig {
     pub annotations_enabled: bool,
     pub chat_enabled: bool,
     pub chat_jetbrains_enabled: bool,
@@ -93,7 +93,7 @@ pub(super) struct CopilotConfig {
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub(super) struct Endpoints {
+pub(crate) struct Endpoints {
     pub api: Option<String>,
     pub origin_tracker: Option<String>,
     pub proxy: Option<String>,
@@ -101,7 +101,7 @@ pub(super) struct Endpoints {
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub(super) struct DeviceCodeResponse {
+pub(crate) struct DeviceCodeResponse {
     pub device_code: String,
     pub user_code: String,
     pub verification_uri: String,
@@ -110,7 +110,7 @@ pub(super) struct DeviceCodeResponse {
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub(super) struct AccessTokenResponse {
+pub(crate) struct AccessTokenResponse {
     pub access_token: Option<String>,
     pub token_type: Option<String>,
     pub expires_in: Option<u64>,
@@ -119,7 +119,7 @@ pub(super) struct AccessTokenResponse {
     pub error: Option<String>,
 }
 impl AccessTokenResponse {
-    pub(super) fn from_token(token: String) -> Self {
+    pub(crate) fn from_token(token: String) -> Self {
         Self {
             access_token: Some(token),
             token_type: None,

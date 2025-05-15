@@ -1,7 +1,7 @@
-use crate::copilot::client::CopilotClient;
-use crate::copilot::stream_model::Message;
 use bytes::Bytes;
 use log::{error, info};
+
+use crate::copilot::{model::stream_model::Message, CopilotClient};
 
 #[tauri::command(async)]
 pub async fn execute_prompt(
@@ -36,7 +36,7 @@ pub async fn execute_prompt(
     });
 
     info!("Calling exchange_chat_completion...");
-    match client.send_block_request(messages, tx, model).await {
+    match client.send_stream_request(messages, tx, model).await {
         Ok(_) => {}
         Err(e) => {
             let error_msg = format!("Error in exchange_chat_completion: {e}");

@@ -1,6 +1,6 @@
 use crate::command::chat::{execute_prompt, get_models};
 use crate::command::copy::copy_to_clipboard;
-use copilot::{client::CopilotClient, config::Config};
+use crate::copilot::{Config, CopilotClient};
 use log::LevelFilter;
 use tauri::{App, Manager, Runtime};
 

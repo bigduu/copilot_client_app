@@ -19,7 +19,7 @@ tauri-build = { version = "2", features = [] }
 
 [dependencies]
 # Tauri core and plugins
-tauri = { version = "2.5.1" }
+tauri = { version = "2.5.1", features = [] }
 
 # Serialization
 serde = { version = "1", features = ["derive"] }
