@@ -1,26 +1,20 @@
-use anyhow::{anyhow, Error};
-use std::{
-    collections::HashMap,
-    fs::{create_dir_all, read_to_string, File},
-    io::Write,
-    path::PathBuf,
-    time::Duration,
-};
-
+use anyhow::anyhow;
 use bytes::Bytes;
 use lazy_static::lazy_static;
-use log::{debug, error, info, warn};
+use log::{error, info, warn};
 use reqwest::{Client, Proxy, Response};
+use std::{path::PathBuf, sync::Arc};
 use tauri::http::HeaderMap;
+use tokio::sync::mpsc::Sender;
 use tokio::sync::Mutex;
-use tokio::sync::{mpsc, mpsc::Sender};
-use tokio::time::sleep;
 
 use crate::copilot::{block_model, sse::extract_sse_message, stream_model::ChatCompletionRequest};
 
 use super::{
+    auth_handler::CopilotAuthHandler,
     config::Config,
-    stream_model::{AccessTokenResponse, CopilotConfig, DeviceCodeResponse, Message, StreamChunk},
+    models_handler::CopilotModelsHandler,
+    stream_model::{Message, StreamChunk},
 };
 
 // Add a static variable to store the models
@@ -28,10 +22,12 @@ lazy_static! {
     static ref CACHED_MODELS: Mutex<Option<Vec<String>>> = Mutex::new(None);
 }
 
+// Main Copilot Client struct
 #[derive(Debug)]
 pub struct CopilotClient {
-    client: Client,
-    app_data_dir: PathBuf,
+    client: Arc<Client>, // CopilotClient owns the Arc
+    auth_handler: CopilotAuthHandler,
+    models_handler: CopilotModelsHandler,
 }
 
 impl CopilotClient {
@@ -44,43 +40,23 @@ impl CopilotClient {
             builder = builder.proxy(Proxy::https(&config.https_proxy).unwrap());
         }
         let client: Client = builder.build().unwrap();
+        let shared_client = Arc::new(client); // Create the Arc
+
+        // Create handlers, passing a clone of the Arc
+        let auth_handler = CopilotAuthHandler::new(Arc::clone(&shared_client), app_data_dir);
+        let models_handler = CopilotModelsHandler::new(Arc::clone(&shared_client));
 
         CopilotClient {
-            client,
-            app_data_dir,
+            client: shared_client, // Store the Arc
+            auth_handler,
+            models_handler,
         }
     }
 
-    async fn get_chat_token(&self) -> anyhow::Result<String> {
-        // Create the directory if it doesn't exist
-        create_dir_all(&self.app_data_dir)?;
-
-        let token_path = self.app_data_dir.join(".token");
-
-        //read the access token from the .token file if exists don't get the device code and access token
-        if token_path.exists() {
-            let access_token = read_to_string(&token_path)?;
-            let access_token = AccessTokenResponse::from_token(access_token);
-            match self.get_copilot_token(access_token).await {
-                Ok(copilot_config) => {
-                    return Ok(copilot_config.token);
-                }
-                Err(e) => {
-                    //remove the .token file
-                    std::fs::remove_file(&token_path)?;
-                    info!(
-                        "Failed to get copilot config, will get the device code and access token: {e}"
-                    );
-                }
-            };
-        }
-        let device_code = self.get_device_code().await?;
-        let access_token = self.get_access_token(device_code).await?;
-        //make sure the .token file is writable and write the access token to it
-        let mut file = File::create(&token_path)?;
-        file.write_all(access_token.clone().access_token.unwrap().as_bytes())?;
-        let copilot_config = self.get_copilot_token(access_token).await?;
-        Ok(copilot_config.token)
+    // Public method to get models, delegates to models_handler
+    pub async fn get_models(&self) -> anyhow::Result<Vec<String>> {
+        let chat_token = self.auth_handler.get_chat_token().await?;
+        self.models_handler.get_models(chat_token).await
     }
 
     pub async fn send_block_request(
@@ -126,7 +102,7 @@ impl CopilotClient {
     ) -> anyhow::Result<Response> {
         info!("=== EXCHANGE_CHAT_COMPLETION START ===");
         let start_time = std::time::Instant::now();
-        let access_token = match self.get_chat_token().await {
+        let access_token = match self.auth_handler.get_chat_token().await {
             Ok(token) => {
                 info!("Successfully got chat token");
                 token
@@ -258,194 +234,7 @@ impl CopilotClient {
         }
         Ok(())
     }
-}
 
-// Models relate code
-impl CopilotClient {
-    pub async fn get_models(&self) -> anyhow::Result<Vec<String>> {
-        // First, check if we have cached models
-        let mut cached = CACHED_MODELS.lock().await;
-        if let Some(models) = cached.as_ref() {
-            info!("Returning cached models");
-            Ok(models.clone())
-        } else {
-            let models = self.do_get_models().await?;
-            *cached = Some(models.clone());
-            Ok(models)
-        }
-    }
-
-    async fn do_get_models(&self) -> anyhow::Result<Vec<String>> {
-        info!("=== GET_MODELS START ===");
-        let start_time = std::time::Instant::now();
-
-        let access_token = match self.get_chat_token().await {
-            Ok(token) => {
-                info!("Successfully got chat token");
-                token
-            }
-            Err(e) => {
-                info!("Failed to get chat token: {e:?}");
-                return Err(e);
-            }
-        };
-
-        let url = "https://api.githubcopilot.com/models";
-        info!("Fetching available models...");
-
-        let response = match self
-            .client
-            .get(url)
-            .header("Authorization", format!("Bearer {access_token}"))
-            .send()
-            .await
-        {
-            Ok(resp) => {
-                info!(
-                    "Got response from Copilot API after {:?}",
-                    start_time.elapsed()
-                );
-                info!("Response status: {}", resp.status());
-                resp
-            }
-            Err(e) => {
-                let error_msg = format!("Failed to fetch models: {e}");
-                error!("{error_msg}");
-                return Err(anyhow::anyhow!(error_msg));
-            }
-        };
-
-        match response.status() {
-            reqwest::StatusCode::OK => Self::extract_model_from_response(response).await,
-            s => {
-                let body = response.text().await.unwrap_or_default();
-                let error_msg = format!("Failed to get models: {body} with status {s}");
-                error!("{error_msg}");
-                Err(anyhow::anyhow!(error_msg))
-            }
-        }
-    }
-
-    async fn extract_model_from_response(response: Response) -> Result<Vec<String>, Error> {
-        let models: serde_json::Value = response.json().await?;
-        info!("Models: {models:?}");
-
-        // Extract model IDs from the response
-        let model_ids = if let Some(data) = models.get("data").and_then(|d| d.as_array()) {
-            data.iter()
-                .filter_map(|model| {
-                    let id = model.get("id").and_then(|id| id.as_str())?;
-                    let model_picker_enabled = model
-                        .get("model_picker_enabled")
-                        .and_then(|v| v.as_bool())
-                        .unwrap_or(false);
-
-                    // Only include models where model_picker_enabled is true
-                    if model_picker_enabled {
-                        Some(id.to_string())
-                    } else {
-                        None
-                    }
-                })
-                .collect::<Vec<String>>()
-        } else {
-            return Err(anyhow::anyhow!("Invalid models response format"));
-        };
-
-        info!("=== GET_MODELS COMPLETE ===");
-        Ok(model_ids)
-    }
-}
-
-// auth-related code
-impl CopilotClient {
-    async fn get_device_code(&self) -> anyhow::Result<DeviceCodeResponse> {
-        let params = HashMap::from([
-            ("client_id", "Iv1.b507a08c87ecfe98"),
-            ("scope", "read:user"),
-        ]);
-        let response = self
-            .client
-            .post("https://github.com/login/device/code")
-            .query(&params)
-            .send()
-            .await?
-            .json::<DeviceCodeResponse>()
-            .await?;
-        Ok(response)
-    }
-
-    async fn get_access_token(
-        &self,
-        device_code: DeviceCodeResponse,
-    ) -> anyhow::Result<AccessTokenResponse> {
-        let params = HashMap::from([
-            ("client_id", "Iv1.b507a08c87ecfe98"),
-            ("device_code", &device_code.device_code),
-            ("grant_type", "urn:ietf:params:oauth:grant-type:device_code"),
-            ("expires_in", "3600"),
-        ]);
-        use arboard::Clipboard;
-        use webbrowser;
-        let mut clipboard = Clipboard::new()?;
-        clipboard.set_text(device_code.user_code.clone())?;
-
-        // Show a dialog to the user using rfd
-        let dialog_message = format!(
-            "User code '{}' has been copied to your clipboard. Please paste it into the GitHub page that will open next.",
-            device_code.user_code
-        );
-        rfd::MessageDialog::new()
-            .set_title("User Code Copied")
-            .set_description(&dialog_message)
-            .set_level(rfd::MessageLevel::Info)
-            .set_buttons(rfd::MessageButtons::Ok)
-            .show();
-
-        webbrowser::open(&device_code.verification_uri)?;
-        loop {
-            let response = self
-                .client
-                .post("https://github.com/login/oauth/access_token")
-                .query(&params)
-                .send()
-                .await?
-                .json::<AccessTokenResponse>()
-                .await?;
-            if response.access_token.is_some() {
-                return Ok(response);
-            }
-            sleep(Duration::from_secs(10)).await;
-        }
-    }
-
-    async fn get_copilot_token(
-        &self,
-        access_token: AccessTokenResponse,
-    ) -> anyhow::Result<CopilotConfig> {
-        let response = self
-            .client
-            .get("https://api.github.com/copilot_internal/v2/token")
-            .header(
-                "Authorization",
-                format!("token {}", access_token.access_token.unwrap()),
-            )
-            .send()
-            .await?;
-        let body = response.bytes().await?;
-        match serde_json::from_slice::<CopilotConfig>(&body) {
-            Ok(copilot_config) => Ok(copilot_config),
-            Err(_) => {
-                let body = String::from_utf8_lossy(&body);
-                let error_msg = format!("Failed to get copilot config: {body}");
-                error!("{error_msg}");
-                Err(anyhow::anyhow!(error_msg))
-            }
-        }
-    }
-}
-
-impl CopilotClient {
     pub fn get_default_headers() -> HeaderMap {
         let mut header: HeaderMap = HeaderMap::new();
         header.insert("editor-version", "vscode/1.99.2".parse().unwrap());
