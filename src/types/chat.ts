@@ -3,6 +3,18 @@ export interface Message {
     content: string;
 }
 
+export interface FavoriteItem {
+    id: string;
+    chatId: string;
+    content: string;
+    role: "user" | "assistant";
+    createdAt: number;
+    originalContent?: string; // Original content if this is a selection
+    selectionStart?: number;
+    selectionEnd?: number;
+    note?: string; // Optional note added by user
+}
+
 export interface ChatItem {
     id: string;
     title: string;

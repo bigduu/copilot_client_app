@@ -3,7 +3,6 @@ import { Card, Space, Typography, theme } from "antd";
 import ReactMarkdown from "react-markdown";
 import { useChat } from "../../contexts/ChatContext";
 import { DEFAULT_MESSAGE } from "../../constants";
-import { ArrowsAltOutlined } from "@ant-design/icons";
 
 const { Text } = Typography;
 const { useToken } = theme;
@@ -50,10 +49,19 @@ const SystemMessage: React.FC<SystemMessageProps> = ({
       style={{
         position: "relative",
         width: "100%",
+        maxWidth: "100%",
         maxHeight: expanded ? "80vh" : "8vh",
         overflowY: expanded ? "auto" : "hidden",
         borderRadius: token.borderRadiusLG,
         boxShadow: token.boxShadow,
+        cursor: "pointer",
+      }}
+      onClick={() => {
+        if (onExpandChange) {
+          onExpandChange(!expanded);
+        } else {
+          setUncontrolledExpanded((prev) => !prev);
+        }
       }}
     >
       <Space
@@ -119,32 +127,6 @@ const SystemMessage: React.FC<SystemMessageProps> = ({
               <Text style={{ color: token.colorTextSecondary }}>{summary}</Text>
             )}
           </div>
-          <button
-            style={{
-              minWidth: 32,
-              height: 32,
-              border: "none",
-              background: "none",
-              cursor: "pointer",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              marginLeft: token.marginXS,
-              transition: "transform 0.2s",
-              transform: expanded ? "rotate(45deg)" : "none",
-            }}
-            onClick={() => {
-              if (onExpandChange) {
-                onExpandChange(!expanded);
-              } else {
-                setUncontrolledExpanded((prev) => !prev);
-              }
-            }}
-            aria-label={expanded ? "Collapse" : "Expand"}
-            title={expanded ? "Collapse" : "Expand"}
-          >
-            <ArrowsAltOutlined style={{ fontSize: 20 }} />
-          </button>
         </div>
       </Space>
     </Card>

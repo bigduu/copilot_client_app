@@ -13,11 +13,12 @@ import {
 import { useChat } from "../../contexts/ChatContext";
 import SystemMessage from "../SystemMessage";
 import StreamingMessageItem from "../StreamingMessageItem";
-import { CopyOutlined, DownOutlined } from "@ant-design/icons";
+import { CopyOutlined, DownOutlined, BookOutlined } from "@ant-design/icons";
 import { invoke } from "@tauri-apps/api/core";
 import { InputContainer } from "../InputContainer";
 import "./ChatView.css"; // Import a new CSS file for animations and specific styles
 import MessageCard from "../MessageCard";
+import FavoritesPanel from "../FavoritesPanel";
 
 const { Content } = Layout;
 const { Text } = Typography;
@@ -41,6 +42,30 @@ export const ChatView: React.FC = () => {
   const lastChatIdRef = useRef<string | null>(null);
   // Scroll-to-bottom button state
   const [showScrollToBottom, setShowScrollToBottom] = useState(false);
+  // Favorites panel toggle
+  const [showFavorites, setShowFavorites] = useState(true);
+
+  // Add keyboard shortcut for toggling favorites
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Toggle favorites panel with F key
+      if (
+        e.key === "f" &&
+        !e.ctrlKey &&
+        !e.metaKey &&
+        !e.altKey &&
+        document.activeElement?.tagName !== "INPUT" &&
+        document.activeElement?.tagName !== "TEXTAREA"
+      ) {
+        setShowFavorites((prev) => !prev);
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, []);
 
   // Auto-expand on new chat, auto-collapse after first user message
   useEffect(() => {
@@ -103,200 +128,198 @@ export const ChatView: React.FC = () => {
         overflow: "hidden", // Prevent scrollbars from animated elements moving out
       }}
     >
-      {/* System Message Area - transitions between top-of-messages and centered view */}
-      <div
-        className={`chat-view-system-message-container ${
-          showMessagesView ? "messages-view" : "centered-view"
-        }`}
-        style={{
-          paddingTop: showMessagesView ? token.padding : token.paddingXL,
-          paddingLeft: showMessagesView
-            ? token.padding
-            : token.paddingContentHorizontal,
-          paddingRight: showMessagesView
-            ? token.padding
-            : token.paddingContentHorizontal,
-          paddingBottom: showMessagesView ? 0 : token.marginXL,
-        }}
-      >
-        {currentChatId ? (
-          <>
-            <SystemMessage
-              isExpandedView={!showMessagesView}
-              expanded={systemMsgExpanded}
-              onExpandChange={setSystemMsgExpanded}
-            />
-            {!showMessagesView && !hasMessages && (
-              <Empty
-                description="Send a message to start the conversation."
-                image={Empty.PRESENTED_IMAGE_SIMPLE}
-                style={{ marginTop: token.marginMD, textAlign: "center" }}
-              />
-            )}
-          </>
-        ) : (
-          !showMessagesView && ( // Only show "Select a chat" if no chat is selected AND in centered view
-            <Empty
-              description="Select a chat or start a new one"
-              image={Empty.PRESENTED_IMAGE_SIMPLE}
-              style={{ textAlign: "center" }}
-            />
-          )
-        )}
-      </div>
-
-      {/* Messages List Area - only truly visible and scrollable in messages view */}
-      <Content
-        className={`chat-view-messages-list ${
-          showMessagesView ? "visible" : "hidden"
-        }`}
-        style={{
-          flex: 1,
-          padding: token.padding,
-          overflowY: "auto",
-          display: "flex",
-          flexDirection: "column",
-          gap: token.marginMD,
-          opacity: showMessagesView ? 1 : 0,
-          scrollbarWidth: "none", // Firefox
-          msOverflowStyle: "none", // IE and Edge
-        }}
-        ref={messagesListRef}
-        onScroll={handleMessagesScroll}
-      >
-        {showMessagesView &&
-          currentMessages
-            .filter(
-              (message) =>
-                message.role === "user" || message.role === "assistant"
-            )
-            .map((message, index) => (
-              <List.Item
-                key={index}
+      <Layout>
+        {/* System Message Area - transitions between top-of-messages and centered view */}
+        <div
+          className={`chat-view-system-message-container ${
+            showMessagesView ? "messages-view" : "centered-view"
+          }`}
+          style={{
+            paddingTop: showMessagesView ? token.padding : token.paddingXL,
+            paddingLeft: showMessagesView
+              ? token.padding
+              : token.paddingContentHorizontal,
+            paddingRight: showMessagesView
+              ? token.padding
+              : token.paddingContentHorizontal,
+            paddingBottom: showMessagesView ? 0 : token.marginXL,
+            width: "100%",
+            maxWidth: "100%",
+            display: "flex",
+            justifyContent: "center",
+          }}
+        >
+          {currentChatId ? (
+            <>
+              <div
                 style={{
-                  padding: token.paddingXS,
-                  border: "none",
-                  display: "flex",
-                  justifyContent:
-                    message.role === "user" ? "flex-end" : "flex-start",
+                  width: "100%",
+                  maxWidth: showMessagesView ? "100%" : "768px",
                 }}
               >
-                <MessageCard role={message.role} content={message.content}>
-                  {message.role === "assistant" && (
-                    <div
-                      style={{
-                        position: "absolute",
-                        bottom: token.paddingXS,
-                        right: token.paddingXS,
-                        zIndex: 1,
-                      }}
-                    >
-                      <Tooltip title={"Copy message"} placement="topRight">
-                        <Button
-                          icon={<CopyOutlined />}
-                          size="small"
-                          type="text"
-                          onClick={async () => {
-                            try {
-                              await invoke("copy_to_clipboard", {
-                                text: message.content,
-                              });
-                            } catch (e) {
-                              console.error("Failed to copy message:", e);
-                            }
-                          }}
-                          style={{
-                            background: token.colorBgElevated,
-                            borderRadius: token.borderRadiusSM,
-                          }}
-                        />
-                      </Tooltip>
-                    </div>
-                  )}
-                </MessageCard>
-              </List.Item>
-            ))}
+                <SystemMessage
+                  isExpandedView={!showMessagesView}
+                  expanded={systemMsgExpanded}
+                  onExpandChange={setSystemMsgExpanded}
+                />
+                {!showMessagesView && !hasMessages && (
+                  <Empty
+                    description="Send a message to start the conversation."
+                    image={Empty.PRESENTED_IMAGE_SIMPLE}
+                    style={{ marginTop: token.marginMD, textAlign: "center" }}
+                  />
+                )}
+              </div>
+            </>
+          ) : (
+            !showMessagesView && ( // Only show "Select a chat" if no chat is selected AND in centered view
+              <Empty
+                description="Select a chat or start a new one"
+                image={Empty.PRESENTED_IMAGE_SIMPLE}
+                style={{ textAlign: "center" }}
+              />
+            )
+          )}
+        </div>
 
-        {/* AI 流式消息 - only shown when messagesView is active */}
-        {showMessagesView && isStreaming && activeChannel && (
-          <List.Item
-            style={{
-              padding: token.paddingXS,
-              border: "none",
-              display: "flex",
-              justifyContent: "flex-start",
-            }}
-          >
-            <Card
-              bordered={false}
+        {/* Messages List Area - only truly visible and scrollable in messages view */}
+        <Content
+          className={`chat-view-messages-list ${
+            showMessagesView ? "visible" : "hidden"
+          }`}
+          style={{
+            flex: 1,
+            padding: token.padding,
+            overflowY: "auto",
+            display: "flex",
+            flexDirection: "column",
+            gap: token.marginMD,
+            opacity: showMessagesView ? 1 : 0,
+            scrollbarWidth: "none", // Firefox
+            msOverflowStyle: "none", // IE and Edge
+          }}
+          ref={messagesListRef}
+          onScroll={handleMessagesScroll}
+        >
+          {showMessagesView &&
+            currentMessages
+              .filter(
+                (message) =>
+                  message.role === "user" || message.role === "assistant"
+              )
+              .map((message, index) => (
+                <List.Item
+                  key={index}
+                  style={{
+                    padding: token.paddingXS,
+                    border: "none",
+                    display: "flex",
+                    justifyContent:
+                      message.role === "user" ? "flex-end" : "flex-start",
+                    width: "100%",
+                  }}
+                >
+                  <div
+                    style={{
+                      width: "85%",
+                      display: "flex",
+                      justifyContent:
+                        message.role === "user" ? "flex-end" : "flex-start",
+                    }}
+                  >
+                    <MessageCard
+                      role={message.role}
+                      content={message.content}
+                      messageIndex={index}
+                    />
+                  </div>
+                </List.Item>
+              ))}
+
+          {/* AI 流式消息 - only shown when messagesView is active */}
+          {showMessagesView && isStreaming && activeChannel && (
+            <List.Item
               style={{
-                maxWidth: "85%",
-                background: token.colorBgLayout, // Changed for better contrast
-                borderRadius: token.borderRadiusLG,
-                boxShadow: token.boxShadow,
-              }}
-              bodyStyle={{
-                padding: token.paddingMD,
+                padding: token.paddingXS,
+                border: "none",
+                display: "flex",
+                justifyContent: "flex-start",
               }}
             >
-              <Space
-                direction="vertical"
-                size={token.marginXS}
-                style={{ width: "100%" }}
+              <Card
+                bordered={false}
+                style={{
+                  maxWidth: "85%",
+                  background: token.colorBgLayout, // Changed for better contrast
+                  borderRadius: token.borderRadiusLG,
+                  boxShadow: token.boxShadow,
+                }}
+                bodyStyle={{
+                  padding: token.paddingMD,
+                }}
               >
-                <Text
-                  type="secondary"
-                  strong
-                  style={{ fontSize: token.fontSizeSM }}
+                <Space
+                  direction="vertical"
+                  size={token.marginXS}
+                  style={{ width: "100%" }}
                 >
-                  Assistant
-                </Text>
-                <div>
-                  <StreamingMessageItem
-                    channel={activeChannel}
-                    onComplete={addAssistantMessage}
-                  />
-                </div>
-              </Space>
-            </Card>
-          </List.Item>
-        )}
-        <div ref={messagesEndRef} />
-      </Content>
+                  <Text
+                    type="secondary"
+                    strong
+                    style={{ fontSize: token.fontSizeSM }}
+                  >
+                    Assistant
+                  </Text>
+                  <div>
+                    <StreamingMessageItem
+                      channel={activeChannel}
+                      onComplete={addAssistantMessage}
+                    />
+                  </div>
+                </Space>
+              </Card>
+            </List.Item>
+          )}
+          <div ref={messagesEndRef} />
+        </Content>
 
-      {/* Scroll to Bottom Button */}
-      {showScrollToBottom && (
-        <Button
-          type="primary"
-          shape="circle"
-          icon={<DownOutlined />}
-          size="large"
-          style={{
-            position: "fixed",
-            right: 32,
-            bottom: 96,
-            zIndex: 100,
-            boxShadow: token.boxShadow,
-            background: token.colorPrimary,
-            color: token.colorBgContainer,
-          }}
-          onClick={scrollToBottom}
-        />
-      )}
-
-      {/* Input Container Area - transitions between bottom and centered view */}
-      <div
-        className={`chat-view-input-container-wrapper ${
-          showMessagesView ? "messages-view" : "centered-view"
-        }`}
-      >
-        <div style={{ width: "100%", maxWidth: "768px", margin: "0 auto" }}>
-          <InputContainer
-            isStreaming={isStreaming}
-            isCenteredLayout={!showMessagesView}
+        {/* Scroll to Bottom Button */}
+        {showScrollToBottom && (
+          <Button
+            type="primary"
+            shape="circle"
+            icon={<DownOutlined />}
+            size="large"
+            style={{
+              position: "fixed",
+              right: showFavorites ? 432 : 32,
+              bottom: 96,
+              zIndex: 100,
+              boxShadow: token.boxShadow,
+              background: token.colorPrimary,
+              color: token.colorBgContainer,
+            }}
+            onClick={scrollToBottom}
           />
+        )}
+
+        {/* Input Container Area - transitions between bottom and centered view */}
+        <div
+          className={`chat-view-input-container-wrapper ${
+            showMessagesView ? "messages-view" : "centered-view"
+          }`}
+        >
+          <div style={{ width: "100%", maxWidth: "768px", margin: "0 auto" }}>
+            <InputContainer
+              isStreaming={isStreaming}
+              isCenteredLayout={!showMessagesView}
+            />
+          </div>
         </div>
-      </div>
+      </Layout>
+
+      {/* Favorites Panel */}
+      {showFavorites && currentChatId && <FavoritesPanel />}
     </Layout>
   );
 };

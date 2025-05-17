@@ -5,6 +5,7 @@ import {
   ChatItem,
   SystemPromptPreset,
   SystemPromptPresetList,
+  FavoriteItem,
 } from "../types/chat";
 import { useChats } from "../hooks/useChats";
 import { useMessages } from "../hooks/useMessages";
@@ -15,6 +16,7 @@ import { DEFAULT_MESSAGE } from "../constants";
 const SYSTEM_PROMPT_KEY = "system_prompt";
 const SYSTEM_PROMPT_PRESETS_KEY = "system_prompt_presets";
 const SYSTEM_PROMPT_SELECTED_ID_KEY = "system_prompt_selected_id";
+const FAVORITES_STORAGE_KEY = "chat_favorites";
 
 // Define the context type
 interface ChatContextType {
@@ -51,6 +53,16 @@ interface ChatContextType {
   selectSystemPromptPreset: (id: string) => void;
   selectedSystemPromptPresetId: string | null;
   updateChat: (chatId: string, updates: Partial<ChatItem>) => void;
+  // Favorites management
+  favorites: FavoriteItem[];
+  addFavorite: (favorite: Omit<FavoriteItem, "id" | "createdAt">) => string;
+  removeFavorite: (id: string) => void;
+  updateFavorite: (
+    id: string,
+    updates: Partial<Omit<FavoriteItem, "id" | "createdAt">>
+  ) => void;
+  getCurrentChatFavorites: () => FavoriteItem[];
+  exportFavorites: (format: "markdown" | "pdf") => Promise<void>;
 }
 
 // Create a default context with empty/no-op implementations
@@ -85,6 +97,13 @@ const defaultContext: ChatContextType = {
   selectSystemPromptPreset: () => {},
   selectedSystemPromptPresetId: null,
   updateChat: () => {},
+  // Initialize favorites
+  favorites: [],
+  addFavorite: () => "",
+  removeFavorite: () => {},
+  updateFavorite: () => {},
+  getCurrentChatFavorites: () => [],
+  exportFavorites: async () => {},
 };
 
 // Create the context with the default value
@@ -132,6 +151,178 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     currentMessages,
     currentChat
   );
+
+  // ====== Favorites management ======
+  const [favorites, setFavorites] = React.useState<FavoriteItem[]>(() => {
+    try {
+      const storedFavorites = localStorage.getItem(FAVORITES_STORAGE_KEY);
+      return storedFavorites ? JSON.parse(storedFavorites) : [];
+    } catch (error) {
+      console.error("Error loading favorites:", error);
+      return [];
+    }
+  });
+
+  // Save favorites to localStorage
+  const saveFavorites = (newFavorites: FavoriteItem[]) => {
+    try {
+      localStorage.setItem(FAVORITES_STORAGE_KEY, JSON.stringify(newFavorites));
+    } catch (error) {
+      console.error("Error saving favorites:", error);
+    }
+  };
+
+  // Add a new favorite item
+  const addFavorite = (favorite: Omit<FavoriteItem, "id" | "createdAt">) => {
+    const id = crypto.randomUUID();
+    const newFavorite: FavoriteItem = {
+      ...favorite,
+      id,
+      createdAt: Date.now(),
+    };
+    const newFavorites = [...favorites, newFavorite];
+    setFavorites(newFavorites);
+    saveFavorites(newFavorites);
+    return id;
+  };
+
+  // Remove a favorite by ID
+  const removeFavorite = (id: string) => {
+    const newFavorites = favorites.filter((fav) => fav.id !== id);
+    setFavorites(newFavorites);
+    saveFavorites(newFavorites);
+  };
+
+  // Update an existing favorite
+  const updateFavorite = (
+    id: string,
+    updates: Partial<Omit<FavoriteItem, "id" | "createdAt">>
+  ) => {
+    const newFavorites = favorites.map((fav) =>
+      fav.id === id ? { ...fav, ...updates } : fav
+    );
+    setFavorites(newFavorites);
+    saveFavorites(newFavorites);
+  };
+
+  // Get favorites for the current chat
+  const getCurrentChatFavorites = () => {
+    if (!currentChatId) return [];
+    return favorites.filter((fav) => fav.chatId === currentChatId);
+  };
+
+  // Export favorites to markdown or PDF
+  const exportFavorites = async (format: "markdown" | "pdf") => {
+    if (!currentChatId) return;
+
+    const chatFavorites = getCurrentChatFavorites();
+    if (chatFavorites.length === 0) return;
+
+    // Build markdown content
+    let markdownContent = `# Chat Favorites Export\n\n`;
+    markdownContent += `Generated: ${new Date().toLocaleString()}\n\n`;
+
+    chatFavorites.forEach((fav, index) => {
+      markdownContent += `## ${fav.role === "user" ? "You" : "Assistant"} (${
+        index + 1
+      })\n\n`;
+      markdownContent += fav.content;
+      markdownContent += "\n\n";
+      if (fav.note) {
+        markdownContent += `> Note: ${fav.note}\n\n`;
+      }
+      markdownContent += "---\n\n";
+    });
+
+    if (format === "markdown") {
+      // Save as markdown
+      const blob = new Blob([markdownContent], { type: "text/markdown" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `chat-favorites-${currentChatId.substring(0, 8)}.md`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } else if (format === "pdf") {
+      try {
+        // Import jspdf dynamically
+        const jsPDF = (await import("jspdf")).default;
+        const doc = new jsPDF();
+
+        // Add title
+        doc.setFontSize(18);
+        doc.text("Chat Favorites Export", 20, 20);
+
+        // Add generation date
+        doc.setFontSize(10);
+        doc.text(`Generated: ${new Date().toLocaleString()}`, 20, 30);
+
+        let yPos = 40;
+        const pageHeight = doc.internal.pageSize.height;
+
+        chatFavorites.forEach((fav, index) => {
+          // Check if we need a new page
+          if (yPos > pageHeight - 40) {
+            doc.addPage();
+            yPos = 20;
+          }
+
+          // Add role header
+          doc.setFontSize(14);
+          doc.text(
+            `${fav.role === "user" ? "You" : "Assistant"} (${index + 1})`,
+            20,
+            yPos
+          );
+          yPos += 10;
+
+          // Add content - split content by lines to prevent overflow
+          doc.setFontSize(12);
+          const contentLines = doc.splitTextToSize(fav.content, 170);
+
+          // Check if we need to add a new page for content
+          if (yPos + contentLines.length * 7 > pageHeight - 20) {
+            doc.addPage();
+            yPos = 20;
+          }
+
+          doc.text(contentLines, 20, yPos);
+          yPos += contentLines.length * 7 + 10;
+
+          // Add note if exists
+          if (fav.note) {
+            // Check if we need a new page for note
+            if (yPos > pageHeight - 30) {
+              doc.addPage();
+              yPos = 20;
+            }
+
+            doc.setFontSize(10);
+            doc.text(`Note: ${fav.note}`, 30, yPos);
+            yPos += 10;
+          }
+
+          // Add separator
+          doc.setDrawColor(200, 200, 200);
+          doc.line(20, yPos, 190, yPos);
+          yPos += 15;
+        });
+
+        // Save the PDF
+        doc.save(`chat-favorites-${currentChatId.substring(0, 8)}.pdf`);
+      } catch (error) {
+        console.error("Error generating PDF:", error);
+        // Fallback to markdown if PDF generation fails
+        const blob = new Blob([markdownContent], { type: "text/markdown" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `chat-favorites-${currentChatId.substring(0, 8)}.md`;
+        a.click();
+        URL.revokeObjectURL(url);
+      }
+    }
+  };
 
   // ====== System Prompt Preset 管理 ======
   // 读取本地存储的预设列表
@@ -287,6 +478,13 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     selectSystemPromptPreset,
     selectedSystemPromptPresetId,
     updateChat,
+    // Add favorites functionality to the context
+    favorites,
+    addFavorite,
+    removeFavorite,
+    updateFavorite,
+    getCurrentChatFavorites,
+    exportFavorites,
   };
 
   // Log context value for debugging
@@ -294,6 +492,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     chatCount: chats.length,
     hasSystemPrompt: !!contextValue.systemPrompt,
     hasUpdateSystemPrompt: !!contextValue.updateSystemPrompt,
+    favoriteCount: favorites.length,
   });
 
   return (
@@ -310,6 +509,7 @@ export const useChat = (): ChatContextType => {
     systemPromptAvailable: !!context.systemPrompt,
     updateSystemPromptAvailable: !!context.updateSystemPrompt,
     chatCount: context.chats.length,
+    favoriteCount: context.favorites.length,
   });
 
   return context;

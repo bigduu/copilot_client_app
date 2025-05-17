@@ -72,4 +72,70 @@
 
 .chat-view-messages-list.visible {
   opacity: 1;
+}
+
+/* Animation and specific styles for ChatView */
+
+/* System message container transitions */
+.chat-view-system-message-container {
+  transition: all 0.3s ease-in-out;
+}
+
+.chat-view-system-message-container.centered-view {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  min-height: 30vh;
+}
+
+.chat-view-system-message-container.messages-view {
+  max-width: 768px;
+  margin: 0 auto;
+}
+
+/* Messages list transitions */
+.chat-view-messages-list {
+  transition: opacity 0.3s ease-in-out;
+}
+
+.chat-view-messages-list.hidden {
+  display: none;
+}
+
+.chat-view-messages-list.visible {
+  display: flex;
+}
+
+/* Hide scrollbar but keep functionality */
+.chat-view-messages-list::-webkit-scrollbar {
+  width: 0px;
+  background: transparent;
+}
+
+/* Input container transitions */
+.chat-view-input-container-wrapper {
+  transition: all 0.3s ease-in-out;
+  width: 100%;
+  padding: 16px;
+}
+
+.chat-view-input-container-wrapper.centered-view {
+  max-width: 100%;
+}
+
+.chat-view-input-container-wrapper.messages-view {
+  max-width: 100%;
+  position: sticky;
+  bottom: 0;
+  background: rgba(255, 255, 255, 0.9);
+  backdrop-filter: blur(10px);
+  z-index: 10;
+}
+
+/* Dark mode adjustments */
+@media (prefers-color-scheme: dark) {
+  [data-theme='dark'] .chat-view-input-container-wrapper.messages-view {
+    background: rgba(0, 0, 0, 0.8);
+  }
 } 

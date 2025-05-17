@@ -1,4 +1,4 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { Input, Button, Space, theme } from "antd";
 import { SendOutlined, SyncOutlined } from "@ant-design/icons";
 import { useChat } from "../../contexts/ChatContext";
@@ -7,18 +7,42 @@ interface MessageInputProps {
   onSubmit?: (content: string) => void;
   isStreamingInProgress: boolean;
   isCenteredLayout?: boolean;
+  referenceText?: string | null;
 }
 
 export const MessageInput: React.FC<MessageInputProps> = ({
   onSubmit,
   isStreamingInProgress,
   isCenteredLayout = false,
+  referenceText = null,
 }) => {
   const [content, setContent] = useState("");
   const textAreaRef = useRef<HTMLTextAreaElement>(null);
   const { token } = theme.useToken();
 
   const { sendMessage, initiateAIResponse, currentMessages } = useChat();
+
+  // Insert reference text when it changes
+  useEffect(() => {
+    if (referenceText) {
+      // Add a newline before and after the reference if there's already content
+      const newContent = content
+        ? `${content}\n\n${referenceText}\n\n`
+        : `${referenceText}\n\n`;
+
+      setContent(newContent);
+
+      // Focus the textarea
+      if (textAreaRef.current) {
+        setTimeout(() => {
+          textAreaRef.current?.focus();
+          // Move cursor to the end
+          const length = newContent.length;
+          textAreaRef.current?.setSelectionRange(length, length);
+        }, 50);
+      }
+    }
+  }, [referenceText]);
 
   const handleKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (event.key === "Enter" && !event.shiftKey && !isStreamingInProgress) {

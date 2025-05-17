@@ -1,8 +1,9 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { Button, Space, Tooltip, Spin, theme } from "antd";
 import { SettingOutlined } from "@ant-design/icons";
 import { MessageInput } from "../MessageInput";
 import SystemPromptModal from "../SystemPromptModal";
+import InputPreview from "./InputPreview";
 
 const { useToken } = theme;
 
@@ -16,7 +17,27 @@ export const InputContainer: React.FC<InputContainerProps> = ({
   isCenteredLayout = false,
 }) => {
   const [isPromptModalOpen, setPromptModalOpen] = React.useState(false);
+  const [referenceText, setReferenceText] = useState<string | null>(null);
   const { token } = useToken();
+
+  // Listen for reference-text events from MessageCard
+  useEffect(() => {
+    const handleReferenceText = (e: Event) => {
+      const customEvent = e as CustomEvent<{ text: string }>;
+      setReferenceText(customEvent.detail.text);
+    };
+
+    window.addEventListener("reference-text", handleReferenceText);
+
+    return () => {
+      window.removeEventListener("reference-text", handleReferenceText);
+    };
+  }, []);
+
+  const handleInputSubmit = (content: string) => {
+    // Clear reference preview after submitting
+    setReferenceText(null);
+  };
 
   return (
     <div
@@ -30,6 +51,13 @@ export const InputContainer: React.FC<InputContainerProps> = ({
         width: "100%",
       }}
     >
+      {referenceText && (
+        <InputPreview
+          text={referenceText}
+          onClose={() => setReferenceText(null)}
+        />
+      )}
+
       <Space.Compact block>
         <Tooltip title="Customize System Prompt">
           <Button
@@ -50,6 +78,8 @@ export const InputContainer: React.FC<InputContainerProps> = ({
         <MessageInput
           isStreamingInProgress={isStreaming}
           isCenteredLayout={isCenteredLayout}
+          referenceText={referenceText}
+          onSubmit={handleInputSubmit}
         />
       </Space.Compact>
 
