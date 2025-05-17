@@ -21,7 +21,7 @@ use crate::copilot::model::stream_model::{Message, StreamChunk}; // Adjusted pat
 const DEFAULT_COPILOT_MODEL: &str = "gpt-4.1";
 
 // Main Copilot Client struct
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct CopilotClient {
     client: Arc<Client>,
     auth_handler: CopilotAuthHandler,
@@ -59,13 +59,26 @@ impl CopilotClient {
     pub async fn send_block_request(
         &self,
         messages: Vec<Message>,
-        tx: Sender<anyhow::Result<Bytes>>,
         model: Option<String>,
-    ) -> anyhow::Result<()> {
+    ) -> (
+        tokio::sync::mpsc::Receiver<anyhow::Result<Bytes>>,
+        tokio::task::JoinHandle<anyhow::Result<()>>,
+    ) {
+        let (tx, rx) = tokio::sync::mpsc::channel::<anyhow::Result<Bytes>>(999);
         let model = model.unwrap_or_else(|| DEFAULT_COPILOT_MODEL.to_string());
         let request = ChatCompletionRequest::new_block(model, messages.clone());
-        let response = self.send_request(messages, &request).await?;
-        self.process_block_response(response, tx).await
+        let client = Arc::new(self.clone());
+        let handle = tokio::spawn(async move {
+            let response = client.send_request(messages, &request).await;
+            match response {
+                Ok(resp) => client.process_block_response(resp, tx).await,
+                Err(e) => {
+                    let _ = tx.send(Err(e)).await;
+                    Ok(())
+                }
+            }
+        });
+        (rx, handle)
     }
 
     async fn process_block_response(
@@ -93,13 +106,26 @@ impl CopilotClient {
     pub async fn send_stream_request(
         &self,
         messages: Vec<Message>,
-        tx: Sender<anyhow::Result<Bytes>>,
         model: Option<String>,
-    ) -> anyhow::Result<()> {
+    ) -> (
+        tokio::sync::mpsc::Receiver<anyhow::Result<Bytes>>,
+        tokio::task::JoinHandle<anyhow::Result<()>>,
+    ) {
+        let (tx, rx) = tokio::sync::mpsc::channel::<anyhow::Result<Bytes>>(999);
         let model = model.unwrap_or_else(|| DEFAULT_COPILOT_MODEL.to_string());
         let request = ChatCompletionRequest::new_stream(model, messages.clone());
-        let response = self.send_request(messages, &request).await?;
-        self.forward_message(response, tx).await
+        let client = self.clone();
+        let handle = tokio::spawn(async move {
+            let response = client.send_request(messages, &request).await;
+            match response {
+                Ok(resp) => client.forward_message(resp, tx).await,
+                Err(e) => {
+                    let _ = tx.send(Err(e)).await;
+                    Ok(())
+                }
+            }
+        });
+        (rx, handle)
     }
 
     async fn send_request(

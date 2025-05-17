@@ -15,7 +15,7 @@ use tokio::time::sleep;
 use crate::copilot::model::stream_model::{AccessTokenResponse, CopilotConfig, DeviceCodeResponse};
 
 // Struct for handling authentication logic
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub(crate) struct CopilotAuthHandler {
     client: Arc<Client>,
     app_data_dir: PathBuf,

@@ -17,6 +17,7 @@ import {
 import { DeleteOutlined, EditOutlined, PlusOutlined } from "@ant-design/icons";
 import { useChat } from "../../contexts/ChatContext";
 import { useModels } from "../../hooks/useModels";
+import { MCPServerManagementComponent } from "../MCPServerManagement";
 
 const { Text } = Typography;
 
@@ -37,9 +38,12 @@ const ModelSelection = ({
 }) => {
   const fallbackModel = "gpt-4o";
   // Ensure modelOptions always has at least the fallback or the selected model if models array is empty
-  const modelOptions = models && models.length > 0 
-    ? models 
-    : (selectedModel ? [selectedModel] : [fallbackModel]); // Use selectedModel here
+  const modelOptions =
+    models && models.length > 0
+      ? models
+      : selectedModel
+      ? [selectedModel]
+      : [fallbackModel]; // Use selectedModel here
   const value = selectedModel || fallbackModel; // And here
   return (
     <div style={{ marginBottom: 24 }}>
@@ -163,6 +167,16 @@ const SystemSettingsModal = ({
         selectedModel={selectedModel}
         onModelChange={setSelectedModel}
       />
+
+      <Divider />
+
+      {/* MCP Server Management Section */}
+      <div style={{ marginBottom: 24 }}>
+        <div style={{ fontWeight: 500, marginBottom: 8 }}>
+          MCP Server Management
+        </div>
+        <MCPServerManagementComponent />
+      </div>
 
       <Divider />
 

@@ -14,7 +14,7 @@ lazy_static! {
 }
 
 // Struct for handling models logic
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub(crate) struct CopilotModelsHandler {
     client: Arc<Client>,
 }

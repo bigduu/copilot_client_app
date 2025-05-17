@@ -1,5 +1,7 @@
 use serde::{Deserialize, Serialize};
 
+use crate::copilot::Message;
+
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Response {
@@ -60,14 +62,6 @@ pub struct Sexual {
 pub struct Violence {
     pub filtered: bool,
     pub severity: String,
-}
-
-#[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct Message {
-    pub content: String,
-    pub padding: String,
-    pub role: String,
 }
 
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]

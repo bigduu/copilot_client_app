@@ -1,20 +1,23 @@
-use bytes::Bytes;
 use log::{error, info};
 
-use crate::copilot::{model::stream_model::Message, CopilotClient};
+use crate::{
+    copilot::{model::stream_model::Message, CopilotClient},
+    processor::ProcessorManager,
+};
 
 #[tauri::command(async)]
 pub async fn execute_prompt(
     messages: Vec<Message>,
-    state: tauri::State<'_, CopilotClient>,
-    channel: tauri::ipc::Channel<String>,
     model: Option<String>,
+    state: tauri::State<'_, CopilotClient>,
+    processor_manager: tauri::State<'_, ProcessorManager>,
+    channel: tauri::ipc::Channel<String>,
 ) -> Result<(), String> {
     info!("=== EXECUTE_PROMPT START ===");
     info!("The latest message: {}", messages.last().unwrap().content);
-
+    let messages = processor_manager.process(messages).await;
     let client = state.clone();
-    let (tx, mut rx) = tokio::sync::mpsc::channel::<anyhow::Result<Bytes>>(999);
+    let (mut rx, _handle) = client.send_stream_request(messages, model).await;
 
     let tauri_channel_clone = channel.clone();
     tokio::spawn(async move {
@@ -28,7 +31,7 @@ pub async fn execute_prompt(
                 Err(e) => {
                     error!("Error receiving message: {e}");
                     tauri_channel_clone
-                        .send(format!(r#"{{"error": "{e}"}}"#))
+                        .send(format!(r#"{{\"error\": "{e}"}}"#))
                         .unwrap();
                 }
             }
@@ -36,20 +39,6 @@ pub async fn execute_prompt(
     });
 
     info!("Calling exchange_chat_completion...");
-    match client.send_stream_request(messages, tx, model).await {
-        Ok(_) => {}
-        Err(e) => {
-            let error_msg = format!("Error in exchange_chat_completion: {e}");
-            error!("{error_msg}");
-            channel
-                .send(format!(
-                    r#"{{"error": "{}"}}"#,
-                    error_msg.replace("\"", "\\\"")
-                ))
-                .unwrap();
-        }
-    }
-
     Ok(())
 }
 
