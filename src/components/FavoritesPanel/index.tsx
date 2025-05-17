@@ -24,6 +24,7 @@ import {
   SortDescendingOutlined,
   EditOutlined,
   EnvironmentOutlined,
+  FileTextOutlined,
 } from "@ant-design/icons";
 import { useChat } from "../../contexts/ChatContext";
 import { FavoriteItem } from "../../types/chat";
@@ -44,6 +45,7 @@ export const FavoritesPanel: React.FC = () => {
     exportFavorites,
     updateFavorite,
     navigateToMessage,
+    summarizeFavorites,
   } = useChat();
 
   const [sortOrder, setSortOrder] = useState<"descending" | "ascending">(
@@ -171,6 +173,15 @@ export const FavoritesPanel: React.FC = () => {
               Favorites
             </Title>
             <Space>
+              <Tooltip title="Summarize">
+                <Button
+                  icon={<FileTextOutlined />}
+                  onClick={summarizeFavorites}
+                  size="small"
+                  type="primary"
+                  disabled={favorites.length === 0}
+                />
+              </Tooltip>
               <Space.Compact>
                 <Select
                   value={sortField}

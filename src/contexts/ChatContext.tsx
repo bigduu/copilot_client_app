@@ -64,6 +64,7 @@ interface ChatContextType {
   getCurrentChatFavorites: () => FavoriteItem[];
   exportFavorites: (format: "markdown" | "pdf") => Promise<void>;
   navigateToMessage: (messageId?: string) => void;
+  summarizeFavorites: () => Promise<void>;
 }
 
 // Create a default context with empty/no-op implementations
@@ -106,6 +107,7 @@ const defaultContext: ChatContextType = {
   getCurrentChatFavorites: () => [],
   exportFavorites: async () => {},
   navigateToMessage: () => {},
+  summarizeFavorites: async () => {},
 };
 
 // Create the context with the default value
@@ -444,6 +446,56 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     saveChats();
   };
 
+  // Summarize favorites by creating a new chat with all favorites content
+  const summarizeFavorites = async () => {
+    if (!currentChatId) return;
+
+    const chatFavorites = getCurrentChatFavorites();
+    if (chatFavorites.length === 0) return;
+
+    // Build content from favorites
+    let summaryContent = "Please summarize the following content:\n\n";
+
+    chatFavorites.forEach((fav, index) => {
+      // Add content from favorite
+      summaryContent += `### ${fav.role === "user" ? "用户" : "助手"} ${
+        index + 1
+      }:\n\n`;
+      summaryContent += fav.content;
+      summaryContent += "\n\n";
+
+      // Add note if it exists
+      if (fav.note) {
+        summaryContent += `> 笔记: ${fav.note}\n\n`;
+      }
+    });
+
+    // Add specific summary request
+    summaryContent +=
+      "请根据以上内容提供一个全面的总结，包括主要观点和重要信息。";
+
+    console.log(
+      "Creating new chat for summarization with content:",
+      summaryContent.substring(0, 100) + "..."
+    );
+
+    // Create a new chat with the summary content as the first message
+    const newChatId = addChat(summaryContent);
+
+    // Select the new chat
+    selectChat(newChatId);
+
+    // Let the UI update before initiating AI response
+    setTimeout(() => {
+      try {
+        // Trigger AI response for the existing user message
+        initiateAIResponse();
+      } catch (error) {
+        console.error("Error initiating AI response:", error);
+      }
+    }, 300);
+  };
+
   // Create the context value by combining hook values
   const contextValue: ChatContextType = {
     chats,
@@ -491,6 +543,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     updateFavorite,
     getCurrentChatFavorites,
     exportFavorites,
+    summarizeFavorites,
     navigateToMessage: (messageId?: string) => {
       // Find the message in the current chat
       if (!currentChat || !messageId) return;
