@@ -138,4 +138,17 @@
   [data-theme='dark'] .chat-view-input-container-wrapper.messages-view {
     background: rgba(0, 0, 0, 0.8);
   }
+}
+
+/* Define the animation */
+@keyframes highlight-pulse {
+  0% { background-color: rgba(var(--primary-color-rgb), 0.1); }
+  50% { background-color: rgba(var(--primary-color-rgb), 0.3); }
+  100% { background-color: rgba(var(--primary-color-rgb), 0.1); }
+}
+
+.highlight-message {
+  animation: highlight-pulse 1.5s ease-in-out;
+  border: 2px solid var(--primary-color) !important;
+  transition: all 0.3s ease-in-out;
 } 

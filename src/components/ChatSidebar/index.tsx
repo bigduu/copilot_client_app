@@ -42,8 +42,14 @@ export const ChatSidebar: React.FC<{
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
 
+  // For debugging
+  console.log("ChatSidebar rendered with chats:", chats);
+
   // Group chats by date
   const groupedChats = groupChatsByDate(chats);
+
+  // For debugging grouped chats
+  console.log("Grouped chats:", groupedChats);
 
   const handleDelete = (chatId: string) => {
     Modal.confirm({

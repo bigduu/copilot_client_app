@@ -63,6 +63,7 @@ interface ChatContextType {
   ) => void;
   getCurrentChatFavorites: () => FavoriteItem[];
   exportFavorites: (format: "markdown" | "pdf") => Promise<void>;
+  navigateToMessage: (messageId?: string) => void;
 }
 
 // Create a default context with empty/no-op implementations
@@ -104,6 +105,7 @@ const defaultContext: ChatContextType = {
   updateFavorite: () => {},
   getCurrentChatFavorites: () => [],
   exportFavorites: async () => {},
+  navigateToMessage: () => {},
 };
 
 // Create the context with the default value
@@ -175,9 +177,13 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
   // Add a new favorite item
   const addFavorite = (favorite: Omit<FavoriteItem, "id" | "createdAt">) => {
     const id = crypto.randomUUID();
+    // Generate a messageId if not provided
+    const messageId = favorite.messageId || crypto.randomUUID();
+
     const newFavorite: FavoriteItem = {
       ...favorite,
       id,
+      messageId,
       createdAt: Date.now(),
     };
     const newFavorites = [...favorites, newFavorite];
@@ -485,6 +491,16 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     updateFavorite,
     getCurrentChatFavorites,
     exportFavorites,
+    navigateToMessage: (messageId?: string) => {
+      // Find the message in the current chat
+      if (!currentChat || !messageId) return;
+
+      // Dispatch custom event for the chat view to handle scrolling
+      const event = new CustomEvent("navigate-to-message", {
+        detail: { messageId },
+      });
+      window.dispatchEvent(event);
+    },
   };
 
   // Log context value for debugging

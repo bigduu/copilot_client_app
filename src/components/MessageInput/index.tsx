@@ -17,28 +17,21 @@ export const MessageInput: React.FC<MessageInputProps> = ({
   referenceText = null,
 }) => {
   const [content, setContent] = useState("");
+  const [hiddenReference, setHiddenReference] = useState<string | null>(null);
   const textAreaRef = useRef<HTMLTextAreaElement>(null);
   const { token } = theme.useToken();
 
   const { sendMessage, initiateAIResponse, currentMessages } = useChat();
 
-  // Insert reference text when it changes
+  // Store reference text when it changes, but don't show it in the input
   useEffect(() => {
     if (referenceText) {
-      // Add a newline before and after the reference if there's already content
-      const newContent = content
-        ? `${content}\n\n${referenceText}\n\n`
-        : `${referenceText}\n\n`;
-
-      setContent(newContent);
+      setHiddenReference(referenceText);
 
       // Focus the textarea
       if (textAreaRef.current) {
         setTimeout(() => {
           textAreaRef.current?.focus();
-          // Move cursor to the end
-          const length = newContent.length;
-          textAreaRef.current?.setSelectionRange(length, length);
         }, 50);
       }
     }
@@ -53,21 +46,31 @@ export const MessageInput: React.FC<MessageInputProps> = ({
 
   const handleSubmit = async () => {
     const trimmedContent = content.trim();
-    if (!trimmedContent || isStreamingInProgress) return;
+    if ((!trimmedContent && !hiddenReference) || isStreamingInProgress) return;
 
     console.log("Submitting message:", trimmedContent);
 
+    let messageToSend = trimmedContent;
+
+    // Append reference text if it exists (but only in the background)
+    if (hiddenReference) {
+      messageToSend = trimmedContent
+        ? `${hiddenReference}\n\n${trimmedContent}`
+        : hiddenReference;
+    }
+
     if (onSubmit) {
-      onSubmit(trimmedContent);
+      onSubmit(messageToSend);
     }
 
     try {
-      await sendMessage(trimmedContent);
+      await sendMessage(messageToSend);
     } catch (error) {
       console.error("Error sending message:", error);
     }
 
     setContent("");
+    setHiddenReference(null);
   };
 
   const handleAIRetry = async () => {
@@ -88,7 +91,11 @@ export const MessageInput: React.FC<MessageInputProps> = ({
         value={content}
         onChange={(e) => setContent(e.target.value)}
         onKeyDown={handleKeyDown}
-        placeholder="Send a message..."
+        placeholder={
+          hiddenReference
+            ? "Send a message (includes reference)"
+            : "Send a message..."
+        }
         disabled={isStreamingInProgress}
         style={{
           resize: "none",
@@ -104,7 +111,9 @@ export const MessageInput: React.FC<MessageInputProps> = ({
         type="primary"
         icon={<SendOutlined />}
         onClick={handleSubmit}
-        disabled={!content.trim() || isStreamingInProgress}
+        disabled={
+          (!content.trim() && !hiddenReference) || isStreamingInProgress
+        }
         size={isCenteredLayout ? "large" : "middle"}
         style={{
           height: isCenteredLayout ? "auto" : undefined,

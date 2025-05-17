@@ -1,6 +1,7 @@
 export interface Message {
     role: "system" | "user" | "assistant";
     content: string;
+    id?: string; // Unique identifier for the message
 }
 
 export interface FavoriteItem {
@@ -13,6 +14,7 @@ export interface FavoriteItem {
     selectionStart?: number;
     selectionEnd?: number;
     note?: string; // Optional note added by user
+    messageId?: string; // Reference to the original message id
 }
 
 export interface ChatItem {

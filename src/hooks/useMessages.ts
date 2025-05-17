@@ -39,7 +39,13 @@ export const useMessages = (
       console.log("Adding assistant message to chat:", assistantMessage);
 
       if (currentChatId) {
-        const updatedMessages = [...currentMessages, assistantMessage];
+        // Ensure the message has an ID
+        const messageWithId = {
+          ...assistantMessage,
+          id: assistantMessage.id || crypto.randomUUID(),
+        };
+        
+        const updatedMessages = [...currentMessages, messageWithId];
         updateChatMessages(currentChatId, updatedMessages);
         
         // Reset streaming state and clear active channel
@@ -74,6 +80,7 @@ export const useMessages = (
       const userMessage: Message = {
         role: "user",
         content,
+        id: crypto.randomUUID(),
       };
 
       const messagesToSend = [...currentMessages, userMessage];
@@ -124,16 +131,16 @@ export const useMessages = (
           model: currentChat?.model,
         }).catch((error) => {
           console.error("Error invoking execute_prompt:", error);
-          throw error;
+          addAssistantMessage({
+            role: "assistant",
+            content: `Error: ${
+              error instanceof Error ? error.message : String(error)
+            }`,
+            id: crypto.randomUUID(),
+          });
         });
       } catch (error) {
         console.error("Failed to invoke execute_prompt:", error);
-        addAssistantMessage({
-          role: "assistant",
-          content: `Error: ${
-            error instanceof Error ? error.message : String(error)
-          }`,
-        });
       }
     },
     [
@@ -193,16 +200,16 @@ export const useMessages = (
         model: currentChat?.model,
       }).catch((error) => {
         console.error("Error invoking execute_prompt for AI response:", error);
-        throw error;
+        addAssistantMessage({
+          role: "assistant",
+          content: `Error: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+          id: crypto.randomUUID(),
+        });
       });
     } catch (error) {
       console.error("Failed to invoke execute_prompt for AI response:", error);
-      addAssistantMessage({
-        role: "assistant",
-        content: `Error: ${
-          error instanceof Error ? error.message : String(error)
-        }`,
-      });
     }
   }, [
     currentChatId,

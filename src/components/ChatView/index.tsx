@@ -31,6 +31,7 @@ export const ChatView: React.FC = () => {
     isStreaming,
     activeChannel,
     addAssistantMessage,
+    updateChat,
   } = useChat();
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesListRef = useRef<HTMLDivElement>(null);
@@ -44,6 +45,27 @@ export const ChatView: React.FC = () => {
   const [showScrollToBottom, setShowScrollToBottom] = useState(false);
   // Favorites panel toggle
   const [showFavorites, setShowFavorites] = useState(true);
+
+  // Ensure all messages have IDs
+  useEffect(() => {
+    if (currentChatId && currentMessages) {
+      // Check if any message doesn't have an ID
+      const messagesNeedingIds = currentMessages.some((msg) => !msg.id);
+
+      if (messagesNeedingIds) {
+        // Create a copy of messages with IDs added where needed
+        const updatedMessages = currentMessages.map((msg, index) => {
+          if (!msg.id) {
+            return { ...msg, id: crypto.randomUUID() };
+          }
+          return msg;
+        });
+
+        // Update the chat with the new messages array
+        updateChat(currentChatId, { messages: updatedMessages });
+      }
+    }
+  }, [currentChatId, currentMessages]);
 
   // Add keyboard shortcut for toggling favorites
   useEffect(() => {
@@ -66,6 +88,45 @@ export const ChatView: React.FC = () => {
       window.removeEventListener("keydown", handleKeyDown);
     };
   }, []);
+
+  // Add event listener for message navigation
+  useEffect(() => {
+    const handleMessageNavigation = (e: CustomEvent) => {
+      const { messageId } = e.detail;
+      console.log("Navigation event received for messageId:", messageId);
+
+      if (!messageId) {
+        console.error("No messageId provided for navigation");
+        return;
+      }
+
+      // Find the message element by ID and scroll to it
+      const messageElement = document.getElementById(`message-${messageId}`);
+      if (messageElement) {
+        console.log("Found message element, scrolling to:", messageId);
+        messageElement.scrollIntoView({ behavior: "smooth", block: "center" });
+
+        // Highlight the message briefly
+        messageElement.classList.add("highlight-message");
+        setTimeout(() => {
+          messageElement.classList.remove("highlight-message");
+        }, 2000);
+      } else {
+        console.warn("Message element not found for ID:", messageId);
+      }
+    };
+
+    window.addEventListener(
+      "navigate-to-message",
+      handleMessageNavigation as EventListener
+    );
+    return () => {
+      window.removeEventListener(
+        "navigate-to-message",
+        handleMessageNavigation as EventListener
+      );
+    };
+  }, [currentMessages]);
 
   // Auto-expand on new chat, auto-collapse after first user message
   useEffect(() => {
@@ -207,34 +268,43 @@ export const ChatView: React.FC = () => {
                 (message) =>
                   message.role === "user" || message.role === "assistant"
               )
-              .map((message, index) => (
-                <List.Item
-                  key={index}
-                  style={{
-                    padding: token.paddingXS,
-                    border: "none",
-                    display: "flex",
-                    justifyContent:
-                      message.role === "user" ? "flex-end" : "flex-start",
-                    width: "100%",
-                  }}
-                >
-                  <div
+              .map((message, index) => {
+                const messageCardId =
+                  message.id || `msg-${currentChatId}-${index}`;
+                console.log(
+                  `Rendering message ${index} with ID:`,
+                  messageCardId
+                );
+                return (
+                  <List.Item
+                    key={index}
                     style={{
-                      width: "85%",
+                      padding: token.paddingXS,
+                      border: "none",
                       display: "flex",
                       justifyContent:
                         message.role === "user" ? "flex-end" : "flex-start",
+                      width: "100%",
                     }}
                   >
-                    <MessageCard
-                      role={message.role}
-                      content={message.content}
-                      messageIndex={index}
-                    />
-                  </div>
-                </List.Item>
-              ))}
+                    <div
+                      style={{
+                        width: "85%",
+                        display: "flex",
+                        justifyContent:
+                          message.role === "user" ? "flex-end" : "flex-start",
+                      }}
+                    >
+                      <MessageCard
+                        role={message.role}
+                        content={message.content}
+                        messageIndex={index}
+                        messageId={messageCardId}
+                      />
+                    </div>
+                  </List.Item>
+                );
+              })}
 
           {/* AI 流式消息 - only shown when messagesView is active */}
           {showMessagesView && isStreaming && activeChannel && (

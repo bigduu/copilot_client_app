@@ -35,7 +35,7 @@ export const InputContainer: React.FC<InputContainerProps> = ({
   }, []);
 
   const handleInputSubmit = (content: string) => {
-    // Clear reference preview after submitting
+    // Clear reference after submitting
     setReferenceText(null);
   };
 

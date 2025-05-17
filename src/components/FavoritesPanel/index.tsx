@@ -13,6 +13,7 @@ import {
   theme,
   Input,
   Modal,
+  Select,
 } from "antd";
 import {
   DeleteOutlined,
@@ -22,6 +23,7 @@ import {
   SortAscendingOutlined,
   SortDescendingOutlined,
   EditOutlined,
+  EnvironmentOutlined,
 } from "@ant-design/icons";
 import { useChat } from "../../contexts/ChatContext";
 import { FavoriteItem } from "../../types/chat";
@@ -32,6 +34,7 @@ const { Sider } = Layout;
 const { Title, Text } = Typography;
 const { useToken } = theme;
 const { TextArea } = Input;
+const { Option } = Select;
 
 export const FavoritesPanel: React.FC = () => {
   const { token } = useToken();
@@ -40,9 +43,13 @@ export const FavoritesPanel: React.FC = () => {
     removeFavorite,
     exportFavorites,
     updateFavorite,
+    navigateToMessage,
   } = useChat();
 
-  const [isDescending, setIsDescending] = useState(true);
+  const [sortOrder, setSortOrder] = useState<"descending" | "ascending">(
+    "descending"
+  );
+  const [sortField, setSortField] = useState<"createdAt" | "role">("createdAt");
   const [collapsed, setCollapsed] = useState(false);
   const [noteModalVisible, setNoteModalVisible] = useState(false);
   const [currentFavoriteId, setCurrentFavoriteId] = useState<string | null>(
@@ -53,9 +60,18 @@ export const FavoritesPanel: React.FC = () => {
   // Get favorites for the current chat
   const favorites = getCurrentChatFavorites();
 
-  // Sort favorites by creation date
+  // Sort favorites based on current sorting options
   const sortedFavorites = [...favorites].sort((a, b) => {
-    return isDescending ? b.createdAt - a.createdAt : a.createdAt - b.createdAt;
+    if (sortField === "role") {
+      // Sort by role (user/assistant)
+      const roleComparison = a.role.localeCompare(b.role);
+      return sortOrder === "ascending" ? roleComparison : -roleComparison;
+    } else {
+      // Sort by creation date
+      return sortOrder === "ascending"
+        ? a.createdAt - b.createdAt
+        : b.createdAt - a.createdAt;
+    }
   });
 
   // Copy to clipboard
@@ -155,20 +171,33 @@ export const FavoritesPanel: React.FC = () => {
               Favorites
             </Title>
             <Space>
-              <Tooltip title={isDescending ? "Newest first" : "Oldest first"}>
+              <Space.Compact>
+                <Select
+                  value={sortField}
+                  onChange={(value) => setSortField(value)}
+                  size="small"
+                  style={{ width: 100 }}
+                >
+                  <Option value="createdAt">日期</Option>
+                  <Option value="role">角色</Option>
+                </Select>
                 <Button
                   icon={
-                    isDescending ? (
+                    sortOrder === "descending" ? (
                       <SortDescendingOutlined />
                     ) : (
                       <SortAscendingOutlined />
                     )
                   }
-                  onClick={() => setIsDescending(!isDescending)}
+                  onClick={() =>
+                    setSortOrder(
+                      sortOrder === "descending" ? "ascending" : "descending"
+                    )
+                  }
                   size="small"
-                  type="text"
+                  type="default"
                 />
-              </Tooltip>
+              </Space.Compact>
               <Dropdown
                 menu={{
                   items: [
@@ -312,6 +341,18 @@ export const FavoritesPanel: React.FC = () => {
                             onClick={() => referenceFavorite(favorite.content)}
                           />
                         </Tooltip>
+                        {favorite.messageId && (
+                          <Tooltip title="Locate Message">
+                            <Button
+                              icon={<EnvironmentOutlined />}
+                              size="small"
+                              type="text"
+                              onClick={() =>
+                                navigateToMessage(favorite.messageId)
+                              }
+                            />
+                          </Tooltip>
+                        )}
                         <Tooltip title="Remove">
                           <Button
                             icon={<DeleteOutlined />}
