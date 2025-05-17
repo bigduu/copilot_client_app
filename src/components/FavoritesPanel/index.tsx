@@ -178,8 +178,8 @@ export const FavoritesPanel: React.FC = () => {
                   size="small"
                   style={{ width: 100 }}
                 >
-                  <Option value="createdAt">日期</Option>
-                  <Option value="role">角色</Option>
+                  <Option value="createdAt">Date</Option>
+                  <Option value="role">Role</Option>
                 </Select>
                 <Button
                   icon={
