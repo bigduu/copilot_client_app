@@ -26,16 +26,25 @@ impl Message {
             content,
         }
     }
+    pub fn developer(content: String) -> Self {
+        Self {
+            role: "developer".to_string(),
+            content,
+        }
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub(crate) struct ChatCompletionRequest {
     pub model: String,
     pub messages: Vec<Message>,
-    pub n: u64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub n: Option<u64>,
     pub stream: bool,
-    pub temperature: f64,
-    pub top_p: f64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub temperature: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub top_p: Option<f64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub max_tokens: Option<u64>,
 }
@@ -45,10 +54,10 @@ impl ChatCompletionRequest {
         Self {
             model,
             messages,
-            n: 1,
+            n: Some(1),
             stream: true,
-            temperature: 0.3,
-            top_p: 1.0,
+            temperature: Some(0.3),
+            top_p: Some(1.0),
             max_tokens: Some(8000),
         }
     }
@@ -57,10 +66,10 @@ impl ChatCompletionRequest {
         Self {
             model,
             messages,
-            n: 1,
+            n: None,
             stream: false,
-            temperature: 0.3,
-            top_p: 1.0,
+            temperature: None,
+            top_p: None,
             max_tokens: Some(8000),
         }
     }

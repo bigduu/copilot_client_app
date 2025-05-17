@@ -73,6 +73,7 @@ impl McpClient {
 
 pub struct McpClientManager {
     pub clients: HashMap<String, Arc<McpClient>>,
+    pub client_tools: HashMap<String, String>,
 }
 
 impl McpClientManager {
@@ -82,18 +83,27 @@ impl McpClientManager {
             let client = McpClient::new(config.clone()).await?;
             clients.insert(name.clone(), Arc::new(client));
         }
-        Ok(Self { clients })
+        Ok(Self {
+            clients,
+            client_tools: HashMap::new(),
+        })
     }
 
     pub fn get(&self, name: &str) -> Option<Arc<McpClient>> {
         self.clients.get(name).cloned()
     }
 
+    pub fn get_client_by_tools(&self, tool_name: &str) -> Option<Arc<McpClient>> {
+        self.client_tools
+            .get(tool_name)
+            .map(|name| self.clients.get(name).unwrap().clone())
+    }
+
     pub async fn get_all_clients_tools_list(&self) -> Result<Vec<Tool>> {
         let mut tools = Vec::new();
-        for client in self.clients.values() {
+        for (_name, client) in self.clients.iter() {
             let client_tools = client.list_all_tools().await?;
-            tools.extend(client_tools);
+            tools.extend(client_tools.clone());
         }
         Ok(tools)
     }
@@ -104,7 +114,12 @@ impl McpClientManager {
 
     pub async fn add_client(&mut self, name: String, config: McpServerConfig) -> Result<()> {
         let client = McpClient::new(config.clone()).await.unwrap();
-        self.clients.insert(name, Arc::new(client));
+        let client = Arc::new(client);
+        self.clients.insert(name.clone(), client.clone());
+        for tool in client.list_all_tools().await? {
+            self.client_tools
+                .insert(tool.name.to_string(), name.clone());
+        }
         Ok(())
     }
 }

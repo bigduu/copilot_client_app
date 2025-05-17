@@ -6,7 +6,7 @@ use std::borrow::Cow;
 use std::sync::Arc;
 
 use crate::copilot::model::stream_model::Message;
-use crate::copilot::CopilotClient;
+use crate::copilot::{CopilotClient, StreamChunk};
 use crate::mcp::client::get_global_manager;
 
 use super::Processor;
@@ -19,7 +19,7 @@ pub struct McpProcessor {
 impl McpProcessor {
     pub fn new(copilot_client: Arc<CopilotClient>) -> Self {
         Self {
-            enabled: false,
+            enabled: true,
             copilot_client,
         }
     }
@@ -69,7 +69,7 @@ impl Processor for McpProcessor {
             tools_info
         );
 
-        info!("System prompt: {}", system_prompt);
+        debug!("System prompt: {}", system_prompt);
 
         // Create a new message list with the system prompt
         let mut llm_query_messages = Vec::new();
@@ -84,7 +84,7 @@ impl Processor for McpProcessor {
             }
         }
 
-        info!("LLM query messages: {:?}", llm_query_messages);
+        debug!("LLM query messages: {:?}", llm_query_messages);
 
         // Ask the LLM if we should use a tool
         let (rx, _handle) = self
@@ -100,8 +100,13 @@ impl Processor for McpProcessor {
             match chunk_result {
                 Ok(chunk) => {
                     let chunk_str = String::from_utf8_lossy(&chunk);
-                    info!("LLM response chunk: {}", chunk_str);
-                    llm_response.push_str(&chunk_str);
+                    let chunk: StreamChunk = serde_json::from_str(&chunk_str).unwrap();
+                    if !chunk.choices.is_empty() {
+                        let choice = chunk.choices[0].clone();
+                        if choice.delta.content.is_some() {
+                            llm_response.push_str(&choice.delta.content.unwrap());
+                        }
+                    }
                 }
                 Err(e) => {
                     error!("Error receiving LLM response: {:?}", e);
@@ -110,7 +115,7 @@ impl Processor for McpProcessor {
             }
         }
 
-        debug!("LLM decision response: {}", llm_response);
+        info!("LLM decision response: {}", llm_response);
 
         // Parse the JSON response
         let llm_decision: Result<Value, _> = serde_json::from_str(&llm_response);
@@ -153,7 +158,7 @@ impl Processor for McpProcessor {
 
                         // Call the tool
                         match manager
-                            .get(tool_name.as_str())
+                            .get_client_by_tools(tool_name.as_str())
                             .unwrap()
                             .call_tool(param)
                             .await
@@ -175,13 +180,13 @@ impl Processor for McpProcessor {
                                     format!("```json\n{:?}\n```", result.content)
                                 };
 
-                                result_messages.push(Message::assistant(response_content));
+                                result_messages.push(Message::developer(response_content));
                                 return result_messages;
                             }
                             Err(err) => {
                                 error!("Error calling MCP tool: {:?}", err);
                                 let mut result_messages = messages.clone();
-                                result_messages.push(Message::assistant(format!(
+                                result_messages.push(Message::developer(format!(
                                     "Error calling MCP tool: {}",
                                     err
                                 )));

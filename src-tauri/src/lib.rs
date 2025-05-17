@@ -38,7 +38,7 @@ fn setup<R: Runtime>(app: &mut App<R>) -> std::result::Result<(), Box<dyn std::e
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let log_plugin = tauri_plugin_log::Builder::new()
-        .level(LevelFilter::Debug)
+        .level(LevelFilter::Info)
         .build();
     tauri::Builder::default()
         .plugin(log_plugin)
