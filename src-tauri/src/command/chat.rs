@@ -17,7 +17,7 @@ pub async fn execute_prompt(
     info!("The latest message: {}", messages.last().unwrap().content);
     let messages = processor_manager.process(messages).await;
     let client = state.clone();
-    let (mut rx, _handle) = client.send_stream_request(messages, model).await;
+    let (mut rx, handle) = client.send_stream_request(messages, model).await;
 
     let tauri_channel_clone = channel.clone();
     tokio::spawn(async move {
@@ -37,6 +37,8 @@ pub async fn execute_prompt(
             }
         }
     });
+
+    handle.await.unwrap();
 
     info!("Calling exchange_chat_completion...");
     Ok(())

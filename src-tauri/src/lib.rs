@@ -3,7 +3,7 @@ use std::sync::Arc;
 use crate::command::chat::{execute_prompt, get_models};
 use crate::command::copy::copy_to_clipboard;
 use crate::copilot::{Config, CopilotClient};
-use crate::mcp::client::{get_global_manager, init_all_clients};
+use crate::mcp::client::init_all_clients;
 use command::mcp::{get_mcp_client_status, get_mcp_servers, set_mcp_servers};
 use log::LevelFilter;
 use processor::mcp_proceeor::McpProcessor;

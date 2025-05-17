@@ -1,4 +1,5 @@
 use anyhow::anyhow;
+use lazy_static::lazy_static;
 use log::{error, info};
 use reqwest::Client;
 use std::{
@@ -9,10 +10,16 @@ use std::{
     sync::Arc,
     time::Duration,
 };
+use tokio::sync::Mutex;
 use tokio::time::sleep;
 
 // This will be adjusted later once model/stream_model.rs is in place
 use crate::copilot::model::stream_model::{AccessTokenResponse, CopilotConfig, DeviceCodeResponse};
+
+// Global static lock for get_chat_token
+lazy_static! {
+    static ref CHAT_TOKEN_LOCK: Mutex<()> = Mutex::new(());
+}
 
 // Struct for handling authentication logic
 #[derive(Debug, Clone)]
@@ -31,6 +38,9 @@ impl CopilotAuthHandler {
 
     // get_chat_token remains in CopilotClient, delegates to auth_handler
     pub(crate) async fn get_chat_token(&self) -> anyhow::Result<String> {
+        // Acquire global lock to ensure sequential execution
+        let _guard = CHAT_TOKEN_LOCK.lock().await;
+
         // Create the directory if it doesn't exist
         create_dir_all(&self.app_data_dir)?;
 
@@ -92,8 +102,9 @@ impl CopilotAuthHandler {
             ("grant_type", "urn:ietf:params:oauth:grant-type:device_code"),
             ("expires_in", "3600"),
         ]);
-        use arboard::Clipboard;
         use webbrowser;
+        webbrowser::open(&device_code.verification_uri)?;
+        use arboard::Clipboard;
         let mut clipboard = Clipboard::new()?;
         clipboard.set_text(device_code.user_code.clone())?;
 
@@ -108,7 +119,6 @@ impl CopilotAuthHandler {
             .set_buttons(rfd::MessageButtons::Ok)
             .show();
 
-        webbrowser::open(&device_code.verification_uri)?;
         loop {
             let response = self
                 .client

@@ -71,8 +71,12 @@ impl CopilotClient {
         let handle = tokio::spawn(async move {
             let response = client.send_request(messages, &request).await;
             match response {
-                Ok(resp) => client.process_block_response(resp, tx).await,
+                Ok(resp) => {
+                    info!("Successfully got block response");
+                    client.process_block_response(resp, tx).await
+                }
                 Err(e) => {
+                    error!("Failed to send block request: {:?}", e);
                     let _ = tx.send(Err(e)).await;
                     Ok(())
                 }
@@ -86,9 +90,18 @@ impl CopilotClient {
         response: Response,
         tx: Sender<anyhow::Result<Bytes>>,
     ) -> anyhow::Result<()> {
-        let response = response.json::<block_model::Response>().await?;
+        let response_text = response.text().await.map_err(|e| {
+            error!("Failed to parse block response: {:?}", e);
+            e
+        })?;
+        info!("The response: {}", response_text);
+        let response =
+            serde_json::from_str::<block_model::Response>(&response_text).map_err(|e| {
+                error!("Failed to parse block response: {:?}", e);
+                e
+            })?;
         let first = response.choices.first().unwrap();
-        info!("{}", first.message.content.clone());
+        info!("The first message: {}", first.message.content.clone());
 
         // Send the content
         tx.send(Ok(bytes::Bytes::from(first.message.content.clone())))

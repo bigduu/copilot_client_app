@@ -1,7 +1,7 @@
 use async_trait::async_trait;
 use log::{debug, error, info};
 use rmcp::model::CallToolRequestParam;
-use serde_json::{json, Map, Value};
+use serde_json::{Map, Value};
 use std::borrow::Cow;
 use std::sync::Arc;
 
@@ -19,7 +19,7 @@ pub struct McpProcessor {
 impl McpProcessor {
     pub fn new(copilot_client: Arc<CopilotClient>) -> Self {
         Self {
-            enabled: true,
+            enabled: false,
             copilot_client,
         }
     }
@@ -84,10 +84,12 @@ impl Processor for McpProcessor {
             }
         }
 
+        info!("LLM query messages: {:?}", llm_query_messages);
+
         // Ask the LLM if we should use a tool
         let (rx, _handle) = self
             .copilot_client
-            .send_block_request(llm_query_messages, None)
+            .send_stream_request(llm_query_messages, None)
             .await;
 
         // Process the response from the LLM
@@ -98,6 +100,7 @@ impl Processor for McpProcessor {
             match chunk_result {
                 Ok(chunk) => {
                     let chunk_str = String::from_utf8_lossy(&chunk);
+                    info!("LLM response chunk: {}", chunk_str);
                     llm_response.push_str(&chunk_str);
                 }
                 Err(e) => {
