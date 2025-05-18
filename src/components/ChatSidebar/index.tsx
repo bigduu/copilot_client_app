@@ -35,12 +35,15 @@ export const ChatSidebar: React.FC<{
     selectChat,
     currentChatId,
     deleteChat,
+    deleteChats,
     pinChat,
     unpinChat,
     updateChat,
   } = useChat();
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
+  const [isBulkMode, setIsBulkMode] = useState(false);
+  const [selectedChatIds, setSelectedChatIds] = useState<string[]>([]);
 
   // For debugging
   console.log("ChatSidebar rendered with chats:", chats);
@@ -164,6 +167,15 @@ export const ChatSidebar: React.FC<{
                       onPin={pinChat}
                       onUnpin={unpinChat}
                       onEdit={handleEditTitle}
+                      bulkMode={isBulkMode}
+                      checked={selectedChatIds.includes(chat.id)}
+                      onCheck={(chatId, checked) => {
+                        setSelectedChatIds((prev) =>
+                          checked
+                            ? [...prev, chatId]
+                            : prev.filter((id) => id !== chatId)
+                        );
+                      }}
                     />
                   )}
                 />
@@ -236,6 +248,21 @@ export const ChatSidebar: React.FC<{
           </Tooltip>
           <Tooltip
             placement={collapsed ? "right" : "top"}
+            title={isBulkMode ? "Exit bulk mode" : "Bulk mode"}
+          >
+            <Button
+              type={isBulkMode ? "default" : "dashed"}
+              onClick={() => {
+                setIsBulkMode(!isBulkMode);
+                setSelectedChatIds([]);
+              }}
+              block
+            >
+              {!collapsed && (isBulkMode ? "Exit bulk mode" : "Bulk mode")}
+            </Button>
+          </Tooltip>
+          <Tooltip
+            placement={collapsed ? "right" : "top"}
             title="System Settings"
           >
             <Button
@@ -246,6 +273,30 @@ export const ChatSidebar: React.FC<{
               {!collapsed && "System Settings"}
             </Button>
           </Tooltip>
+          {isBulkMode && (
+            <Button
+              danger
+              type="primary"
+              disabled={selectedChatIds.length === 0}
+              onClick={() => {
+                Modal.confirm({
+                  title: `Delete selected chats`,
+                  content: `Are you sure you want to delete the selected ${selectedChatIds.length} chats? This action cannot be undone.`,
+                  okText: "Delete",
+                  okType: "danger",
+                  cancelText: "Cancel",
+                  onOk: () => {
+                    deleteChats(selectedChatIds);
+                    setSelectedChatIds([]);
+                    setIsBulkMode(false);
+                  },
+                });
+              }}
+              block
+            >
+              Delete selected chats
+            </Button>
+          )}
         </Space>
       </div>
       <SystemSettingsModal

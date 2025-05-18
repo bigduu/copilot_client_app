@@ -34,6 +34,7 @@ interface ChatContextType {
   sendMessage: (content: string) => Promise<void>;
   initiateAIResponse: () => Promise<void>;
   deleteChat: (chatId: string) => void;
+  deleteChats: (chatIds: string[]) => void;
   deleteAllChats: () => void;
   deleteEmptyChats: () => void;
   saveChats: () => void;
@@ -83,6 +84,7 @@ const defaultContext: ChatContextType = {
   sendMessage: async () => {},
   initiateAIResponse: async () => {},
   deleteChat: () => {},
+  deleteChats: () => {},
   deleteAllChats: () => {},
   deleteEmptyChats: () => {},
   saveChats: () => {},
@@ -134,6 +136,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     addChat,
     selectChat,
     deleteChat,
+    deleteChats,
     updateChatMessages,
     saveChats,
     deleteAllChats,
@@ -404,6 +407,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     sendMessage,
     initiateAIResponse,
     deleteChat,
+    deleteChats,
     deleteAllChats,
     deleteEmptyChats,
     saveChats,
