@@ -40,8 +40,12 @@ pub fn run() {
     let log_plugin = tauri_plugin_log::Builder::new()
         .level(LevelFilter::Info)
         .build();
+    let dialog_plugin = tauri_plugin_dialog::init();
+    let fs_plugin = tauri_plugin_fs::init();
     tauri::Builder::default()
+        .plugin(fs_plugin)
         .plugin(log_plugin)
+        .plugin(dialog_plugin)
         .setup(|app| setup(app))
         .invoke_handler(tauri::generate_handler![
             execute_prompt,

@@ -57,6 +57,7 @@ crossbeam = "0.8.4"
 # Utilities
 regex = "1.10"            # For regex pattern matching
 tauri-plugin-dialog = "2"
+tauri-plugin-fs = "2"
 
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
 tauri-plugin-global-shortcut = "2"

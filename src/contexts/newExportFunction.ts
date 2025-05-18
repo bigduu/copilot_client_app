@@ -1,6 +1,7 @@
-import { Channel, invoke } from "@tauri-apps/api/core";
 import { message } from "antd";
 import { FavoriteItem } from "../types/chat";
+import { save } from "@tauri-apps/plugin-dialog";
+import { writeFile } from "@tauri-apps/plugin-fs";
 
 interface ExportContext {
   currentChatId: string | null;
@@ -27,9 +28,7 @@ export const createExportFavorites = (context: ExportContext) => {
     markdownContent += `Generated: ${new Date().toLocaleString()}\n\n`;
 
     chatFavorites.forEach((fav: FavoriteItem, index: number) => {
-      markdownContent += `## ${fav.role === "user" ? "You" : "Assistant"} (${
-        index + 1
-      })\n\n`;
+      markdownContent += `## ${fav.role === "user" ? "You" : "Assistant"} (${index + 1})\n\n`;
       markdownContent += fav.content;
       markdownContent += "\n\n";
       if (fav.note) {
@@ -45,56 +44,41 @@ export const createExportFavorites = (context: ExportContext) => {
     });
 
     try {
-      // Convert content to Uint8Array for Rust command
+      // Prepare content
       const encoder = new TextEncoder();
-      const content = format === "markdown" 
+      const content = format === "markdown"
         ? encoder.encode(markdownContent)
         : await generatePDFContent(markdownContent);
 
-      // Create a channel for progress updates
-      const events = new Channel<any>();
-      events.onmessage = (event: any) => {
-        switch (event.type) {
-          case "started":
-            message.loading({
-              content: `Saving ${event.fileName}...`,
-              key: messageKey,
-            });
-            break;
-          case "progress":
-            message.loading({
-              content: `Writing file... ${Math.round(
-                (event.bytesWritten / content.length) * 100
-              )}%`,
-              key: messageKey,
-            });
-            break;
-          case "finished":
-            message.success({
-              content: `Favorites exported to ${format.toUpperCase()} successfully`,
-              key: messageKey,
-            });
-            break;
-          case "error":
-            message.error({
-              content: `Failed to export: ${event.error}`,
-              key: messageKey,
-            });
-            break;
-        }
-      };
-
-      // Call Rust command to save file
-      await invoke("save_file", {
-        content: Array.from(content), // Convert Uint8Array to regular array for Tauri
-        fileType: format,
-        defaultName: `chat-favorites-${currentChatId.substring(0, 8)}`,
-        events,
+      // Prompt user for save location
+      const filters = [
+        {
+          name: format === "markdown" ? "Markdown" : "PDF",
+          extensions: [format === "markdown" ? "md" : "pdf"],
+        },
+      ];
+      const defaultName = `chat-favorites-${currentChatId.substring(0, 8)}.${format === "markdown" ? "md" : "pdf"}`;
+      const filePath = await save({
+        filters,
+        defaultPath: defaultName,
       });
-    } catch (error) {
+
+      if (!filePath) {
+        message.info("Export cancelled");
+        return;
+      }
+
+      // Write file using Tauri plugin-fs
+      await writeFile(filePath, content);
+
+      message.success({
+        content: `Favorites exported to ${format.toUpperCase()} successfully`,
+        key: messageKey,
+      });
+    } catch (error: any) {
       console.error(`Error exporting to ${format}:`, error);
       message.error({
-        content: `Failed to export favorites to ${format.toUpperCase()}`,
+        content: `Failed to export favorites to ${format.toUpperCase()}: ${error?.message || error}`,
         key: messageKey,
       });
     }
