@@ -1,9 +1,10 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import { Button, Space, Tooltip, Spin, theme } from "antd";
 import { SettingOutlined } from "@ant-design/icons";
 import { MessageInput } from "../MessageInput";
 import SystemPromptModal from "../SystemPromptModal";
 import InputPreview from "./InputPreview";
+import { useChat } from "../../contexts/ChatContext";
 
 const { useToken } = theme;
 
@@ -17,14 +18,25 @@ export const InputContainer: React.FC<InputContainerProps> = ({
   isCenteredLayout = false,
 }) => {
   const [isPromptModalOpen, setPromptModalOpen] = React.useState(false);
-  const [referenceText, setReferenceText] = useState<string | null>(null);
+  // Store reference text per chatId
+  const [referenceMap, setReferenceMap] = useState<{
+    [chatId: string]: string | null;
+  }>({});
   const { token } = useToken();
+  const { currentChatId } = useChat();
+  const prevChatIdRef = useRef<string | null>(null);
 
-  // Listen for reference-text events from MessageCard
+  // Listen for reference-text events from MessageCard/FavoritesPanel
   useEffect(() => {
     const handleReferenceText = (e: Event) => {
-      const customEvent = e as CustomEvent<{ text: string }>;
-      setReferenceText(customEvent.detail.text);
+      const customEvent = e as CustomEvent<{ text: string; chatId?: string }>;
+      const chatId = customEvent.detail.chatId || currentChatId;
+      if (chatId) {
+        setReferenceMap((prev) => ({
+          ...prev,
+          [chatId]: customEvent.detail.text,
+        }));
+      }
     };
 
     window.addEventListener("reference-text", handleReferenceText);
@@ -32,12 +44,28 @@ export const InputContainer: React.FC<InputContainerProps> = ({
     return () => {
       window.removeEventListener("reference-text", handleReferenceText);
     };
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentChatId]);
+
+  // Clear reference when chat switches
+  useEffect(() => {
+    if (prevChatIdRef.current && prevChatIdRef.current !== currentChatId) {
+      setReferenceMap((prev) => ({
+        ...prev,
+        [prevChatIdRef.current as string]: null,
+      }));
+    }
+    prevChatIdRef.current = currentChatId;
+  }, [currentChatId]);
 
   const handleInputSubmit = (content: string) => {
-    // Clear reference after submitting
-    setReferenceText(null);
+    // Clear reference after submitting for current chat
+    if (currentChatId) {
+      setReferenceMap((prev) => ({ ...prev, [currentChatId]: null }));
+    }
   };
+
+  const referenceText = currentChatId ? referenceMap[currentChatId] : null;
 
   return (
     <div
@@ -54,7 +82,11 @@ export const InputContainer: React.FC<InputContainerProps> = ({
       {referenceText && (
         <InputPreview
           text={referenceText}
-          onClose={() => setReferenceText(null)}
+          onClose={() => {
+            if (currentChatId) {
+              setReferenceMap((prev) => ({ ...prev, [currentChatId]: null }));
+            }
+          }}
         />
       )}
 

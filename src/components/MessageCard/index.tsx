@@ -105,13 +105,13 @@ const MessageCard: React.FC<MessageCardProps> = ({
     if (selectedText) {
       const referenceText = createReference(selectedText);
       const event = new CustomEvent("reference-text", {
-        detail: { text: referenceText },
+        detail: { text: referenceText, chatId: currentChatId },
       });
       window.dispatchEvent(event);
     } else {
       const referenceText = createReference(content);
       const event = new CustomEvent("reference-text", {
-        detail: { text: referenceText },
+        detail: { text: referenceText, chatId: currentChatId },
       });
       window.dispatchEvent(event);
     }

@@ -387,7 +387,9 @@ export const ChatView: React.FC = () => {
       </Layout>
 
       {/* Favorites Panel */}
-      {showFavorites && currentChatId && <FavoritesPanel />}
+      {showFavorites &&
+        currentChatId &&
+        (hasMessages || (isStreaming && activeChannel)) && <FavoritesPanel />}
     </Layout>
   );
 };

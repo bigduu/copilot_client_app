@@ -47,6 +47,7 @@ export const FavoritesPanel: React.FC = () => {
     updateFavorite,
     navigateToMessage,
     summarizeFavorites,
+    currentChatId,
   } = useChat();
 
   const [sortOrder, setSortOrder] = useState<"descending" | "ascending">(
@@ -121,10 +122,9 @@ export const FavoritesPanel: React.FC = () => {
   // Reference a favorite
   const referenceFavorite = (content: string) => {
     const referenceText = createReference(content);
-
     // Dispatch event for InputContainer to catch
     const event = new CustomEvent("reference-text", {
-      detail: { text: referenceText },
+      detail: { text: referenceText, chatId: currentChatId },
     });
     window.dispatchEvent(event);
   };
