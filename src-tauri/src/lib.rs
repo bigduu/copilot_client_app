@@ -10,10 +10,10 @@ use processor::mcp_proceeor::McpProcessor;
 use processor::ProcessorManager;
 use tauri::{App, Manager, Runtime};
 
-mod command;
+pub mod command;
 pub mod copilot;
 pub mod mcp;
-mod processor;
+pub mod processor;
 
 fn setup<R: Runtime>(app: &mut App<R>) -> std::result::Result<(), Box<dyn std::error::Error>> {
     let handle = app.handle();

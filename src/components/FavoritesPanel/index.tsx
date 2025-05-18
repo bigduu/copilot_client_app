@@ -7,7 +7,6 @@ import {
   Space,
   Button,
   Empty,
-  Switch,
   Tooltip,
   Dropdown,
   theme,
@@ -30,6 +29,8 @@ import { useChat } from "../../contexts/ChatContext";
 import { FavoriteItem } from "../../types/chat";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
+import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism";
 
 const { Sider } = Layout;
 const { Title, Text } = Typography;
@@ -294,7 +295,101 @@ export const FavoritesPanel: React.FC = () => {
                       </div>
 
                       <div style={{ fontSize: token.fontSizeSM }}>
-                        <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                        <ReactMarkdown
+                          remarkPlugins={[remarkGfm]}
+                          components={{
+                            p: ({ children }) => (
+                              <Text
+                                style={{
+                                  marginBottom: token.marginSM,
+                                  display: "block",
+                                }}
+                              >
+                                {children}
+                              </Text>
+                            ),
+                            ol: ({ children }) => (
+                              <ol
+                                style={{
+                                  marginBottom: token.marginSM,
+                                  paddingLeft: 20,
+                                }}
+                              >
+                                {children}
+                              </ol>
+                            ),
+                            ul: ({ children }) => (
+                              <ul
+                                style={{
+                                  marginBottom: token.marginSM,
+                                  paddingLeft: 20,
+                                }}
+                              >
+                                {children}
+                              </ul>
+                            ),
+                            li: ({ children }) => (
+                              <li style={{ marginBottom: token.marginXS }}>
+                                {children}
+                              </li>
+                            ),
+                            blockquote: ({ children }) => (
+                              <div
+                                style={{
+                                  borderLeft: `3px solid ${token.colorPrimary}`,
+                                  background: token.colorPrimaryBg,
+                                  padding: `${token.paddingXS}px ${token.padding}px`,
+                                  margin: `${token.marginXS}px 0`,
+                                  color: token.colorTextSecondary,
+                                  fontStyle: "italic",
+                                }}
+                              >
+                                {children}
+                              </div>
+                            ),
+                            code({ className, children, ...props }) {
+                              const match = /language-(\w+)/.exec(
+                                className || ""
+                              );
+                              const language = match ? match[1] : "";
+                              const isInline = !match && !className;
+                              const codeString = String(children).replace(
+                                /\n$/,
+                                ""
+                              );
+
+                              if (isInline) {
+                                return (
+                                  <Text code className={className} {...props}>
+                                    {children}
+                                  </Text>
+                                );
+                              }
+
+                              return (
+                                <div
+                                  style={{
+                                    position: "relative",
+                                    overflowX: "auto",
+                                  }}
+                                >
+                                  <SyntaxHighlighter
+                                    style={oneDark}
+                                    language={language || "text"}
+                                    PreTag="div"
+                                    customStyle={{
+                                      margin: `${token.marginXS}px 0`,
+                                      borderRadius: token.borderRadiusSM,
+                                      fontSize: token.fontSizeSM,
+                                    }}
+                                  >
+                                    {codeString}
+                                  </SyntaxHighlighter>
+                                </div>
+                              );
+                            },
+                          }}
+                        >
                           {favorite.content}
                         </ReactMarkdown>
                       </div>

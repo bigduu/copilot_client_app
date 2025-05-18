@@ -11,6 +11,8 @@
   },
   "dependencies": {
     "@ant-design/icons": "^6.0.0",
+    "@tauri-apps/plugin-dialog": "~2",
+    "@tauri-apps/plugin-fs": "2.0.0-beta.0",
     "@tauri-apps/plugin-global-shortcut": "~2",
     "@types/react-syntax-highlighter": "^15.5.13",
     "antd": "^5.24.7",

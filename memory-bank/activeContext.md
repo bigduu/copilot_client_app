@@ -3,178 +3,162 @@
 ## Current Work Focus
 
 ### Active Development Areas
-1. Chat Interface
-   - Chat sidebar implementation
-   - Message streaming functionality
-   - System message handling
-   - Search window integration
+1. Chat Experience
+   - Enhanced chat sidebar with favorites and improved navigation
+   - Streaming message display and performance optimization
+   - System message and prompt modal improvements
+   - Search window UI and backend integration
 
-2. Authentication
-   - Auth context management
-   - Copilot API authentication
-   - Session persistence
+2. Authentication & Models
+   - Refined AuthContext and authentication flow
+   - Copilot API integration and session management
+   - Persistent model selection (global default for new chats via `useModels` and `localStorage`)
 
 3. Core Features
-   - Search functionality
-   - System prompt configuration
-   - Chat management
-   - Message handling
-   - Persistent model selection for new chats
+   - Search and filtering across conversations
+   - System prompt configuration and templates
+   - Chat management (creation, deletion, organization)
+   - Message handling and streaming
 
 ### Recent Changes
 1. Frontend
-   - Implemented persistent model selection using `localStorage` via `useModels` hook.
-   - Updated `SystemSettingsModal` to use and set the global default model.
-   - Modified `ChatContext` and `useChats` hook to apply the selected default model to new chats.
-   - Chat sidebar component implementation
-   - Search window functionality
-   - System prompt modal
-   - Message streaming components
+   - Major refactor of chat sidebar and navigation (FavoritesPanel, ChatSidebar)
+   - Improved streaming message components and performance
+   - System prompt modal and settings enhancements
+   - Search window UI and logic overhaul
+   - Persistent model selection via enhanced `useModels` hook and `localStorage`
+   - Modularization of components and hooks
 
 2. Backend
-   - Copilot client integration
-   - Authentication handling
-   - Message channel implementation
-   - IPC communication setup
+   - Refined Copilot client integration and modularization
+   - Improved authentication and session handling
+   - Enhanced message channel and streaming logic
+   - IPC communication and error handling improvements
 
 ## Active Decisions & Considerations
 
 ### Architecture Decisions
 1. State Management
-   - Using React Context for global state
-   - Chat context for message management
-   - Auth context for authentication
-   - Custom hooks for state access (`useModels` enhanced for global model persistence).
+   - React Context for global state (ChatContext, AuthContext)
+   - Custom hooks for model management and chat logic
+   - Immutable state updates and reducer patterns
 
 2. UI/UX Decisions
-   - Ant Design for component library
-   - CSS modules for styling
-   - Responsive layout design
-   - Native window management
+   - Ant Design for UI (migration to Shadcn/Tailwind under consideration)
+   - CSS modules for scoped styling
+   - Responsive, accessible layout
+   - Window management via Tauri
 
 ### Technical Considerations
 1. Performance
-   - Message streaming optimization
-   - State update efficiency
-   - Window management
-   - Search functionality performance
+   - Streaming message efficiency
+   - Search speed and scalability
+   - State update optimization
+   - Window and resource management
 
 2. Security
-   - Authentication flow
-   - API key handling
-   - IPC security
-   - Data persistence (model selection now persists via `localStorage`).
+   - Secure authentication and session persistence
+   - API key and sensitive data handling
+   - IPC and data persistence security
 
 ## Current Patterns & Preferences
 
 ### Development Patterns
 1. Component Structure
-   - Functional components
-   - TypeScript interfaces
-   - CSS modules
-   - Context consumers
+   - Functional components with TypeScript
+   - Modular, reusable UI components
+   - CSS modules for styling
+   - Context consumers and custom hooks
 
 2. State Management
-   - Context-based
-   - Custom hooks (e.g., `useModels` for model fetching and global selection persistence).
-   - Immutable updates
-   - Event-driven
+   - Context-based global state
+   - Custom hooks for abstraction
+   - Immutable updates and reducer patterns
 
 ### Code Organization
 1. Frontend
-   - Component-based architecture
-   - Feature-based organization
-   - Shared utilities
-   - Type definitions
+   - Feature-based component organization
+   - Shared utilities and type definitions
+   - Modular hooks and context providers
 
 2. Backend
-   - Module-based structure
+   - Modular Rust code (copilot, mcp, processor)
    - Clear separation of concerns
-   - Error handling patterns
-   - Async operations
+   - Async/await and robust error handling
 
 ## Recent Learning & Insights
 
 ### Technical Insights
 1. Performance
-   - Message streaming efficiency
-   - State management optimization
-   - Window handling strategies
-   - IPC communication patterns
+   - Streaming optimization and resource management
+   - Efficient state and context updates
+   - Window and IPC handling strategies
 
 2. Architecture
-   - Context-based state management
-   - Component composition
-   - Backend modularization
-   - Error handling strategies
+   - Context-driven state management
+   - Modular frontend and backend design
+   - Error propagation and handling
 
 ### Implementation Learnings
 1. Frontend
-   - React context patterns (`ChatContext` consuming `useModels` for default model).
-   - TypeScript type safety
-   - Component optimization
-   - Event handling
-   - `localStorage` for simple client-side persistence (e.g., selected model ID).
+   - Advanced React context and hooks patterns
+   - TypeScript type safety and code organization
+   - UI modularization and optimization
+   - Persistent preferences with `localStorage`
 
 2. Backend
-   - Tauri integration
-   - Rust async patterns
-   - API client implementation
-   - Error propagation
+   - Tauri IPC and Rust async patterns
+   - Modular API client and authentication logic
+   - Streaming and error handling improvements
 
 ## Next Steps & Priorities
 
 ### Immediate Tasks
 1. UI/UX
-   - Refine search functionality
-   - Enhance message streaming
-   - Improve system prompt UI
-   - Optimize chat navigation
+   - Finalize search and filtering features
+   - Polish streaming message UI and performance
+   - Refine system prompt and settings modals
+   - Enhance chat navigation and favorites
 
 2. Backend
-   - Enhance error handling
-   - Optimize API requests
-   - Improve auth flow
-   - Add message persistence (beyond client-side model ID)
+   - Strengthen error handling and logging
+   - Optimize API and streaming performance
+   - Improve authentication/session flow
+   - Implement robust message persistence
 
 ### Future Considerations
 1. Features
-   - Enhanced search capabilities
-   - Message organization
-   - System prompt templates
-   - Performance optimizations
-   - Potentially move `localStorage` items to Tauri's `Store` plugin for more robust persistence if needed.
+   - Advanced search and message organization
+   - System prompt templates and user preferences
+   - Theme customization and accessibility
+   - Migration to Shadcn UI/Tailwind for UI modernization
 
 2. Technical Debt
-   - Code documentation
-   - Test coverage
-   - Error handling
-   - Performance monitoring
+   - Comprehensive documentation
+   - Automated test coverage
+   - Error and performance monitoring
+   - Refactoring for maintainability
 
 ## Active Challenges
 
 ### Technical Challenges
 1. Performance
-   - Message streaming optimization
-   - Search functionality speed
-   - State update efficiency
-   - Window management
+   - Streaming and search optimization
+   - Efficient state and context updates
+   - Window and resource management
 
 2. Integration
-   - Auth flow complexity
-   - API integration
-   - IPC communication
-   - Data persistence
+   - Complex authentication and API flows
+   - IPC and backend communication
+   - Persistent, secure data storage
 
 ### Development Focus
 1. Short-term
-   - Bug fixes
-   - Performance improvements
-   - Feature completion
-   - User experience
+   - Bug fixes and feature completion
+   - UI/UX polish and performance
+   - Backend stability and error handling
 
 2. Long-term
-   - Scalability
-   - Maintainability
-   - Feature expansion
-   - Technical debt
+   - Scalability and maintainability
+   - Feature expansion and modernization
+   - Technical debt reduction

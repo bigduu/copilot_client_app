@@ -1,5 +1,7 @@
 import React, { createContext, useContext, ReactNode } from "react";
 import { Channel } from "@tauri-apps/api/core";
+import { message } from "antd";
+import { createExportFavorites } from "./newExportFunction";
 import {
   Message,
   ChatItem,
@@ -219,118 +221,10 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     return favorites.filter((fav) => fav.chatId === currentChatId);
   };
 
-  // Export favorites to markdown or PDF
-  const exportFavorites = async (format: "markdown" | "pdf") => {
-    if (!currentChatId) return;
-
-    const chatFavorites = getCurrentChatFavorites();
-    if (chatFavorites.length === 0) return;
-
-    // Build markdown content
-    let markdownContent = `# Chat Favorites Export\n\n`;
-    markdownContent += `Generated: ${new Date().toLocaleString()}\n\n`;
-
-    chatFavorites.forEach((fav, index) => {
-      markdownContent += `## ${fav.role === "user" ? "You" : "Assistant"} (${
-        index + 1
-      })\n\n`;
-      markdownContent += fav.content;
-      markdownContent += "\n\n";
-      if (fav.note) {
-        markdownContent += `> Note: ${fav.note}\n\n`;
-      }
-      markdownContent += "---\n\n";
-    });
-
-    if (format === "markdown") {
-      // Save as markdown
-      const blob = new Blob([markdownContent], { type: "text/markdown" });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `chat-favorites-${currentChatId.substring(0, 8)}.md`;
-      a.click();
-      URL.revokeObjectURL(url);
-    } else if (format === "pdf") {
-      try {
-        // Import jspdf dynamically
-        const jsPDF = (await import("jspdf")).default;
-        const doc = new jsPDF();
-
-        // Add title
-        doc.setFontSize(18);
-        doc.text("Chat Favorites Export", 20, 20);
-
-        // Add generation date
-        doc.setFontSize(10);
-        doc.text(`Generated: ${new Date().toLocaleString()}`, 20, 30);
-
-        let yPos = 40;
-        const pageHeight = doc.internal.pageSize.height;
-
-        chatFavorites.forEach((fav, index) => {
-          // Check if we need a new page
-          if (yPos > pageHeight - 40) {
-            doc.addPage();
-            yPos = 20;
-          }
-
-          // Add role header
-          doc.setFontSize(14);
-          doc.text(
-            `${fav.role === "user" ? "You" : "Assistant"} (${index + 1})`,
-            20,
-            yPos
-          );
-          yPos += 10;
-
-          // Add content - split content by lines to prevent overflow
-          doc.setFontSize(12);
-          const contentLines = doc.splitTextToSize(fav.content, 170);
-
-          // Check if we need to add a new page for content
-          if (yPos + contentLines.length * 7 > pageHeight - 20) {
-            doc.addPage();
-            yPos = 20;
-          }
-
-          doc.text(contentLines, 20, yPos);
-          yPos += contentLines.length * 7 + 10;
-
-          // Add note if exists
-          if (fav.note) {
-            // Check if we need a new page for note
-            if (yPos > pageHeight - 30) {
-              doc.addPage();
-              yPos = 20;
-            }
-
-            doc.setFontSize(10);
-            doc.text(`Note: ${fav.note}`, 30, yPos);
-            yPos += 10;
-          }
-
-          // Add separator
-          doc.setDrawColor(200, 200, 200);
-          doc.line(20, yPos, 190, yPos);
-          yPos += 15;
-        });
-
-        // Save the PDF
-        doc.save(`chat-favorites-${currentChatId.substring(0, 8)}.pdf`);
-      } catch (error) {
-        console.error("Error generating PDF:", error);
-        // Fallback to markdown if PDF generation fails
-        const blob = new Blob([markdownContent], { type: "text/markdown" });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = `chat-favorites-${currentChatId.substring(0, 8)}.md`;
-        a.click();
-        URL.revokeObjectURL(url);
-      }
-    }
-  };
+  const exportFavorites = createExportFavorites({
+    currentChatId,
+    getCurrentChatFavorites,
+  });
 
   // ====== System Prompt Preset 管理 ======
   // 读取本地存储的预设列表
