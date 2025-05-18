@@ -69,7 +69,9 @@ const MessageCard: React.FC<MessageCardProps> = ({
   };
 
   // 监听选中内容
-  const handleMouseUp = () => {
+  const handleMouseUp = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
     const selection = window.getSelection();
     const text = selection ? selection.toString() : "";
     if (
@@ -144,7 +146,7 @@ const MessageCard: React.FC<MessageCardProps> = ({
   ];
 
   return (
-    <div onContextMenu={handleMouseUp}>
+    <div onContextMenu={(e) => handleMouseUp(e)}>
       <Dropdown menu={{ items: contextMenuItems }} trigger={["contextMenu"]}>
         <Card
           id={messageId ? `message-${messageId}` : undefined}
