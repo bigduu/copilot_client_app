@@ -1,4 +1,4 @@
-import React, { useRef } from "react";
+import React, { useRef, useState } from "react";
 import {
   Card,
   Space,
@@ -37,16 +37,50 @@ const MessageCard: React.FC<MessageCardProps> = ({
   const { token } = useToken();
   const { currentChatId, addFavorite } = useChat();
   const cardRef = useRef<HTMLDivElement>(null);
+  const [selectedText, setSelectedText] = useState<string>("");
 
   // 添加整个消息到收藏夹
   const addMessageToFavorites = () => {
     if (currentChatId) {
+      if (selectedText) {
+        addSelectedToFavorites();
+      } else {
+        addFavorite({
+          chatId: currentChatId,
+          content: content,
+          role: role as "user" | "assistant",
+          messageId,
+        });
+      }
+    }
+  };
+
+  // 添加选中内容到收藏夹
+  const addSelectedToFavorites = () => {
+    if (currentChatId && selectedText) {
       addFavorite({
         chatId: currentChatId,
-        content: content,
+        content: selectedText,
         role: role as "user" | "assistant",
         messageId,
       });
+      setSelectedText("");
+    }
+  };
+
+  // 监听选中内容
+  const handleMouseUp = () => {
+    const selection = window.getSelection();
+    const text = selection ? selection.toString() : "";
+    if (
+      text &&
+      cardRef.current &&
+      selection &&
+      cardRef.current.contains(selection.anchorNode)
+    ) {
+      setSelectedText(text);
+    } else {
+      setSelectedText("");
     }
   };
 
@@ -66,13 +100,19 @@ const MessageCard: React.FC<MessageCardProps> = ({
 
   // 引用消息
   const referenceMessage = () => {
-    const referenceText = createReference(content);
-
-    // 使用自定义事件传递引用文本
-    const event = new CustomEvent("reference-text", {
-      detail: { text: referenceText },
-    });
-    window.dispatchEvent(event);
+    if (selectedText) {
+      const referenceText = createReference(selectedText);
+      const event = new CustomEvent("reference-text", {
+        detail: { text: referenceText },
+      });
+      window.dispatchEvent(event);
+    } else {
+      const referenceText = createReference(content);
+      const event = new CustomEvent("reference-text", {
+        detail: { text: referenceText },
+      });
+      window.dispatchEvent(event);
+    }
   };
 
   // 上下文菜单项
@@ -81,7 +121,13 @@ const MessageCard: React.FC<MessageCardProps> = ({
       key: "copy",
       label: "Copy",
       icon: <CopyOutlined />,
-      onClick: () => copyToClipboard(content),
+      onClick: () => {
+        if (selectedText) {
+          copyToClipboard(selectedText);
+        } else {
+          copyToClipboard(content);
+        }
+      },
     },
     {
       key: "favorite",
@@ -98,7 +144,7 @@ const MessageCard: React.FC<MessageCardProps> = ({
   ];
 
   return (
-    <div>
+    <div onContextMenu={handleMouseUp}>
       <Dropdown menu={{ items: contextMenuItems }} trigger={["contextMenu"]}>
         <Card
           id={messageId ? `message-${messageId}` : undefined}
@@ -221,6 +267,9 @@ const MessageCard: React.FC<MessageCardProps> = ({
                     >
                       {children}
                     </div>
+                  ),
+                  a: ({ children }) => (
+                    <Text style={{ color: token.colorLink }}>{children}</Text>
                   ),
                 }}
               >
