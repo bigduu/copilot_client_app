@@ -42,7 +42,7 @@ export const ChatSidebar: React.FC<{
   } = useChat();
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
-  const [isBulkMode, setIsBulkMode] = useState(false);
+  const [isSelectMode, setIsSelectMode] = useState(false);
   const [selectedChatIds, setSelectedChatIds] = useState<string[]>([]);
 
   // For debugging
@@ -167,7 +167,7 @@ export const ChatSidebar: React.FC<{
                       onPin={pinChat}
                       onUnpin={unpinChat}
                       onEdit={handleEditTitle}
-                      bulkMode={isBulkMode}
+                      SelectMode={isSelectMode}
                       checked={selectedChatIds.includes(chat.id)}
                       onCheck={(chatId, checked) => {
                         setSelectedChatIds((prev) =>
@@ -248,17 +248,18 @@ export const ChatSidebar: React.FC<{
           </Tooltip>
           <Tooltip
             placement={collapsed ? "right" : "top"}
-            title={isBulkMode ? "Exit bulk mode" : "Bulk mode"}
+            title={isSelectMode ? "Exit Select Mode" : "Select Mode"}
           >
             <Button
-              type={isBulkMode ? "default" : "dashed"}
+              type={isSelectMode ? "default" : "dashed"}
               onClick={() => {
-                setIsBulkMode(!isBulkMode);
+                setIsSelectMode(!isSelectMode);
                 setSelectedChatIds([]);
               }}
               block
             >
-              {!collapsed && (isBulkMode ? "Exit bulk mode" : "Bulk mode")}
+              {!collapsed &&
+                (isSelectMode ? "Exit Select Mode" : "Select Mode")}
             </Button>
           </Tooltip>
           <Tooltip
@@ -273,7 +274,7 @@ export const ChatSidebar: React.FC<{
               {!collapsed && "System Settings"}
             </Button>
           </Tooltip>
-          {isBulkMode && (
+          {isSelectMode && (
             <Button
               danger
               type="primary"
@@ -288,7 +289,7 @@ export const ChatSidebar: React.FC<{
                   onOk: () => {
                     deleteChats(selectedChatIds);
                     setSelectedChatIds([]);
-                    setIsBulkMode(false);
+                    setIsSelectMode(false);
                   },
                 });
               }}

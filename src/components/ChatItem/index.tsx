@@ -19,7 +19,7 @@ interface ChatItemProps {
   onPin: (chatId: string) => void;
   onUnpin: (chatId: string) => void;
   onEdit?: (chatId: string, newTitle: string) => void;
-  bulkMode?: boolean;
+  SelectMode?: boolean;
   checked?: boolean;
   onCheck?: (chatId: string, checked: boolean) => void;
 }
@@ -32,7 +32,7 @@ export const ChatItem: React.FC<ChatItemProps> = ({
   onPin,
   onUnpin,
   onEdit,
-  bulkMode,
+  SelectMode,
   checked,
   onCheck,
 }) => {
@@ -68,7 +68,7 @@ export const ChatItem: React.FC<ChatItemProps> = ({
       onClick={() => !isEditing && onSelect(chat.id)}
       className={`chat-item ${isSelected ? "selected" : ""}`}
     >
-      {bulkMode && (
+      {SelectMode && (
         <input
           type="checkbox"
           checked={!!checked}
