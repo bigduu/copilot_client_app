@@ -96,7 +96,7 @@ export const createExportFavorites = (context: ExportContext) => {
 
 // Helper function to generate PDF content
 const generatePDFContent = async (
-  _markdownContent: string
+  markdownContent: string
 ): Promise<Uint8Array> => {
   const jsPDF = (await import("jspdf")).default;
   const doc = new jsPDF({
@@ -110,13 +110,7 @@ const generatePDFContent = async (
   // Set font
   doc.setFont("helvetica", "normal");
 
-  // Add title
-  doc.setFontSize(18);
-  doc.text("Chat Favorites Export", 20, 20);
-
-  // Add generation date
-  doc.setFontSize(10);
-  doc.text(`Generated: ${new Date().toLocaleString()}`, 20, 30);
+  doc.text(markdownContent, 10, 10);
 
   // Convert doc to Uint8Array
   const pdfContent = doc.output("arraybuffer");
