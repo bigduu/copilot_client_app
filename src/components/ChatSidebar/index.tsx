@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import {
   Layout,
   Button,
@@ -44,6 +44,20 @@ export const ChatSidebar: React.FC<{
   const [collapsed, setCollapsed] = useState(false);
   const [isSelectMode, setIsSelectMode] = useState(false);
   const [selectedChatIds, setSelectedChatIds] = useState<string[]>([]);
+  const [footerHeight, setFooterHeight] = useState(0);
+  const footerRef = useRef<HTMLDivElement>(null);
+
+  // 动态计算底部按钮区高度
+  useEffect(() => {
+    function updateFooterHeight() {
+      if (footerRef.current) {
+        setFooterHeight(footerRef.current.offsetHeight);
+      }
+    }
+    updateFooterHeight();
+    window.addEventListener("resize", updateFooterHeight);
+    return () => window.removeEventListener("resize", updateFooterHeight);
+  }, []);
 
   // For debugging
   console.log("ChatSidebar rendered with chats:", chats);
@@ -82,16 +96,20 @@ export const ChatSidebar: React.FC<{
 
   return (
     <Sider
-      width={300}
+      breakpoint="md"
+      collapsedWidth={0}
+      width="clamp(120px, 22vw, 300px)"
       collapsible
       collapsed={collapsed}
       onCollapse={(value) => setCollapsed(value)}
       trigger={null}
-      collapsedWidth={80}
       style={{
-        paddingTop: 8,
         background: "var(--ant-color-bg-container)",
         borderRight: "1px solid var(--ant-color-border)",
+        position: "relative",
+        height: "100vh",
+        paddingTop: 8,
+        overflow: "hidden",
       }}
     >
       <Button
@@ -103,15 +121,15 @@ export const ChatSidebar: React.FC<{
           right: collapsed ? "50%" : 8,
           top: 8,
           transform: collapsed ? "translateX(50%)" : "none",
-          zIndex: 1,
+          zIndex: 10,
         }}
       />
       <div
         style={{
-          height: "calc(100vh - 120px)",
+          height: `calc(100vh - ${footerHeight}px - 8px)`, // 8px为顶部padding
           overflowY: "auto",
           padding: "0 8px",
-          marginTop: 24,
+          paddingTop: "40px",
           /* Hide scrollbar for Webkit browsers */
           scrollbarWidth: "none" /* Firefox */,
           msOverflowStyle: "none" /* IE and Edge */,
@@ -222,11 +240,8 @@ export const ChatSidebar: React.FC<{
         </div>
       </div>
       <div
+        ref={footerRef}
         style={{
-          position: "absolute",
-          left: 0,
-          right: 0,
-          bottom: 0,
           padding: collapsed ? "16px 8px" : 16,
           background: "var(--ant-color-bg-container)",
           borderTop: "1px solid var(--ant-color-border)",

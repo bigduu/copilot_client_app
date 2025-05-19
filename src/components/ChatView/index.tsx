@@ -181,13 +181,24 @@ export const ChatView: React.FC = () => {
   return (
     <Layout
       style={{
+        minHeight: "100vh", // Ensure the layout fills the viewport
         height: "100vh",
         background: token.colorBgContainer,
         position: "relative", // For positioning animated elements
         overflow: "hidden", // Prevent scrollbars from animated elements moving out
+        display: "flex",
+        flexDirection: "row",
       }}
     >
-      <Layout>
+      <Layout
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          flex: 1,
+          minHeight: 0, // Allow children to shrink
+          height: "100vh",
+        }}
+      >
         {/* System Message Area - transitions between top-of-messages and centered view */}
         <div
           className={`chat-view-system-message-container ${
@@ -203,7 +214,7 @@ export const ChatView: React.FC = () => {
               : token.paddingContentHorizontal,
             paddingBottom: showMessagesView ? 0 : token.marginXL,
             width: "100%",
-            maxWidth: "100%",
+            maxWidth: showMessagesView ? "clamp(320px, 98vw, 768px)" : "100%",
             display: "flex",
             justifyContent: "center",
           }}
@@ -213,7 +224,9 @@ export const ChatView: React.FC = () => {
               <div
                 style={{
                   width: "100%",
-                  maxWidth: showMessagesView ? "100%" : "768px",
+                  maxWidth: showMessagesView
+                    ? "clamp(320px, 98vw, 768px)"
+                    : "100%",
                 }}
               >
                 <SystemMessage
@@ -248,6 +261,7 @@ export const ChatView: React.FC = () => {
           }`}
           style={{
             flex: 1,
+            minHeight: 0, // Allow flex children to shrink
             padding: token.padding,
             overflowY: "auto",
             display: "flex",
@@ -377,7 +391,13 @@ export const ChatView: React.FC = () => {
             showMessagesView ? "messages-view" : "centered-view"
           }`}
         >
-          <div style={{ width: "100%", maxWidth: "768px", margin: "0 auto" }}>
+          <div
+            style={{
+              width: "100%",
+              maxWidth: showMessagesView ? "clamp(320px, 98vw, 768px)" : "100%",
+              margin: showMessagesView ? "0 auto" : undefined,
+            }}
+          >
             <InputContainer
               isStreaming={isStreaming}
               isCenteredLayout={!showMessagesView}

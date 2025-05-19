@@ -153,7 +153,9 @@ export const FavoritesPanel: React.FC = () => {
   return (
     <>
       <Sider
-        width={500}
+        breakpoint="md"
+        collapsedWidth={0}
+        width="clamp(220px, 32vw, 500px)"
         style={{
           background: token.colorBgContainer,
           borderLeft: `1px solid ${token.colorBorderSecondary}`,

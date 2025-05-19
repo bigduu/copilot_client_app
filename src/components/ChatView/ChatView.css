@@ -21,15 +21,7 @@
 
 /* Centered View State (No messages) */
 .chat-view-system-message-container.centered-view {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 50%; /* Occupies top half */
-  display: flex;
-  flex-direction: column;
-  justify-content: flex-end; /* Pushes content (SystemMessage) to its bottom */
-  align-items: center;
+
   opacity: 1;
   transform: translateY(0%);
   z-index: 10;
@@ -38,7 +30,7 @@
 
 .chat-view-input-container-wrapper.centered-view {
   position: absolute;
-  top: 50%; /* Starts at the vertical midpoint */
+  top: 70%; /* Starts at the vertical midpoint */
   left: 0;
   width: 100%;
   transform: translateY(-50%); /* Vertically centers itself */
@@ -151,4 +143,45 @@
   animation: highlight-pulse 1.5s ease-in-out;
   border: 2px solid var(--primary-color) !important;
   transition: all 0.3s ease-in-out;
+}
+
+/* Responsive adjustments */
+@media (max-width: 900px) {
+  .chat-view-system-message-container.messages-view {
+    max-width: 98vw;
+    padding-left: 8px !important;
+    padding-right: 8px !important;
+  }
+  .chat-view-input-container-wrapper > div {
+    max-width: 98vw !important;
+  }
+}
+
+@media (max-width: 600px) {
+  .chat-view-system-message-container.messages-view {
+    max-width: 100vw;
+    padding-left: 2vw !important;
+    padding-right: 2vw !important;
+  }
+  .chat-view-input-container-wrapper > div {
+    max-width: 100vw !important;
+    margin: 0 !important;
+  }
+  .chat-view-messages-list {
+    gap: 4px !important;
+    padding: 4px !important;
+  }
+}
+
+/* Responsive adjustments for smaller screens */
+@media (max-height: 600px) {
+  .chat-view-system-message-container.centered-view {
+    min-height: 40vh;
+    padding: 16px;
+  }
+  
+  .chat-view-input-container-wrapper.centered-view {
+    min-height: 15vh;
+    padding: 12px;
+  }
 } 
