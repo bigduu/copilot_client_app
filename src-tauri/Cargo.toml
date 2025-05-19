@@ -59,6 +59,11 @@ regex = "1.10"            # For regex pattern matching
 tauri-plugin-dialog = "2"
 tauri-plugin-fs = "2"
 
+# For file tools
+walkdir = "2.3" # For directory traversal
+similar = "2.4" # For text diffing
+glob = "0.3"    # For file pattern matching
+
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
 tauri-plugin-global-shortcut = "2"
 

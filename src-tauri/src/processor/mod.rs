@@ -3,6 +3,7 @@ use std::sync::Arc;
 use crate::copilot::model::stream_model::Message;
 use async_trait::async_trait;
 pub mod mcp_proceeor;
+pub mod tools_processor;
 #[async_trait]
 pub trait Processor: Send + Sync {
     fn enabled(&self) -> bool;

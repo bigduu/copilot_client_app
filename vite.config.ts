@@ -1,4 +1,4 @@
-import {defineConfig} from "vite";
+import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 
 // @ts-expect-error process is a nodejs global
@@ -11,7 +11,7 @@ export default defineConfig(async () => ({
   build: {
     rollupOptions: {
       input: {
-        main: 'index.html',
+        main: "index.html",
       },
     },
   },
@@ -33,7 +33,7 @@ export default defineConfig(async () => ({
         }
       : undefined,
     watch: {
-      // 3. tell vite to ignore watching `src-tauri`
+      // 3. tell vite to ignore watching `src-tauri` 123
       ignored: ["**/src-tauri/**"],
     },
   },
