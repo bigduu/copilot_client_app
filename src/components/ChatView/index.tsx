@@ -16,13 +16,20 @@ import { DownOutlined } from "@ant-design/icons";
 import { InputContainer } from "../InputContainer";
 import "./ChatView.css"; // Import a new CSS file for animations and specific styles
 import MessageCard from "../MessageCard";
-import FavoritesPanel from "../FavoritesPanel";
 
 const { Content } = Layout;
 const { Text } = Typography;
 const { useToken } = theme;
 
-export const ChatView: React.FC = () => {
+interface ChatViewProps {
+  showFavorites: boolean;
+  setShowFavorites: React.Dispatch<React.SetStateAction<boolean>>;
+}
+
+export const ChatView: React.FC<ChatViewProps> = ({
+  showFavorites,
+  setShowFavorites,
+}) => {
   const {
     currentChatId,
     currentMessages,
@@ -41,8 +48,6 @@ export const ChatView: React.FC = () => {
   const lastChatIdRef = useRef<string | null>(null);
   // Scroll-to-bottom button state
   const [showScrollToBottom, setShowScrollToBottom] = useState(false);
-  // Favorites panel toggle
-  const [showFavorites, setShowFavorites] = useState(true);
 
   // Ensure all messages have IDs
   useEffect(() => {
@@ -64,28 +69,6 @@ export const ChatView: React.FC = () => {
       }
     }
   }, [currentChatId, currentMessages]);
-
-  // Add keyboard shortcut for toggling favorites
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      // Toggle favorites panel with F key
-      if (
-        e.key === "f" &&
-        !e.ctrlKey &&
-        !e.metaKey &&
-        !e.altKey &&
-        document.activeElement?.tagName !== "INPUT" &&
-        document.activeElement?.tagName !== "TEXTAREA"
-      ) {
-        setShowFavorites((prev) => !prev);
-      }
-    };
-
-    window.addEventListener("keydown", handleKeyDown);
-    return () => {
-      window.removeEventListener("keydown", handleKeyDown);
-    };
-  }, []);
 
   // Add event listener for message navigation
   useEffect(() => {
@@ -187,7 +170,7 @@ export const ChatView: React.FC = () => {
         position: "relative", // For positioning animated elements
         overflow: "hidden", // Prevent scrollbars from animated elements moving out
         display: "flex",
-        flexDirection: "row",
+        flexDirection: "column", // Changed from "row" to "column"
       }}
     >
       <Layout
@@ -297,11 +280,13 @@ export const ChatView: React.FC = () => {
                       justifyContent:
                         message.role === "user" ? "flex-end" : "flex-start",
                       width: "100%",
+                      maxWidth: "100%",
                     }}
                   >
                     <div
                       style={{
-                        width: "85%",
+                        width: message.role === "user" ? "85%" : "100%",
+                        maxWidth: "clamp(320px, 85%, 768px)",
                         display: "flex",
                         justifyContent:
                           message.role === "user" ? "flex-end" : "flex-start",
@@ -365,7 +350,7 @@ export const ChatView: React.FC = () => {
           <div ref={messagesEndRef} />
         </Content>
 
-        {/* Scroll to Bottom Button */}
+        {/* Scroll to Bottom Button - adjusted position for MainLayout integration */}
         {showScrollToBottom && (
           <Button
             type="primary"
@@ -374,7 +359,7 @@ export const ChatView: React.FC = () => {
             size="large"
             style={{
               position: "fixed",
-              right: showFavorites ? 432 : 32,
+              right: showFavorites ? 432 : 32, // Position depends on favorites panel visibility
               bottom: 96,
               zIndex: 100,
               boxShadow: token.boxShadow,
@@ -405,11 +390,6 @@ export const ChatView: React.FC = () => {
           </div>
         </div>
       </Layout>
-
-      {/* Favorites Panel */}
-      {showFavorites &&
-        currentChatId &&
-        (hasMessages || (isStreaming && activeChannel)) && <FavoritesPanel />}
     </Layout>
   );
 };

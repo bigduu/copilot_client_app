@@ -37,6 +37,7 @@ const MessageCard: React.FC<MessageCardProps> = ({
   const { currentChatId, addFavorite } = useChat();
   const cardRef = useRef<HTMLDivElement>(null);
   const [selectedText, setSelectedText] = useState<string>("");
+  const [isHovering, setIsHovering] = useState<boolean>(false);
 
   // 添加整个消息到收藏夹
   const addMessageToFavorites = () => {
@@ -145,13 +146,14 @@ const MessageCard: React.FC<MessageCardProps> = ({
   ];
 
   return (
-    <div onContextMenu={(e) => handleMouseUp(e)}>
+    <div onContextMenu={(e) => handleMouseUp(e)} style={{ width: "100%" }}>
       <Dropdown menu={{ items: contextMenuItems }} trigger={["contextMenu"]}>
         <Card
           id={messageId ? `message-${messageId}` : undefined}
           ref={cardRef}
           style={{
             width: "100%",
+            maxWidth: "100%",
             background:
               role === "user"
                 ? token.colorPrimaryBg
@@ -161,7 +163,11 @@ const MessageCard: React.FC<MessageCardProps> = ({
             borderRadius: token.borderRadiusLG,
             boxShadow: token.boxShadow,
             position: "relative",
+            wordWrap: "break-word",
+            overflowWrap: "break-word",
           }}
+          onMouseEnter={() => setIsHovering(true)}
+          onMouseLeave={() => setIsHovering(false)}
         >
           <Space
             direction="vertical"
@@ -179,7 +185,7 @@ const MessageCard: React.FC<MessageCardProps> = ({
                 ? "Assistant"
                 : role}
             </Text>
-            <div>
+            <div style={{ width: "100%", maxWidth: "100%" }}>
               <ReactMarkdown
                 remarkPlugins={
                   role === "user" ? [remarkGfm, remarkBreaks] : [remarkGfm]
@@ -239,7 +245,13 @@ const MessageCard: React.FC<MessageCardProps> = ({
                     }
 
                     return (
-                      <div style={{ position: "relative" }}>
+                      <div
+                        style={{
+                          position: "relative",
+                          maxWidth: "100%",
+                          overflow: "auto",
+                        }}
+                      >
                         <SyntaxHighlighter
                           style={oneDark}
                           language={language || "text"}
@@ -248,6 +260,7 @@ const MessageCard: React.FC<MessageCardProps> = ({
                             margin: `${token.marginXS}px 0`,
                             borderRadius: token.borderRadiusSM,
                             fontSize: token.fontSizeSM,
+                            maxWidth: "100%",
                           }}
                         >
                           {codeString}
@@ -279,14 +292,19 @@ const MessageCard: React.FC<MessageCardProps> = ({
             </div>
             {children}
 
-            {/* Action buttons - shown for assistant messages by default */}
-            {role === "assistant" && (
+            {/* Action buttons - shown for both user and assistant messages when hovering */}
+            {isHovering && (
               <div
                 style={{
                   display: "flex",
                   justifyContent: "flex-end",
                   gap: token.marginXS,
                   marginTop: token.marginXS,
+                  position: "absolute",
+                  bottom: token.paddingXS,
+                  right: token.paddingXS,
+                  background: "transparent",
+                  zIndex: 1,
                 }}
               >
                 <Tooltip title="Copy message">

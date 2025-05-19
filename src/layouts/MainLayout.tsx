@@ -1,7 +1,8 @@
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Layout } from "antd";
 import { ChatSidebar } from "../components/ChatSidebar";
 import { ChatView } from "../components/ChatView";
+import { FavoritesPanel } from "../components/FavoritesPanel";
 import { listen } from "@tauri-apps/api/event";
 import { useChat } from "../contexts/ChatContext";
 import "./styles.css";
@@ -10,9 +11,15 @@ export const MainLayout: React.FC<{
   themeMode: "light" | "dark";
   onThemeModeChange: (mode: "light" | "dark") => void;
 }> = ({ themeMode, onThemeModeChange }) => {
-  const { addChat, selectChat, initiateAIResponse, currentMessages } =
-    useChat();
+  const {
+    addChat,
+    selectChat,
+    initiateAIResponse,
+    currentMessages,
+    currentChatId,
+  } = useChat();
   const pendingAIRef = useRef(false);
+  const [showFavorites, setShowFavorites] = useState(true);
 
   useEffect(() => {
     const unlisten = listen<{ message: string }>(
@@ -60,6 +67,28 @@ export const MainLayout: React.FC<{
     }
   }, [currentMessages, initiateAIResponse]);
 
+  // Add keyboard shortcut for toggling favorites
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Toggle favorites panel with F key
+      if (
+        e.key === "f" &&
+        !e.ctrlKey &&
+        !e.metaKey &&
+        !e.altKey &&
+        document.activeElement?.tagName !== "INPUT" &&
+        document.activeElement?.tagName !== "TEXTAREA"
+      ) {
+        setShowFavorites((prev) => !prev);
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, []);
+
   return (
     <Layout className="main-layout">
       <ChatSidebar
@@ -67,8 +96,15 @@ export const MainLayout: React.FC<{
         onThemeModeChange={onThemeModeChange}
       />
       <Layout className="content-layout">
-        <ChatView />
+        <ChatView
+          showFavorites={showFavorites}
+          setShowFavorites={setShowFavorites}
+        />
       </Layout>
+      {/* Favorites Panel */}
+      {showFavorites && currentChatId && currentMessages.length > 0 && (
+        <FavoritesPanel />
+      )}
     </Layout>
   );
 };

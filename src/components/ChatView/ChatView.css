@@ -7,6 +7,29 @@
   box-sizing: border-box; /* Ensure padding is included in width/height */
 }
 
+/* Add styles for message cards to ensure proper width */
+.ant-list-item {
+  width: 100% !important;
+  box-sizing: border-box !important;
+}
+
+/* Ensure message cards have proper width */
+.ant-card {
+  width: 100% !important;
+  max-width: 100% !important;
+  box-sizing: border-box !important;
+  overflow-wrap: break-word !important;
+  word-wrap: break-word !important;
+}
+
+/* Style for code blocks to prevent overflow */
+pre {
+  white-space: pre-wrap !important;
+  word-break: break-word !important;
+  max-width: 100% !important;
+  overflow-x: auto !important;
+}
+
 .chat-view-messages-list {
   transition: opacity 0.5s ease-in-out;
   will-change: opacity; /* Hint to browser for optimization */
@@ -21,7 +44,6 @@
 
 /* Centered View State (No messages) */
 .chat-view-system-message-container.centered-view {
-
   opacity: 1;
   transform: translateY(0%);
   z-index: 10;
