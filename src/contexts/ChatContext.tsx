@@ -1,6 +1,5 @@
 import React, { createContext, useContext, ReactNode } from "react";
 import { Channel } from "@tauri-apps/api/core";
-import { message } from "antd";
 import { createExportFavorites } from "./newExportFunction";
 import {
   Message,

@@ -52,7 +52,7 @@ export const ChatView: React.FC = () => {
 
       if (messagesNeedingIds) {
         // Create a copy of messages with IDs added where needed
-        const updatedMessages = currentMessages.map((msg, index) => {
+        const updatedMessages = currentMessages.map((msg, _index) => {
           if (!msg.id) {
             return { ...msg, id: crypto.randomUUID() };
           }

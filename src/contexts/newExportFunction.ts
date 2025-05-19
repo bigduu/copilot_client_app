@@ -28,7 +28,9 @@ export const createExportFavorites = (context: ExportContext) => {
     markdownContent += `Generated: ${new Date().toLocaleString()}\n\n`;
 
     chatFavorites.forEach((fav: FavoriteItem, index: number) => {
-      markdownContent += `## ${fav.role === "user" ? "You" : "Assistant"} (${index + 1})\n\n`;
+      markdownContent += `## ${fav.role === "user" ? "You" : "Assistant"} (${
+        index + 1
+      })\n\n`;
       markdownContent += fav.content;
       markdownContent += "\n\n";
       if (fav.note) {
@@ -46,9 +48,10 @@ export const createExportFavorites = (context: ExportContext) => {
     try {
       // Prepare content
       const encoder = new TextEncoder();
-      const content = format === "markdown"
-        ? encoder.encode(markdownContent)
-        : await generatePDFContent(markdownContent);
+      const content =
+        format === "markdown"
+          ? encoder.encode(markdownContent)
+          : await generatePDFContent(markdownContent);
 
       // Prompt user for save location
       const filters = [
@@ -57,7 +60,9 @@ export const createExportFavorites = (context: ExportContext) => {
           extensions: [format === "markdown" ? "md" : "pdf"],
         },
       ];
-      const defaultName = `chat-favorites-${currentChatId.substring(0, 8)}.${format === "markdown" ? "md" : "pdf"}`;
+      const defaultName = `chat-favorites-${currentChatId.substring(0, 8)}.${
+        format === "markdown" ? "md" : "pdf"
+      }`;
       const filePath = await save({
         filters,
         defaultPath: defaultName,
@@ -78,7 +83,9 @@ export const createExportFavorites = (context: ExportContext) => {
     } catch (error: any) {
       console.error(`Error exporting to ${format}:`, error);
       message.error({
-        content: `Failed to export favorites to ${format.toUpperCase()}: ${error?.message || error}`,
+        content: `Failed to export favorites to ${format.toUpperCase()}: ${
+          error?.message || error
+        }`,
         key: messageKey,
       });
     }
@@ -88,7 +95,9 @@ export const createExportFavorites = (context: ExportContext) => {
 };
 
 // Helper function to generate PDF content
-const generatePDFContent = async (markdownContent: string): Promise<Uint8Array> => {
+const generatePDFContent = async (
+  _markdownContent: string
+): Promise<Uint8Array> => {
   const jsPDF = (await import("jspdf")).default;
   const doc = new jsPDF({
     compress: true,

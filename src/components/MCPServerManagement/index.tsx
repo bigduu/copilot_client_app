@@ -51,7 +51,7 @@ export const MCPServerManagementComponent = () => {
       <List
         loading={loading}
         dataSource={Object.entries(servers || {})}
-        renderItem={([name, config]) => (
+        renderItem={([name, _config]) => (
           <List.Item>
             <Space>
               <b>{name}</b>

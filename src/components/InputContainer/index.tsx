@@ -58,7 +58,7 @@ export const InputContainer: React.FC<InputContainerProps> = ({
     prevChatIdRef.current = currentChatId;
   }, [currentChatId]);
 
-  const handleInputSubmit = (content: string) => {
+  const handleInputSubmit = (_content: string) => {
     // Clear reference after submitting for current chat
     if (currentChatId) {
       setReferenceMap((prev) => ({ ...prev, [currentChatId]: null }));

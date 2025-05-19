@@ -30,7 +30,6 @@ interface MessageCardProps {
 const MessageCard: React.FC<MessageCardProps> = ({
   role,
   content,
-  messageIndex,
   children,
   messageId,
 }) => {
