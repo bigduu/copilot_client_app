@@ -4,6 +4,7 @@ use rmcp::model::CallToolRequestParam;
 use serde_json::{Map, Value};
 use std::borrow::Cow;
 use std::sync::Arc;
+use tauri::ipc::Channel;
 
 use crate::copilot::model::stream_model::Message;
 use crate::copilot::{CopilotClient, StreamChunk};
@@ -35,7 +36,7 @@ impl Processor for McpProcessor {
         0
     }
 
-    async fn process(&self, messages: Vec<Message>) -> Vec<Message> {
+    async fn process(&self, messages: Vec<Message>, channel: &Channel<String>) -> Vec<Message> {
         // Check if we have messages and the last message is from the user
         if messages.is_empty() || messages.last().unwrap().role != "user" {
             return messages;
@@ -87,6 +88,20 @@ impl Processor for McpProcessor {
         debug!("LLM query messages: {:?}", llm_query_messages);
 
         // Ask the LLM if we should use a tool
+        let ask_llm_content =
+            format!(
+            "Asking LLM if a MCP tool should be used. System Prompt: '{}'. Query Messages: {:?}",
+            llm_query_messages.iter().find(|m| m.role == "system").map_or("".to_string(), |m| m.content.clone()), // Safely get system_prompt content
+            llm_query_messages.iter().filter(|m| m.role != "system").collect::<Vec<&Message>>() // Get user/assistant messages
+        );
+        let update_msg = format!(
+            "{{\"type\": \"processor_update\", \"source\": \"mcp\", \"content\": {}}}",
+            serde_json::to_string(&ask_llm_content)
+                .unwrap_or_else(|_| "\"Error serializing content\"".to_string())
+        );
+        channel
+            .send(update_msg)
+            .unwrap_or_else(|e| error!("Failed to send MCP status: {:?}", e));
         let (rx, _handle) = self
             .copilot_client
             .send_stream_request(llm_query_messages, None)
@@ -153,8 +168,21 @@ impl Processor for McpProcessor {
                         // Create the tool call request with proper types
                         let param = CallToolRequestParam {
                             name: Cow::Owned(tool_name.clone()),
-                            arguments: Some(arguments),
+                            arguments: Some(arguments.clone()),
                         };
+
+                        // Send update before executing MCP tool
+                        let exec_tool_content = format!(
+                            "Executing MCP tool: '{}' with arguments: {:?}",
+                            tool_name, arguments
+                        );
+                        let update_msg = format!(
+                            "{{\"type\": \"processor_update\", \"source\": \"mcp\", \"content\": {}}}",
+                            serde_json::to_string(&exec_tool_content).unwrap_or_else(|_| "\"Error serializing content\"".to_string())
+                        );
+                        channel
+                            .send(update_msg)
+                            .unwrap_or_else(|e| error!("Failed to send MCP status: {:?}", e));
 
                         // Call the tool
                         match manager
@@ -180,12 +208,34 @@ impl Processor for McpProcessor {
                                     format!("```json\n{:?}\n```", result.content)
                                 };
 
+                                let tool_success_content = format!(
+                                    "MCP tool '{}' execution successful. Result: {:?}",
+                                    tool_name, result.content
+                                );
+                                let update_msg = format!(
+                                    "{{\"type\": \"processor_update\", \"source\": \"mcp\", \"content\": {}}}",
+                                    serde_json::to_string(&tool_success_content).unwrap_or_else(|_| "\"Error serializing content\"".to_string())
+                                );
+                                channel.send(update_msg).unwrap_or_else(|e| {
+                                    error!("Failed to send MCP status: {:?}", e)
+                                });
                                 result_messages.push(Message::developer(response_content));
                                 return result_messages;
                             }
                             Err(err) => {
                                 error!("Error calling MCP tool: {:?}", err);
                                 let mut result_messages = messages.clone();
+                                let tool_failure_content = format!(
+                                    "MCP tool '{}' execution failed. Error: {:?}",
+                                    tool_name, err
+                                );
+                                let update_msg = format!(
+                                    "{{\"type\": \"processor_update\", \"source\": \"mcp\", \"content\": {}}}",
+                                    serde_json::to_string(&tool_failure_content).unwrap_or_else(|_| "\"Error serializing content\"".to_string())
+                                );
+                                channel.send(update_msg).unwrap_or_else(|e| {
+                                    error!("Failed to send MCP status: {:?}", e)
+                                });
                                 result_messages.push(Message::developer(format!(
                                     "Error calling MCP tool: {}",
                                     err

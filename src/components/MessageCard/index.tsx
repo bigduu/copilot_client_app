@@ -7,6 +7,7 @@ import {
   Button,
   Dropdown,
   Tooltip,
+  Collapse, // Added Collapse
 } from "antd";
 import { CopyOutlined, BookOutlined, StarOutlined } from "@ant-design/icons";
 import ReactMarkdown from "react-markdown";
@@ -22,6 +23,7 @@ const { useToken } = theme;
 interface MessageCardProps {
   role: string;
   content: string;
+  processorUpdates?: string[]; // Add this
   messageIndex?: number;
   children?: React.ReactNode;
   messageId?: string;
@@ -30,6 +32,7 @@ interface MessageCardProps {
 const MessageCard: React.FC<MessageCardProps> = ({
   role,
   content,
+  processorUpdates, // Add this
   children,
   messageId,
 }) => {
@@ -185,6 +188,34 @@ const MessageCard: React.FC<MessageCardProps> = ({
                 ? "Assistant"
                 : role}
             </Text>
+            {processorUpdates && processorUpdates.length > 0 && (
+              <Collapse
+                ghost
+                size="small"
+                style={{ marginBottom: token.marginXS }}
+              >
+                <Collapse.Panel
+                  header="View Processing Steps"
+                  key="proc-updates-panel"
+                >
+                  {processorUpdates.map((update, index) => (
+                    <Text
+                      key={`mc-proc-${index}`}
+                      style={{
+                        display: "block",
+                        fontSize: "0.9em",
+                        color: token.colorTextSecondary,
+                        fontStyle: "italic",
+                        whiteSpace: "pre-wrap",
+                        paddingLeft: token.paddingSM,
+                      }}
+                    >
+                      {update}
+                    </Text>
+                  ))}
+                </Collapse.Panel>
+              </Collapse>
+            )}
             <div style={{ width: "100%", maxWidth: "100%" }}>
               <ReactMarkdown
                 remarkPlugins={

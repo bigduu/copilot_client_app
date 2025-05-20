@@ -95,6 +95,7 @@ export const useChats = (defaultModel?: string): UseChatsReturn => {
         initialMessages.push({
           role: "user",
           content: firstUserMessageContent,
+          id: uuidv4(), // Add ID to user message
         });
       }
 
@@ -167,7 +168,7 @@ export const useChats = (defaultModel?: string): UseChatsReturn => {
         console.error("Failed to delete all chats:", error);
       }
     },
-    [chats, currentChatId]
+    [chats] // Removed currentChatId as it's not directly used for filtering, set separately
   );
 
   const updateChatMessages = useCallback(

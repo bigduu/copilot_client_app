@@ -2,6 +2,7 @@ export interface Message {
     role: "system" | "user" | "assistant";
     content: string;
     id?: string; // Unique identifier for the message
+    processorUpdates?: string[]; // Optional: To store processor update strings
 }
 
 export interface FavoriteItem {

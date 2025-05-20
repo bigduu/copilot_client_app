@@ -1,11 +1,11 @@
-import React, {useEffect, useRef, useState} from "react";
-import {theme, Typography} from "antd";
+import React, { useEffect, useRef, useState } from "react";
+import { theme, Typography, Collapse } from "antd";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import {Prism as SyntaxHighlighter} from "react-syntax-highlighter";
-import {oneDark} from "react-syntax-highlighter/dist/esm/styles/prism";
-import {Channel} from "@tauri-apps/api/core";
-import {Message} from "../../types/chat";
+import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
+import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism";
+import { Channel } from "@tauri-apps/api/core";
+import { Message } from "../../types/chat";
 
 const { Text } = Typography;
 const { useToken } = theme;
@@ -49,9 +49,12 @@ const StreamingMessageItem: React.FC<StreamingMessageItemProps> = ({
   onComplete,
 }) => {
   const [content, setContent] = useState("");
+  const [processorUpdates, setProcessorUpdates] = useState<string[]>([]);
+  const [showProcessorUpdates, setShowProcessorUpdates] = useState(false);
   const [isComplete, setIsComplete] = useState(false);
   const hasCompletedRef = useRef(false);
   const fullTextRef = useRef("");
+  const processorUpdatesRef = useRef<string[]>([]); // Add this line
   const receivedMessagesCount = useRef(0);
   const startTimeRef = useRef(Date.now());
   const isMountedRef = useRef(true);
@@ -81,6 +84,7 @@ const StreamingMessageItem: React.FC<StreamingMessageItemProps> = ({
     onComplete({
       role: "assistant",
       content: finalContent || "Message interrupted",
+      processorUpdates: processorUpdatesRef.current,
     });
   };
 
@@ -118,6 +122,27 @@ const StreamingMessageItem: React.FC<StreamingMessageItemProps> = ({
         const response = JSON.parse(rawText);
 
         console.log("[StreamingMessageItem] Response:", response);
+
+        // Check for processor updates
+        if (
+          response.type === "processor_update" &&
+          response.source &&
+          response.content
+        ) {
+          console.log(
+            "[StreamingMessageItem] Received processor update:",
+            response
+          );
+          const processorMessage = `[Processor: ${response.source}] ${response.content}`;
+          // Add to processorUpdates state for live rendering
+          setProcessorUpdates((prevUpdates) => [
+            ...prevUpdates,
+            processorMessage,
+          ]);
+          // Also add to ref for onComplete
+          processorUpdatesRef.current.push(processorMessage); // Add this line
+          return;
+        }
 
         // Check for error fields in the response
         if (response.error) {
@@ -266,15 +291,19 @@ const StreamingMessageItem: React.FC<StreamingMessageItemProps> = ({
           const finalContent = fullTextRef.current;
           // We're calling onComplete directly rather than through completeMessage
           // since completeMessage won't run for unmounted components
+          // Inside the if (fullTextRef.current) block
           onComplete({
             role: "assistant",
             content: finalContent,
+            processorUpdates: processorUpdatesRef.current,
           });
         } else {
+          // And in the else block
           onComplete({
             role: "assistant",
             content:
               "Message interrupted - Component unmounted before receiving content",
+            processorUpdates: processorUpdatesRef.current,
           });
         }
       }
@@ -284,77 +313,104 @@ const StreamingMessageItem: React.FC<StreamingMessageItemProps> = ({
 
   return (
     <div style={{ position: "relative" }}>
-        <div style={{display: "flex", flexDirection: "column"}}>
-            <ReactMarkdown
-                remarkPlugins={[remarkGfm]}
-                components={{
-                    p: ({children}) => (
-                        <Text style={{marginBottom: token.marginSM, display: "block"}}>
-                            {children}
-                        </Text>
-                    ),
-                    ol: ({children}) => (
-                        <ol style={{marginBottom: token.marginSM, paddingLeft: 20}}>
-                            {children}
-                        </ol>
-                    ),
-                    ul: ({children}) => (
-                        <ul style={{marginBottom: token.marginSM, paddingLeft: 20}}>
-                            {children}
-                        </ul>
-                    ),
-                    li: ({children}) => (
-                        <li style={{marginBottom: token.marginXS}}>{children}</li>
-                    ),
-                    code({className, children, ...props}) {
-                        const match = /language-(\w+)/.exec(className || "");
-                        const language = match ? match[1] : "";
-                        const isInline = !match && !className;
-                        const codeString = String(children).replace(/\n$/, "");
+      <div style={{ display: "flex", flexDirection: "column" }}>
+        {processorUpdates.length > 0 && (
+          <Collapse
+            ghost
+            size="small"
+            activeKey={showProcessorUpdates ? ["1"] : []}
+            onChange={() => setShowProcessorUpdates(!showProcessorUpdates)}
+            style={{ marginBottom: token.marginXS }}
+          >
+            <Collapse.Panel header="View Processing Steps" key="1">
+              {processorUpdates.map((update, index) => (
+                <Text
+                  key={`proc-${index}`}
+                  style={{
+                    display: "block", // Ensure each update is on a new line
+                    fontSize: "0.9em",
+                    color: token.colorTextSecondary,
+                    fontStyle: "italic",
+                    whiteSpace: "pre-wrap",
+                    paddingLeft: token.paddingSM, // Indent content within panel
+                  }}
+                >
+                  {update}
+                </Text>
+              ))}
+            </Collapse.Panel>
+          </Collapse>
+        )}
+        <ReactMarkdown
+          remarkPlugins={[remarkGfm]}
+          components={{
+            p: ({ children }) => (
+              <Text style={{ marginBottom: token.marginSM, display: "block" }}>
+                {children}
+              </Text>
+            ),
+            ol: ({ children }) => (
+              <ol style={{ marginBottom: token.marginSM, paddingLeft: 20 }}>
+                {children}
+              </ol>
+            ),
+            ul: ({ children }) => (
+              <ul style={{ marginBottom: token.marginSM, paddingLeft: 20 }}>
+                {children}
+              </ul>
+            ),
+            li: ({ children }) => (
+              <li style={{ marginBottom: token.marginXS }}>{children}</li>
+            ),
+            code({ className, children, ...props }) {
+              const match = /language-(\w+)/.exec(className || "");
+              const language = match ? match[1] : "";
+              const isInline = !match && !className;
+              const codeString = String(children).replace(/\n$/, "");
 
-                        if (isInline) {
-                            return (
-                                <Text code className={className} {...props}>
-                                    {children}
-                                </Text>
-                            );
-                        }
+              if (isInline) {
+                return (
+                  <Text code className={className} {...props}>
+                    {children}
+                  </Text>
+                );
+              }
 
-                        return (
-                            <div style={{position: "relative"}}>
-                                <SyntaxHighlighter
-                                    style={oneDark}
-                                    language={language || "text"}
-                                    PreTag="div"
-                                    customStyle={{
-                                        margin: `${token.marginXS}px 0`,
-                                        borderRadius: token.borderRadiusSM,
-                                        fontSize: token.fontSizeSM,
-                                    }}
-                                >
-                                    {codeString}
-                                </SyntaxHighlighter>
-                            </div>
-                        );
-                    },
-                }}
-            >
-                {content || " "}
-            </ReactMarkdown>
-
-            {/* 在最后一行添加闪烁光标，只有在流式消息未完成时显示 */}
-            {!isComplete && content && (
-                <span
-                    className="blinking-cursor"
-                    style={{
-                        display: "inline-block",
-                        marginTop: "-1.2em", // 上移到最后一行文本处
-                        marginLeft: "0.2em", // 添加一点间距
-                        color: token.colorText,
+              return (
+                <div style={{ position: "relative" }}>
+                  <SyntaxHighlighter
+                    style={oneDark}
+                    language={language || "text"}
+                    PreTag="div"
+                    customStyle={{
+                      margin: `${token.marginXS}px 0`,
+                      borderRadius: token.borderRadiusSM,
+                      fontSize: token.fontSizeSM,
                     }}
-                />
-            )}
-        </div>
+                  >
+                    {codeString}
+                  </SyntaxHighlighter>
+                </div>
+              );
+            },
+          }}
+        >
+          {content || " "}
+        </ReactMarkdown>
+
+        {/* 在最后一行添加闪烁光标，只有在流式消息未完成时显示 */}
+        {!isComplete && content && (
+          <span
+            className="blinking-cursor"
+            style={{
+              display: "inline-block",
+              marginTop: "-1.2em", // 上移到最后一行文本处
+              marginLeft: "0.2em", // 添加一点间距
+              color: token.colorText,
+            }}
+          />
+        )}
+      </div>
       {!isComplete && <TypingIndicator />}
     </div>
   );

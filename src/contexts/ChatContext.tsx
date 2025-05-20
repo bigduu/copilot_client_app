@@ -470,13 +470,13 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
 export const useChat = (): ChatContextType => {
   const context = useContext(ChatContext);
 
-  // Log context access for debugging
-  console.log("useChat hook called with context:", {
-    systemPromptAvailable: !!context.systemPrompt,
-    updateSystemPromptAvailable: !!context.updateSystemPrompt,
-    chatCount: context.chats.length,
-    favoriteCount: context.favorites.length,
-  });
+  // // Log context access for debugging
+  // console.log("useChat hook called with context:", {
+  //   systemPromptAvailable: !!context.systemPrompt,
+  //   updateSystemPromptAvailable: !!context.updateSystemPrompt,
+  //   chatCount: context.chats.length,
+  //   favoriteCount: context.favorites.length,
+  // });
 
   return context;
 };

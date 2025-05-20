@@ -60,7 +60,7 @@ export const ChatSidebar: React.FC<{
   }, []);
 
   // For debugging
-  console.log("ChatSidebar rendered with chats:", chats);
+  // console.log("ChatSidebar rendered with chats:", chats);
 
   // Group chats by date
   const groupedChats = groupChatsByDate(chats);

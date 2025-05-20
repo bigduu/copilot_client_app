@@ -266,10 +266,6 @@ export const ChatView: React.FC<ChatViewProps> = ({
               .map((message, index) => {
                 const messageCardId =
                   message.id || `msg-${currentChatId}-${index}`;
-                console.log(
-                  `Rendering message ${index} with ID:`,
-                  messageCardId
-                );
                 return (
                   <List.Item
                     key={index}
@@ -295,6 +291,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
                       <MessageCard
                         role={message.role}
                         content={message.content}
+                        processorUpdates={message.processorUpdates} // Add this line
                         messageIndex={index}
                         messageId={messageCardId}
                       />

@@ -35,17 +35,15 @@ export const useMessages = (
 
   // Add assistant message when streaming is complete
   const addAssistantMessage = useCallback(
-    (assistantMessage: Message) => {
-      console.log("Adding assistant message to chat:", assistantMessage);
-
+    (message: Message) => { // Renamed assistantMessage to message for consistency with instructions
       if (currentChatId) {
         // Ensure the message has an ID
-        const messageWithId = {
-          ...assistantMessage,
-          id: assistantMessage.id || crypto.randomUUID(),
+        const finalMessage = { // Renamed messageWithId to finalMessage for consistency
+          ...message,
+          id: message.id || crypto.randomUUID(),
         };
         
-        const updatedMessages = [...currentMessages, messageWithId];
+        const updatedMessages = [...currentMessages, finalMessage];
         updateChatMessages(currentChatId, updatedMessages);
         
         // Reset streaming state and clear active channel
@@ -217,6 +215,7 @@ export const useMessages = (
     currentMessages,
     currentChat,
     addAssistantMessage,
+    updateChatMessages, // Added missing dependency based on usage in the function
   ]);
 
   return {

@@ -20,7 +20,7 @@ const SystemMessage: React.FC<SystemMessageProps> = ({
   expanded: controlledExpanded,
   onExpandChange,
 }) => {
-  console.log("SystemMessage component rendering");
+  // console.log("SystemMessage component rendering");
   const { token } = useToken();
 
   // Get the system prompt from the current chat context

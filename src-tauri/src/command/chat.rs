@@ -15,7 +15,7 @@ pub async fn execute_prompt(
 ) -> Result<(), String> {
     info!("=== EXECUTE_PROMPT START ===");
     info!("The latest message: {}", messages.last().unwrap().content);
-    let messages = processor_manager.process(messages).await;
+    let messages = processor_manager.process(messages, &channel).await;
     let client = state.clone();
     let (mut rx, handle) = client.send_stream_request(messages, model).await;
 

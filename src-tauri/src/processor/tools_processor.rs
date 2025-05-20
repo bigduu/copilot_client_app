@@ -2,6 +2,7 @@ use async_trait::async_trait;
 use log::{debug, error, info};
 use serde_json::{Map, Value};
 use std::sync::Arc;
+use tauri::ipc::Channel;
 
 use crate::copilot::model::stream_model::Message;
 use crate::copilot::{CopilotClient, StreamChunk};
@@ -35,7 +36,7 @@ impl Processor for ToolsProcessor {
         1 // Order 1 means it runs after McpProcessor (order 0)
     }
 
-    async fn process(&self, messages: Vec<Message>) -> Vec<Message> {
+    async fn process(&self, messages: Vec<Message>, channel: &Channel<String>) -> Vec<Message> {
         // Check if we have messages and the last message is from the user
         if messages.is_empty() || messages.last().unwrap().role != "user" {
             return messages;
@@ -55,7 +56,7 @@ impl Processor for ToolsProcessor {
         let mut llm_query_messages = Vec::new();
 
         // Add the system message first
-        llm_query_messages.push(Message::system(system_prompt));
+        llm_query_messages.push(Message::system(system_prompt.clone()));
 
         // Add the original messages (except for the system message if any)
         for msg in &messages {
@@ -67,6 +68,19 @@ impl Processor for ToolsProcessor {
         debug!("LLM query messages: {:?}", llm_query_messages);
 
         // Ask the LLM if we should use a tool
+        let ask_llm_content = format!(
+            "Asking LLM if a local tool should be used. System Prompt: '{}'. Query Messages: {:?}",
+            system_prompt,      // Already defined
+            llm_query_messages  // Already defined
+        );
+        let update_msg = format!(
+            "{{\"type\": \"processor_update\", \"source\": \"tools\", \"content\": {}}}",
+            serde_json::to_string(&ask_llm_content)
+                .unwrap_or_else(|_| "\"Error serializing content\"".to_string())
+        );
+        channel
+            .send(update_msg)
+            .unwrap_or_else(|e| error!("Failed to send tools status: {:?}", e));
         let (rx, _handle) = self
             .copilot_client
             .send_stream_request(llm_query_messages, None)
@@ -145,13 +159,41 @@ impl Processor for ToolsProcessor {
                             tool_name, parameters
                         );
 
+                        // Send update before executing local tool
+                        let exec_tool_content = format!(
+                            "Executing local tool: '{}' with parameters: {:?}",
+                            tool_name,  // Already defined
+                            parameters  // Already defined
+                        );
+                        let update_msg = format!(
+                            "{{\"type\": \"processor_update\", \"source\": \"tools\", \"content\": {}}}",
+                            serde_json::to_string(&exec_tool_content).unwrap_or_else(|_| "\"Error serializing content\"".to_string())
+                        );
+                        channel
+                            .send(update_msg)
+                            .unwrap_or_else(|e| error!("Failed to send tools status: {:?}", e));
+
                         // Execute the tool (we need to get the tool from the manager)
-                        let tool_result = self.execute_tool(tool_name.clone(), parameters).await;
+                        let tool_result = self
+                            .execute_tool(tool_name.clone(), parameters.clone())
+                            .await;
 
                         match tool_result {
                             Ok(result) => {
                                 debug!("Tool execution result: {}", result);
                                 // Create a new message with the result
+                                let tool_success_content = format!(
+                                    "Local tool '{}' execution successful. Result: {}",
+                                    tool_name, // from the Ok(result) block's outer scope
+                                    result     // from the Ok(result) block
+                                );
+                                let update_msg = format!(
+                                    "{{\"type\": \"processor_update\", \"source\": \"tools\", \"content\": {}}}",
+                                    serde_json::to_string(&tool_success_content).unwrap_or_else(|_| "\"Error serializing content\"".to_string())
+                                );
+                                channel.send(update_msg).unwrap_or_else(|e| {
+                                    error!("Failed to send tools status: {:?}", e)
+                                });
                                 let mut result_messages = messages.clone();
                                 result_messages.push(Message::developer(format!(
                                     "Tool {} execution result:\n```\n{}\n```",
@@ -161,6 +203,18 @@ impl Processor for ToolsProcessor {
                             }
                             Err(err) => {
                                 error!("Error executing tool: {:?}", err);
+                                let tool_failure_content = format!(
+                                    "Local tool '{}' execution failed. Error: {:?}",
+                                    tool_name, // from the Err(err) block's outer scope
+                                    err
+                                );
+                                let update_msg = format!(
+                                    "{{\"type\": \"processor_update\", \"source\": \"tools\", \"content\": {}}}",
+                                    serde_json::to_string(&tool_failure_content).unwrap_or_else(|_| "\"Error serializing content\"".to_string())
+                                );
+                                channel.send(update_msg).unwrap_or_else(|e| {
+                                    error!("Failed to send tools status: {:?}", e)
+                                });
                                 let mut result_messages = messages.clone();
                                 result_messages.push(Message::developer(format!(
                                     "Error executing tool {}: {}",

@@ -8,7 +8,11 @@ pub mod tools_processor;
 pub trait Processor: Send + Sync {
     fn enabled(&self) -> bool;
     fn order(&self) -> usize;
-    async fn process(&self, messages: Vec<Message>) -> Vec<Message>;
+    async fn process(
+        &self,
+        messages: Vec<Message>,
+        channel: &tauri::ipc::Channel<String>,
+    ) -> Vec<Message>;
 }
 
 pub struct ProcessorManager {
@@ -27,11 +31,15 @@ impl ProcessorManager {
         self.processors.sort_by_key(|p| p.order());
     }
 
-    pub async fn process(&self, messages: Vec<Message>) -> Vec<Message> {
+    pub async fn process(
+        &self,
+        messages: Vec<Message>,
+        channel: &tauri::ipc::Channel<String>,
+    ) -> Vec<Message> {
         let mut messages = messages;
         for processor in self.processors.iter() {
             if processor.enabled() {
-                messages = processor.process(messages).await;
+                messages = processor.process(messages, channel).await;
             }
         }
         messages
