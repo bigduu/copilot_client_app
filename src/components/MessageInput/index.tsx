@@ -23,7 +23,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
 
   const { sendMessage, initiateAIResponse, currentMessages } = useChat();
 
-  // Store reference text when it changes, but don't show it in the input
+  // Store or clear reference text when it changes
   useEffect(() => {
     if (referenceText) {
       setHiddenReference(referenceText);
@@ -34,6 +34,9 @@ export const MessageInput: React.FC<MessageInputProps> = ({
           textAreaRef.current?.focus();
         }, 50);
       }
+    } else {
+      // Clear the hidden reference when referenceText becomes null
+      setHiddenReference(null);
     }
   }, [referenceText]);
 

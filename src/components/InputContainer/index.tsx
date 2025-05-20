@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useState, useRef, useCallback } from "react";
 import { Button, Space, Tooltip, Spin, theme } from "antd";
 import { SettingOutlined } from "@ant-design/icons";
 import { MessageInput } from "../MessageInput";
@@ -26,6 +26,17 @@ export const InputContainer: React.FC<InputContainerProps> = ({
   const { currentChatId } = useChat();
   const prevChatIdRef = useRef<string | null>(null);
 
+  // Clear reference text - using useCallback to ensure stable reference
+  const clearReferenceText = useCallback((chatId: string) => {
+    if (!chatId) return;
+
+    setReferenceMap((prevMap) => {
+      const newMap = { ...prevMap };
+      newMap[chatId] = null;
+      return newMap;
+    });
+  }, []);
+
   // Listen for reference-text events from MessageCard/FavoritesPanel
   useEffect(() => {
     const handleReferenceText = (e: Event) => {
@@ -44,28 +55,35 @@ export const InputContainer: React.FC<InputContainerProps> = ({
     return () => {
       window.removeEventListener("reference-text", handleReferenceText);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentChatId]);
 
   // Clear reference when chat switches
   useEffect(() => {
     if (prevChatIdRef.current && prevChatIdRef.current !== currentChatId) {
-      setReferenceMap((prev) => ({
-        ...prev,
-        [prevChatIdRef.current as string]: null,
-      }));
+      clearReferenceText(prevChatIdRef.current);
     }
     prevChatIdRef.current = currentChatId;
-  }, [currentChatId]);
+  }, [currentChatId, clearReferenceText]);
 
-  const handleInputSubmit = (_content: string) => {
-    // Clear reference after submitting for current chat
-    if (currentChatId) {
-      setReferenceMap((prev) => ({ ...prev, [currentChatId]: null }));
-    }
-  };
+  const handleInputSubmit = useCallback(
+    (_content: string) => {
+      // Clear reference after submitting for current chat
+      if (currentChatId) {
+        clearReferenceText(currentChatId);
+      }
+    },
+    [currentChatId, clearReferenceText]
+  );
 
+  // Calculate current reference text
   const referenceText = currentChatId ? referenceMap[currentChatId] : null;
+
+  // Handler for closing the input preview
+  const handleClosePreview = useCallback(() => {
+    if (currentChatId) {
+      clearReferenceText(currentChatId);
+    }
+  }, [currentChatId, clearReferenceText]);
 
   return (
     <div
@@ -80,14 +98,7 @@ export const InputContainer: React.FC<InputContainerProps> = ({
       }}
     >
       {referenceText && (
-        <InputPreview
-          text={referenceText}
-          onClose={() => {
-            if (currentChatId) {
-              setReferenceMap((prev) => ({ ...prev, [currentChatId]: null }));
-            }
-          }}
-        />
+        <InputPreview text={referenceText} onClose={handleClosePreview} />
       )}
 
       <Space.Compact block>
