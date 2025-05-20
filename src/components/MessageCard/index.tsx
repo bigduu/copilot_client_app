@@ -156,7 +156,9 @@ const MessageCard: React.FC<MessageCardProps> = ({
           ref={cardRef}
           style={{
             width: "100%",
-            maxWidth: "100%",
+            minWidth: "100%",
+            maxWidth: "800px",
+            margin: "0 auto",
             background:
               role === "user"
                 ? token.colorPrimaryBg
@@ -175,7 +177,7 @@ const MessageCard: React.FC<MessageCardProps> = ({
           <Space
             direction="vertical"
             size={token.marginXS}
-            style={{ width: "100%" }}
+            style={{ width: "100%", maxWidth: "100%" }}
           >
             <Text
               type="secondary"
@@ -324,58 +326,59 @@ const MessageCard: React.FC<MessageCardProps> = ({
             {children}
 
             {/* Action buttons - shown for both user and assistant messages when hovering */}
-            {isHovering && (
-              <div
-                style={{
-                  display: "flex",
-                  justifyContent: "flex-end",
-                  gap: token.marginXS,
-                  marginTop: token.marginXS,
-                  position: "absolute",
-                  bottom: token.paddingXS,
-                  right: token.paddingXS,
-                  background: "transparent",
-                  zIndex: 1,
-                }}
-              >
-                <Tooltip title="Copy message">
-                  <Button
-                    icon={<CopyOutlined />}
-                    size="small"
-                    type="text"
-                    onClick={() => copyToClipboard(content)}
-                    style={{
-                      background: token.colorBgElevated,
-                      borderRadius: token.borderRadiusSM,
-                    }}
-                  />
-                </Tooltip>
-                <Tooltip title="Add to favorites">
-                  <Button
-                    icon={<StarOutlined />}
-                    size="small"
-                    type="text"
-                    onClick={addMessageToFavorites}
-                    style={{
-                      background: token.colorBgElevated,
-                      borderRadius: token.borderRadiusSM,
-                    }}
-                  />
-                </Tooltip>
-                <Tooltip title="Reference message">
-                  <Button
-                    icon={<BookOutlined />}
-                    size="small"
-                    type="text"
-                    onClick={referenceMessage}
-                    style={{
-                      background: token.colorBgElevated,
-                      borderRadius: token.borderRadiusSM,
-                    }}
-                  />
-                </Tooltip>
-              </div>
-            )}
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "flex-end",
+                gap: token.marginXS,
+                marginTop: token.marginXS,
+                position: "absolute",
+                bottom: token.paddingXS,
+                right: token.paddingXS,
+                background: "transparent",
+                zIndex: 1,
+                opacity: isHovering ? 1 : 0,
+                transition: "opacity 0.2s ease",
+                pointerEvents: isHovering ? "auto" : "none",
+              }}
+            >
+              <Tooltip title="Copy message">
+                <Button
+                  icon={<CopyOutlined />}
+                  size="small"
+                  type="text"
+                  onClick={() => copyToClipboard(content)}
+                  style={{
+                    background: token.colorBgElevated,
+                    borderRadius: token.borderRadiusSM,
+                  }}
+                />
+              </Tooltip>
+              <Tooltip title="Add to favorites">
+                <Button
+                  icon={<StarOutlined />}
+                  size="small"
+                  type="text"
+                  onClick={addMessageToFavorites}
+                  style={{
+                    background: token.colorBgElevated,
+                    borderRadius: token.borderRadiusSM,
+                  }}
+                />
+              </Tooltip>
+              <Tooltip title="Reference message">
+                <Button
+                  icon={<BookOutlined />}
+                  size="small"
+                  type="text"
+                  onClick={referenceMessage}
+                  style={{
+                    background: token.colorBgElevated,
+                    borderRadius: token.borderRadiusSM,
+                  }}
+                />
+              </Tooltip>
+            </div>
           </Space>
         </Card>
       </Dropdown>
