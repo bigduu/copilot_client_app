@@ -1,6 +1,6 @@
 use async_trait::async_trait;
 use log::{debug, error, info};
-use serde_json::{Map, Value};
+use serde_json::Value;
 use std::sync::Arc;
 use tauri::ipc::Channel;
 
@@ -8,7 +8,7 @@ use crate::copilot::model::stream_model::Message;
 use crate::copilot::{CopilotClient, StreamChunk};
 use crate::tools::{Parameter, ToolManager};
 
-use super::{pop_last_message, Processor};
+use super::Processor;
 
 pub struct ToolsProcessor {
     enabled: bool,

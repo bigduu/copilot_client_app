@@ -282,7 +282,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
                     <div
                       style={{
                         width: message.role === "user" ? "85%" : "100%",
-                        maxWidth: "clamp(320px, 85%, 768px)",
+                        maxWidth: "clamp(320px, 85%, 90%)",
                         display: "flex",
                         justifyContent:
                           message.role === "user" ? "flex-end" : "flex-start",
