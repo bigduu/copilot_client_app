@@ -8,6 +8,7 @@ import { Channel } from "@tauri-apps/api/core";
 import { Message } from "../../types/chat";
 import { ToolCall, toolParser } from "../../utils/toolParser";
 import { ToolExecutionResult } from "../../services/MessageProcessor";
+import ToolApprovalCard from "../ToolApprovalCard";
 
 const { Text } = Typography;
 const { useToken } = theme;
@@ -470,96 +471,34 @@ const StreamingMessageItem: React.FC<StreamingMessageItemProps> = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Add a new component to display detected tool calls
-  const ToolCallDisplay: React.FC<{ toolCall: ToolCall }> = ({ toolCall }) => {
-    const { token } = useToken();
+  // Add handlers for tool approval and rejection
+  const handleToolApprove = (toolCall: ToolCall) => {
+    console.log("[StreamingMessageItem] Tool approved:", toolCall);
+    // Here you would implement the execution of the approved tool
+    notification.success({
+      message: "工具已批准",
+      description: `已批准执行: ${toolCall.tool_name}`,
+      placement: "bottomRight",
+      duration: 3,
+    });
 
-    // 获取工具参数的友好展示
-    const renderParameters = () => {
-      const params = toolCall.parameters;
-
-      if (toolCall.tool_name === "execute_command" && params.command) {
-        return (
-          <div style={{ margin: "4px 0" }}>
-            <Text strong>命令：</Text>
-            <div
-              style={{
-                background: "#1f2937",
-                color: "#e5e7eb",
-                padding: "4px 8px",
-                borderRadius: "4px",
-                marginTop: "4px",
-                fontFamily: "monospace",
-              }}
-            >
-              {params.command}
-            </div>
-          </div>
-        );
-      }
-
-      return (
-        <div>
-          {Object.entries(params).map(([key, value]) => (
-            <div key={key} style={{ margin: "4px 0" }}>
-              <Text strong>{key}：</Text>
-              <Text>
-                {typeof value === "string" ? value : JSON.stringify(value)}
-              </Text>
-            </div>
-          ))}
-        </div>
-      );
-    };
-
-    return (
-      <div
-        style={{
-          border: `1px solid ${token.colorBorder}`,
-          borderRadius: token.borderRadius,
-          padding: token.padding,
-          marginTop: token.margin,
-          background: token.colorBgElevated,
-        }}
-      >
-        <div
-          style={{ display: "flex", alignItems: "center", marginBottom: "8px" }}
-        >
-          <span style={{ fontSize: "20px", marginRight: "8px" }}>
-            {toolCall.tool_name === "execute_command" ? "💻" : "🛠️"}
-          </span>
-          <div>
-            <div style={{ fontWeight: "bold" }}>
-              {toolCall.tool_name === "execute_command"
-                ? "执行命令"
-                : toolCall.tool_name}
-            </div>
-            <div style={{ fontSize: "12px", color: token.colorTextSecondary }}>
-              {toolCall.tool_type === "local" ? "本地工具" : "MCP工具"}
-              {toolCall.requires_approval && (
-                <span
-                  style={{
-                    marginLeft: "8px",
-                    color: token.colorError,
-                    background: token.colorErrorBg,
-                    padding: "2px 6px",
-                    borderRadius: "4px",
-                    fontSize: "12px",
-                  }}
-                >
-                  需要批准
-                </span>
-              )}
-            </div>
-          </div>
-        </div>
-
-        {renderParameters()}
-      </div>
-    );
+    // Call your tool execution logic here
+    if (typeof (window as any).__executeApprovedTool === "function") {
+      (window as any).__executeApprovedTool(toolCall);
+    }
   };
 
-  // In the StreamingMessageItem component, add this render function:
+  const handleToolReject = (toolCall: ToolCall) => {
+    console.log("[StreamingMessageItem] Tool rejected:", toolCall);
+    notification.info({
+      message: "工具已拒绝",
+      description: `已拒绝执行: ${toolCall.tool_name}`,
+      placement: "bottomRight",
+      duration: 3,
+    });
+  };
+
+  // Replace the ToolCallDisplay component with this:
   const renderToolCalls = () => {
     if (toolCalls.length === 0) return null;
 
@@ -579,7 +518,12 @@ const StreamingMessageItem: React.FC<StreamingMessageItemProps> = ({
               style={{ display: "flex", flexDirection: "column", gap: "8px" }}
             >
               {toolCalls.map((toolCall, index) => (
-                <ToolCallDisplay key={index} toolCall={toolCall} />
+                <ToolApprovalCard
+                  key={index}
+                  toolCall={toolCall}
+                  onApprove={handleToolApprove}
+                  onReject={handleToolReject}
+                />
               ))}
             </div>
           </Collapse.Panel>
