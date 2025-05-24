@@ -1,8 +1,8 @@
-import { invoke } from '@tauri-apps/api/core';
+import { invoke } from "@tauri-apps/api/core";
 
 export interface ToolInfo {
   name: string;
-  type: 'local' | 'mcp';
+  type: "local" | "mcp";
   description: string;
   parameters: ParameterInfo[];
   requires_approval: boolean;
@@ -15,7 +15,7 @@ export interface ParameterInfo {
 }
 
 export interface ToolCall {
-  tool_type: 'local' | 'mcp';
+  tool_type: "local" | "mcp";
   tool_name: string;
   parameters: Record<string, any>;
   requires_approval: boolean;
@@ -36,10 +36,12 @@ export class ToolParser {
    */
   async loadAvailableTools(): Promise<void> {
     try {
-      const xmlContent: string = await invoke('get_all_available_tools');
-      this.availableTools = this.parseXmlToolList(xmlContent);
+      const tools: ToolInfo[] = await invoke("get_all_available_tools");
+      console.log("[ToolParser] Loaded available tools:", tools);
+      this.availableTools = tools;
+      console.log("[ToolParser] Available tools:", this.availableTools);
     } catch (error) {
-      console.error('Failed to load available tools:', error);
+      console.error("Failed to load available tools:", error);
       this.availableTools = [];
     }
   }
@@ -52,87 +54,44 @@ export class ToolParser {
   }
 
   /**
-   * 解析XML格式的工具列表
-   */
-  parseXmlToolList(xmlContent: string): ToolInfo[] {
-    try {
-      const parser = new DOMParser();
-      const doc = parser.parseFromString(xmlContent, 'text/xml');
-      const tools = doc.querySelectorAll('tool');
-      
-      return Array.from(tools).map(tool => {
-        const nameElement = tool.querySelector('tool_name');
-        const typeElement = tool.querySelector('tool_type');
-        const descElement = tool.querySelector('tool_description');
-        const approvalElement = tool.querySelector('tool_required_approval');
-        const parametersElement = tool.querySelector('tool_parameters');
-
-        const name = nameElement?.textContent?.trim() || '';
-        const type = (typeElement?.textContent?.trim() || 'local') as 'local' | 'mcp';
-        const description = descElement?.textContent?.trim() || '';
-        const requires_approval = approvalElement?.textContent?.trim() === 'true';
-
-        // 解析参数
-        const parameters: ParameterInfo[] = [];
-        if (parametersElement) {
-          const paramElements = parametersElement.children;
-          for (let i = 0; i < paramElements.length; i++) {
-            const paramElement = paramElements[i];
-            const paramName = paramElement.tagName;
-            const paramDesc = paramElement.querySelector('parameter_description')?.textContent?.trim() || '';
-            
-            parameters.push({
-              name: paramName,
-              description: paramDesc,
-              required: true // 默认设为必需，可以后续优化
-            });
-          }
-        }
-
-        return {
-          name,
-          type,
-          description,
-          parameters,
-          requires_approval
-        };
-      });
-    } catch (error) {
-      console.error('Failed to parse XML tool list:', error);
-      return [];
-    }
-  }
-
-  /**
    * 生成包含工具信息的系统提示
    */
   generateSystemPrompt(): string {
-    const localTools = this.availableTools.filter(t => t.type === 'local');
-    const mcpTools = this.availableTools.filter(t => t.type === 'mcp');
-    
+    const localTools = this.availableTools.filter((t) => t.type === "local");
+    const mcpTools = this.availableTools.filter((t) => t.type === "mcp");
+
     let prompt = `=== Available Tools ===\n\n`;
-    
+
     if (localTools.length > 0) {
       prompt += `**Local Tools:**\n`;
-      localTools.forEach(tool => {
+      localTools.forEach((tool) => {
         prompt += `- ${tool.name}: ${tool.description}\n`;
+
+        if (tool.parameters.length > 0) {
+          prompt += `  Parameters:\n`;
+          tool.parameters.forEach((param) => {
+            prompt += `  - ${param.name}: ${param.description} ${
+              param.required ? "(required)" : "(optional)"
+            }\n`;
+          });
+        }
       });
       prompt += `\n`;
     }
-    
+
     if (mcpTools.length > 0) {
       prompt += `**MCP Tools:**\n`;
-      mcpTools.forEach(tool => {
+      mcpTools.forEach((tool) => {
         prompt += `- ${tool.name}: ${tool.description}\n`;
       });
       prompt += `\n`;
     }
-    
+
     prompt += `使用方式：当需要使用工具时，请在回复中包含JSON格式：\n`;
     prompt += `{"use_tool": true, "tool_type": "local|mcp", "tool_name": "工具名", "parameters": {...}, "requires_approval": true/false}\n\n`;
     prompt += `安全操作(查询、搜索): requires_approval: false\n`;
     prompt += `危险操作(创建、删除、修改): requires_approval: true`;
-    
+
     return prompt;
   }
 
@@ -141,83 +100,195 @@ export class ToolParser {
    */
   parseToolCallsFromContent(content: string): ToolCall[] {
     const toolCalls: ToolCall[] = [];
-    
-    // 查找JSON格式的工具调用
-    const jsonPattern = /\{[^}]*"use_tool"\s*:\s*true[^}]*\}/g;
+
+    // 记录解析过程
+    console.log(
+      "[ToolParser] Parsing content for tool calls, content length:",
+      content.length
+    );
+
+    // 尝试处理整个内容是一个完整的JSON对象的情况
+    if (content.trim().startsWith("{") && content.trim().endsWith("}")) {
+      try {
+        const parsed = JSON.parse(content.trim());
+        console.log(
+          "[ToolParser] Successfully parsed entire content as JSON:",
+          parsed
+        );
+
+        if (parsed.use_tool === true && parsed.tool_name) {
+          const toolCall: ToolCall = {
+            tool_type: parsed.tool_type || "local",
+            tool_name: parsed.tool_name,
+            parameters: parsed.parameters || {},
+            requires_approval: this.shouldRequireApproval(
+              parsed.tool_name,
+              parsed.requires_approval
+            ),
+          };
+
+          console.log(
+            "[ToolParser] Found valid tool call in content:",
+            toolCall
+          );
+          toolCalls.push(toolCall);
+          return toolCalls;
+        }
+      } catch (error) {
+        console.log(
+          "[ToolParser] Content is not a complete JSON object:",
+          error
+        );
+        // 如果整个内容不是JSON，继续尝试其他方法
+      }
+    }
+
+    // 查找JSON格式的工具调用 - 处理混合内容中的JSON
+    const jsonPattern =
+      /\{(?:[^{}]|\{[^{}]*\})*"use_tool"\s*:\s*true(?:[^{}]|\{[^{}]*\})*\}/g;
     const matches = content.match(jsonPattern);
-    
+
+    console.log("[ToolParser] JSON pattern matches:", matches?.length || 0);
+
     if (!matches) return toolCalls;
 
     for (const match of matches) {
+      console.log("[ToolParser] Processing match:", match);
       try {
         const parsed = JSON.parse(match);
-        
+
         if (parsed.use_tool === true && parsed.tool_name) {
           const toolCall: ToolCall = {
-            tool_type: parsed.tool_type || 'local',
+            tool_type: parsed.tool_type || "local",
             tool_name: parsed.tool_name,
             parameters: parsed.parameters || {},
-            requires_approval: this.shouldRequireApproval(parsed.tool_name, parsed.requires_approval)
+            requires_approval: this.shouldRequireApproval(
+              parsed.tool_name,
+              parsed.requires_approval
+            ),
           };
-          
+
+          console.log("[ToolParser] Created tool call:", toolCall);
           toolCalls.push(toolCall);
         }
       } catch (error) {
-        console.warn('Failed to parse tool call JSON:', match, error);
+        console.warn(
+          "[ToolParser] Failed to parse tool call JSON:",
+          match,
+          error
+        );
       }
     }
-    
+
+    console.log("[ToolParser] Total tool calls found:", toolCalls.length);
     return toolCalls;
   }
 
   /**
    * 判断工具是否需要approval
    */
-  private shouldRequireApproval(toolName: string, explicitApproval?: boolean): boolean {
+  shouldRequireApproval(toolName: string, explicitApproval?: boolean): boolean {
     // 如果显式指定了approval，使用指定值
-    if (typeof explicitApproval === 'boolean') {
+    if (typeof explicitApproval === "boolean") {
       return explicitApproval;
     }
-    
+
     // 根据工具信息判断
-    const tool = this.availableTools.find(t => t.name === toolName);
+    const tool = this.availableTools.find((t) => t.name === toolName);
     if (tool) {
       return tool.requires_approval;
     }
-    
+
     // 默认危险操作
     const dangerousTools = [
-      'create_file', 'update_file', 'delete_file', 
-      'append_file', 'execute_command'
+      "create_file",
+      "update_file",
+      "delete_file",
+      "append_file",
+      "execute_command",
     ];
-    
+
     return dangerousTools.includes(toolName);
   }
 
   /**
    * 增强系统消息
+   * @param messages 消息数组
+   * @param existingSystemPrompt 可选的已存在的系统提示，如果提供则优先使用
    */
-  enhanceSystemMessage(messages: any[]): any[] {
+  enhanceSystemMessage(messages: any[], existingSystemPrompt?: string): any[] {
     const toolsPrompt = this.generateSystemPrompt();
     const enhancedMessages = [...messages];
-    
-    // 查找现有的系统消息
-    const systemMessageIndex = enhancedMessages.findIndex(msg => msg.role === 'system');
-    
+
+    // 详细记录每个消息的结构
+    console.log("Messages count:", messages.length);
+
+    // 查找现有的系统消息 - 检查多种可能的系统消息格式
+    const systemMessageIndex = enhancedMessages.findIndex(
+      (msg) =>
+        msg.role === "system" ||
+        (typeof msg.content === "object" && msg.content?.role === "system") ||
+        msg.type === "system"
+    );
+
+    console.log("System message found at index:", systemMessageIndex);
+
     if (systemMessageIndex >= 0) {
-      // 追加到现有系统消息
-      enhancedMessages[systemMessageIndex] = {
-        ...enhancedMessages[systemMessageIndex],
-        content: `${enhancedMessages[systemMessageIndex].content}\n\n${toolsPrompt}`
-      };
+      // 找到现有系统消息，追加工具信息
+      const existingMsg = enhancedMessages[systemMessageIndex];
+
+      // 处理不同的系统消息格式
+      if (existingMsg.role === "system") {
+        enhancedMessages[systemMessageIndex] = {
+          ...existingMsg,
+          content: `${existingMsg.content}\n\n${toolsPrompt}`,
+        };
+      } else if (
+        typeof existingMsg.content === "object" &&
+        existingMsg.content?.role === "system"
+      ) {
+        enhancedMessages[systemMessageIndex] = {
+          ...existingMsg,
+          content: {
+            ...existingMsg.content,
+            content: `${existingMsg.content.content}\n\n${toolsPrompt}`,
+          },
+        };
+      } else if (existingMsg.type === "system") {
+        enhancedMessages[systemMessageIndex] = {
+          ...existingMsg,
+          content: `${existingMsg.content}\n\n${toolsPrompt}`,
+        };
+      }
     } else {
-      // 创建新的系统消息
+      // 没有找到系统消息，创建新的系统消息
+      console.log("No system message found in messages array");
+
+      // 确定系统提示内容
+      let basePrompt: string;
+      if (existingSystemPrompt && existingSystemPrompt.trim()) {
+        // 使用传入的系统提示
+        basePrompt = existingSystemPrompt;
+        console.log("Using provided system prompt");
+      } else {
+        // 使用默认系统提示
+        basePrompt = "你是一个AI助手。";
+        console.log("Using default system prompt");
+      }
+
+      console.log(
+        "System prompt preview:",
+        basePrompt.substring(0, 50) + "..."
+      );
+
+      // 添加到消息数组开头
       enhancedMessages.unshift({
-        role: 'system',
-        content: `你是一个AI助手。\n\n${toolsPrompt}`
+        role: "system",
+        content: `${basePrompt}\n\n${toolsPrompt}`,
       });
     }
-    
+
+    console.log("Enhanced messages count:", enhancedMessages.length);
     return enhancedMessages;
   }
 
@@ -226,16 +297,16 @@ export class ToolParser {
    */
   convertToolCallToParameters(toolCall: ToolCall): Parameter[] {
     const parameters: Parameter[] = [];
-    
+
     for (const [key, value] of Object.entries(toolCall.parameters)) {
       parameters.push({
         name: key,
-        description: '', // 执行时不需要description
-        required: true,  // 执行时不需要required
-        value: String(value)
+        description: "", // 执行时不需要description
+        required: true, // 执行时不需要required
+        value: String(value),
       });
     }
-    
+
     return parameters;
   }
 }

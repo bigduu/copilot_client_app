@@ -16,6 +16,8 @@ import { DownOutlined } from "@ant-design/icons";
 import { InputContainer } from "../InputContainer";
 import "./ChatView.css"; // Import a new CSS file for animations and specific styles
 import MessageCard from "../MessageCard";
+import ToolApprovalContainer from "../ToolApprovalContainer";
+import { useMessageProcessorContext } from "../../contexts/MessageProcessorContext";
 
 const { Content } = Layout;
 const { Text } = Typography;
@@ -37,6 +39,10 @@ export const ChatView: React.FC<ChatViewProps> = ({ showFavorites }) => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesListRef = useRef<HTMLDivElement>(null);
   const { token } = useToken();
+
+  // 获取待审批工具状态
+  const { pendingApprovals } = useMessageProcessorContext();
+  const hasPendingApprovals = pendingApprovals.length > 0;
 
   // SystemMessage expand/collapse state
   const [systemMsgExpanded, setSystemMsgExpanded] = useState(true);
@@ -307,15 +313,17 @@ export const ChatView: React.FC<ChatViewProps> = ({ showFavorites }) => {
               }}
             >
               <Card
-                bordered={false}
+                variant="outlined"
                 style={{
                   maxWidth: "85%",
                   background: token.colorBgLayout, // Changed for better contrast
                   borderRadius: token.borderRadiusLG,
                   boxShadow: token.boxShadow,
                 }}
-                bodyStyle={{
-                  padding: token.paddingMD,
+                styles={{
+                  body: {
+                    padding: token.paddingMD,
+                  },
                 }}
               >
                 <Space
@@ -340,6 +348,14 @@ export const ChatView: React.FC<ChatViewProps> = ({ showFavorites }) => {
               </Card>
             </List.Item>
           )}
+
+          {/* Tool Approval Container - 显示待审批工具 */}
+          {hasPendingApprovals && showMessagesView && (
+            <div className="tool-approval-container-wrapper">
+              <ToolApprovalContainer />
+            </div>
+          )}
+
           <div ref={messagesEndRef} />
         </Content>
 

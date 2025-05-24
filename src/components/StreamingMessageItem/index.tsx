@@ -1,11 +1,13 @@
 import React, { useEffect, useRef, useState } from "react";
-import { theme, Typography, Collapse } from "antd";
+import { theme, Typography, Collapse, notification } from "antd";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism";
 import { Channel } from "@tauri-apps/api/core";
 import { Message } from "../../types/chat";
+import { ToolCall, toolParser } from "../../utils/toolParser";
+import { ToolExecutionResult } from "../../services/MessageProcessor";
 
 const { Text } = Typography;
 const { useToken } = theme;
@@ -52,17 +54,39 @@ const StreamingMessageItem: React.FC<StreamingMessageItemProps> = ({
   const [processorUpdates, setProcessorUpdates] = useState<string[]>([]);
   const [showProcessorUpdates, setShowProcessorUpdates] = useState(false);
   const [isComplete, setIsComplete] = useState(false);
+  const [toolCalls, setToolCalls] = useState<ToolCall[]>([]);
   const hasCompletedRef = useRef(false);
   const fullTextRef = useRef("");
-  const processorUpdatesRef = useRef<string[]>([]); // Add this line
+  const processorUpdatesRef = useRef<string[]>([]);
   const receivedMessagesCount = useRef(0);
   const startTimeRef = useRef(Date.now());
   const isMountedRef = useRef(true);
   const minTimeElapsedRef = useRef(false);
   const { token } = useToken();
 
-  // Complete message and prevent duplicate completions
-  const completeMessage = (finalContent: string) => {
+  // Define markdown components for syntax highlighting and other formatting
+  const markdownComponents = {
+    code({ node, inline, className, children, ...props }: any) {
+      const match = /language-(\w+)/.exec(className || "");
+      return !inline && match ? (
+        <SyntaxHighlighter
+          style={oneDark}
+          language={match[1]}
+          PreTag="div"
+          {...props}
+        >
+          {String(children).replace(/\n$/, "")}
+        </SyntaxHighlighter>
+      ) : (
+        <code className={className} {...props}>
+          {children}
+        </code>
+      );
+    },
+  };
+
+  // Complete message and process tool calls
+  const completeMessage = async (finalContent: string) => {
     if (hasCompletedRef.current) {
       console.log(
         "[StreamingMessageItem] Already completed, skipping duplicate completion"
@@ -80,6 +104,59 @@ const StreamingMessageItem: React.FC<StreamingMessageItemProps> = ({
 
     hasCompletedRef.current = true;
     setIsComplete(true);
+
+    // 检查是否有工具调用并处理
+    const detectedToolCalls =
+      toolParser.parseToolCallsFromContent(finalContent);
+    setToolCalls(detectedToolCalls);
+
+    if (detectedToolCalls.length > 0) {
+      console.log(
+        `[StreamingMessageItem] Detected ${detectedToolCalls.length} tool calls in response`
+      );
+
+      // 处理工具调用结果
+      try {
+        // 检查是否有response processor
+        if (typeof (window as any).__currentResponseProcessor === "function") {
+          console.log(
+            "[StreamingMessageItem] Executing response processor for tool calls"
+          );
+          const results = await (window as any).__currentResponseProcessor(
+            finalContent
+          );
+
+          if (results && results.length > 0) {
+            // 添加工具执行结果到处理器更新
+            results.forEach((result: ToolExecutionResult) => {
+              const resultMessage = result.success
+                ? `✅ 工具执行成功: ${result.toolName} - ${result.result}`
+                : `❌ 工具执行失败: ${result.toolName} - ${result.error}`;
+
+              processorUpdatesRef.current.push(resultMessage);
+              setProcessorUpdates((prev) => [...prev, resultMessage]);
+            });
+
+            // 如果有自动执行的工具，显示提示
+            if (results.length > 0) {
+              notification.info({
+                message: "工具执行完成",
+                description: `${results.length} 个工具已自动执行`,
+                placement: "bottomRight",
+                duration: 3,
+              });
+            }
+          }
+        }
+      } catch (error) {
+        console.error(
+          "[StreamingMessageItem] Error processing tool calls:",
+          error
+        );
+        processorUpdatesRef.current.push(`❌ 工具处理错误: ${error}`);
+        setProcessorUpdates((prev) => [...prev, `❌ 工具处理错误: ${error}`]);
+      }
+    }
 
     onComplete({
       role: "assistant",
@@ -107,6 +184,64 @@ const StreamingMessageItem: React.FC<StreamingMessageItemProps> = ({
         rawText = rawText.substring(5);
       }
       receivedMessagesCount.current += 1;
+
+      // Check if this is a standalone tool call message
+      if (
+        rawText.trim().startsWith("{") &&
+        (rawText.includes('"use_tool"') ||
+          rawText.includes('"tool_name"') ||
+          rawText.includes('"execute_command"'))
+      ) {
+        console.log(
+          "[StreamingMessageItem] Detected potential tool call in raw message:",
+          rawText
+        );
+        try {
+          // Try to parse it as JSON first
+          const parsedJson = JSON.parse(rawText.trim());
+
+          // Check if this is a tool call format
+          if (parsedJson.use_tool === true || parsedJson.tool_name) {
+            console.log(
+              "[StreamingMessageItem] Detected direct tool call JSON:",
+              parsedJson
+            );
+
+            // Create a tool call object
+            const toolCall: ToolCall = {
+              tool_type: parsedJson.tool_type || "local",
+              tool_name:
+                parsedJson.tool_name ||
+                (parsedJson.parameters?.command
+                  ? "execute_command"
+                  : "unknown"),
+              parameters: parsedJson.parameters || {},
+              requires_approval:
+                typeof parsedJson.requires_approval === "boolean"
+                  ? parsedJson.requires_approval
+                  : isDangerousTool(parsedJson.tool_name),
+            };
+
+            // Set the tool call for display
+            setToolCalls([toolCall]);
+
+            // Also add the raw JSON to the content for processing
+            fullTextRef.current = rawText.trim();
+            setContent(fullTextRef.current);
+
+            // Mark streaming as complete
+            completeMessage(fullTextRef.current);
+            return;
+          }
+        } catch (error) {
+          console.error(
+            "[StreamingMessageItem] Error parsing potential tool call:",
+            error
+          );
+          // Continue with normal processing if parsing fails
+        }
+      }
+
       // Check if this is the "[DONE]" marker that indicates the end of streaming
       if (rawText.trim() === "[DONE]") {
         if (fullTextRef.current) {
@@ -140,7 +275,7 @@ const StreamingMessageItem: React.FC<StreamingMessageItemProps> = ({
             processorMessage,
           ]);
           // Also add to ref for onComplete
-          processorUpdatesRef.current.push(processorMessage); // Add this line
+          processorUpdatesRef.current.push(processorMessage);
           return;
         }
 
@@ -311,107 +446,231 @@ const StreamingMessageItem: React.FC<StreamingMessageItemProps> = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  return (
-    <div style={{ position: "relative" }}>
-      <div style={{ display: "flex", flexDirection: "column" }}>
-        {processorUpdates.length > 0 && (
-          <Collapse
-            ghost
-            size="small"
-            activeKey={showProcessorUpdates ? ["1"] : []}
-            onChange={() => setShowProcessorUpdates(!showProcessorUpdates)}
-            style={{ marginBottom: token.marginXS }}
-          >
-            <Collapse.Panel header="View Processing Steps" key="1">
-              {processorUpdates.map((update, index) => (
-                <Text
-                  key={`proc-${index}`}
+  // Add a new component to display detected tool calls
+  const ToolCallDisplay: React.FC<{ toolCall: ToolCall }> = ({ toolCall }) => {
+    const { token } = useToken();
+
+    // 获取工具参数的友好展示
+    const renderParameters = () => {
+      const params = toolCall.parameters;
+
+      if (toolCall.tool_name === "execute_command" && params.command) {
+        return (
+          <div style={{ margin: "4px 0" }}>
+            <Text strong>命令：</Text>
+            <div
+              style={{
+                background: "#1f2937",
+                color: "#e5e7eb",
+                padding: "4px 8px",
+                borderRadius: "4px",
+                marginTop: "4px",
+                fontFamily: "monospace",
+              }}
+            >
+              {params.command}
+            </div>
+          </div>
+        );
+      }
+
+      return (
+        <div>
+          {Object.entries(params).map(([key, value]) => (
+            <div key={key} style={{ margin: "4px 0" }}>
+              <Text strong>{key}：</Text>
+              <Text>
+                {typeof value === "string" ? value : JSON.stringify(value)}
+              </Text>
+            </div>
+          ))}
+        </div>
+      );
+    };
+
+    return (
+      <div
+        style={{
+          border: `1px solid ${token.colorBorder}`,
+          borderRadius: token.borderRadius,
+          padding: token.padding,
+          marginTop: token.margin,
+          background: token.colorBgElevated,
+        }}
+      >
+        <div
+          style={{ display: "flex", alignItems: "center", marginBottom: "8px" }}
+        >
+          <span style={{ fontSize: "20px", marginRight: "8px" }}>
+            {toolCall.tool_name === "execute_command" ? "💻" : "🛠️"}
+          </span>
+          <div>
+            <div style={{ fontWeight: "bold" }}>
+              {toolCall.tool_name === "execute_command"
+                ? "执行命令"
+                : toolCall.tool_name}
+            </div>
+            <div style={{ fontSize: "12px", color: token.colorTextSecondary }}>
+              {toolCall.tool_type === "local" ? "本地工具" : "MCP工具"}
+              {toolCall.requires_approval && (
+                <span
                   style={{
-                    display: "block", // Ensure each update is on a new line
-                    fontSize: "0.9em",
-                    color: token.colorTextSecondary,
-                    fontStyle: "italic",
-                    whiteSpace: "pre-wrap",
-                    paddingLeft: token.paddingSM, // Indent content within panel
+                    marginLeft: "8px",
+                    color: token.colorError,
+                    background: token.colorErrorBg,
+                    padding: "2px 6px",
+                    borderRadius: "4px",
+                    fontSize: "12px",
                   }}
                 >
-                  {update}
-                </Text>
+                  需要批准
+                </span>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {renderParameters()}
+      </div>
+    );
+  };
+
+  // In the StreamingMessageItem component, add this render function:
+  const renderToolCalls = () => {
+    if (toolCalls.length === 0) return null;
+
+    return (
+      <div style={{ marginTop: token.marginMD }}>
+        <Collapse
+          ghost
+          defaultActiveKey={["1"]}
+          style={{ background: "transparent", padding: 0 }}
+        >
+          <Collapse.Panel
+            header={`检测到 ${toolCalls.length} 个工具调用`}
+            key="1"
+            style={{ border: "none" }}
+          >
+            <div
+              style={{ display: "flex", flexDirection: "column", gap: "8px" }}
+            >
+              {toolCalls.map((toolCall, index) => (
+                <ToolCallDisplay key={index} toolCall={toolCall} />
               ))}
+            </div>
+          </Collapse.Panel>
+        </Collapse>
+      </div>
+    );
+  };
+
+  // Helper function to determine if a tool is dangerous
+  const isDangerousTool = (toolName: string): boolean => {
+    const dangerousTools = [
+      "create_file",
+      "update_file",
+      "delete_file",
+      "append_file",
+      "execute_command",
+    ];
+    return dangerousTools.includes(toolName);
+  };
+
+  return (
+    <div
+      style={{
+        width: "100%",
+        position: "relative",
+        background: isComplete ? token.colorBgContainer : token.colorBgElevated,
+        borderRadius: token.borderRadius,
+        padding: token.padding,
+        paddingBottom:
+          processorUpdates.length > 0 ? token.paddingLG : token.padding,
+        border: `1px solid ${token.colorBorder}`,
+        transition: "all 0.3s ease",
+      }}
+    >
+      <div>
+        {/* Show special UI for tool calls if detected */}
+        {toolCalls.length > 0 ? (
+          <div>
+            <div
+              style={{
+                background: "#f6f8fa",
+                border: "1px solid #e1e4e8",
+                borderRadius: "8px",
+                padding: "12px",
+                marginBottom: "16px",
+              }}
+            >
+              <div
+                style={{
+                  fontWeight: "bold",
+                  marginBottom: "8px",
+                  color: "#0969da",
+                  display: "flex",
+                  alignItems: "center",
+                }}
+              >
+                <span style={{ marginRight: "8px" }}>🤖</span>
+                <span>AI 请求执行工具</span>
+              </div>
+              {renderToolCalls()}
+            </div>
+
+            {/* Hide the raw JSON from view but keep it for processing */}
+            <div style={{ display: "none" }}>
+              <ReactMarkdown
+                remarkPlugins={[remarkGfm]}
+                components={markdownComponents}
+              >
+                {content || " "}
+              </ReactMarkdown>
+            </div>
+          </div>
+        ) : (
+          <div>
+            <ReactMarkdown
+              remarkPlugins={[remarkGfm]}
+              components={markdownComponents}
+            >
+              {content || " "}
+            </ReactMarkdown>
+            {!isComplete && <TypingIndicator />}
+          </div>
+        )}
+
+        {/* 添加处理器更新显示 */}
+        {processorUpdates.length > 0 && (
+          <Collapse ghost style={{ padding: 0, marginTop: token.marginSM }}>
+            <Collapse.Panel
+              header={
+                <Text type="secondary">
+                  {showProcessorUpdates ? "隐藏处理日志" : "显示处理日志"}
+                </Text>
+              }
+              key="1"
+              style={{ border: "none" }}
+            >
+              <div style={{ marginTop: token.marginXS }}>
+                {processorUpdates.map((update, index) => (
+                  <div
+                    key={index}
+                    style={{
+                      fontSize: "0.85em",
+                      color: token.colorTextSecondary,
+                      marginBottom: token.marginXXS,
+                      fontFamily: "monospace",
+                    }}
+                  >
+                    {update}
+                  </div>
+                ))}
+              </div>
             </Collapse.Panel>
           </Collapse>
         )}
-        <ReactMarkdown
-          remarkPlugins={[remarkGfm]}
-          components={{
-            p: ({ children }) => (
-              <Text style={{ marginBottom: token.marginSM, display: "block" }}>
-                {children}
-              </Text>
-            ),
-            ol: ({ children }) => (
-              <ol style={{ marginBottom: token.marginSM, paddingLeft: 20 }}>
-                {children}
-              </ol>
-            ),
-            ul: ({ children }) => (
-              <ul style={{ marginBottom: token.marginSM, paddingLeft: 20 }}>
-                {children}
-              </ul>
-            ),
-            li: ({ children }) => (
-              <li style={{ marginBottom: token.marginXS }}>{children}</li>
-            ),
-            code({ className, children, ...props }) {
-              const match = /language-(\w+)/.exec(className || "");
-              const language = match ? match[1] : "";
-              const isInline = !match && !className;
-              const codeString = String(children).replace(/\n$/, "");
-
-              if (isInline) {
-                return (
-                  <Text code className={className} {...props}>
-                    {children}
-                  </Text>
-                );
-              }
-
-              return (
-                <div style={{ position: "relative" }}>
-                  <SyntaxHighlighter
-                    style={oneDark}
-                    language={language || "text"}
-                    PreTag="div"
-                    customStyle={{
-                      margin: `${token.marginXS}px 0`,
-                      borderRadius: token.borderRadiusSM,
-                      fontSize: token.fontSizeSM,
-                    }}
-                  >
-                    {codeString}
-                  </SyntaxHighlighter>
-                </div>
-              );
-            },
-          }}
-        >
-          {content || " "}
-        </ReactMarkdown>
-
-        {/* 在最后一行添加闪烁光标，只有在流式消息未完成时显示 */}
-        {!isComplete && content && (
-          <span
-            className="blinking-cursor"
-            style={{
-              display: "inline-block",
-              marginTop: "-1.2em", // 上移到最后一行文本处
-              marginLeft: "0.2em", // 添加一点间距
-              color: token.colorText,
-            }}
-          />
-        )}
       </div>
-      {!isComplete && <TypingIndicator />}
     </div>
   );
 };

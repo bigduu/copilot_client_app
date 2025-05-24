@@ -1,6 +1,7 @@
-import { Message } from '../types/chat';
-import { toolParser, ToolCall, ToolInfo } from '../utils/toolParser';
-import { invoke } from '@tauri-apps/api/core';
+import { Message } from "../types/chat";
+import { toolParser, ToolCall, ToolInfo } from "../utils/toolParser";
+import { invoke } from "@tauri-apps/api/core";
+import { SystemPromptService } from "./SystemPromptService";
 
 export interface ToolExecutionResult {
   success: boolean;
@@ -29,13 +30,15 @@ export class MessageProcessor {
     if (this.initialized) return;
 
     try {
-      console.log('[MessageProcessor] Initializing tools...');
+      console.log("[MessageProcessor] Initializing tools...");
       await toolParser.loadAvailableTools();
       this.availableTools = toolParser.getAvailableTools();
       this.initialized = true;
-      console.log(`[MessageProcessor] Loaded ${this.availableTools.length} tools`);
+      console.log(
+        `[MessageProcessor] Loaded ${this.availableTools.length} tools`
+      );
     } catch (error) {
-      console.error('[MessageProcessor] Failed to initialize tools:', error);
+      console.error("[MessageProcessor] Failed to initialize tools:", error);
       this.availableTools = [];
     }
   }
@@ -56,16 +59,50 @@ export class MessageProcessor {
     await this.ensureInitialized();
 
     if (this.availableTools.length === 0) {
-      console.warn('[MessageProcessor] No tools available, skipping enhancement');
+      console.warn(
+        "[MessageProcessor] No tools available, skipping enhancement"
+      );
       return messages;
     }
 
-    console.log('[MessageProcessor] Enhancing system prompt with tool information');
-    
-    // 使用toolParser的增强系统消息功能
-    const enhancedMessages = toolParser.enhanceSystemMessage(messages);
-    
-    console.log('[MessageProcessor] System prompt enhanced, total messages:', enhancedMessages.length);
+    console.log(
+      "[MessageProcessor] Enhancing system prompt with tool information"
+    );
+
+    // 获取当前系统提示
+    const systemPromptService = SystemPromptService.getInstance();
+
+    // 检查消息数组中是否已有系统消息
+    const systemMessageIndex = messages.findIndex(
+      (msg) => msg.role === "system"
+    );
+    let systemPrompt: string;
+
+    if (systemMessageIndex >= 0) {
+      // 优先使用消息数组中的系统消息
+      systemPrompt = messages[systemMessageIndex].content;
+      console.log("[MessageProcessor] Using system prompt from messages array");
+    } else {
+      // 如果消息数组中没有系统消息，则使用全局系统提示
+      systemPrompt = systemPromptService.getGlobalSystemPrompt();
+      console.log("[MessageProcessor] Using global system prompt");
+    }
+
+    console.log(
+      "[MessageProcessor] System prompt preview:",
+      systemPrompt.substring(0, 50) + "..."
+    );
+
+    // 使用toolParser的增强系统消息功能，传入系统提示
+    const enhancedMessages = toolParser.enhanceSystemMessage(
+      messages,
+      systemPrompt
+    );
+
+    console.log(
+      "[MessageProcessor] System prompt enhanced, total messages:",
+      enhancedMessages.length
+    );
     return enhancedMessages;
   }
 
@@ -74,36 +111,46 @@ export class MessageProcessor {
    */
   parseToolCalls(aiResponse: string): ToolCall[] {
     const toolCalls = toolParser.parseToolCallsFromContent(aiResponse);
-    console.log(`[MessageProcessor] Parsed ${toolCalls.length} tool calls from AI response`);
+    console.log(
+      `[MessageProcessor] Parsed ${toolCalls.length} tool calls from AI response`
+    );
     return toolCalls;
   }
 
   /**
    * 执行单个工具
    */
-  private async executeSingleTool(toolCall: ToolCall): Promise<ToolExecutionResult> {
+  private async executeSingleTool(
+    toolCall: ToolCall
+  ): Promise<ToolExecutionResult> {
     const parameters = toolParser.convertToolCallToParameters(toolCall);
-    const command = toolCall.tool_type === 'mcp' ? 'execute_mcp_tool' : 'execute_local_tool';
-    
-    console.log(`[MessageProcessor] Executing ${toolCall.tool_type} tool: ${toolCall.tool_name}`);
-    
+    const command =
+      toolCall.tool_type === "mcp" ? "execute_mcp_tool" : "execute_local_tool";
+
+    console.log(
+      `[MessageProcessor] Executing ${toolCall.tool_type} tool: ${toolCall.tool_name}`
+    );
+
     try {
       const result = await invoke<string>(command, {
         tool_name: toolCall.tool_name,
-        parameters: parameters
+        parameters: parameters,
       });
-      
+
       return {
         success: true,
         result,
-        toolName: toolCall.tool_name
+        toolName: toolCall.tool_name,
       };
     } catch (error: any) {
-      console.error(`[MessageProcessor] Tool execution failed for ${toolCall.tool_name}:`, error);
+      console.error(
+        `[MessageProcessor] Tool execution failed for ${toolCall.tool_name}:`,
+        error
+      );
       return {
         success: false,
         error: error.message || String(error),
-        toolName: toolCall.tool_name
+        toolName: toolCall.tool_name,
       };
     }
   }
@@ -120,10 +167,12 @@ export class MessageProcessor {
     }
 
     // 分类工具调用
-    const safeCalls = toolCalls.filter(call => !call.requires_approval);
-    const dangerousCalls = toolCalls.filter(call => call.requires_approval);
+    const safeCalls = toolCalls.filter((call) => !call.requires_approval);
+    const dangerousCalls = toolCalls.filter((call) => call.requires_approval);
 
-    console.log(`[MessageProcessor] Auto-executing ${safeCalls.length} safe tools, ${dangerousCalls.length} require approval`);
+    console.log(
+      `[MessageProcessor] Auto-executing ${safeCalls.length} safe tools, ${dangerousCalls.length} require approval`
+    );
 
     // 自动执行安全工具
     const autoExecuted: ToolExecutionResult[] = [];
@@ -134,22 +183,26 @@ export class MessageProcessor {
 
     return {
       autoExecuted,
-      pendingApproval: dangerousCalls
+      pendingApproval: dangerousCalls,
     };
   }
 
   /**
    * 批准并执行待审批的工具
    */
-  async executeApprovedTools(toolCalls: ToolCall[]): Promise<ToolExecutionResult[]> {
-    console.log(`[MessageProcessor] Executing ${toolCalls.length} approved tools`);
-    
+  async executeApprovedTools(
+    toolCalls: ToolCall[]
+  ): Promise<ToolExecutionResult[]> {
+    console.log(
+      `[MessageProcessor] Executing ${toolCalls.length} approved tools`
+    );
+
     const results: ToolExecutionResult[] = [];
     for (const toolCall of toolCalls) {
       const result = await this.executeSingleTool(toolCall);
       results.push(result);
     }
-    
+
     return results;
   }
 
@@ -164,10 +217,18 @@ export class MessageProcessor {
 
     // 构建包含用户消息的完整消息列表
     const userMsg: Message = {
-      role: 'user',
+      role: "user",
       content: userMessage,
-      id: crypto.randomUUID()
+      id: crypto.randomUUID(),
     };
+
+    // 检查现有消息中是否已有系统消息
+    const hasSystemMessage = existingMessages.some(
+      (msg) => msg.role === "system"
+    );
+    console.log(
+      `[MessageProcessor] Existing messages has system message: ${hasSystemMessage}`
+    );
 
     const allMessages = [...existingMessages, userMsg];
 
@@ -175,23 +236,29 @@ export class MessageProcessor {
     const preprocessedMessages = await this.preprocessMessages(allMessages);
 
     // 返回预处理的消息和后处理回调
-    const onResponseComplete = async (aiResponse: string): Promise<ToolExecutionResult[]> => {
-      console.log('[MessageProcessor] Processing AI response for tool calls');
-      
+    const onResponseComplete = async (
+      aiResponse: string
+    ): Promise<ToolExecutionResult[]> => {
+      console.log("[MessageProcessor] Processing AI response for tool calls");
+
       // 解析工具调用
       const toolCalls = this.parseToolCalls(aiResponse);
-      
+
       if (toolCalls.length === 0) {
-        console.log('[MessageProcessor] No tool calls found in AI response');
+        console.log("[MessageProcessor] No tool calls found in AI response");
         return [];
       }
 
       // 执行工具
-      const { autoExecuted, pendingApproval } = await this.executeTools(toolCalls);
-      
+      const { autoExecuted, pendingApproval } = await this.executeTools(
+        toolCalls
+      );
+
       // 现在只返回自动执行的结果，待审批的需要通过其他机制处理
       if (pendingApproval.length > 0) {
-        console.log(`[MessageProcessor] ${pendingApproval.length} tools require user approval`);
+        console.log(
+          `[MessageProcessor] ${pendingApproval.length} tools require user approval`
+        );
         // 这里可以触发事件或者通过状态管理来通知UI显示approval界面
         this.notifyPendingApprovals(pendingApproval);
       }
@@ -201,7 +268,7 @@ export class MessageProcessor {
 
     return {
       preprocessedMessages,
-      onResponseComplete
+      onResponseComplete,
     };
   }
 
@@ -210,8 +277,8 @@ export class MessageProcessor {
    */
   private notifyPendingApprovals(pendingApprovals: ToolCall[]): void {
     // 发送自定义事件，让UI组件监听
-    const event = new CustomEvent('tools-pending-approval', {
-      detail: { toolCalls: pendingApprovals }
+    const event = new CustomEvent("tools-pending-approval", {
+      detail: { toolCalls: pendingApprovals },
     });
     window.dispatchEvent(event);
   }
