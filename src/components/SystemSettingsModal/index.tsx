@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Modal,
   Input,
@@ -13,11 +13,21 @@ import {
   Select,
   Divider,
   Spin,
+  Collapse,
+  Tag,
+  Tooltip,
 } from "antd";
-import { DeleteOutlined, EditOutlined, PlusOutlined } from "@ant-design/icons";
+import {
+  DeleteOutlined,
+  EditOutlined,
+  PlusOutlined,
+  ToolOutlined,
+} from "@ant-design/icons";
 import { useChat } from "../../contexts/ChatContext";
 import { useModels } from "../../hooks/useModels";
 import { MCPServerManagementComponent } from "../MCPServerManagement";
+import { useToolExecution } from "../../hooks/useToolExecution";
+import { ToolInfo, ParameterInfo } from "../../utils/toolParser";
 
 const { Text } = Typography;
 
@@ -66,6 +76,100 @@ const ModelSelection = ({
               </Select.Option>
             ))}
           </Select>
+        )}
+      </div>
+    </div>
+  );
+};
+
+const ToolsList = () => {
+  const { initializeTools, availableTools, isLoading } = useToolExecution();
+
+  useEffect(() => {
+    initializeTools();
+  }, [initializeTools]);
+
+  const groupedTools = availableTools.reduce<Record<string, ToolInfo[]>>(
+    (acc, tool) => {
+      const type = tool.type;
+      if (!acc[type]) {
+        acc[type] = [];
+      }
+      acc[type].push(tool);
+      return acc;
+    },
+    {}
+  );
+
+  const renderParameters = (parameters: ParameterInfo[]) => (
+    <List
+      size="small"
+      dataSource={parameters}
+      renderItem={(param) => (
+        <List.Item>
+          <Space>
+            <Text code>{param.name}</Text>
+            {param.required && <Tag color="blue">Required</Tag>}
+          </Space>
+          <Text type="secondary">{param.description}</Text>
+        </List.Item>
+      )}
+    />
+  );
+
+  return (
+    <div style={{ marginBottom: 24 }}>
+      <Text strong>Available Tools</Text>
+      <div style={{ marginTop: 8 }}>
+        {isLoading ? (
+          <Spin size="small" />
+        ) : (
+          <Collapse>
+            {Object.entries(groupedTools).map(([type, tools]) => (
+              <Collapse.Panel
+                key={type}
+                header={
+                  <Space>
+                    <ToolOutlined />
+                    <Text strong>
+                      {type === "local" ? "Local Tools" : "MCP Tools"}
+                    </Text>
+                    <Tag color={type === "local" ? "green" : "blue"}>
+                      {tools.length}
+                    </Tag>
+                  </Space>
+                }
+              >
+                <List
+                  dataSource={tools}
+                  renderItem={(tool: ToolInfo) => (
+                    <List.Item>
+                      <List.Item.Meta
+                        title={
+                          <Space>
+                            <Text strong>{tool.name}</Text>
+                            {tool.requires_approval && (
+                              <Tooltip title="Requires approval">
+                                <Tag color="orange">Approval</Tag>
+                              </Tooltip>
+                            )}
+                          </Space>
+                        }
+                        description={tool.description}
+                      />
+                      {tool.parameters.length > 0 && (
+                        <Collapse ghost>
+                          <Collapse.Panel header="Parameters" key="params">
+                            {renderParameters(tool.parameters)}
+                          </Collapse.Panel>
+                        </Collapse>
+                      )}
+                    </List.Item>
+                  )}
+                />
+              </Collapse.Panel>
+            ))}
+          </Collapse>
         )}
       </div>
     </div>
@@ -177,6 +281,11 @@ const SystemSettingsModal = ({
         </div>
         <MCPServerManagementComponent />
       </div>
+
+      <Divider />
+
+      {/* Tools List Section */}
+      <ToolsList />
 
       <Divider />
 

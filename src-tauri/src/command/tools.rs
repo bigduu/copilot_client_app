@@ -4,7 +4,7 @@ use std::collections::HashMap;
 use tauri::State;
 
 use crate::mcp::client::get_global_manager;
-use crate::tools::{Parameter, ToolManager};
+use crate::tools::{LocalToolInfo, Parameter, ToolManager};
 use rmcp::model::CallToolRequestParam;
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -14,6 +14,16 @@ pub struct ToolExecutionError {
     pub details: Option<String>,
 }
 
+#[derive(Debug, Serialize)]
+pub struct ToolInfo {
+    pub name: String,
+    #[serde(rename = "type")]
+    pub tool_type: String, // "local" | "mcp"
+    pub description: String,
+    pub parameters: Vec<Parameter>,
+    pub requires_approval: bool,
+}
+
 #[derive(Debug, Deserialize)]
 pub struct ToolCall {
     pub tool_type: String, // "local" | "mcp"
@@ -21,56 +31,43 @@ pub struct ToolCall {
     pub parameters: serde_json::Value,
 }
 
-// 获取所有可用工具的统一API（XML格式）
+// 获取所有可用工具的统一API（JSON格式）
 #[tauri::command]
 pub async fn get_all_available_tools(
     tool_manager: State<'_, std::sync::Arc<ToolManager>>,
-) -> Result<String, String> {
-    let mut xml_output = String::new();
+) -> Result<Vec<ToolInfo>, String> {
+    let mut tools = Vec::new();
 
-    // Local tools (使用现有的XML格式)
-    let local_tools = tool_manager.list_tools();
-    xml_output.push_str(&local_tools);
+    // Local tools - now using JSON format directly
+    for local_tool in tool_manager.get_local_tools_info() {
+        tools.push(ToolInfo {
+            name: local_tool.name,
+            tool_type: "local".to_string(),
+            description: local_tool.description,
+            parameters: local_tool.parameters,
+            requires_approval: local_tool.requires_approval,
+        });
+    }
 
-    // MCP tools (转换为XML格式)
+    // MCP tools
     if let Some(manager) = get_global_manager() {
         match manager.get_all_clients_tools_list().await {
             Ok(mcp_tools) => {
                 for tool in mcp_tools {
-                    xml_output.push_str(&format!(
-                        r#"
-                        <tool>
-                        <tool_name>
-                        {}
-                        </tool_name>
-                        <tool_type>
-                        mcp
-                        </tool_type>
-                        <tool_description>
-                        {}
-                        </tool_description>
-                        <tool_parameters>
-                        </tool_parameters>
-                        <tool_required_approval>
-                        {}
-                        </tool_required_approval>
-                        </tool>
-                        "#,
-                        tool.name,
-                        if tool.description.is_empty() {
-                            ""
-                        } else {
-                            &tool.description
-                        },
-                        determine_mcp_tool_approval(&tool.name)
-                    ));
+                    tools.push(ToolInfo {
+                        name: tool.name.to_string(),
+                        tool_type: "mcp".to_string(),
+                        description: tool.description.to_string(),
+                        parameters: Vec::new(), // MCP tools don't have detailed parameters in current implementation
+                        requires_approval: determine_mcp_tool_approval(&tool.name),
+                    });
                 }
             }
             Err(e) => return Err(format!("Failed to get MCP tools: {}", e)),
         }
     }
 
-    Ok(xml_output)
+    Ok(tools)
 }
 
 // 执行本地工具
@@ -188,9 +185,20 @@ pub async fn execute_tools_batch(
 #[tauri::command]
 pub fn get_available_tools(
     tool_manager: State<'_, std::sync::Arc<ToolManager>>,
-) -> Result<String, String> {
-    let tools_list = tool_manager.list_tools();
-    Ok(tools_list)
+) -> Result<Vec<ToolInfo>, String> {
+    let mut tools = Vec::new();
+
+    for local_tool in tool_manager.get_local_tools_info() {
+        tools.push(ToolInfo {
+            name: local_tool.name,
+            tool_type: "local".to_string(),
+            description: local_tool.description,
+            parameters: local_tool.parameters,
+            requires_approval: local_tool.requires_approval,
+        });
+    }
+
+    Ok(tools)
 }
 
 #[tauri::command]
@@ -210,35 +218,6 @@ pub fn get_tools_documentation() -> Result<String, String> {
     with files, and the AI will use the appropriate tools to help you.
     "#
     .to_string())
-}
-
-// 辅助函数：将MCP工具的schema转换为XML格式
-fn format_mcp_parameters_to_xml(schema: &serde_json::Value) -> String {
-    let mut xml = String::new();
-
-    if let Some(properties) = schema.get("properties") {
-        if let Some(obj) = properties.as_object() {
-            for (param_name, param_info) in obj {
-                let description = param_info
-                    .get("description")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("No description");
-
-                xml.push_str(&format!(
-                    r#"
-                    <{}>
-                    <parameter_description>
-                    {}
-                    </parameter_description>
-                    </{}>
-                    "#,
-                    param_name, description, param_name
-                ));
-            }
-        }
-    }
-
-    xml
 }
 
 // 辅助函数：判断MCP工具是否需要approval

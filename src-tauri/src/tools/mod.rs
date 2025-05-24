@@ -3,7 +3,8 @@ use std::fmt::Debug;
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
+use serde_json;
 
 pub mod file_tools;
 
@@ -16,12 +17,20 @@ pub trait Tool: Debug + Send + Sync {
     async fn execute(&self, parameters: Vec<Parameter>) -> anyhow::Result<String>;
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct Parameter {
     pub name: String,
     pub description: String,
     pub required: bool,
     pub value: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct LocalToolInfo {
+    pub name: String,
+    pub description: String,
+    pub parameters: Vec<Parameter>,
+    pub requires_approval: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -43,47 +52,22 @@ impl ToolManager {
     }
 
     pub fn list_tools(&self) -> String {
-        let mut prompt = String::new();
-        for tool in self.tools.values() {
-            let parameters = tool.parameters();
-            let mut parameters_prompt = String::new();
-            for parameter in parameters {
-                parameters_prompt.push_str(&format!(
-                    r#"
-                        <{}>
-                        <parameter_description>
-                        {}
-                        </parameter_description>
-                        </{}>
-                    "#,
-                    parameter.name, parameter.description, parameter.name
-                ));
-            }
-
-            prompt.push_str(&format!(
-                r#"
-                    <tool>
-                    <tool_name>
-                    {}
-                    </tool_name>
-                    <tool_description>
-                    {}
-                    </tool_description>
-                    <tool_parameters>
-                    {}
-                    </tool_parameters>
-                    <tool_required_approval>
-                    {}
-                    </tool_required_approval>
-                    </tool>
-                "#,
-                tool.name(),
-                tool.description(),
-                parameters_prompt,
-                tool.required_approval()
-            ));
+        match serde_json::to_string(&self.get_local_tools_info()) {
+            Ok(json) => json,
+            Err(_) => String::from("[]"), // 出错时返回空数组
         }
-        prompt
+    }
+
+    pub fn get_local_tools_info(&self) -> Vec<LocalToolInfo> {
+        self.tools
+            .values()
+            .map(|tool| LocalToolInfo {
+                name: tool.name(),
+                description: tool.description(),
+                parameters: tool.parameters(),
+                requires_approval: tool.required_approval(),
+            })
+            .collect()
     }
 }
 
