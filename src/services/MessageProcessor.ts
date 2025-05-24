@@ -133,7 +133,7 @@ export class MessageProcessor {
 
     try {
       const result = await invoke<string>(command, {
-        tool_name: toolCall.tool_name,
+        toolName: toolCall.tool_name,
         parameters: parameters,
       });
 
@@ -194,15 +194,51 @@ export class MessageProcessor {
     toolCalls: ToolCall[]
   ): Promise<ToolExecutionResult[]> {
     console.log(
-      `[MessageProcessor] Executing ${toolCalls.length} approved tools`
+      `[MessageProcessor] Executing ${toolCalls.length} approved tools:`,
+      JSON.stringify(toolCalls)
     );
 
     const results: ToolExecutionResult[] = [];
     for (const toolCall of toolCalls) {
-      const result = await this.executeSingleTool(toolCall);
-      results.push(result);
+      console.log(
+        `[MessageProcessor] Executing approved tool: ${toolCall.tool_name} (${toolCall.tool_type})`
+      );
+      console.log(
+        `[MessageProcessor] Tool parameters:`,
+        JSON.stringify(toolCall.parameters)
+      );
+
+      try {
+        const parameters = toolParser.convertToolCallToParameters(toolCall);
+        console.log(
+          `[MessageProcessor] Converted parameters:`,
+          JSON.stringify(parameters)
+        );
+
+        const result = await this.executeSingleTool(toolCall);
+        console.log(
+          `[MessageProcessor] Tool execution result:`,
+          JSON.stringify(result)
+        );
+        results.push(result);
+      } catch (error) {
+        console.error(
+          `[MessageProcessor] Error executing tool ${toolCall.tool_name}:`,
+          error
+        );
+        // Still add the error result
+        results.push({
+          success: false,
+          error: error instanceof Error ? error.message : String(error),
+          toolName: toolCall.tool_name,
+        });
+      }
     }
 
+    console.log(
+      `[MessageProcessor] All approved tools executed, results:`,
+      JSON.stringify(results)
+    );
     return results;
   }
 

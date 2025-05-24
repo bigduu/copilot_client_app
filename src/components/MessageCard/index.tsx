@@ -190,34 +190,6 @@ const MessageCard: React.FC<MessageCardProps> = ({
                 ? "Assistant"
                 : role}
             </Text>
-            {processorUpdates && processorUpdates.length > 0 && (
-              <Collapse
-                ghost
-                size="small"
-                style={{ marginBottom: token.marginXS }}
-              >
-                <Collapse.Panel
-                  header="View Processing Steps"
-                  key="proc-updates-panel"
-                >
-                  {processorUpdates.map((update, index) => (
-                    <Text
-                      key={`mc-proc-${index}`}
-                      style={{
-                        display: "block",
-                        fontSize: "0.9em",
-                        color: token.colorTextSecondary,
-                        fontStyle: "italic",
-                        whiteSpace: "pre-wrap",
-                        paddingLeft: token.paddingSM,
-                      }}
-                    >
-                      {update}
-                    </Text>
-                  ))}
-                </Collapse.Panel>
-              </Collapse>
-            )}
             <div style={{ width: "100%", maxWidth: "100%" }}>
               <ReactMarkdown
                 remarkPlugins={

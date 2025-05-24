@@ -73,33 +73,54 @@ pub async fn get_all_available_tools(
 // 执行本地工具
 #[tauri::command]
 pub async fn execute_local_tool(
-    tool_name: String,
+    toolName: String,
     parameters: Vec<Parameter>,
     tool_manager: State<'_, std::sync::Arc<ToolManager>>,
 ) -> Result<String, ToolExecutionError> {
-    match tool_manager.get_tool(&tool_name) {
+    log::info!(
+        "Executing local tool: '{}' with parameters: {:?}",
+        toolName,
+        parameters
+    );
+
+    match tool_manager.get_tool(&toolName) {
         Some(tool) => match tool.execute(parameters).await {
-            Ok(result) => Ok(result),
-            Err(e) => Err(ToolExecutionError {
-                error_type: "execution_error".to_string(),
-                message: e.to_string(),
-                details: None,
-            }),
+            Ok(result) => {
+                log::info!("Local tool '{}' executed successfully", toolName);
+                Ok(result)
+            }
+            Err(e) => {
+                log::error!("Local tool '{}' execution failed: {}", toolName, e);
+                Err(ToolExecutionError {
+                    error_type: "execution_error".to_string(),
+                    message: e.to_string(),
+                    details: None,
+                })
+            }
         },
-        None => Err(ToolExecutionError {
-            error_type: "not_found".to_string(),
-            message: format!("Tool '{}' not found", tool_name),
-            details: None,
-        }),
+        None => {
+            log::error!("Local tool '{}' not found", toolName);
+            Err(ToolExecutionError {
+                error_type: "not_found".to_string(),
+                message: format!("Tool '{}' not found", toolName),
+                details: None,
+            })
+        }
     }
 }
 
 // 执行MCP工具
 #[tauri::command]
 pub async fn execute_mcp_tool(
-    tool_name: String,
+    toolName: String,
     parameters: Vec<Parameter>,
 ) -> Result<String, ToolExecutionError> {
+    log::info!(
+        "Executing MCP tool: '{}' with parameters: {:?}",
+        toolName,
+        parameters
+    );
+
     // 转换Parameter -> serde_json::Value
     let mut param_map = serde_json::Map::new();
     for param in parameters {
@@ -107,38 +128,53 @@ pub async fn execute_mcp_tool(
     }
 
     if let Some(manager) = get_global_manager() {
-        if let Some(client) = manager.get_client_by_tools(&tool_name) {
+        if let Some(client) = manager.get_client_by_tools(&toolName) {
             let param = CallToolRequestParam {
-                name: Cow::Owned(tool_name.clone()),
+                name: Cow::Owned(toolName.clone()),
                 arguments: Some(param_map),
             };
 
+            log::info!("Calling MCP tool '{}' with param: {:?}", toolName, param);
             match client.call_tool(param).await {
                 Ok(result) => {
                     if result.is_error.unwrap_or(false) {
+                        log::error!(
+                            "MCP tool '{}' execution failed: {:?}",
+                            toolName,
+                            result.content
+                        );
                         Err(ToolExecutionError {
                             error_type: "execution_error".to_string(),
                             message: format!("MCP tool execution failed: {:?}", result.content),
                             details: None,
                         })
                     } else {
+                        log::info!("MCP tool '{}' executed successfully", toolName);
                         Ok(format!("{:?}", result.content))
                     }
                 }
-                Err(e) => Err(ToolExecutionError {
-                    error_type: "execution_error".to_string(),
-                    message: e.to_string(),
-                    details: None,
-                }),
+                Err(e) => {
+                    log::error!("Error calling MCP tool '{}': {}", toolName, e);
+                    Err(ToolExecutionError {
+                        error_type: "execution_error".to_string(),
+                        message: e.to_string(),
+                        details: None,
+                    })
+                }
             }
         } else {
+            log::error!("MCP tool '{}' not found in available clients", toolName);
             Err(ToolExecutionError {
                 error_type: "not_found".to_string(),
-                message: format!("MCP tool '{}' not found", tool_name),
+                message: format!("MCP tool '{}' not found", toolName),
                 details: None,
             })
         }
     } else {
+        log::error!(
+            "MCP manager not initialized when trying to execute tool '{}'",
+            toolName
+        );
         Err(ToolExecutionError {
             error_type: "execution_error".to_string(),
             message: "MCP manager not initialized".to_string(),
@@ -157,6 +193,7 @@ pub async fn execute_tools_batch(
 
     for tool_call in tool_calls {
         let parameters = convert_json_to_parameters(&tool_call.parameters);
+        log::info!("Executing tool batch call: {:?}", tool_call);
 
         let result = match tool_call.tool_type.as_str() {
             "local" => {
@@ -224,10 +261,7 @@ pub fn get_tools_documentation() -> Result<String, String> {
 fn determine_mcp_tool_approval(tool_name: &str) -> bool {
     // 可以根据工具名称判断，这里先设置为默认需要approval
     // 后续可以根据具体的MCP工具进行细化
-    match tool_name {
-        name if name.contains("read") || name.contains("list") || name.contains("get") => false,
-        _ => true,
-    }
+    !matches!(tool_name, name if name.contains("read") || name.contains("list") || name.contains("get"))
 }
 
 // 辅助函数：将JSON参数转换为Parameter格式

@@ -1,7 +1,11 @@
-import { useState, useCallback, useEffect } from 'react';
-import { messageProcessor, ToolExecutionResult, ProcessedMessageFlow } from '../services/MessageProcessor';
-import { Message } from '../types/chat';
-import { ToolCall, ToolInfo } from '../utils/toolParser';
+import { useState, useCallback, useEffect } from "react";
+import {
+  messageProcessor,
+  ToolExecutionResult,
+  ProcessedMessageFlow,
+} from "../services/MessageProcessor";
+import { Message } from "../types/chat";
+import { ToolCall, ToolInfo } from "../utils/toolParser";
 
 export interface MessageProcessorState {
   initialized: boolean;
@@ -14,14 +18,19 @@ export interface MessageProcessorState {
 export interface UseMessageProcessorReturn extends MessageProcessorState {
   // 初始化
   initialize: () => Promise<void>;
-  
+
   // 核心消息处理
-  processMessageFlow: (userMessage: string, existingMessages: Message[]) => Promise<ProcessedMessageFlow>;
-  
+  processMessageFlow: (
+    userMessage: string,
+    existingMessages: Message[]
+  ) => Promise<ProcessedMessageFlow>;
+
   // 工具执行
-  executeApprovedTools: (toolCalls: ToolCall[]) => Promise<ToolExecutionResult[]>;
+  executeApprovedTools: (
+    toolCalls: ToolCall[]
+  ) => Promise<ToolExecutionResult[]>;
   rejectTools: (toolCalls: ToolCall[]) => void;
-  
+
   // 状态管理
   clearResults: () => void;
   clearPendingApprovals: () => void;
@@ -37,7 +46,7 @@ export const useMessageProcessor = (): UseMessageProcessorReturn => {
     loading: false,
     availableTools: [],
     pendingApprovals: [],
-    lastExecutionResults: []
+    lastExecutionResults: [],
   });
 
   /**
@@ -46,26 +55,31 @@ export const useMessageProcessor = (): UseMessageProcessorReturn => {
   const initialize = useCallback(async () => {
     if (state.initialized || state.loading) return;
 
-    setState(prev => ({ ...prev, loading: true }));
+    setState((prev) => ({ ...prev, loading: true }));
 
     try {
       await messageProcessor.initialize();
       const tools = messageProcessor.getAvailableTools();
-      
-      setState(prev => ({
+
+      setState((prev) => ({
         ...prev,
         initialized: true,
         loading: false,
-        availableTools: tools
+        availableTools: tools,
       }));
 
-      console.log('[useMessageProcessor] MessageProcessor initialized successfully');
+      console.log(
+        "[useMessageProcessor] MessageProcessor initialized successfully"
+      );
     } catch (error) {
-      console.error('[useMessageProcessor] Failed to initialize MessageProcessor:', error);
-      setState(prev => ({
+      console.error(
+        "[useMessageProcessor] Failed to initialize MessageProcessor:",
+        error
+      );
+      setState((prev) => ({
         ...prev,
         loading: false,
-        initialized: false
+        initialized: false,
       }));
     }
   }, [state.initialized, state.loading]);
@@ -73,65 +87,92 @@ export const useMessageProcessor = (): UseMessageProcessorReturn => {
   /**
    * 处理完整的消息流程
    */
-  const processMessageFlow = useCallback(async (
-    userMessage: string,
-    existingMessages: Message[]
-  ): Promise<ProcessedMessageFlow> => {
-    // 确保已初始化
-    if (!state.initialized) {
-      await initialize();
-    }
+  const processMessageFlow = useCallback(
+    async (
+      userMessage: string,
+      existingMessages: Message[]
+    ): Promise<ProcessedMessageFlow> => {
+      // 确保已初始化
+      if (!state.initialized) {
+        await initialize();
+      }
 
-    const flow = await messageProcessor.processMessageFlow(userMessage, existingMessages);
-    
-    // 包装onResponseComplete来更新状态
-    const originalOnResponseComplete = flow.onResponseComplete;
-    flow.onResponseComplete = async (aiResponse: string) => {
-      const results = await originalOnResponseComplete(aiResponse);
-      
-      // 更新执行结果
-      setState(prev => ({
-        ...prev,
-        lastExecutionResults: results
-      }));
-      
-      return results;
-    };
+      const flow = await messageProcessor.processMessageFlow(
+        userMessage,
+        existingMessages
+      );
 
-    return flow;
-  }, [state.initialized, initialize]);
+      // 包装onResponseComplete来更新状态
+      const originalOnResponseComplete = flow.onResponseComplete;
+      flow.onResponseComplete = async (aiResponse: string) => {
+        const results = await originalOnResponseComplete(aiResponse);
+
+        // 更新执行结果
+        setState((prev) => ({
+          ...prev,
+          lastExecutionResults: results,
+        }));
+
+        return results;
+      };
+
+      return flow;
+    },
+    [state.initialized, initialize]
+  );
 
   /**
    * 执行已批准的工具
    */
-  const executeApprovedTools = useCallback(async (toolCalls: ToolCall[]): Promise<ToolExecutionResult[]> => {
-    console.log(`[useMessageProcessor] Executing ${toolCalls.length} approved tools`);
-    
-    const results = await messageProcessor.executeApprovedTools(toolCalls);
-    
-    // 从待审批列表中移除已执行的工具
-    setState(prev => ({
-      ...prev,
-      pendingApprovals: prev.pendingApprovals.filter(
-        pending => !toolCalls.some(executed => executed.tool_name === pending.tool_name)
-      ),
-      lastExecutionResults: [...prev.lastExecutionResults, ...results]
-    }));
-    
-    return results;
-  }, []);
+  const executeApprovedTools = useCallback(
+    async (toolCalls: ToolCall[]): Promise<ToolExecutionResult[]> => {
+      console.log(
+        `[useMessageProcessor] Executing ${toolCalls.length} approved tools:`,
+        toolCalls
+      );
+
+      try {
+        const results = await messageProcessor.executeApprovedTools(toolCalls);
+        console.log(`[useMessageProcessor] Tool execution results:`, results);
+
+        // 从待审批列表中移除已执行的工具
+        setState((prev) => ({
+          ...prev,
+          pendingApprovals: prev.pendingApprovals.filter(
+            (pending) =>
+              !toolCalls.some(
+                (executed) => executed.tool_name === pending.tool_name
+              )
+          ),
+          lastExecutionResults: [...prev.lastExecutionResults, ...results],
+        }));
+
+        return results;
+      } catch (error) {
+        console.error(
+          `[useMessageProcessor] Error executing approved tools:`,
+          error
+        );
+        throw error;
+      }
+    },
+    []
+  );
 
   /**
    * 拒绝工具执行
    */
   const rejectTools = useCallback((toolCalls: ToolCall[]) => {
     console.log(`[useMessageProcessor] Rejecting ${toolCalls.length} tools`);
-    
-    setState(prev => ({
+
+    setState((prev) => ({
       ...prev,
       pendingApprovals: prev.pendingApprovals.filter(
-        pending => !toolCalls.some(rejected => rejected.tool_name === pending.tool_name)
-      )
+        (pending) =>
+          !toolCalls.some(
+            (rejected) => rejected.tool_name === pending.tool_name
+          )
+      ),
     }));
   }, []);
 
@@ -139,9 +180,9 @@ export const useMessageProcessor = (): UseMessageProcessorReturn => {
    * 清除执行结果
    */
   const clearResults = useCallback(() => {
-    setState(prev => ({
+    setState((prev) => ({
       ...prev,
-      lastExecutionResults: []
+      lastExecutionResults: [],
     }));
   }, []);
 
@@ -149,9 +190,9 @@ export const useMessageProcessor = (): UseMessageProcessorReturn => {
    * 清除待审批工具
    */
   const clearPendingApprovals = useCallback(() => {
-    setState(prev => ({
+    setState((prev) => ({
       ...prev,
-      pendingApprovals: []
+      pendingApprovals: [],
     }));
   }, []);
 
@@ -161,20 +202,22 @@ export const useMessageProcessor = (): UseMessageProcessorReturn => {
   useEffect(() => {
     const handlePendingApprovals = (event: CustomEvent) => {
       const { toolCalls } = event.detail;
-      console.log(`[useMessageProcessor] Received ${toolCalls.length} tools pending approval`);
-      
-      setState(prev => ({
+      console.log(
+        `[useMessageProcessor] Received ${toolCalls.length} tools pending approval`
+      );
+
+      setState((prev) => ({
         ...prev,
-        pendingApprovals: [...prev.pendingApprovals, ...toolCalls]
+        pendingApprovals: [...prev.pendingApprovals, ...toolCalls],
       }));
     };
 
     // 类型断言来处理CustomEvent
     const typedHandler = handlePendingApprovals as EventListener;
-    window.addEventListener('tools-pending-approval', typedHandler);
+    window.addEventListener("tools-pending-approval", typedHandler);
 
     return () => {
-      window.removeEventListener('tools-pending-approval', typedHandler);
+      window.removeEventListener("tools-pending-approval", typedHandler);
     };
   }, []);
 
@@ -192,7 +235,7 @@ export const useMessageProcessor = (): UseMessageProcessorReturn => {
     executeApprovedTools,
     rejectTools,
     clearResults,
-    clearPendingApprovals
+    clearPendingApprovals,
   };
 };
 
