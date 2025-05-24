@@ -16,9 +16,12 @@ import remarkBreaks from "remark-breaks";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism";
 import { useChat } from "../../contexts/ChatContext";
+import ToolApprovalCard from "../ToolApprovalCard";
+import { ToolCall, toolParser } from "../../utils/toolParser";
 
 const { Text } = Typography;
 const { useToken } = theme;
+const { Panel } = Collapse;
 
 interface MessageCardProps {
   role: string;
@@ -41,6 +44,22 @@ const MessageCard: React.FC<MessageCardProps> = ({
   const cardRef = useRef<HTMLDivElement>(null);
   const [selectedText, setSelectedText] = useState<string>("");
   const [isHovering, setIsHovering] = useState<boolean>(false);
+
+  // Extract tool calls from content if present
+  const toolCalls = toolParser.parseToolCallsFromContent(content);
+
+  // Add handlers for tool approval and rejection
+  const handleToolApprove = (toolCall: ToolCall) => {
+    console.log("[MessageCard] Tool approved:", toolCall);
+    // Call your tool execution logic here
+    if (typeof (window as any).__executeApprovedTool === "function") {
+      (window as any).__executeApprovedTool(toolCall);
+    }
+  };
+
+  const handleToolReject = (toolCall: ToolCall) => {
+    console.log("[MessageCard] Tool rejected:", toolCall);
+  };
 
   // 添加整个消息到收藏夹
   const addMessageToFavorites = () => {
@@ -148,6 +167,101 @@ const MessageCard: React.FC<MessageCardProps> = ({
     },
   ];
 
+  // Render tool calls if present
+  const renderToolCalls = () => {
+    if (!toolCalls || toolCalls.length === 0) return null;
+
+    return (
+      <div style={{ marginTop: token.marginMD }}>
+        <Collapse
+          ghost
+          defaultActiveKey={["1"]}
+          style={{ background: "transparent", padding: 0 }}
+        >
+          <Panel
+            header={`检测到 ${toolCalls.length} 个工具调用`}
+            key="1"
+            style={{ border: "none" }}
+          >
+            <div
+              style={{ display: "flex", flexDirection: "column", gap: "8px" }}
+            >
+              {toolCalls.map((toolCall, index) => (
+                <ToolApprovalCard
+                  key={index}
+                  toolCall={toolCall}
+                  onApprove={handleToolApprove}
+                  onReject={handleToolReject}
+                />
+              ))}
+            </div>
+          </Panel>
+        </Collapse>
+      </div>
+    );
+  };
+
+  // Render processor updates if present
+  const renderProcessorUpdates = () => {
+    if (!processorUpdates || processorUpdates.length === 0) return null;
+
+    return (
+      <div style={{ marginTop: token.marginSM }}>
+        <Collapse ghost style={{ background: "transparent", padding: 0 }}>
+          <Panel
+            header={`处理器更新 (${processorUpdates.length})`}
+            key="1"
+            style={{ border: "none" }}
+          >
+            <div
+              style={{
+                fontSize: token.fontSizeSM,
+                color: token.colorTextSecondary,
+              }}
+            >
+              {processorUpdates.map((update, index) => (
+                <div
+                  key={index}
+                  style={{
+                    marginBottom: token.marginXS,
+                    padding: token.paddingXS,
+                    borderRadius: token.borderRadiusSM,
+                    background: update.includes("成功")
+                      ? token.colorSuccessBg
+                      : update.includes("失败")
+                      ? token.colorErrorBg
+                      : token.colorInfoBg,
+                  }}
+                >
+                  {update}
+                </div>
+              ))}
+            </div>
+          </Panel>
+        </Collapse>
+      </div>
+    );
+  };
+
+  // Get content without tool calls for display
+  const getContentWithoutToolCalls = () => {
+    if (toolCalls.length === 0) return content;
+
+    // Try to clean up the content by removing tool call JSON blocks
+    let cleanContent = content;
+    for (const toolCall of toolCalls) {
+      try {
+        // Try to find and remove the JSON string for this tool call
+        const jsonString = JSON.stringify(toolCall, null, 2);
+        cleanContent = cleanContent.replace(jsonString, "");
+      } catch (e) {
+        console.error("Error cleaning tool call from content:", e);
+      }
+    }
+
+    return cleanContent.trim() || "Assistant sent a tool call.";
+  };
+
   return (
     <div onContextMenu={(e) => handleMouseUp(e)} style={{ width: "100%" }}>
       <Dropdown menu={{ items: contextMenuItems }} trigger={["contextMenu"]}>
@@ -190,6 +304,11 @@ const MessageCard: React.FC<MessageCardProps> = ({
                 ? "Assistant"
                 : role}
             </Text>
+
+            {/* Tool calls display (only for assistant messages) */}
+            {role === "assistant" && renderToolCalls()}
+
+            {/* Normal content without tool calls */}
             <div style={{ width: "100%", maxWidth: "100%" }}>
               <ReactMarkdown
                 remarkPlugins={
@@ -292,9 +411,13 @@ const MessageCard: React.FC<MessageCardProps> = ({
                   ),
                 }}
               >
-                {content}
+                {toolCalls.length > 0 ? getContentWithoutToolCalls() : content}
               </ReactMarkdown>
             </div>
+
+            {/* Processor updates display */}
+            {role === "assistant" && renderProcessorUpdates()}
+
             {children}
 
             {/* Action buttons - shown for both user and assistant messages when hovering */}
