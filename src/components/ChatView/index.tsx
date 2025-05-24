@@ -23,13 +23,9 @@ const { useToken } = theme;
 
 interface ChatViewProps {
   showFavorites: boolean;
-  setShowFavorites: React.Dispatch<React.SetStateAction<boolean>>;
 }
 
-export const ChatView: React.FC<ChatViewProps> = ({
-  showFavorites,
-  setShowFavorites,
-}) => {
+export const ChatView: React.FC<ChatViewProps> = ({ showFavorites }) => {
   const {
     currentChatId,
     currentMessages,
