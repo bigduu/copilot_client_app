@@ -127,17 +127,39 @@ const StreamingMessageItem: React.FC<StreamingMessageItemProps> = ({
           );
 
           if (results && results.length > 0) {
-            // 添加工具执行结果到处理器更新
-            results.forEach((result: ToolExecutionResult) => {
-              const resultMessage = result.success
-                ? `✅ 工具执行成功: ${result.toolName} - ${result.result}`
-                : `❌ 工具执行失败: ${result.toolName} - ${result.error}`;
+            // Add tool execution results directly to content instead of just to processorUpdates
+            let enhancedContent = finalContent;
 
-              processorUpdatesRef.current.push(resultMessage);
-              setProcessorUpdates((prev) => [...prev, resultMessage]);
+            // Format tool execution results and add them to content
+            const toolResultsText = results
+              .map((result: ToolExecutionResult) => {
+                const resultText = result.success
+                  ? `\n\n**工具执行结果 (${result.toolName}):**\n\`\`\`\n${result.result}\n\`\`\``
+                  : `\n\n**工具执行失败 (${result.toolName}):**\n\`\`\`\n${result.error}\n\`\`\``;
+
+                // Also add to processor updates for tracking purposes
+                const resultMessage = result.success
+                  ? `✅ 工具执行成功: ${result.toolName} - ${result.result}`
+                  : `❌ 工具执行失败: ${result.toolName} - ${result.error}`;
+
+                processorUpdatesRef.current.push(resultMessage);
+                setProcessorUpdates((prev) => [...prev, resultMessage]);
+
+                return resultText;
+              })
+              .join("\n");
+
+            // Append the tool results to the content
+            enhancedContent += toolResultsText;
+
+            // If there are tool execution results, complete the message with the enhanced content
+            onComplete({
+              role: "assistant",
+              content: enhancedContent || "Message interrupted",
+              processorUpdates: processorUpdatesRef.current,
             });
 
-            // 如果有自动执行的工具，显示提示
+            // If tool results were added, show notification but return to avoid calling onComplete again
             if (results.length > 0) {
               notification.info({
                 message: "工具执行完成",
@@ -145,6 +167,7 @@ const StreamingMessageItem: React.FC<StreamingMessageItemProps> = ({
                 placement: "bottomRight",
                 duration: 3,
               });
+              return;
             }
           }
         }
@@ -158,6 +181,7 @@ const StreamingMessageItem: React.FC<StreamingMessageItemProps> = ({
       }
     }
 
+    // If we didn't return early after processing tools, complete with original content
     onComplete({
       role: "assistant",
       content: finalContent || "Message interrupted",
@@ -638,37 +662,6 @@ const StreamingMessageItem: React.FC<StreamingMessageItemProps> = ({
             </ReactMarkdown>
             {!isComplete && <TypingIndicator />}
           </div>
-        )}
-
-        {/* 添加处理器更新显示 */}
-        {processorUpdates.length > 0 && (
-          <Collapse ghost style={{ padding: 0, marginTop: token.marginSM }}>
-            <Collapse.Panel
-              header={
-                <Text type="secondary">
-                  {showProcessorUpdates ? "隐藏处理日志" : "显示处理日志"}
-                </Text>
-              }
-              key="1"
-              style={{ border: "none" }}
-            >
-              <div style={{ marginTop: token.marginXS }}>
-                {processorUpdates.map((update, index) => (
-                  <div
-                    key={index}
-                    style={{
-                      fontSize: "0.85em",
-                      color: token.colorTextSecondary,
-                      marginBottom: token.marginXXS,
-                      fontFamily: "monospace",
-                    }}
-                  >
-                    {update}
-                  </div>
-                ))}
-              </div>
-            </Collapse.Panel>
-          </Collapse>
         )}
       </div>
     </div>

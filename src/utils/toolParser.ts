@@ -87,10 +87,11 @@ export class ToolParser {
       prompt += `\n`;
     }
 
-    prompt += `使用方式：当需要使用工具时，请在回复中包含JSON格式：\n`;
-    prompt += `{"use_tool": true, "tool_type": "local|mcp", "tool_name": "工具名", "parameters": {...}, "requires_approval": true/false}\n\n`;
-    prompt += `安全操作(查询、搜索): requires_approval: false\n`;
-    prompt += `危险操作(创建、删除、修改): requires_approval: true`;
+    prompt += `Usage: When using tools, please include JSON format in your response:\n`;
+    prompt += `{"use_tool": true, "tool_type": "local|mcp", "tool_name": "tool name", "parameters": {...}, "requires_approval": true/false}\n\n`;
+    prompt += `Safe operations (query, search): requires_approval: false\n`;
+    prompt += `Dangerous operations (create, delete, modify): requires_approval: true\n\n`;
+    prompt += `Important: When calling a tool, return ONLY the JSON object with no additional text before or after. Any extra text will interfere with result parsing.`;
 
     return prompt;
   }
@@ -117,14 +118,23 @@ export class ToolParser {
         );
 
         if (parsed.use_tool === true && parsed.tool_name) {
+          // 重要：保留原始的requires_approval值，不要覆盖它
+          let requiresApproval = parsed.requires_approval;
+
+          // 只有当requires_approval未明确指定时，才应用默认规则
+          if (typeof requiresApproval !== "boolean") {
+            requiresApproval = this.shouldRequireApproval(parsed.tool_name);
+          } else {
+            console.log(
+              `[ToolParser] Using explicit requires_approval=${requiresApproval} for tool ${parsed.tool_name}`
+            );
+          }
+
           const toolCall: ToolCall = {
             tool_type: parsed.tool_type || "local",
             tool_name: parsed.tool_name,
             parameters: parsed.parameters || {},
-            requires_approval: this.shouldRequireApproval(
-              parsed.tool_name,
-              parsed.requires_approval
-            ),
+            requires_approval: requiresApproval,
           };
 
           console.log(
@@ -158,14 +168,22 @@ export class ToolParser {
         const parsed = JSON.parse(match);
 
         if (parsed.use_tool === true && parsed.tool_name) {
+          // 同样处理这里的requires_approval
+          let requiresApproval = parsed.requires_approval;
+
+          if (typeof requiresApproval !== "boolean") {
+            requiresApproval = this.shouldRequireApproval(parsed.tool_name);
+          } else {
+            console.log(
+              `[ToolParser] Using explicit requires_approval=${requiresApproval} for tool ${parsed.tool_name}`
+            );
+          }
+
           const toolCall: ToolCall = {
             tool_type: parsed.tool_type || "local",
             tool_name: parsed.tool_name,
             parameters: parsed.parameters || {},
-            requires_approval: this.shouldRequireApproval(
-              parsed.tool_name,
-              parsed.requires_approval
-            ),
+            requires_approval: requiresApproval,
           };
 
           console.log("[ToolParser] Created tool call:", toolCall);
@@ -187,12 +205,7 @@ export class ToolParser {
   /**
    * 判断工具是否需要approval
    */
-  shouldRequireApproval(toolName: string, explicitApproval?: boolean): boolean {
-    // 如果显式指定了approval，使用指定值
-    if (typeof explicitApproval === "boolean") {
-      return explicitApproval;
-    }
-
+  shouldRequireApproval(toolName: string): boolean {
     // 根据工具信息判断
     const tool = this.availableTools.find((t) => t.name === toolName);
     if (tool) {
@@ -272,7 +285,7 @@ export class ToolParser {
         console.log("Using provided system prompt");
       } else {
         // 使用默认系统提示
-        basePrompt = "你是一个AI助手。";
+        basePrompt = "You are an AI assistant.";
         console.log("Using default system prompt");
       }
 

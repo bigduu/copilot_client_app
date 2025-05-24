@@ -197,8 +197,10 @@ impl Processor for ToolsProcessor {
         // TODO: Handle multiple tool calls
         let mut tool_call = local_tool_calls[0].clone();
 
-        // Override requires_approval based on tool safety if not explicitly set
-        if tool_call.tool_type == "local" {
+        // Only override requires_approval if it's not explicitly set
+        if tool_call.tool_type == "local"
+            && !tool_call.parameters.get("requires_approval").is_some()
+        {
             tool_call.requires_approval = self.tool_requires_approval(&tool_call.tool_name);
         }
 
