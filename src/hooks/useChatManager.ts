@@ -1,16 +1,70 @@
 import { useState, useCallback, useMemo } from "react";
+import { Channel } from "@tauri-apps/api/core";
 import { ChatService, FavoritesService, SystemPromptService } from "../services";
 import { useChats } from "./useChats";
 import { useMessages } from "./useMessages";
 import { useModels } from "./useModels";
 import { createExportFavorites } from "../contexts/newExportFunction";
-import { ChatItem, FavoriteItem, SystemPromptPresetList } from "../types/chat";
+import { ChatItem, FavoriteItem, SystemPromptPresetList, Message, SystemPromptPreset } from "../types/chat";
+
+interface UseChatManagerReturn {
+  // 聊天状态
+  chats: ChatItem[];
+  currentChatId: string | null;
+  currentChat: ChatItem | null;
+  currentMessages: Message[];
+  
+  // 流状态
+  isStreaming: boolean;
+  setIsStreaming: (streaming: boolean) => void;
+  activeChannel: Channel<string> | null;
+  
+  // 聊天操作
+  addChat: (firstUserMessageContent?: string) => string;
+  selectChat: (chatId: string | null) => void;
+  deleteChat: (chatId: string) => void;
+  deleteChats: (chatIds: string[]) => void;
+  deleteAllChats: () => void;
+  deleteEmptyChats: () => void;
+  saveChats: () => void;
+  pinChat: (chatId: string) => void;
+  unpinChat: (chatId: string) => void;
+  updateChat: (chatId: string, updates: Partial<ChatItem>) => void;
+  
+  // 消息操作
+  sendMessage: (content: string) => Promise<void>;
+  addAssistantMessage: (message: Message) => void;
+  initiateAIResponse: () => Promise<void>;
+  
+  // 系统提示
+  systemPrompt: string;
+  updateSystemPrompt: (prompt: string) => void;
+  updateCurrentChatSystemPrompt: (prompt: string) => void;
+  updateCurrentChatModel: (model: string) => void;
+  currentChatSystemPrompt: string | null;
+  systemPromptPresets: SystemPromptPresetList;
+  addSystemPromptPreset: (preset: Omit<SystemPromptPreset, "id">) => void;
+  updateSystemPromptPreset: (id: string, preset: Omit<SystemPromptPreset, "id">) => void;
+  deleteSystemPromptPreset: (id: string) => void;
+  selectSystemPromptPreset: (id: string) => void;
+  selectedSystemPromptPresetId: string;
+  
+  // 收藏夹
+  favorites: FavoriteItem[];
+  addFavorite: (favorite: Omit<FavoriteItem, "id" | "createdAt">) => string;
+  removeFavorite: (id: string) => void;
+  updateFavorite: (id: string, updates: Partial<Omit<FavoriteItem, "id" | "createdAt">>) => void;
+  getCurrentChatFavorites: () => FavoriteItem[];
+  exportFavorites: (format: "markdown" | "pdf") => Promise<void>;
+  summarizeFavorites: () => Promise<void>;
+  navigateToMessage: (messageId?: string) => void;
+}
 
 /**
  * useChatManager - 整合所有聊天相关功能的主 Hook
  * 结合 Service 层的业务逻辑和 React 的状态管理
  */
-export function useChatManager() {
+export function useChatManager(): UseChatManagerReturn {
   // 服务层实例
   const chatService = useMemo(() => ChatService.getInstance(), []);
   const favoritesService = useMemo(() => FavoritesService.getInstance(), []);
@@ -215,7 +269,7 @@ export function useChatManager() {
     systemPromptService.updateGlobalSystemPrompt(prompt);
   }, [systemPromptService]);
 
-  const addSystemPromptPreset = useCallback((preset: Omit<any, "id">) => {
+  const addSystemPromptPreset = useCallback((preset: Omit<SystemPromptPreset, "id">) => {
     const newPresets = systemPromptService.addSystemPromptPreset(preset, systemPromptPresets);
     setSystemPromptPresets(newPresets);
     systemPromptService.saveSystemPromptPresets(newPresets);
@@ -223,7 +277,7 @@ export function useChatManager() {
 
   const updateSystemPromptPreset = useCallback((
     id: string,
-    preset: Omit<any, "id">
+    preset: Omit<SystemPromptPreset, "id">
   ) => {
     const newPresets = systemPromptService.updateSystemPromptPreset(id, preset, systemPromptPresets);
     setSystemPromptPresets(newPresets);

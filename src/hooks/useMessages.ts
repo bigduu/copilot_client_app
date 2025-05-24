@@ -2,9 +2,22 @@ import { useState, useCallback } from "react";
 import { invoke, Channel } from "@tauri-apps/api/core";
 import { Message, ChatItem } from "../types/chat";
 import { DEFAULT_MESSAGE } from "../constants";
+import useMessageProcessor from "./useMessageProcessor";
+import { ToolExecutionResult, messageProcessor as messageProcessorService } from "../services/MessageProcessor";
 
 // System prompt storage key
 const SYSTEM_PROMPT_KEY = "system_prompt";
+
+interface UseMessagesReturn {
+  isStreaming: boolean;
+  setIsStreaming: (streaming: boolean) => void;
+  activeChannel: Channel<string> | null;
+  sendMessage: (content: string) => Promise<void>;
+  addAssistantMessage: (message: Message) => void;
+  initiateAIResponse: () => Promise<void>;
+  // 新增MessageProcessor相关状态和方法
+  messageProcessor: ReturnType<typeof useMessageProcessor>;
+}
 
 const getEffectiveSystemPrompt = (chat: ChatItem | null) => {
   if (!chat) return localStorage.getItem(SYSTEM_PROMPT_KEY) || DEFAULT_MESSAGE;
@@ -29,9 +42,12 @@ export const useMessages = (
   updateChatMessages: (chatId: string, messages: Message[]) => void,
   currentMessages: Message[],
   currentChat: ChatItem | null = null
-) => {
+): UseMessagesReturn => {
   const [isStreaming, setIsStreaming] = useState(false);
   const [activeChannel, setActiveChannel] = useState<Channel<string> | null>(null);
+  
+  // 集成MessageProcessor功能
+  const messageProcessor = useMessageProcessor();
 
   // Add assistant message when streaming is complete
   const addAssistantMessage = useCallback(
@@ -69,76 +85,59 @@ export const useMessages = (
         return;
       }
 
-      // Create a new chat if needed
       if (!currentChatId) {
         console.error("No current chat ID - cannot send message");
         return;
       }
 
-      const userMessage: Message = {
-        role: "user",
-        content,
-        id: crypto.randomUUID(),
-      };
-
-      const messagesToSend = [...currentMessages, userMessage];
-
-      console.log("Updating chat with message:", {
-        chatId: currentChatId,
-        messageCount: messagesToSend.length,
-      });
-
-      // Update state with user message first
-      updateChatMessages(currentChatId, messagesToSend);
-
-      // Small delay to ensure state updates
-      await new Promise((resolve) => setTimeout(resolve, 100));
-
-      // Create channel and send message to backend
       try {
-        console.log("Creating channel for response");
-        const channel = new Channel<string>();
-        
-        // Store the active channel
-        setActiveChannel(channel);
+        console.log("[useMessages] Processing message through MessageProcessor");
 
-        // Set streaming state after user message is added
-        setIsStreaming(true);
+        // 🚀 使用MessageProcessor处理消息流程
+        const { preprocessedMessages, onResponseComplete } = await messageProcessor.processMessageFlow(
+          content,
+          currentMessages
+        );
 
-        // Small delay to ensure streaming state is set before invoking backend
+        console.log("[useMessages] Message preprocessed, enhanced messages count:", preprocessedMessages.length);
+
+        // 更新聊天状态，添加用户消息
+        const userMessage = preprocessedMessages[preprocessedMessages.length - 1]; // 用户消息是最后一个
+        updateChatMessages(currentChatId, [...currentMessages, userMessage]);
+
+        // 延迟确保状态更新
         await new Promise((resolve) => setTimeout(resolve, 100));
 
-        // Get the effective system prompt for this chat
-        const systemPromptContent = getEffectiveSystemPrompt(currentChat);
-        const systemPromptMessage = {
-          role: "system" as const,
-          content: systemPromptContent
-        };
-        console.log("Including system prompt in request, length:", systemPromptContent.length);
+        // 创建channel进行流式通信
+        const channel = new Channel<string>();
+        setActiveChannel(channel);
+        setIsStreaming(true);
 
-        // Prepare messages array with system prompt if available
-        const messagesWithSystemPrompt = systemPromptMessage 
-          ? [systemPromptMessage, ...messagesToSend] 
-          : messagesToSend;
+        await new Promise((resolve) => setTimeout(resolve, 100));
 
-        console.log("Invoking execute_prompt with message count:", messagesWithSystemPrompt.length);
-        
+        console.log("[useMessages] Sending preprocessed messages to backend");
+
+        // 发送经过MessageProcessor增强的消息到后端
         await invoke("execute_prompt", {
-          messages: messagesWithSystemPrompt,
+          messages: preprocessedMessages, // 🎯 使用增强后的消息
           channel: channel,
           model: currentChat?.model,
         }).catch((error) => {
           console.error("Error invoking execute_prompt:", error);
           addAssistantMessage({
             role: "assistant",
-            content: `Error: ${
-              error instanceof Error ? error.message : String(error)
-            }`,
+            content: `Error: ${error instanceof Error ? error.message : String(error)}`,
             id: crypto.randomUUID(),
           });
         });
+
+        // 🔄 在streaming结束后会通过StreamingMessageItem调用onResponseComplete处理工具
+        // 我们需要将onResponseComplete存储起来供后续使用
+        (window as any).__currentResponseProcessor = onResponseComplete;
+
       } catch (error) {
-        console.error("Failed to invoke execute_prompt:", error);
+        console.error("Failed to process message with MessageProcessor:", error);
+        setIsStreaming(false);
       }
     },
     [
@@ -148,6 +147,7 @@ export const useMessages = (
       currentChat,
       addAssistantMessage,
       updateChatMessages,
+      messageProcessor
     ]
   );
 
@@ -168,46 +168,71 @@ export const useMessages = (
         return;
     }
 
+    let messagesToProcess = [...currentMessages];
     if (lastMessage.role === 'assistant') {
-      //remove the last message
-      const updatedMessages = currentMessages.slice(0, -1);
-      updateChatMessages(currentChatId, updatedMessages);
+      // Remove the last assistant message
+      messagesToProcess = currentMessages.slice(0, -1);
+      updateChatMessages(currentChatId, messagesToProcess);
     }
 
-    // Create channel and send message to backend
     try {
-      console.log("[useMessages] Initiating AI response. Creating channel.");
+      console.log("[useMessages] Initiating AI response through MessageProcessor");
+
+      // 🚀 使用MessageProcessor服务预处理消息（不添加新的用户消息）
+      const preprocessedMessages = await messageProcessorService.preprocessMessages(messagesToProcess);
+      
+      console.log("[useMessages] Messages preprocessed for AI response, enhanced count:", preprocessedMessages.length);
+
+      // 创建channel进行流式通信
       const channel = new Channel<string>();
       setActiveChannel(channel);
       setIsStreaming(true);
 
-      await new Promise((resolve) => setTimeout(resolve, 100)); // Small delay
+      await new Promise((resolve) => setTimeout(resolve, 100));
 
-      const systemPromptContent = getEffectiveSystemPrompt(currentChat);
-      const systemPromptMessage = {
-        role: "system" as const,
-        content: systemPromptContent
-      };
-      
-      const messagesWithSystemPrompt = [systemPromptMessage, ...currentMessages];
+      console.log("[useMessages] Sending preprocessed messages for AI response");
 
-      console.log("[useMessages] Invoking execute_prompt for AI response. Message count:", messagesWithSystemPrompt.length);
+      // 发送经过MessageProcessor增强的消息到后端
       await invoke("execute_prompt", {
-        messages: messagesWithSystemPrompt,
+        messages: preprocessedMessages, // 🎯 使用增强后的消息
         channel: channel,
         model: currentChat?.model,
       }).catch((error) => {
         console.error("Error invoking execute_prompt for AI response:", error);
         addAssistantMessage({
           role: "assistant",
-          content: `Error: ${
-            error instanceof Error ? error.message : String(error)
-          }`,
+          content: `Error: ${error instanceof Error ? error.message : String(error)}`,
           id: crypto.randomUUID(),
         });
       });
+
+      // 🔄 创建响应处理器用于处理AI回复中的工具调用
+      const onResponseComplete = async (aiResponse: string): Promise<ToolExecutionResult[]> => {
+        console.log("[useMessages] Processing AI response for tool calls");
+        const toolCalls = messageProcessorService.parseToolCalls(aiResponse);
+        
+        if (toolCalls.length === 0) return [];
+
+        const { autoExecuted, pendingApproval } = await messageProcessorService.executeTools(toolCalls);
+        
+        if (pendingApproval.length > 0) {
+          console.log(`[useMessages] ${pendingApproval.length} tools require user approval`);
+          // 通过事件发送待审批工具，会被useMessageProcessor监听到
+          const event = new CustomEvent('tools-pending-approval', {
+            detail: { toolCalls: pendingApproval }
+          });
+          window.dispatchEvent(event);
+        }
+
+        return autoExecuted;
+      };
+
+      // 存储响应处理器供StreamingMessageItem使用
+      (window as any).__currentResponseProcessor = onResponseComplete;
+
     } catch (error) {
-      console.error("Failed to invoke execute_prompt for AI response:", error);
+      console.error("Failed to initiate AI response with MessageProcessor:", error);
+      setIsStreaming(false);
     }
   }, [
     currentChatId,
@@ -215,7 +240,8 @@ export const useMessages = (
     currentMessages,
     currentChat,
     addAssistantMessage,
-    updateChatMessages, // Added missing dependency based on usage in the function
+    updateChatMessages,
+    messageProcessor
   ]);
 
   return {
@@ -225,5 +251,6 @@ export const useMessages = (
     sendMessage,
     addAssistantMessage,
     initiateAIResponse,
+    messageProcessor,
   };
 };

@@ -4,7 +4,16 @@ import { invoke } from '@tauri-apps/api/core';
 const SELECTED_MODEL_LS_KEY = 'copilot_selected_model_id';
 const FALLBACK_MODEL = 'gpt-4o'; // As seen in SystemSettingsModal
 
-export const useModels = () => {
+interface UseModelsReturn {
+    models: string[];
+    selectedModel: string | undefined;
+    setSelectedModel: (modelId: string) => void;
+    isLoading: boolean;
+    error: string | null;
+    refreshModels: () => Promise<void>;
+}
+
+export const useModels = (): UseModelsReturn => {
     const [models, setModels] = useState<string[]>([]);
     const [selectedModel, setSelectedModelState] = useState<string | undefined>(undefined);
     const [isLoading, setIsLoading] = useState(false);

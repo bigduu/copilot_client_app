@@ -5,23 +5,155 @@ use std::sync::Arc;
 use tauri::ipc::Channel;
 
 use crate::copilot::model::stream_model::Message;
-use crate::copilot::{CopilotClient, StreamChunk};
 use crate::tools::{Parameter, ToolManager};
 
-use super::Processor;
+use super::{append_to_system_message, parse_tool_calls_from_content, Processor, ToolCall};
 
 pub struct ToolsProcessor {
     enabled: bool,
-    copilot_client: Arc<CopilotClient>,
     tool_manager: Arc<ToolManager>,
 }
 
 impl ToolsProcessor {
-    pub fn new(copilot_client: Arc<CopilotClient>, tool_manager: Arc<ToolManager>) -> Self {
+    pub fn new(tool_manager: Arc<ToolManager>) -> Self {
         Self {
             enabled: true,
-            copilot_client,
             tool_manager,
+        }
+    }
+
+    /// Get local tools information for system prompt
+    fn get_local_tools_info(&self) -> String {
+        let tools_info = self.tool_manager.list_tools();
+        format!(
+            "=== Local Tools ===\n{}\n\n使用方式：当需要使用本地工具时，请在回复中包含JSON格式：\n{{\"use_tool\": true, \"tool_type\": \"local\", \"tool_name\": \"工具名\", \"parameters\": {{\"param_name\": \"value\"}}, \"requires_approval\": true/false}}\n\n安全操作(文件读取、搜索): requires_approval: false\n危险操作(文件写入、删除、命令执行): requires_approval: true",
+            tools_info
+        )
+    }
+
+    /// Parse local tool calls from content
+    fn parse_local_tool_calls(&self, content: &str) -> Vec<ToolCall> {
+        let tool_calls = parse_tool_calls_from_content(content);
+        // Filter only local tool calls
+        tool_calls
+            .into_iter()
+            .filter(|call| call.tool_type == "local")
+            .collect()
+    }
+
+    /// Convert ToolCall parameters to Parameter format for tool execution
+    fn convert_tool_call_to_parameters(&self, tool_call: &ToolCall) -> Vec<Parameter> {
+        let mut parameters = Vec::new();
+
+        if let Some(obj) = tool_call.parameters.as_object() {
+            for (key, value) in obj {
+                parameters.push(Parameter {
+                    name: key.clone(),
+                    description: String::new(), // Not needed for execution
+                    required: true,             // Not needed for execution
+                    value: value.as_str().unwrap_or(&value.to_string()).to_string(),
+                });
+            }
+        }
+
+        parameters
+    }
+
+    /// Execute local tool
+    async fn execute_local_tool(
+        &self,
+        tool_call: &ToolCall,
+        channel: &Channel<String>,
+    ) -> Result<String, String> {
+        // Send execution update
+        let exec_update = format!(
+            "{{\"type\": \"processor_update\", \"source\": \"tools\", \"content\": \"Executing local tool: '{}' with parameters: {}\"}}", 
+            tool_call.tool_name,
+            serde_json::to_string(&tool_call.parameters).unwrap_or_else(|_| "{}".to_string())
+        );
+        let _ = channel.send(exec_update);
+
+        // Convert parameters
+        let parameters = self.convert_tool_call_to_parameters(tool_call);
+
+        info!(
+            "Executing local tool: {} with parameters: {:?}",
+            tool_call.tool_name, parameters
+        );
+
+        // Get the tool by name
+        let tool = self
+            .tool_manager
+            .get_tool(&tool_call.tool_name)
+            .ok_or_else(|| format!("Tool not found: {}", tool_call.tool_name))?;
+
+        // Execute the tool
+        match tool.execute(parameters).await {
+            Ok(result) => {
+                debug!("Local tool execution result: {}", result);
+
+                let response_content = format!(
+                    "Local tool {} result:\n```\n{}\n```",
+                    tool_call.tool_name, result
+                );
+
+                // Send success update
+                let success_update = format!(
+                    "{{\"type\": \"processor_update\", \"source\": \"tools\", \"content\": \"Local tool '{}' execution successful\"}}", 
+                    tool_call.tool_name
+                );
+                let _ = channel.send(success_update);
+
+                Ok(response_content)
+            }
+            Err(err) => {
+                error!("Error executing local tool: {:?}", err);
+
+                // Send failure update
+                let failure_update = format!(
+                    "{{\"type\": \"processor_update\", \"source\": \"tools\", \"content\": \"Local tool '{}' execution failed: {}\"}}", 
+                    tool_call.tool_name,
+                    err
+                );
+                let _ = channel.send(failure_update);
+
+                Err(format!(
+                    "Error executing local tool {}: {}",
+                    tool_call.tool_name, err
+                ))
+            }
+        }
+    }
+
+    /// Send approval request to frontend
+    async fn send_approval_request(
+        &self,
+        tool_call: &ToolCall,
+        channel: &Channel<String>,
+    ) -> Result<(), String> {
+        let approval_request = serde_json::json!({
+            "type": "approval_request",
+            "source": "tools",
+            "tool_call": tool_call,
+            "message": format!("Do you want to execute local tool '{}'?", tool_call.tool_name)
+        });
+
+        channel
+            .send(approval_request.to_string())
+            .map_err(|e| format!("Failed to send approval request: {:?}", e))?;
+
+        Ok(())
+    }
+
+    /// Determine if a tool requires approval based on its name
+    fn tool_requires_approval(&self, tool_name: &str) -> bool {
+        // Define which tools are considered dangerous and require approval
+        match tool_name {
+            "create_file" | "update_file" | "delete_file" | "append_file" | "execute_command" => {
+                true
+            }
+            "read_file" | "search_files" => false,
+            _ => true, // Default to requiring approval for unknown tools
         }
     }
 }
@@ -36,222 +168,59 @@ impl Processor for ToolsProcessor {
         1 // Order 1 means it runs after McpProcessor (order 0)
     }
 
-    async fn process(&self, messages: Vec<Message>, channel: &Channel<String>) -> Vec<Message> {
-        // Check if we have messages and the last message is from the user
-        if messages.is_empty() || messages.last().unwrap().role != "user" {
-            return messages;
-        }
+    async fn enhance_system_prompt(&self, messages: &mut Vec<Message>) -> Result<(), String> {
+        // Get local tools information
+        let tools_info = self.get_local_tools_info();
 
-        // Get the tools list
-        let tools_info = self.tool_manager.list_tools();
-        debug!("Available tools: {}", tools_info);
+        // Append to system message
+        append_to_system_message(messages, &tools_info);
 
-        // Create a system message with tools information
-        let system_prompt = format!(
-            "You have access to these tools: {}. If the user message requires using one of these tools, respond with '{{\"use_tool\": true, \"tool_name\": \"TOOL_NAME\", \"parameters\": [{{\"name\": \"PARAM_NAME\", \"value\": \"PARAM_VALUE\"}}]}}'. Otherwise, respond with '{{\"use_tool\": false}}'.",
-            tools_info
-        );
+        // Send processor update
+        debug!("Enhanced system prompt with local tools information");
 
-        // Create a new message list with the system prompt
-        let mut llm_query_messages = Vec::new();
-
-        // Add the system message first
-        llm_query_messages.push(Message::system(system_prompt.clone()));
-
-        // Add the original messages (except for the system message if any)
-        for msg in &messages {
-            if msg.role != "system" {
-                llm_query_messages.push(msg.clone());
-            }
-        }
-
-        debug!("LLM query messages: {:?}", llm_query_messages);
-
-        // Ask the LLM if we should use a tool
-        let ask_llm_content = format!(
-            "Asking LLM if a local tool should be used. System Prompt: '{}'. Query Messages: {:?}",
-            system_prompt,      // Already defined
-            llm_query_messages  // Already defined
-        );
-        let update_msg = format!(
-            "{{\"type\": \"processor_update\", \"source\": \"tools\", \"content\": {}}}",
-            serde_json::to_string(&ask_llm_content)
-                .unwrap_or_else(|_| "\"Error serializing content\"".to_string())
-        );
-        channel
-            .send(update_msg)
-            .unwrap_or_else(|e| error!("Failed to send tools status: {:?}", e));
-        let (rx, _handle) = self
-            .copilot_client
-            .send_stream_request(llm_query_messages, None)
-            .await;
-
-        // Process the response from the LLM
-        let mut llm_response = String::new();
-        let mut rx_channel = rx;
-
-        while let Some(chunk_result) = rx_channel.recv().await {
-            match chunk_result {
-                Ok(chunk) => {
-                    let chunk_str = String::from_utf8_lossy(&chunk);
-                    let chunk: StreamChunk = serde_json::from_str(&chunk_str).unwrap();
-                    if !chunk.choices.is_empty() {
-                        let choice = chunk.choices[0].clone();
-                        if choice.delta.content.is_some() {
-                            llm_response.push_str(&choice.delta.content.unwrap());
-                        }
-                    }
-                }
-                Err(e) => {
-                    error!("Error receiving LLM response: {:?}", e);
-                    return messages;
-                }
-            }
-        }
-
-        info!("LLM decision response: {}", llm_response);
-
-        // Parse the JSON response
-        let llm_decision: Result<Value, _> = serde_json::from_str(&llm_response);
-
-        match llm_decision {
-            Ok(decision) => {
-                // Check if the LLM decided to use a tool
-                if let Some(use_tool) = decision.get("use_tool").and_then(|v| v.as_bool()) {
-                    if use_tool {
-                        // Extract tool name
-                        let tool_name = match decision.get("tool_name") {
-                            Some(name) => name.as_str().unwrap_or("").to_string(),
-                            None => {
-                                error!("Missing tool_name in LLM decision");
-                                return messages;
-                            }
-                        };
-
-                        // Extract parameters
-                        let parameters = match decision.get("parameters") {
-                            Some(params) => {
-                                if let Some(params_array) = params.as_array() {
-                                    let mut result = Vec::new();
-                                    for param in params_array {
-                                        if let (Some(name), Some(value)) = (
-                                            param.get("name").and_then(|v| v.as_str()),
-                                            param.get("value").and_then(|v| v.as_str()),
-                                        ) {
-                                            result.push(Parameter {
-                                                name: name.to_string(),
-                                                description: "".to_string(), // Not needed for execution
-                                                required: true, // Not needed for execution
-                                                value: value.to_string(),
-                                            });
-                                        }
-                                    }
-                                    result
-                                } else {
-                                    Vec::new()
-                                }
-                            }
-                            None => Vec::new(),
-                        };
-
-                        info!(
-                            "Executing tool: {} with parameters: {:?}",
-                            tool_name, parameters
-                        );
-
-                        // Send update before executing local tool
-                        let exec_tool_content = format!(
-                            "Executing local tool: '{}' with parameters: {:?}",
-                            tool_name,  // Already defined
-                            parameters  // Already defined
-                        );
-                        let update_msg = format!(
-                            "{{\"type\": \"processor_update\", \"source\": \"tools\", \"content\": {}}}",
-                            serde_json::to_string(&exec_tool_content).unwrap_or_else(|_| "\"Error serializing content\"".to_string())
-                        );
-                        channel
-                            .send(update_msg)
-                            .unwrap_or_else(|e| error!("Failed to send tools status: {:?}", e));
-
-                        // Execute the tool (we need to get the tool from the manager)
-                        let tool_result = self
-                            .execute_tool(tool_name.clone(), parameters.clone())
-                            .await;
-
-                        match tool_result {
-                            Ok(result) => {
-                                debug!("Tool execution result: {}", result);
-                                // Create a new message with the result
-                                let tool_success_content = format!(
-                                    "Local tool '{}' execution successful. Result: {}",
-                                    tool_name, // from the Ok(result) block's outer scope
-                                    result     // from the Ok(result) block
-                                );
-                                let update_msg = format!(
-                                    "{{\"type\": \"processor_update\", \"source\": \"tools\", \"content\": {}}}",
-                                    serde_json::to_string(&tool_success_content).unwrap_or_else(|_| "\"Error serializing content\"".to_string())
-                                );
-                                channel.send(update_msg).unwrap_or_else(|e| {
-                                    error!("Failed to send tools status: {:?}", e)
-                                });
-                                let mut result_messages = messages.clone();
-                                result_messages.push(Message::developer(format!(
-                                    "Tool {} execution result:\n```\n{}\n```",
-                                    tool_name, result
-                                )));
-                                return result_messages;
-                            }
-                            Err(err) => {
-                                error!("Error executing tool: {:?}", err);
-                                let tool_failure_content = format!(
-                                    "Local tool '{}' execution failed. Error: {:?}",
-                                    tool_name, // from the Err(err) block's outer scope
-                                    err
-                                );
-                                let update_msg = format!(
-                                    "{{\"type\": \"processor_update\", \"source\": \"tools\", \"content\": {}}}",
-                                    serde_json::to_string(&tool_failure_content).unwrap_or_else(|_| "\"Error serializing content\"".to_string())
-                                );
-                                channel.send(update_msg).unwrap_or_else(|e| {
-                                    error!("Failed to send tools status: {:?}", e)
-                                });
-                                let mut result_messages = messages.clone();
-                                result_messages.push(Message::developer(format!(
-                                    "Error executing tool {}: {}",
-                                    tool_name, err
-                                )));
-                                return result_messages;
-                            }
-                        }
-                    }
-                }
-            }
-            Err(e) => {
-                error!("Failed to parse LLM decision: {:?}", e);
-                return messages;
-            }
-        }
-
-        // If we couldn't identify a tool request or LLM decided not to use tools, return the original messages
-        messages
+        Ok(())
     }
-}
 
-impl ToolsProcessor {
-    async fn execute_tool(
+    async fn extract_and_execute_tools(
         &self,
-        tool_name: String,
-        parameters: Vec<Parameter>,
-    ) -> anyhow::Result<String> {
-        // Get the tool manager
-        let tool_manager = &self.tool_manager;
+        content: &str,
+        channel: &Channel<String>,
+    ) -> Result<Option<String>, String> {
+        // Parse local tool calls from content
+        let local_tool_calls = self.parse_local_tool_calls(content);
 
-        // Get the tool by name
-        if let Some(tool) = tool_manager.get_tool(&tool_name) {
-            // Execute the tool with the given parameters
-            tool.execute(parameters).await
-        } else {
-            Err(anyhow::anyhow!("Tool not found: {}", tool_name))
+        if local_tool_calls.is_empty() {
+            return Ok(None);
         }
+
+        // For now, handle the first tool call found
+        // TODO: Handle multiple tool calls
+        let mut tool_call = local_tool_calls[0].clone();
+
+        // Override requires_approval based on tool safety if not explicitly set
+        if tool_call.tool_type == "local" {
+            tool_call.requires_approval = self.tool_requires_approval(&tool_call.tool_name);
+        }
+
+        info!("Found local tool call: {:?}", tool_call);
+
+        if tool_call.requires_approval {
+            // Send approval request to frontend
+            self.send_approval_request(&tool_call, channel).await?;
+            Ok(Some(
+                "🔄 Waiting for user approval for local tool execution...".to_string(),
+            ))
+        } else {
+            // Execute tool directly
+            let result = self.execute_local_tool(&tool_call, channel).await?;
+            Ok(Some(result))
+        }
+    }
+
+    /// Legacy method - still needed for backward compatibility but will use new approach
+    async fn process(&self, messages: Vec<Message>, channel: &Channel<String>) -> Vec<Message> {
+        // For backward compatibility, just return messages unchanged
+        // The new flow will use enhance_system_prompt and extract_and_execute_tools
+        messages
     }
 }

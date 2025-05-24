@@ -3,6 +3,7 @@ use std::fmt::Debug;
 use std::sync::Arc;
 
 use async_trait::async_trait;
+use serde::Deserialize;
 
 pub mod file_tools;
 
@@ -15,7 +16,7 @@ pub trait Tool: Debug + Send + Sync {
     async fn execute(&self, parameters: Vec<Parameter>) -> anyhow::Result<String>;
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Deserialize)]
 pub struct Parameter {
     pub name: String,
     pub description: String,
