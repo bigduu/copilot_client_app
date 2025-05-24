@@ -1,7 +1,190 @@
+use serde::{Deserialize, Serialize};
+use std::borrow::Cow;
+use std::collections::HashMap;
 use tauri::State;
 
-use crate::tools::ToolManager;
+use crate::mcp::client::get_global_manager;
+use crate::tools::{Parameter, ToolManager};
+use rmcp::model::CallToolRequestParam;
 
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ToolExecutionError {
+    pub error_type: String, // "validation_error" | "execution_error" | "not_found"
+    pub message: String,
+    pub details: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct ToolCall {
+    pub tool_type: String, // "local" | "mcp"
+    pub tool_name: String,
+    pub parameters: serde_json::Value,
+}
+
+// 获取所有可用工具的统一API（XML格式）
+#[tauri::command]
+pub async fn get_all_available_tools(
+    tool_manager: State<'_, std::sync::Arc<ToolManager>>,
+) -> Result<String, String> {
+    let mut xml_output = String::new();
+
+    // Local tools (使用现有的XML格式)
+    let local_tools = tool_manager.list_tools();
+    xml_output.push_str(&local_tools);
+
+    // MCP tools (转换为XML格式)
+    if let Some(manager) = get_global_manager() {
+        match manager.get_all_clients_tools_list().await {
+            Ok(mcp_tools) => {
+                for tool in mcp_tools {
+                    xml_output.push_str(&format!(
+                        r#"
+                        <tool>
+                        <tool_name>
+                        {}
+                        </tool_name>
+                        <tool_type>
+                        mcp
+                        </tool_type>
+                        <tool_description>
+                        {}
+                        </tool_description>
+                        <tool_parameters>
+                        </tool_parameters>
+                        <tool_required_approval>
+                        {}
+                        </tool_required_approval>
+                        </tool>
+                        "#,
+                        tool.name,
+                        if tool.description.is_empty() {
+                            ""
+                        } else {
+                            &tool.description
+                        },
+                        determine_mcp_tool_approval(&tool.name)
+                    ));
+                }
+            }
+            Err(e) => return Err(format!("Failed to get MCP tools: {}", e)),
+        }
+    }
+
+    Ok(xml_output)
+}
+
+// 执行本地工具
+#[tauri::command]
+pub async fn execute_local_tool(
+    tool_name: String,
+    parameters: Vec<Parameter>,
+    tool_manager: State<'_, std::sync::Arc<ToolManager>>,
+) -> Result<String, ToolExecutionError> {
+    match tool_manager.get_tool(&tool_name) {
+        Some(tool) => match tool.execute(parameters).await {
+            Ok(result) => Ok(result),
+            Err(e) => Err(ToolExecutionError {
+                error_type: "execution_error".to_string(),
+                message: e.to_string(),
+                details: None,
+            }),
+        },
+        None => Err(ToolExecutionError {
+            error_type: "not_found".to_string(),
+            message: format!("Tool '{}' not found", tool_name),
+            details: None,
+        }),
+    }
+}
+
+// 执行MCP工具
+#[tauri::command]
+pub async fn execute_mcp_tool(
+    tool_name: String,
+    parameters: Vec<Parameter>,
+) -> Result<String, ToolExecutionError> {
+    // 转换Parameter -> serde_json::Value
+    let mut param_map = serde_json::Map::new();
+    for param in parameters {
+        param_map.insert(param.name, serde_json::Value::String(param.value));
+    }
+
+    if let Some(manager) = get_global_manager() {
+        if let Some(client) = manager.get_client_by_tools(&tool_name) {
+            let param = CallToolRequestParam {
+                name: Cow::Owned(tool_name.clone()),
+                arguments: Some(param_map),
+            };
+
+            match client.call_tool(param).await {
+                Ok(result) => {
+                    if result.is_error.unwrap_or(false) {
+                        Err(ToolExecutionError {
+                            error_type: "execution_error".to_string(),
+                            message: format!("MCP tool execution failed: {:?}", result.content),
+                            details: None,
+                        })
+                    } else {
+                        Ok(format!("{:?}", result.content))
+                    }
+                }
+                Err(e) => Err(ToolExecutionError {
+                    error_type: "execution_error".to_string(),
+                    message: e.to_string(),
+                    details: None,
+                }),
+            }
+        } else {
+            Err(ToolExecutionError {
+                error_type: "not_found".to_string(),
+                message: format!("MCP tool '{}' not found", tool_name),
+                details: None,
+            })
+        }
+    } else {
+        Err(ToolExecutionError {
+            error_type: "execution_error".to_string(),
+            message: "MCP manager not initialized".to_string(),
+            details: None,
+        })
+    }
+}
+
+// 批量执行工具
+#[tauri::command]
+pub async fn execute_tools_batch(
+    tool_calls: Vec<ToolCall>,
+    tool_manager: State<'_, std::sync::Arc<ToolManager>>,
+) -> Result<Vec<(String, Result<String, ToolExecutionError>)>, String> {
+    let mut results = Vec::new();
+
+    for tool_call in tool_calls {
+        let parameters = convert_json_to_parameters(&tool_call.parameters);
+
+        let result = match tool_call.tool_type.as_str() {
+            "local" => {
+                execute_local_tool(
+                    tool_call.tool_name.clone(),
+                    parameters,
+                    tool_manager.clone(),
+                )
+                .await
+            }
+            "mcp" => execute_mcp_tool(tool_call.tool_name.clone(), parameters).await,
+            _ => Err(ToolExecutionError {
+                error_type: "validation_error".to_string(),
+                message: format!("Unknown tool type: {}", tool_call.tool_type),
+                details: None,
+            }),
+        };
+
+        results.push((tool_call.tool_name, result));
+    }
+
+    Ok(results)
+}
+
+// 保留原有的API以兼容现有代码
 #[tauri::command]
 pub fn get_available_tools(
     tool_manager: State<'_, std::sync::Arc<ToolManager>>,
@@ -10,8 +193,6 @@ pub fn get_available_tools(
     Ok(tools_list)
 }
 
-// This command is mainly for UI information purposes,
-// not for actual tool execution (that's handled by the processor)
 #[tauri::command]
 pub fn get_tools_documentation() -> Result<String, String> {
     Ok(r#"
@@ -29,4 +210,61 @@ pub fn get_tools_documentation() -> Result<String, String> {
     with files, and the AI will use the appropriate tools to help you.
     "#
     .to_string())
+}
+
+// 辅助函数：将MCP工具的schema转换为XML格式
+fn format_mcp_parameters_to_xml(schema: &serde_json::Value) -> String {
+    let mut xml = String::new();
+
+    if let Some(properties) = schema.get("properties") {
+        if let Some(obj) = properties.as_object() {
+            for (param_name, param_info) in obj {
+                let description = param_info
+                    .get("description")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("No description");
+
+                xml.push_str(&format!(
+                    r#"
+                    <{}>
+                    <parameter_description>
+                    {}
+                    </parameter_description>
+                    </{}>
+                    "#,
+                    param_name, description, param_name
+                ));
+            }
+        }
+    }
+
+    xml
+}
+
+// 辅助函数：判断MCP工具是否需要approval
+fn determine_mcp_tool_approval(tool_name: &str) -> bool {
+    // 可以根据工具名称判断，这里先设置为默认需要approval
+    // 后续可以根据具体的MCP工具进行细化
+    match tool_name {
+        name if name.contains("read") || name.contains("list") || name.contains("get") => false,
+        _ => true,
+    }
+}
+
+// 辅助函数：将JSON参数转换为Parameter格式
+fn convert_json_to_parameters(json_params: &serde_json::Value) -> Vec<Parameter> {
+    let mut parameters = Vec::new();
+
+    if let Some(obj) = json_params.as_object() {
+        for (key, value) in obj {
+            parameters.push(Parameter {
+                name: key.clone(),
+                description: String::new(), // 不需要description用于执行
+                required: true,             // 不需要required用于执行
+                value: value.as_str().unwrap_or(&value.to_string()).to_string(),
+            });
+        }
+    }
+
+    parameters
 }

@@ -26,12 +26,13 @@ fn setup<R: Runtime>(app: &mut App<R>) -> std::result::Result<(), Box<dyn std::e
 
     // Create tool manager and initialize tools
     let tool_manager = Arc::new(create_tool_manager());
+    app.manage(tool_manager.clone());
 
     // Initialize MCP processor
-    let mcp_processor = McpProcessor::new(Arc::new(client.clone()));
+    let mcp_processor = McpProcessor::new();
 
     // Initialize tools processor
-    let tools_processor = ToolsProcessor::new(Arc::new(client), tool_manager);
+    let tools_processor = ToolsProcessor::new(tool_manager);
 
     // Initialize processor manager with all processors
     let processor_manager =
@@ -66,6 +67,10 @@ pub fn run() {
             get_mcp_client_status,
             command::tools::get_available_tools,
             command::tools::get_tools_documentation,
+            command::tools::get_all_available_tools,
+            command::tools::execute_local_tool,
+            command::tools::execute_mcp_tool,
+            command::tools::execute_tools_batch,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
