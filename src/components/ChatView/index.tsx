@@ -11,11 +11,10 @@ import {
 } from "antd";
 import { useChat } from "../../contexts/ChatContext";
 import SystemMessage from "../SystemMessage";
-import StreamingMessageItem from "../StreamingMessageItem";
+import { StreamingMessageItem, MessageCard } from "../Message";
 import { DownOutlined } from "@ant-design/icons";
 import { InputContainer } from "../InputContainer";
 import "./ChatView.css"; // Import a new CSS file for animations and specific styles
-import MessageCard from "../MessageCard";
 import { ToolApprovalMessages } from "../../types/chat";
 import { ToolExecutionResult } from "../../services/MessageProcessor";
 
