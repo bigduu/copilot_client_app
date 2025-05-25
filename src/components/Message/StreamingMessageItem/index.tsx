@@ -61,7 +61,7 @@ const StreamingMessageItem: React.FC<StreamingMessageItemProps> = ({
     hasCompletedRef.current = true;
     setIsComplete(true);
 
-    // 检查是否有工具调用并处理
+    // Check for tool calls and process them
     const detectedToolCalls =
       toolParser.parseToolCallsFromContent(finalContent);
     setToolCalls(detectedToolCalls);
@@ -74,7 +74,7 @@ const StreamingMessageItem: React.FC<StreamingMessageItemProps> = ({
       );
 
       try {
-        // 分类工具调用
+        // Classify tool calls
         const safeCalls = detectedToolCalls.filter(
           (call) => !call.requires_approval
         );
@@ -86,14 +86,14 @@ const StreamingMessageItem: React.FC<StreamingMessageItemProps> = ({
           `[StreamingMessageItem] ${safeCalls.length} safe tools, ${dangerousCalls.length} require approval`
         );
 
-        // 自动执行安全工具并生成消息对
+        // Auto-execute safe tools and generate message pairs
         if (safeCalls.length > 0) {
           const autoExecutedWithMessages =
             await messageProcessor.executeAutoApprovedToolsWithMessages(
               safeCalls
             );
 
-          // 将自动执行的结果转换为消息对
+          // Convert auto-executed results to message pairs
           autoExecutedWithMessages.forEach(
             (execResult: ToolExecutionWithMessage) => {
               const userApprovalMessage: Message = {
@@ -106,8 +106,8 @@ const StreamingMessageItem: React.FC<StreamingMessageItemProps> = ({
               const toolResultMessage: Message = {
                 role: "assistant",
                 content: execResult.toolResult.success
-                  ? `✅ 工具执行成功: ${execResult.toolResult.toolName}\n\n${execResult.toolResult.result}`
-                  : `❌ 工具执行失败: ${execResult.toolResult.toolName}\n\n错误: ${execResult.toolResult.error}`,
+                  ? `✅ Tool executed successfully: ${execResult.toolResult.toolName}\n\n${execResult.toolResult.result}`
+                  : `❌ Tool execution failed: ${execResult.toolResult.toolName}\n\nError: ${execResult.toolResult.error}`,
                 id: crypto.randomUUID(),
                 isToolResult: true,
               };
@@ -120,26 +120,28 @@ const StreamingMessageItem: React.FC<StreamingMessageItemProps> = ({
           );
 
           notification.info({
-            message: "工具自动执行完成",
-            description: `${autoExecutedWithMessages.length} 个安全工具已自动执行`,
+            message: "Tools auto-executed",
+            description: `${autoExecutedWithMessages.length} safe tools have been automatically executed`,
             placement: "bottomRight",
             duration: 3,
           });
         }
 
-        // 设置需要审批的工具调用以供用户决策
+        // Set tool calls that require approval for user decision
         if (dangerousCalls.length > 0) {
           setToolCalls(dangerousCalls);
 
-          // 如果有需要审批的工具，先完成当前消息但不传递批准消息
+          // If there are tools requiring approval, complete current message but don't pass approval messages
           onComplete(
             {
               role: "assistant",
-              content: finalContent || "检测到工具调用，等待用户批准",
+              content:
+                finalContent ||
+                "Tool calls detected, waiting for user approval",
               processorUpdates: processorUpdatesRef.current,
             },
-            undefined, // 没有自动执行的工具结果传递给旧接口
-            approvalMessages.length > 0 ? approvalMessages : undefined // 自动执行的消息对
+            undefined, // No auto-executed tool results passed to old interface
+            approvalMessages.length > 0 ? approvalMessages : undefined // Auto-executed message pairs
           );
           return;
         }
@@ -148,20 +150,20 @@ const StreamingMessageItem: React.FC<StreamingMessageItemProps> = ({
           "[StreamingMessageItem] Error processing tool calls:",
           error
         );
-        const errorMessage = `❌ 工具处理错误: ${error}`;
+        const errorMessage = `❌ Tool processing error: ${error}`;
         processorUpdatesRef.current.push(errorMessage);
         setProcessorUpdates((prev) => [...prev, errorMessage]);
       }
     }
 
-    // 完成消息，传递自动执行的批准消息
+    // Complete message, pass auto-executed approval messages
     onComplete(
       {
         role: "assistant",
         content: finalContent || "Message interrupted",
         processorUpdates: processorUpdatesRef.current,
       },
-      undefined, // 不再使用旧的 toolExecutionResults 接口
+      undefined, // No longer using old toolExecutionResults interface
       approvalMessages.length > 0 ? approvalMessages : undefined
     );
   };
@@ -462,50 +464,50 @@ const StreamingMessageItem: React.FC<StreamingMessageItemProps> = ({
     console.log("[StreamingMessageItem] Tool approved:", toolCall);
 
     try {
-      // 1. 创建用户批准消息
+      // 1. Create user approval message
       const userApprovalMessage: Message = {
         role: "user",
-        content: `已批准执行工具: ${toolCall.tool_name}`,
+        content: `Approved tool execution: ${toolCall.tool_name}`,
         id: crypto.randomUUID(),
         isToolResult: false,
       };
 
-      // 2. 执行工具
+      // 2. Execute tool
       let toolResult: ToolExecutionResult;
 
       if (typeof (window as any).__executeApprovedTool === "function") {
         toolResult = await (window as any).__executeApprovedTool(toolCall);
       } else {
-        // 备用执行逻辑 - 调用 MessageProcessor
+        // Fallback execution logic - call MessageProcessor
         const results = await messageProcessor.executeApprovedTools([toolCall]);
         toolResult = results[0] || {
           success: false,
-          error: "工具执行失败",
+          error: "Tool execution failed",
           toolName: toolCall.tool_name,
         };
       }
 
-      // 3. 创建工具结果消息
+      // 3. Create tool result message
       const toolResultMessage: Message = {
         role: "assistant",
         content: toolResult.success
-          ? `✅ 工具执行成功: ${toolCall.tool_name}\n\n${toolResult.result}`
-          : `❌ 工具执行失败: ${toolCall.tool_name}\n\n错误: ${toolResult.error}`,
+          ? `✅ Tool executed successfully: ${toolCall.tool_name}\n\n${toolResult.result}`
+          : `❌ Tool execution failed: ${toolCall.tool_name}\n\nError: ${toolResult.error}`,
         id: crypto.randomUUID(),
         isToolResult: true,
       };
 
-      // 4. 显示成功通知
+      // 4. Show success notification
       notification.success({
-        message: "工具已批准并执行",
-        description: `${toolCall.tool_name} 执行${
-          toolResult.success ? "成功" : "失败"
+        message: "Tool approved and executed",
+        description: `${toolCall.tool_name} executed ${
+          toolResult.success ? "successfully" : "with failure"
         }`,
         placement: "bottomRight",
         duration: 3,
       });
 
-      // 5. 通过 onComplete 传递批准消息对
+      // 5. Pass approval message pair through onComplete
       const approvalMessages: ToolApprovalMessages[] = [
         {
           userApproval: userApprovalMessage,
@@ -513,15 +515,15 @@ const StreamingMessageItem: React.FC<StreamingMessageItemProps> = ({
         },
       ];
 
-      // 调用 onComplete 传递当前消息和批准消息
+      // Call onComplete to pass current message and approval messages
       onComplete(
         {
           role: "assistant",
-          content: fullTextRef.current || "工具调用处理完成",
+          content: fullTextRef.current || "Tool call processing completed",
           processorUpdates: processorUpdatesRef.current,
         },
-        undefined, // 没有自动执行的工具结果
-        approvalMessages // 批准后的消息对
+        undefined, // No auto-executed tool results
+        approvalMessages // Approved message pairs
       );
     } catch (error) {
       console.error(
@@ -529,17 +531,17 @@ const StreamingMessageItem: React.FC<StreamingMessageItemProps> = ({
         error
       );
 
-      // 创建错误消息
+      // Create error messages
       const userApprovalMessage: Message = {
         role: "user",
-        content: `已批准执行工具: ${toolCall.tool_name}`,
+        content: `Approved tool execution: ${toolCall.tool_name}`,
         id: crypto.randomUUID(),
         isToolResult: false,
       };
 
       const errorMessage: Message = {
         role: "assistant",
-        content: `❌ 工具执行失败: ${toolCall.tool_name}\n\n错误: ${
+        content: `❌ Tool execution failed: ${toolCall.tool_name}\n\nError: ${
           error instanceof Error ? error.message : String(error)
         }`,
         id: crypto.randomUUID(),
@@ -547,13 +549,13 @@ const StreamingMessageItem: React.FC<StreamingMessageItemProps> = ({
       };
 
       notification.error({
-        message: "工具执行失败",
-        description: `${toolCall.tool_name} 执行时发生错误`,
+        message: "Tool execution failed",
+        description: `${toolCall.tool_name} encountered an error during execution`,
         placement: "bottomRight",
         duration: 5,
       });
 
-      // 传递错误消息对
+      // Pass error message pair
       const approvalMessages: ToolApprovalMessages[] = [
         {
           userApproval: userApprovalMessage,
@@ -564,7 +566,7 @@ const StreamingMessageItem: React.FC<StreamingMessageItemProps> = ({
       onComplete(
         {
           role: "assistant",
-          content: fullTextRef.current || "工具调用处理完成",
+          content: fullTextRef.current || "Tool call processing completed",
           processorUpdates: processorUpdatesRef.current,
         },
         undefined,
@@ -576,8 +578,8 @@ const StreamingMessageItem: React.FC<StreamingMessageItemProps> = ({
   const handleToolReject = (toolCall: ToolCall) => {
     console.log("[StreamingMessageItem] Tool rejected:", toolCall);
     notification.info({
-      message: "工具已拒绝",
-      description: `已拒绝执行: ${toolCall.tool_name}`,
+      message: "Tool rejected",
+      description: `Rejected execution of: ${toolCall.tool_name}`,
       placement: "bottomRight",
       duration: 3,
     });

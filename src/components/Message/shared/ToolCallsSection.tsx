@@ -28,7 +28,7 @@ const ToolCallsSection: React.FC<ToolCallsSectionProps> = ({
         style={{ background: "transparent", padding: 0 }}
       >
         <Collapse.Panel
-          header={`检测到 ${toolCalls.length} 个工具调用`}
+          header={`Detected ${toolCalls.length} tool calls`}
           key="1"
           style={{ border: "none" }}
         >
