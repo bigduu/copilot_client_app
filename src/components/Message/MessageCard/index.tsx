@@ -7,39 +7,34 @@ import {
   Button,
   Dropdown,
   Tooltip,
-  Collapse, // Added Collapse
 } from "antd";
 import { CopyOutlined, BookOutlined, StarOutlined } from "@ant-design/icons";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
-import remarkBreaks from "remark-breaks";
-import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
-import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism";
-import { useChat } from "../../contexts/ChatContext";
-import ToolApprovalCard from "../ToolApprovalCard";
-import { ToolCall, toolParser } from "../../utils/toolParser";
+import { useChat } from "../../../contexts/ChatContext";
+import { ToolCall, toolParser } from "../../../utils/toolParser";
+import MarkdownRenderer from "../shared/MarkdownRenderer";
+import ToolCallsSection from "../shared/ToolCallsSection";
+import ProcessorUpdatesSection from "../shared/ProcessorUpdatesSection";
 
 const { Text } = Typography;
 const { useToken } = theme;
-const { Panel } = Collapse;
 
 interface MessageCardProps {
   role: string;
   content: string;
-  processorUpdates?: string[]; // Add this
+  processorUpdates?: string[];
   messageIndex?: number;
   children?: React.ReactNode;
   messageId?: string;
-  isToolResult?: boolean; // Add this to identify tool result messages
+  isToolResult?: boolean;
 }
 
 const MessageCard: React.FC<MessageCardProps> = ({
   role,
   content,
-  processorUpdates, // Add this
+  processorUpdates,
   children,
   messageId,
-  isToolResult = false, // Add this
+  isToolResult = false,
 }) => {
   const { token } = useToken();
   const { currentChatId, addFavorite } = useChat();
@@ -53,7 +48,6 @@ const MessageCard: React.FC<MessageCardProps> = ({
   // Add handlers for tool approval and rejection
   const handleToolApprove = (toolCall: ToolCall) => {
     console.log("[MessageCard] Tool approved:", toolCall);
-    // Call your tool execution logic here
     if (typeof (window as any).__executeApprovedTool === "function") {
       (window as any).__executeApprovedTool(toolCall);
     }
@@ -169,82 +163,6 @@ const MessageCard: React.FC<MessageCardProps> = ({
     },
   ];
 
-  // Render tool calls if present
-  const renderToolCalls = () => {
-    if (!toolCalls || toolCalls.length === 0) return null;
-
-    return (
-      <div style={{ marginTop: token.marginMD }}>
-        <Collapse
-          ghost
-          defaultActiveKey={["1"]}
-          style={{ background: "transparent", padding: 0 }}
-        >
-          <Panel
-            header={`检测到 ${toolCalls.length} 个工具调用`}
-            key="1"
-            style={{ border: "none" }}
-          >
-            <div
-              style={{ display: "flex", flexDirection: "column", gap: "8px" }}
-            >
-              {toolCalls.map((toolCall, index) => (
-                <ToolApprovalCard
-                  key={index}
-                  toolCall={toolCall}
-                  onApprove={handleToolApprove}
-                  onReject={handleToolReject}
-                />
-              ))}
-            </div>
-          </Panel>
-        </Collapse>
-      </div>
-    );
-  };
-
-  // Render processor updates if present
-  const renderProcessorUpdates = () => {
-    if (!processorUpdates || processorUpdates.length === 0) return null;
-
-    return (
-      <div style={{ marginTop: token.marginSM }}>
-        <Collapse ghost style={{ background: "transparent", padding: 0 }}>
-          <Panel
-            header={`处理器更新 (${processorUpdates.length})`}
-            key="1"
-            style={{ border: "none" }}
-          >
-            <div
-              style={{
-                fontSize: token.fontSizeSM,
-                color: token.colorTextSecondary,
-              }}
-            >
-              {processorUpdates.map((update, index) => (
-                <div
-                  key={index}
-                  style={{
-                    marginBottom: token.marginXS,
-                    padding: token.paddingXS,
-                    borderRadius: token.borderRadiusSM,
-                    background: update.includes("成功")
-                      ? token.colorSuccessBg
-                      : update.includes("失败")
-                      ? token.colorErrorBg
-                      : token.colorInfoBg,
-                  }}
-                >
-                  {update}
-                </div>
-              ))}
-            </div>
-          </Panel>
-        </Collapse>
-      </div>
-    );
-  };
-
   return (
     <div onContextMenu={(e) => handleMouseUp(e)} style={{ width: "100%" }}>
       <Dropdown menu={{ items: contextMenuItems }} trigger={["contextMenu"]}>
@@ -299,119 +217,29 @@ const MessageCard: React.FC<MessageCardProps> = ({
             </Text>
 
             {/* Tool calls display (only for assistant messages) */}
-            {role === "assistant" && renderToolCalls()}
+            {role === "assistant" && (
+              <ToolCallsSection
+                toolCalls={toolCalls}
+                onApprove={handleToolApprove}
+                onReject={handleToolReject}
+              />
+            )}
 
             {/* Normal content, hidden if tool calls are present for assistant */}
             {!(role === "assistant" && toolCalls.length > 0) && (
-              <div style={{ width: "100%", maxWidth: "100%" }}>
-                <ReactMarkdown
-                  remarkPlugins={
-                    role === "user" ? [remarkGfm, remarkBreaks] : [remarkGfm]
-                  }
-                  components={{
-                    p: ({ children }) => (
-                      <Text
-                        style={{
-                          marginBottom: token.marginSM,
-                          display: "block",
-                        }}
-                      >
-                        {children}
-                      </Text>
-                    ),
-                    ol: ({ children }) => (
-                      <ol
-                        style={{
-                          marginBottom: token.marginSM,
-                          paddingLeft: 20,
-                        }}
-                      >
-                        {children}
-                      </ol>
-                    ),
-                    ul: ({ children }) => (
-                      <ul
-                        style={{
-                          marginBottom: token.marginSM,
-                          paddingLeft: 20,
-                        }}
-                      >
-                        {children}
-                      </ul>
-                    ),
-                    li: ({ children }) => (
-                      <li
-                        style={{
-                          marginBottom: token.marginXS,
-                        }}
-                      >
-                        {children}
-                      </li>
-                    ),
-                    code({ className, children, ...props }) {
-                      const match = /language-(\w+)/.exec(className || "");
-                      const language = match ? match[1] : "";
-                      const isInline = !match && !className;
-                      const codeString = String(children).replace(/\n$/, "");
-
-                      if (isInline) {
-                        return (
-                          <Text code className={className} {...props}>
-                            {children}
-                          </Text>
-                        );
-                      }
-
-                      return (
-                        <div
-                          style={{
-                            position: "relative",
-                            maxWidth: "100%",
-                            overflow: "auto",
-                          }}
-                        >
-                          <SyntaxHighlighter
-                            style={oneDark}
-                            language={language || "text"}
-                            PreTag="div"
-                            customStyle={{
-                              margin: `${token.marginXS}px 0`,
-                              borderRadius: token.borderRadiusSM,
-                              fontSize: token.fontSizeSM,
-                              maxWidth: "100%",
-                            }}
-                          >
-                            {codeString}
-                          </SyntaxHighlighter>
-                        </div>
-                      );
-                    },
-                    blockquote: ({ children }) => (
-                      <div
-                        style={{
-                          borderLeft: `3px solid ${token.colorPrimary}`,
-                          background: token.colorPrimaryBg,
-                          padding: `${token.paddingXS}px ${token.padding}px`,
-                          margin: `${token.marginXS}px 0`,
-                          color: token.colorTextSecondary,
-                          fontStyle: "italic",
-                        }}
-                      >
-                        {children}
-                      </div>
-                    ),
-                    a: ({ children }) => (
-                      <Text style={{ color: token.colorLink }}>{children}</Text>
-                    ),
-                  }}
-                >
-                  {content}
-                </ReactMarkdown>
-              </div>
+              <MarkdownRenderer
+                content={content}
+                role={role}
+                enableBreaks={role === "user"}
+              />
             )}
 
             {/* Processor updates display */}
-            {role === "assistant" && renderProcessorUpdates()}
+            {role === "assistant" && (
+              <ProcessorUpdatesSection
+                processorUpdates={processorUpdates || []}
+              />
+            )}
 
             {children}
 

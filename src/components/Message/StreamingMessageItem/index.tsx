@@ -1,50 +1,19 @@
 import React, { useEffect, useRef, useState } from "react";
-import { theme, Typography, Collapse, notification } from "antd";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
-import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
-import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism";
+import { theme, notification } from "antd";
 import { Channel } from "@tauri-apps/api/core";
-import { Message, ToolApprovalMessages } from "../../types/chat";
-import { ToolCall, toolParser } from "../../utils/toolParser";
+import { Message, ToolApprovalMessages } from "../../../types/chat";
+import { ToolCall, toolParser } from "../../../utils/toolParser";
 import {
   ToolExecutionResult,
   ToolExecutionWithMessage,
   messageProcessor,
-} from "../../services/MessageProcessor";
-import ToolApprovalCard from "../ToolApprovalCard";
+} from "../../../services/MessageProcessor";
+import MarkdownRenderer from "../shared/MarkdownRenderer";
+import ToolCallsSection from "../shared/ToolCallsSection";
+import ProcessorUpdatesSection from "../shared/ProcessorUpdatesSection";
+import TypingIndicator from "../shared/TypingIndicator";
 
-const { Text } = Typography;
 const { useToken } = theme;
-
-// Typing indicator component
-const TypingIndicator: React.FC = () => {
-  const { token } = useToken();
-  return (
-    <div
-      style={{
-        display: "flex",
-        gap: token.marginXXS,
-        padding: token.paddingXXS,
-        alignItems: "center",
-      }}
-    >
-      {[1, 2, 3].map((i) => (
-        <span
-          key={i}
-          style={{
-            width: 4,
-            height: 4,
-            borderRadius: "50%",
-            background: token.colorTextSecondary,
-            opacity: 0.6,
-            animation: `typing-dot ${0.8 + i * 0.2}s infinite ease-in-out`,
-          }}
-        />
-      ))}
-    </div>
-  );
-};
 
 interface StreamingMessageItemProps {
   channel: Channel<string>;
@@ -61,7 +30,6 @@ const StreamingMessageItem: React.FC<StreamingMessageItemProps> = ({
 }) => {
   const [content, setContent] = useState("");
   const [processorUpdates, setProcessorUpdates] = useState<string[]>([]);
-  const [showProcessorUpdates, setShowProcessorUpdates] = useState(false);
   const [isComplete, setIsComplete] = useState(false);
   const [toolCalls, setToolCalls] = useState<ToolCall[]>([]);
   const hasCompletedRef = useRef(false);
@@ -72,27 +40,6 @@ const StreamingMessageItem: React.FC<StreamingMessageItemProps> = ({
   const isMountedRef = useRef(true);
   const minTimeElapsedRef = useRef(false);
   const { token } = useToken();
-
-  // Define markdown components for syntax highlighting and other formatting
-  const markdownComponents = {
-    code({ node, inline, className, children, ...props }: any) {
-      const match = /language-(\w+)/.exec(className || "");
-      return !inline && match ? (
-        <SyntaxHighlighter
-          style={oneDark}
-          language={match[1]}
-          PreTag="div"
-          {...props}
-        >
-          {String(children).replace(/\n$/, "")}
-        </SyntaxHighlighter>
-      ) : (
-        <code className={className} {...props}>
-          {children}
-        </code>
-      );
-    },
-  };
 
   // Complete message and process tool calls
   const completeMessage = async (finalContent: string) => {
@@ -217,6 +164,18 @@ const StreamingMessageItem: React.FC<StreamingMessageItemProps> = ({
       undefined, // 不再使用旧的 toolExecutionResults 接口
       approvalMessages.length > 0 ? approvalMessages : undefined
     );
+  };
+
+  // Helper function to determine if a tool is dangerous
+  const isDangerousTool = (toolName: string): boolean => {
+    const dangerousTools = [
+      "create_file",
+      "update_file",
+      "delete_file",
+      "append_file",
+      "execute_command",
+    ];
+    return dangerousTools.includes(toolName);
   };
 
   useEffect(() => {
@@ -480,14 +439,12 @@ const StreamingMessageItem: React.FC<StreamingMessageItemProps> = ({
           const finalContent = fullTextRef.current;
           // We're calling onComplete directly rather than through completeMessage
           // since completeMessage won't run for unmounted components
-          // Inside the if (fullTextRef.current) block
           onComplete({
             role: "assistant",
             content: finalContent,
             processorUpdates: processorUpdatesRef.current,
           });
         } else {
-          // And in the else block
           onComplete({
             role: "assistant",
             content:
@@ -626,52 +583,6 @@ const StreamingMessageItem: React.FC<StreamingMessageItemProps> = ({
     });
   };
 
-  // Replace the ToolCallDisplay component with this:
-  const renderToolCalls = () => {
-    if (toolCalls.length === 0) return null;
-
-    return (
-      <div style={{ marginTop: token.marginMD }}>
-        <Collapse
-          ghost
-          defaultActiveKey={["1"]}
-          style={{ background: "transparent", padding: 0 }}
-        >
-          <Collapse.Panel
-            header={`检测到 ${toolCalls.length} 个工具调用`}
-            key="1"
-            style={{ border: "none" }}
-          >
-            <div
-              style={{ display: "flex", flexDirection: "column", gap: "8px" }}
-            >
-              {toolCalls.map((toolCall, index) => (
-                <ToolApprovalCard
-                  key={index}
-                  toolCall={toolCall}
-                  onApprove={handleToolApprove}
-                  onReject={handleToolReject}
-                />
-              ))}
-            </div>
-          </Collapse.Panel>
-        </Collapse>
-      </div>
-    );
-  };
-
-  // Helper function to determine if a tool is dangerous
-  const isDangerousTool = (toolName: string): boolean => {
-    const dangerousTools = [
-      "create_file",
-      "update_file",
-      "delete_file",
-      "append_file",
-      "execute_command",
-    ];
-    return dangerousTools.includes(toolName);
-  };
-
   return (
     <div
       style={{
@@ -687,84 +598,25 @@ const StreamingMessageItem: React.FC<StreamingMessageItemProps> = ({
       }}
     >
       <div>
-        {/* Show ToolApprovalCard if tool calls are detected, hide markdown content */}
+        {/* Show ToolCallsSection if tool calls are detected, hide markdown content */}
         {toolCalls.length > 0 ? (
-          renderToolCalls()
+          <ToolCallsSection
+            toolCalls={toolCalls}
+            onApprove={handleToolApprove}
+            onReject={handleToolReject}
+          />
         ) : (
           <div>
-            <ReactMarkdown
-              remarkPlugins={[remarkGfm]}
-              components={markdownComponents}
-            >
-              {content || " "}
-            </ReactMarkdown>
+            <MarkdownRenderer content={content || " "} role="assistant" />
             {!isComplete && <TypingIndicator />}
           </div>
         )}
       </div>
       {/* Processor updates display, shown below the main content or tool approval */}
-      {processorUpdates.length > 0 && (
-        <Collapse
-          ghost
-          collapsible="header"
-          activeKey={showProcessorUpdates ? ["1"] : []}
-          onChange={() => setShowProcessorUpdates(!showProcessorUpdates)}
-          style={{
-            background: "transparent",
-            padding: 0,
-            marginTop: token.marginSM,
-            position: "absolute",
-            bottom: token.paddingXS,
-            left: token.padding,
-            right: token.padding,
-            zIndex: 1, // Ensure it's above other elements if needed
-          }}
-        >
-          <Collapse.Panel
-            header={
-              <Text
-                type="secondary"
-                style={{ fontSize: token.fontSizeSM, cursor: "pointer" }} // Changed fontSizeXS to fontSizeSM
-              >
-                {showProcessorUpdates ? "隐藏" : "显示"}处理器更新 (
-                {processorUpdates.length})
-              </Text>
-            }
-            key="1"
-            style={{ border: "none" }}
-          >
-            <div
-              style={{
-                fontSize: token.fontSizeSM, // Changed fontSizeXS to fontSizeSM
-                color: token.colorTextTertiary,
-                maxHeight: "100px",
-                overflowY: "auto",
-                padding: `${token.paddingXXS}px ${token.paddingXS}px`,
-                background: token.colorBgLayout,
-                borderRadius: token.borderRadiusSM,
-              }}
-            >
-              {processorUpdates.map((update, index) => (
-                <div
-                  key={index}
-                  style={{
-                    marginBottom: token.marginXXS,
-                    padding: token.paddingXXS,
-                    borderRadius: token.borderRadiusXS,
-                    background: update.includes("成功")
-                      ? token.colorSuccessBgHover
-                      : update.includes("失败")
-                      ? token.colorErrorBgHover
-                      : token.colorInfoBgHover,
-                  }}
-                >
-                  {update}
-                </div>
-              ))}
-            </div>
-          </Collapse.Panel>
-        </Collapse>
-      )}
+      <ProcessorUpdatesSection
+        processorUpdates={processorUpdates}
+        position="absolute"
+      />
     </div>
   );
 };
