@@ -73,9 +73,9 @@ const ProcessorUpdatesSection: React.FC<ProcessorUpdatesSectionProps> = ({
                 padding: token.paddingXXS,
                 borderRadius: token.borderRadiusXS,
                 background:
-                  update.includes("成功") || update.includes("success")
+                  update.includes("Success") || update.includes("success")
                     ? token.colorSuccessBgHover
-                    : update.includes("失败") ||
+                    : update.includes("Failed") ||
                       update.includes("failed") ||
                       update.includes("error")
                     ? token.colorErrorBgHover

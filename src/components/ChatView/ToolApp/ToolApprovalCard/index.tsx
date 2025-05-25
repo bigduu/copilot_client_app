@@ -36,7 +36,7 @@ export const ToolApprovalCard: React.FC<ToolApprovalCardProps> = ({
     if (toolCall.tool_name === "execute_command" && params.command) {
       return (
         <div className="tool-parameter command">
-          <span className="param-label">命令：</span>
+          <span className="param-label">Command:</span>
           <code className="command-code">{params.command}</code>
         </div>
       );
@@ -46,7 +46,7 @@ export const ToolApprovalCard: React.FC<ToolApprovalCardProps> = ({
       <div className="tool-parameters">
         {Object.entries(params).map(([key, value]) => (
           <div key={key} className="tool-parameter">
-            <span className="param-label">{key}：</span>
+            <span className="param-label">{key}:</span>
             <span className="param-value">
               {typeof value === "string" ? value : JSON.stringify(value)}
             </span>
@@ -58,25 +58,12 @@ export const ToolApprovalCard: React.FC<ToolApprovalCardProps> = ({
 
   // 获取工具类型的友好名称
   const getToolTypeName = () => {
-    return toolCall.tool_type === "local" ? "本地工具" : "MCP工具";
+    return toolCall.tool_type === "local" ? "Local Tool" : "MCP Tool";
   };
 
   // 获取工具的友好名称
   const getToolName = () => {
-    switch (toolCall.tool_name) {
-      case "execute_command":
-        return "执行命令";
-      case "create_file":
-        return "创建文件";
-      case "update_file":
-        return "更新文件";
-      case "delete_file":
-        return "删除文件";
-      case "search_files":
-        return "搜索文件";
-      default:
-        return toolCall.tool_name;
-    }
+    return toolCall.tool_name;
   };
 
   return (
@@ -91,7 +78,7 @@ export const ToolApprovalCard: React.FC<ToolApprovalCardProps> = ({
           <h3 className="tool-name">{getToolName()}</h3>
           <span className="tool-type">{getToolTypeName()}</span>
           {toolCall.requires_approval && (
-            <span className="approval-required">需要批准</span>
+            <span className="approval-required">Need Approval</span>
           )}
         </div>
       </div>
@@ -100,10 +87,10 @@ export const ToolApprovalCard: React.FC<ToolApprovalCardProps> = ({
 
       <div className="tool-actions">
         <button className="approve-button" onClick={() => onApprove(toolCall)}>
-          批准
+          Approve
         </button>
         <button className="reject-button" onClick={() => onReject(toolCall)}>
-          拒绝
+          Reject
         </button>
       </div>
     </div>
