@@ -86,42 +86,30 @@ const StreamingMessageItem: React.FC<StreamingMessageItemProps> = ({
           `[StreamingMessageItem] ${safeCalls.length} safe tools, ${dangerousCalls.length} require approval`
         );
 
-        // Auto-execute safe tools and generate message pairs
+        // Auto-execute safe tools (no approval messages needed for safe tools)
         if (safeCalls.length > 0) {
-          const autoExecutedWithMessages =
-            await messageProcessor.executeAutoApprovedToolsWithMessages(
-              safeCalls
-            );
-
-          // Convert auto-executed results to message pairs
-          autoExecutedWithMessages.forEach(
-            (execResult: ToolExecutionWithMessage) => {
-              const userApprovalMessage: Message = {
-                role: "user",
-                content: execResult.userMessage,
-                id: crypto.randomUUID(),
-                isToolResult: false,
-              };
-
-              const toolResultMessage: Message = {
-                role: "assistant",
-                content: execResult.toolResult.success
-                  ? `✅ Tool executed successfully: ${execResult.toolResult.toolName}\n\n${execResult.toolResult.result}`
-                  : `❌ Tool execution failed: ${execResult.toolResult.toolName}\n\nError: ${execResult.toolResult.error}`,
-                id: crypto.randomUUID(),
-                isToolResult: true,
-              };
-
-              approvalMessages.push({
-                userApproval: userApprovalMessage,
-                toolResult: toolResultMessage,
-              });
-            }
+          console.log(
+            `[StreamingMessageItem] Auto-executing ${safeCalls.length} safe tools`
           );
 
+          // Execute safe tools directly and update processor updates
+          const autoExecutedResults =
+            await messageProcessor.executeApprovedTools(safeCalls);
+
+          // Add execution results to processor updates instead of creating fake approval messages
+          autoExecutedResults.forEach((result, index) => {
+            const toolName = safeCalls[index]?.tool_name || "unknown";
+            const updateMessage = result.success
+              ? `✅ Auto-executed ${toolName}: ${result.result}`
+              : `❌ Auto-execution failed for ${toolName}: ${result.error}`;
+
+            processorUpdatesRef.current.push(updateMessage);
+            setProcessorUpdates((prev) => [...prev, updateMessage]);
+          });
+
           notification.info({
-            message: "Tools auto-executed",
-            description: `${autoExecutedWithMessages.length} safe tools have been automatically executed`,
+            message: "Safe tools auto-executed",
+            description: `${autoExecutedResults.length} safe tools have been automatically executed`,
             placement: "bottomRight",
             duration: 3,
           });

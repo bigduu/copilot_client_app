@@ -2,12 +2,8 @@ import { useState, useCallback } from "react";
 import { invoke, Channel } from "@tauri-apps/api/core";
 import useMessageProcessor from "./useMessageProcessor";
 import { ChatItem, Message } from "../../types/chat";
-import { DEFAULT_MESSAGE } from "../../constants";
 import { ToolExecutionResult } from "./useToolExecution";
 import { messageProcessor as messageProcessorService } from "../../services/MessageProcessor";
-
-// System prompt storage key
-const SYSTEM_PROMPT_KEY = "system_prompt";
 
 interface UseMessagesReturn {
   isStreaming: boolean;
@@ -19,24 +15,6 @@ interface UseMessagesReturn {
   // 新增MessageProcessor相关状态和方法
   messageProcessor: ReturnType<typeof useMessageProcessor>;
 }
-
-const getEffectiveSystemPrompt = (chat: ChatItem | null) => {
-  if (!chat) return localStorage.getItem(SYSTEM_PROMPT_KEY) || DEFAULT_MESSAGE;
-  
-  // First try to use chat's stored systemPrompt
-  if (chat.systemPrompt) {
-    return chat.systemPrompt;
-  }
-  
-  // Look for existing system message
-  const systemMessage = chat.messages.find(m => m.role === "system");
-  if (systemMessage) {
-    return systemMessage.content;
-  }
-  
-  // Fall back to current global system prompt
-  return localStorage.getItem(SYSTEM_PROMPT_KEY) || DEFAULT_MESSAGE;
-};
 
 export const useMessages = (
   currentChatId: string | null,

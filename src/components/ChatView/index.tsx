@@ -341,6 +341,26 @@ export const ChatView: React.FC<ChatViewProps> = ({ showFavorites }) => {
                         messageIndex={index}
                         messageId={messageCardId}
                         isToolResult={message.isToolResult} // Add this line
+                        message={message} // Pass full message object
+                        onMessageUpdate={(messageId, updates) => {
+                          // Update message in the chat
+                          if (currentChatId) {
+                            const updatedMessages = currentMessages.map(
+                              (msg, idx) => {
+                                if (
+                                  msg.id === messageId ||
+                                  `msg-${currentChatId}-${idx}` === messageId
+                                ) {
+                                  return { ...msg, ...updates };
+                                }
+                                return msg;
+                              }
+                            );
+                            updateChat(currentChatId, {
+                              messages: updatedMessages,
+                            });
+                          }
+                        }}
                         onToolExecuted={(approvalMessages) => {
                           // Handle tool execution from MessageCard
                           handleStreamingComplete(
