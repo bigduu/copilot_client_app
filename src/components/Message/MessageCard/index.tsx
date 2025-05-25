@@ -7,10 +7,16 @@ import {
   Button,
   Dropdown,
   Tooltip,
+  notification,
 } from "antd";
 import { CopyOutlined, BookOutlined, StarOutlined } from "@ant-design/icons";
 import { useChat } from "../../../contexts/ChatContext";
 import { ToolCall, toolParser } from "../../../utils/toolParser";
+import { Message, ToolApprovalMessages } from "../../../types/chat";
+import {
+  ToolExecutionResult,
+  messageProcessor,
+} from "../../../services/MessageProcessor";
 import MarkdownRenderer from "../shared/MarkdownRenderer";
 import ToolCallsSection from "../shared/ToolCallsSection";
 import ProcessorUpdatesSection from "../shared/ProcessorUpdatesSection";
@@ -26,6 +32,7 @@ interface MessageCardProps {
   children?: React.ReactNode;
   messageId?: string;
   isToolResult?: boolean;
+  onToolExecuted?: (approvalMessages: ToolApprovalMessages[]) => void;
 }
 
 const MessageCard: React.FC<MessageCardProps> = ({
@@ -35,6 +42,7 @@ const MessageCard: React.FC<MessageCardProps> = ({
   children,
   messageId,
   isToolResult = false,
+  onToolExecuted,
 }) => {
   const { token } = useToken();
   const { currentChatId, addFavorite } = useChat();
@@ -46,15 +54,104 @@ const MessageCard: React.FC<MessageCardProps> = ({
   const toolCalls = toolParser.parseToolCallsFromContent(content);
 
   // Add handlers for tool approval and rejection
-  const handleToolApprove = (toolCall: ToolCall) => {
+  const handleToolApprove = async (toolCall: ToolCall) => {
     console.log("[MessageCard] Tool approved:", toolCall);
-    if (typeof (window as any).__executeApprovedTool === "function") {
-      (window as any).__executeApprovedTool(toolCall);
+
+    try {
+      // 1. Create user approval message
+      const userApprovalMessage: Message = {
+        role: "user",
+        content: `Approved tool execution: ${toolCall.tool_name}`,
+        id: crypto.randomUUID(),
+        isToolResult: false,
+      };
+
+      // 2. Execute tool using MessageProcessor
+      const results = await messageProcessor.executeApprovedTools([toolCall]);
+      const toolResult = results[0] || {
+        success: false,
+        error: "Tool execution failed",
+        toolName: toolCall.tool_name,
+      };
+
+      // 3. Create tool result message
+      const toolResultMessage: Message = {
+        role: "assistant",
+        content: toolResult.success
+          ? `✅ Tool executed successfully: ${toolCall.tool_name}\n\n${toolResult.result}`
+          : `❌ Tool execution failed: ${toolCall.tool_name}\n\nError: ${toolResult.error}`,
+        id: crypto.randomUUID(),
+        isToolResult: true,
+      };
+
+      // 4. Show success notification
+      notification.success({
+        message: "Tool approved and executed",
+        description: `${toolCall.tool_name} executed ${
+          toolResult.success ? "successfully" : "with failure"
+        }`,
+        placement: "bottomRight",
+        duration: 3,
+      });
+
+      // 5. Call onToolExecuted if provided
+      if (onToolExecuted) {
+        const approvalMessages: ToolApprovalMessages[] = [
+          {
+            userApproval: userApprovalMessage,
+            toolResult: toolResultMessage,
+          },
+        ];
+        onToolExecuted(approvalMessages);
+      }
+    } catch (error) {
+      console.error("[MessageCard] Error executing approved tool:", error);
+
+      // Create error messages
+      const userApprovalMessage: Message = {
+        role: "user",
+        content: `Approved tool execution: ${toolCall.tool_name}`,
+        id: crypto.randomUUID(),
+        isToolResult: false,
+      };
+
+      const errorMessage: Message = {
+        role: "assistant",
+        content: `❌ Tool execution failed: ${toolCall.tool_name}\n\nError: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+        id: crypto.randomUUID(),
+        isToolResult: true,
+      };
+
+      notification.error({
+        message: "Tool execution failed",
+        description: `${toolCall.tool_name} encountered an error during execution`,
+        placement: "bottomRight",
+        duration: 5,
+      });
+
+      // Pass error message pair if callback is provided
+      if (onToolExecuted) {
+        const approvalMessages: ToolApprovalMessages[] = [
+          {
+            userApproval: userApprovalMessage,
+            toolResult: errorMessage,
+          },
+        ];
+        onToolExecuted(approvalMessages);
+      }
     }
   };
 
   const handleToolReject = (toolCall: ToolCall) => {
     console.log("[MessageCard] Tool rejected:", toolCall);
+    notification.info({
+      message: "Tool rejected",
+      description: `Rejected execution of: ${toolCall.tool_name}`,
+      placement: "bottomRight",
+      duration: 3,
+    });
   };
 
   // Add entire message to favorites

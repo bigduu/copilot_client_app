@@ -53,18 +53,16 @@ export const ChatView: React.FC<ChatViewProps> = ({ showFavorites }) => {
       hasApprovalMessages: !!approvalMessages?.length,
     });
 
-    // Add the original assistant message first
-    addAssistantMessage(finalMessage);
-
-    // Add approval message pairs if they exist
+    // Check if this is a tool execution callback from MessageCard
     if (approvalMessages && approvalMessages.length > 0) {
       console.log(
-        "[ChatView] Processing approval messages:",
+        "[ChatView] Processing approval messages from MessageCard:",
         approvalMessages.length
       );
 
-      // We need to add approval messages sequentially to maintain order
-      let currentMsgList = [...currentMessages, finalMessage];
+      // For MessageCard tool execution, we don't add the finalMessage again
+      // since it's already in the chat. Just add the approval message pairs.
+      let currentMsgList = [...currentMessages];
 
       approvalMessages.forEach(({ userApproval, toolResult }, index) => {
         // Add user approval message
@@ -76,11 +74,14 @@ export const ChatView: React.FC<ChatViewProps> = ({ showFavorites }) => {
         console.log(`[ChatView] Added approval message pair ${index + 1}`);
       });
 
-      // Update all messages at once after adding the final message
+      // Update all messages at once
       setTimeout(() => {
         updateChat(currentChatId, { messages: currentMsgList });
         console.log("[ChatView] Updated chat with all approval messages");
       }, 150);
+    } else {
+      // For streaming completion (from StreamingMessageItem), add the final message
+      addAssistantMessage(finalMessage);
     }
   };
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -340,6 +341,14 @@ export const ChatView: React.FC<ChatViewProps> = ({ showFavorites }) => {
                         messageIndex={index}
                         messageId={messageCardId}
                         isToolResult={message.isToolResult} // Add this line
+                        onToolExecuted={(approvalMessages) => {
+                          // Handle tool execution from MessageCard
+                          handleStreamingComplete(
+                            message, // Pass current message
+                            undefined, // No auto-executed tool results
+                            approvalMessages // Approval message pairs
+                          );
+                        }}
                       />
                     </div>
                   </List.Item>
