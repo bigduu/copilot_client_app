@@ -208,33 +208,9 @@ pre {
   }
 }
 
-/* Tool Approval Container styles */
-.tool-approval-container-wrapper {
-  width: 100%;
-  display: flex;
-  justify-content: center;
-  margin: 12px 0;
-  animation: slide-in-from-top 0.3s ease-out;
-  position: relative;
-}
-
-@keyframes slide-in-from-top {
-  0% {
-    opacity: 0;
-    transform: translateY(-20px);
-  }
-  100% {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
 
 /* Style adjustments for dark mode */
 @media (prefers-color-scheme: dark) {
-  [data-theme='dark'] .tool-approval-container {
-    background-color: #1f1f1f;
-    border-color: #333;
-  }
   
   [data-theme='dark'] .tool-approval-card {
     background-color: #262626;
