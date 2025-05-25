@@ -9,11 +9,11 @@ import {
   theme,
   Button,
 } from "antd";
-import { useChat } from "../../contexts/ChatContext";
-import SystemMessage from "../SystemMessage";
-import { StreamingMessageItem, MessageCard } from "../Message";
+import { useChat } from "../../contexts/ChatView";
+import SystemMessage from "./SystemMessage";
+import { StreamingMessageItem, MessageCard } from "./Message";
 import { DownOutlined } from "@ant-design/icons";
-import { InputContainer } from "../InputContainer";
+import { InputContainer } from "./Input";
 import "./ChatView.css"; // Import a new CSS file for animations and specific styles
 import { ToolApprovalMessages } from "../../types/chat";
 import { ToolExecutionResult } from "../../services/MessageProcessor";
