@@ -47,7 +47,7 @@ const ProcessorUpdatesSection: React.FC<ProcessorUpdatesSectionProps> = ({
             type="secondary"
             style={{ fontSize: token.fontSizeSM, cursor: "pointer" }}
           >
-            {showProcessorUpdates ? "隐藏" : "显示"}处理器更新 (
+            {showProcessorUpdates ? "Hide" : "Show"} processor updates (
             {processorUpdates.length})
           </Text>
         }
@@ -72,11 +72,14 @@ const ProcessorUpdatesSection: React.FC<ProcessorUpdatesSectionProps> = ({
                 marginBottom: token.marginXXS,
                 padding: token.paddingXXS,
                 borderRadius: token.borderRadiusXS,
-                background: update.includes("成功")
-                  ? token.colorSuccessBgHover
-                  : update.includes("失败")
-                  ? token.colorErrorBgHover
-                  : token.colorInfoBgHover,
+                background:
+                  update.includes("成功") || update.includes("success")
+                    ? token.colorSuccessBgHover
+                    : update.includes("失败") ||
+                      update.includes("failed") ||
+                      update.includes("error")
+                    ? token.colorErrorBgHover
+                    : token.colorInfoBgHover,
               }}
             >
               {update}

@@ -57,7 +57,7 @@ const MessageCard: React.FC<MessageCardProps> = ({
     console.log("[MessageCard] Tool rejected:", toolCall);
   };
 
-  // 添加整个消息到收藏夹
+  // Add entire message to favorites
   const addMessageToFavorites = () => {
     if (currentChatId) {
       if (selectedText) {
@@ -73,7 +73,7 @@ const MessageCard: React.FC<MessageCardProps> = ({
     }
   };
 
-  // 添加选中内容到收藏夹
+  // Add selected content to favorites
   const addSelectedToFavorites = () => {
     if (currentChatId && selectedText) {
       addFavorite({
@@ -86,7 +86,7 @@ const MessageCard: React.FC<MessageCardProps> = ({
     }
   };
 
-  // 监听选中内容
+  // Listen for selected content
   const handleMouseUp = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
@@ -104,7 +104,7 @@ const MessageCard: React.FC<MessageCardProps> = ({
     }
   };
 
-  // 复制文本到剪贴板
+  // Copy text to clipboard
   const copyToClipboard = async (text: string) => {
     try {
       await navigator.clipboard.writeText(text);
@@ -113,12 +113,12 @@ const MessageCard: React.FC<MessageCardProps> = ({
     }
   };
 
-  // 创建引用格式
+  // Create reference format
   const createReference = (text: string) => {
     return `> ${text.replace(/\n/g, "\n> ")}`;
   };
 
-  // 引用消息
+  // Reference message
   const referenceMessage = () => {
     if (selectedText) {
       const referenceText = createReference(selectedText);
@@ -135,7 +135,7 @@ const MessageCard: React.FC<MessageCardProps> = ({
     }
   };
 
-  // 上下文菜单项
+  // Context menu items
   const contextMenuItems = [
     {
       key: "copy",
