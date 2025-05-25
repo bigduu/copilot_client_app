@@ -1,5 +1,5 @@
 import React from "react";
-import { ToolCall } from "../../utils/toolParser";
+import { ToolCall } from "../../../../utils/toolParser";
 import "./styles.css";
 
 interface ToolApprovalCardProps {

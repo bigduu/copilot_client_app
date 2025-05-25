@@ -1,10 +1,9 @@
 use serde::{Deserialize, Serialize};
 use std::borrow::Cow;
-use std::collections::HashMap;
 use tauri::State;
 
 use crate::mcp::client::get_global_manager;
-use crate::tools::{LocalToolInfo, Parameter, ToolManager};
+use crate::tools::{Parameter, ToolManager};
 use rmcp::model::CallToolRequestParam;
 
 #[derive(Debug, Serialize, Deserialize)]

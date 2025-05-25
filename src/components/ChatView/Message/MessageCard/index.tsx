@@ -13,7 +13,11 @@ import { CopyOutlined, BookOutlined, StarOutlined } from "@ant-design/icons";
 import MarkdownRenderer from "../shared/MarkdownRenderer";
 import ToolCallsSection from "../shared/ToolCallsSection";
 import ProcessorUpdatesSection from "../shared/ProcessorUpdatesSection";
-import { Message, ToolApprovalMessages } from "../../../../types/chat";
+import {
+  Message,
+  ToolApprovalMessages,
+  ToolExecutionStatus,
+} from "../../../../types/chat";
 import { useChat } from "../../../../contexts/ChatView";
 import { ToolCall, toolParser } from "../../../../utils/toolParser";
 import { messageProcessor } from "../../../../services";
@@ -30,6 +34,8 @@ interface MessageCardProps {
   messageId?: string;
   isToolResult?: boolean;
   onToolExecuted?: (approvalMessages: ToolApprovalMessages[]) => void;
+  message?: Message; // Full message object for state management
+  onMessageUpdate?: (messageId: string, updates: Partial<Message>) => void; // Callback to update message
 }
 
 const MessageCard: React.FC<MessageCardProps> = ({
@@ -40,6 +46,8 @@ const MessageCard: React.FC<MessageCardProps> = ({
   messageId,
   isToolResult = false,
   onToolExecuted,
+  message,
+  onMessageUpdate,
 }) => {
   const { token } = useToken();
   const { currentChatId, addFavorite } = useChat();
@@ -48,11 +56,29 @@ const MessageCard: React.FC<MessageCardProps> = ({
   const [isHovering, setIsHovering] = useState<boolean>(false);
 
   // Extract tool calls from content if present
-  const toolCalls = toolParser.parseToolCallsFromContent(content);
+  const allToolCalls = toolParser.parseToolCallsFromContent(content);
+
+  // Filter out tools that have been executed/rejected
+  const toolExecutionStatus = message?.toolExecutionStatus || {};
+  const pendingToolCalls = allToolCalls.filter((toolCall) => {
+    const status = toolExecutionStatus[toolCall.tool_name];
+    return !status || status === "pending";
+  });
 
   // Add handlers for tool approval and rejection
   const handleToolApprove = async (toolCall: ToolCall) => {
     console.log("[MessageCard] Tool approved:", toolCall);
+
+    // Update tool status to 'approved' immediately
+    if (messageId && onMessageUpdate) {
+      const currentStatus = message?.toolExecutionStatus || {};
+      onMessageUpdate(messageId, {
+        toolExecutionStatus: {
+          ...currentStatus,
+          [toolCall.tool_name]: "approved",
+        },
+      });
+    }
 
     try {
       // 1. Create user approval message
@@ -91,7 +117,18 @@ const MessageCard: React.FC<MessageCardProps> = ({
         duration: 3,
       });
 
-      // 5. Call onToolExecuted if provided
+      // 5. Update tool status to 'executed' after successful execution
+      if (messageId && onMessageUpdate) {
+        const currentStatus = message?.toolExecutionStatus || {};
+        onMessageUpdate(messageId, {
+          toolExecutionStatus: {
+            ...currentStatus,
+            [toolCall.tool_name]: "executed",
+          },
+        });
+      }
+
+      // 6. Call onToolExecuted if provided
       if (onToolExecuted) {
         const approvalMessages: ToolApprovalMessages[] = [
           {
@@ -143,6 +180,18 @@ const MessageCard: React.FC<MessageCardProps> = ({
 
   const handleToolReject = (toolCall: ToolCall) => {
     console.log("[MessageCard] Tool rejected:", toolCall);
+
+    // Update tool status to 'rejected'
+    if (messageId && onMessageUpdate) {
+      const currentStatus = message?.toolExecutionStatus || {};
+      onMessageUpdate(messageId, {
+        toolExecutionStatus: {
+          ...currentStatus,
+          [toolCall.tool_name]: "rejected",
+        },
+      });
+    }
+
     notification.info({
       message: "Tool rejected",
       description: `Rejected execution of: ${toolCall.tool_name}`,
@@ -313,14 +362,14 @@ const MessageCard: React.FC<MessageCardProps> = ({
             {/* Tool calls display (only for assistant messages) */}
             {role === "assistant" && (
               <ToolCallsSection
-                toolCalls={toolCalls}
+                toolCalls={pendingToolCalls}
                 onApprove={handleToolApprove}
                 onReject={handleToolReject}
               />
             )}
 
             {/* Normal content, hidden if tool calls are present for assistant */}
-            {!(role === "assistant" && toolCalls.length > 0) && (
+            {!(role === "assistant" && pendingToolCalls.length > 0) && (
               <MarkdownRenderer
                 content={content}
                 role={role}

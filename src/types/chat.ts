@@ -1,9 +1,12 @@
+export type ToolExecutionStatus = 'pending' | 'approved' | 'rejected' | 'executed';
+
 export interface Message {
     role: "system" | "user" | "assistant";
     content: string;
     id?: string; // Unique identifier for the message
     processorUpdates?: string[]; // Optional: To store processor update strings
     isToolResult?: boolean; // Optional: To identify tool result messages
+    toolExecutionStatus?: Record<string, ToolExecutionStatus>; // Track tool execution status by tool name
 }
 
 export interface ToolApprovalMessages {
