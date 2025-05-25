@@ -13,11 +13,7 @@ import { CopyOutlined, BookOutlined, StarOutlined } from "@ant-design/icons";
 import MarkdownRenderer from "../shared/MarkdownRenderer";
 import ToolCallsSection from "../shared/ToolCallsSection";
 import ProcessorUpdatesSection from "../shared/ProcessorUpdatesSection";
-import {
-  Message,
-  ToolApprovalMessages,
-  ToolExecutionStatus,
-} from "../../../../types/chat";
+import { Message, ToolApprovalMessages } from "../../../../types/chat";
 import { useChat } from "../../../../contexts/ChatView";
 import { ToolCall, toolParser } from "../../../../utils/toolParser";
 import { messageProcessor } from "../../../../services";

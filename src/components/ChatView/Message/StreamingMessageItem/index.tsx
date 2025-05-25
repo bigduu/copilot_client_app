@@ -9,7 +9,6 @@ import { Message, ToolApprovalMessages } from "../../../../types/chat";
 import {
   messageProcessor,
   ToolExecutionResult,
-  ToolExecutionWithMessage,
 } from "../../../../services/MessageProcessor";
 import { ToolCall, toolParser } from "../../../../utils/toolParser";
 
