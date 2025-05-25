@@ -10,6 +10,11 @@ export interface ToolExecutionResult {
   toolName: string;
 }
 
+export interface ToolExecutionWithMessage {
+  userMessage: string;
+  toolResult: ToolExecutionResult;
+}
+
 export interface ProcessedMessageFlow {
   preprocessedMessages: Message[];
   onResponseComplete: (aiResponse: string) => Promise<ToolExecutionResult[]>;
@@ -185,6 +190,39 @@ export class MessageProcessor {
       autoExecuted,
       pendingApproval: dangerousCalls,
     };
+  }
+
+  /**
+   * 执行自动批准的工具并生成消息对
+   */
+  async executeAutoApprovedToolsWithMessages(
+    toolCalls: ToolCall[]
+  ): Promise<ToolExecutionWithMessage[]> {
+    console.log(
+      `[MessageProcessor] Auto-executing ${toolCalls.length} safe tools with message generation`
+    );
+
+    const results: ToolExecutionWithMessage[] = [];
+    for (const toolCall of toolCalls) {
+      // 生成用户自动批准消息
+      const userMessage = `已自动批准并执行工具: ${toolCall.tool_name}`;
+      
+      // 执行工具
+      const toolResult = await this.executeSingleTool(toolCall);
+      
+      results.push({
+        userMessage,
+        toolResult,
+      });
+
+      console.log(
+        `[MessageProcessor] Auto-executed tool ${toolCall.tool_name}: ${
+          toolResult.success ? "success" : "failed"
+        }`
+      );
+    }
+
+    return results;
   }
 
   /**

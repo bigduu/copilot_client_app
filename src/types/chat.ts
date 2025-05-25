@@ -3,6 +3,12 @@ export interface Message {
     content: string;
     id?: string; // Unique identifier for the message
     processorUpdates?: string[]; // Optional: To store processor update strings
+    isToolResult?: boolean; // Optional: To identify tool result messages
+}
+
+export interface ToolApprovalMessages {
+    userApproval: Message;
+    toolResult: Message;
 }
 
 export interface FavoriteItem {

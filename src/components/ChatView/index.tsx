@@ -16,8 +16,8 @@ import { DownOutlined } from "@ant-design/icons";
 import { InputContainer } from "../InputContainer";
 import "./ChatView.css"; // Import a new CSS file for animations and specific styles
 import MessageCard from "../MessageCard";
-import ToolApprovalContainer from "../ToolApprovalContainer";
-import { useMessageProcessorContext } from "../../contexts/MessageProcessorContext";
+import { ToolApprovalMessages } from "../../types/chat";
+import { ToolExecutionResult } from "../../services/MessageProcessor";
 
 const { Content } = Layout;
 const { Text } = Typography;
@@ -36,13 +36,57 @@ export const ChatView: React.FC<ChatViewProps> = ({ showFavorites }) => {
     addAssistantMessage,
     updateChat,
   } = useChat();
+
+  // Enhanced handler for streaming completion with tool approval messages
+  const handleStreamingComplete = (
+    finalMessage: any,
+    toolExecutionResults?: ToolExecutionResult[],
+    approvalMessages?: ToolApprovalMessages[]
+  ) => {
+    if (!currentChatId) {
+      console.error("[ChatView] No current chat ID, cannot complete streaming");
+      return;
+    }
+
+    console.log("[ChatView] Streaming complete with:", {
+      finalMessage: finalMessage.content?.substring(0, 50),
+      hasToolResults: !!toolExecutionResults?.length,
+      hasApprovalMessages: !!approvalMessages?.length,
+    });
+
+    // Add the original assistant message first
+    addAssistantMessage(finalMessage);
+
+    // Add approval message pairs if they exist
+    if (approvalMessages && approvalMessages.length > 0) {
+      console.log(
+        "[ChatView] Processing approval messages:",
+        approvalMessages.length
+      );
+
+      // We need to add approval messages sequentially to maintain order
+      let currentMsgList = [...currentMessages, finalMessage];
+
+      approvalMessages.forEach(({ userApproval, toolResult }, index) => {
+        // Add user approval message
+        currentMsgList = [...currentMsgList, userApproval];
+
+        // Add tool result message
+        currentMsgList = [...currentMsgList, toolResult];
+
+        console.log(`[ChatView] Added approval message pair ${index + 1}`);
+      });
+
+      // Update all messages at once after adding the final message
+      setTimeout(() => {
+        updateChat(currentChatId, { messages: currentMsgList });
+        console.log("[ChatView] Updated chat with all approval messages");
+      }, 150);
+    }
+  };
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesListRef = useRef<HTMLDivElement>(null);
   const { token } = useToken();
-
-  // 获取待审批工具状态
-  const { pendingApprovals } = useMessageProcessorContext();
-  const hasPendingApprovals = pendingApprovals.length > 0;
 
   // SystemMessage expand/collapse state
   const [systemMsgExpanded, setSystemMsgExpanded] = useState(true);
@@ -296,6 +340,7 @@ export const ChatView: React.FC<ChatViewProps> = ({ showFavorites }) => {
                         processorUpdates={message.processorUpdates} // Add this line
                         messageIndex={index}
                         messageId={messageCardId}
+                        isToolResult={message.isToolResult} // Add this line
                       />
                     </div>
                   </List.Item>
@@ -341,19 +386,12 @@ export const ChatView: React.FC<ChatViewProps> = ({ showFavorites }) => {
                   <div>
                     <StreamingMessageItem
                       channel={activeChannel}
-                      onComplete={addAssistantMessage}
+                      onComplete={handleStreamingComplete}
                     />
                   </div>
                 </Space>
               </Card>
             </List.Item>
-          )}
-
-          {/* Tool Approval Container - 显示待审批工具 */}
-          {hasPendingApprovals && showMessagesView && (
-            <div className="tool-approval-container-wrapper">
-              <ToolApprovalContainer />
-            </div>
           )}
 
           <div ref={messagesEndRef} />

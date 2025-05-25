@@ -30,6 +30,7 @@ interface MessageCardProps {
   messageIndex?: number;
   children?: React.ReactNode;
   messageId?: string;
+  isToolResult?: boolean; // Add this to identify tool result messages
 }
 
 const MessageCard: React.FC<MessageCardProps> = ({
@@ -38,6 +39,7 @@ const MessageCard: React.FC<MessageCardProps> = ({
   processorUpdates, // Add this
   children,
   messageId,
+  isToolResult = false, // Add this
 }) => {
   const { token } = useToken();
   const { currentChatId, addFavorite } = useChat();
@@ -243,25 +245,6 @@ const MessageCard: React.FC<MessageCardProps> = ({
     );
   };
 
-  // Get content without tool calls for display
-  const getContentWithoutToolCalls = () => {
-    if (toolCalls.length === 0) return content;
-
-    // Try to clean up the content by removing tool call JSON blocks
-    let cleanContent = content;
-    for (const toolCall of toolCalls) {
-      try {
-        // Try to find and remove the JSON string for this tool call
-        const jsonString = JSON.stringify(toolCall, null, 2);
-        cleanContent = cleanContent.replace(jsonString, "");
-      } catch (e) {
-        console.error("Error cleaning tool call from content:", e);
-      }
-    }
-
-    return cleanContent.trim() || "Assistant sent a tool call.";
-  };
-
   return (
     <div onContextMenu={(e) => handleMouseUp(e)} style={{ width: "100%" }}>
       <Dropdown menu={{ items: contextMenuItems }} trigger={["contextMenu"]}>
@@ -273,12 +256,22 @@ const MessageCard: React.FC<MessageCardProps> = ({
             minWidth: "100%",
             maxWidth: "800px",
             margin: "0 auto",
-            background:
-              role === "user"
-                ? token.colorPrimaryBg
-                : role === "assistant"
-                ? token.colorBgLayout
-                : token.colorBgContainer,
+            background: isToolResult
+              ? content.includes("✅")
+                ? token.colorSuccessBg
+                : token.colorErrorBg
+              : role === "user"
+              ? token.colorPrimaryBg
+              : role === "assistant"
+              ? token.colorBgLayout
+              : token.colorBgContainer,
+            border: isToolResult
+              ? `1px solid ${
+                  content.includes("✅")
+                    ? token.colorSuccessBorder
+                    : token.colorErrorBorder
+                }`
+              : undefined,
             borderRadius: token.borderRadiusLG,
             boxShadow: token.boxShadow,
             position: "relative",
@@ -308,112 +301,114 @@ const MessageCard: React.FC<MessageCardProps> = ({
             {/* Tool calls display (only for assistant messages) */}
             {role === "assistant" && renderToolCalls()}
 
-            {/* Normal content without tool calls */}
-            <div style={{ width: "100%", maxWidth: "100%" }}>
-              <ReactMarkdown
-                remarkPlugins={
-                  role === "user" ? [remarkGfm, remarkBreaks] : [remarkGfm]
-                }
-                components={{
-                  p: ({ children }) => (
-                    <Text
-                      style={{
-                        marginBottom: token.marginSM,
-                        display: "block",
-                      }}
-                    >
-                      {children}
-                    </Text>
-                  ),
-                  ol: ({ children }) => (
-                    <ol
-                      style={{
-                        marginBottom: token.marginSM,
-                        paddingLeft: 20,
-                      }}
-                    >
-                      {children}
-                    </ol>
-                  ),
-                  ul: ({ children }) => (
-                    <ul
-                      style={{
-                        marginBottom: token.marginSM,
-                        paddingLeft: 20,
-                      }}
-                    >
-                      {children}
-                    </ul>
-                  ),
-                  li: ({ children }) => (
-                    <li
-                      style={{
-                        marginBottom: token.marginXS,
-                      }}
-                    >
-                      {children}
-                    </li>
-                  ),
-                  code({ className, children, ...props }) {
-                    const match = /language-(\w+)/.exec(className || "");
-                    const language = match ? match[1] : "";
-                    const isInline = !match && !className;
-                    const codeString = String(children).replace(/\n$/, "");
-
-                    if (isInline) {
-                      return (
-                        <Text code className={className} {...props}>
-                          {children}
-                        </Text>
-                      );
-                    }
-
-                    return (
-                      <div
+            {/* Normal content, hidden if tool calls are present for assistant */}
+            {!(role === "assistant" && toolCalls.length > 0) && (
+              <div style={{ width: "100%", maxWidth: "100%" }}>
+                <ReactMarkdown
+                  remarkPlugins={
+                    role === "user" ? [remarkGfm, remarkBreaks] : [remarkGfm]
+                  }
+                  components={{
+                    p: ({ children }) => (
+                      <Text
                         style={{
-                          position: "relative",
-                          maxWidth: "100%",
-                          overflow: "auto",
+                          marginBottom: token.marginSM,
+                          display: "block",
                         }}
                       >
-                        <SyntaxHighlighter
-                          style={oneDark}
-                          language={language || "text"}
-                          PreTag="div"
-                          customStyle={{
-                            margin: `${token.marginXS}px 0`,
-                            borderRadius: token.borderRadiusSM,
-                            fontSize: token.fontSizeSM,
+                        {children}
+                      </Text>
+                    ),
+                    ol: ({ children }) => (
+                      <ol
+                        style={{
+                          marginBottom: token.marginSM,
+                          paddingLeft: 20,
+                        }}
+                      >
+                        {children}
+                      </ol>
+                    ),
+                    ul: ({ children }) => (
+                      <ul
+                        style={{
+                          marginBottom: token.marginSM,
+                          paddingLeft: 20,
+                        }}
+                      >
+                        {children}
+                      </ul>
+                    ),
+                    li: ({ children }) => (
+                      <li
+                        style={{
+                          marginBottom: token.marginXS,
+                        }}
+                      >
+                        {children}
+                      </li>
+                    ),
+                    code({ className, children, ...props }) {
+                      const match = /language-(\w+)/.exec(className || "");
+                      const language = match ? match[1] : "";
+                      const isInline = !match && !className;
+                      const codeString = String(children).replace(/\n$/, "");
+
+                      if (isInline) {
+                        return (
+                          <Text code className={className} {...props}>
+                            {children}
+                          </Text>
+                        );
+                      }
+
+                      return (
+                        <div
+                          style={{
+                            position: "relative",
                             maxWidth: "100%",
+                            overflow: "auto",
                           }}
                         >
-                          {codeString}
-                        </SyntaxHighlighter>
+                          <SyntaxHighlighter
+                            style={oneDark}
+                            language={language || "text"}
+                            PreTag="div"
+                            customStyle={{
+                              margin: `${token.marginXS}px 0`,
+                              borderRadius: token.borderRadiusSM,
+                              fontSize: token.fontSizeSM,
+                              maxWidth: "100%",
+                            }}
+                          >
+                            {codeString}
+                          </SyntaxHighlighter>
+                        </div>
+                      );
+                    },
+                    blockquote: ({ children }) => (
+                      <div
+                        style={{
+                          borderLeft: `3px solid ${token.colorPrimary}`,
+                          background: token.colorPrimaryBg,
+                          padding: `${token.paddingXS}px ${token.padding}px`,
+                          margin: `${token.marginXS}px 0`,
+                          color: token.colorTextSecondary,
+                          fontStyle: "italic",
+                        }}
+                      >
+                        {children}
                       </div>
-                    );
-                  },
-                  blockquote: ({ children }) => (
-                    <div
-                      style={{
-                        borderLeft: `3px solid ${token.colorPrimary}`,
-                        background: token.colorPrimaryBg,
-                        padding: `${token.paddingXS}px ${token.padding}px`,
-                        margin: `${token.marginXS}px 0`,
-                        color: token.colorTextSecondary,
-                        fontStyle: "italic",
-                      }}
-                    >
-                      {children}
-                    </div>
-                  ),
-                  a: ({ children }) => (
-                    <Text style={{ color: token.colorLink }}>{children}</Text>
-                  ),
-                }}
-              >
-                {toolCalls.length > 0 ? getContentWithoutToolCalls() : content}
-              </ReactMarkdown>
-            </div>
+                    ),
+                    a: ({ children }) => (
+                      <Text style={{ color: token.colorLink }}>{children}</Text>
+                    ),
+                  }}
+                >
+                  {content}
+                </ReactMarkdown>
+              </div>
+            )}
 
             {/* Processor updates display */}
             {role === "assistant" && renderProcessorUpdates()}

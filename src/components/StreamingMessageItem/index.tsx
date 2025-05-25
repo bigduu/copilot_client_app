@@ -5,9 +5,13 @@ import remarkGfm from "remark-gfm";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism";
 import { Channel } from "@tauri-apps/api/core";
-import { Message } from "../../types/chat";
+import { Message, ToolApprovalMessages } from "../../types/chat";
 import { ToolCall, toolParser } from "../../utils/toolParser";
-import { ToolExecutionResult } from "../../services/MessageProcessor";
+import {
+  ToolExecutionResult,
+  ToolExecutionWithMessage,
+  messageProcessor,
+} from "../../services/MessageProcessor";
 import ToolApprovalCard from "../ToolApprovalCard";
 
 const { Text } = Typography;
@@ -44,7 +48,11 @@ const TypingIndicator: React.FC = () => {
 
 interface StreamingMessageItemProps {
   channel: Channel<string>;
-  onComplete: (finalMessage: Message) => void;
+  onComplete: (
+    finalMessage: Message,
+    toolExecutionResults?: ToolExecutionResult[],
+    approvalMessages?: ToolApprovalMessages[]
+  ) => void;
 }
 
 const StreamingMessageItem: React.FC<StreamingMessageItemProps> = ({
@@ -111,83 +119,104 @@ const StreamingMessageItem: React.FC<StreamingMessageItemProps> = ({
       toolParser.parseToolCallsFromContent(finalContent);
     setToolCalls(detectedToolCalls);
 
+    let approvalMessages: ToolApprovalMessages[] = [];
+
     if (detectedToolCalls.length > 0) {
       console.log(
         `[StreamingMessageItem] Detected ${detectedToolCalls.length} tool calls in response`
       );
 
-      // 处理工具调用结果
       try {
-        // 检查是否有response processor
-        if (typeof (window as any).__currentResponseProcessor === "function") {
-          console.log(
-            "[StreamingMessageItem] Executing response processor for tool calls"
-          );
-          const results = await (window as any).__currentResponseProcessor(
-            finalContent
-          );
+        // 分类工具调用
+        const safeCalls = detectedToolCalls.filter(
+          (call) => !call.requires_approval
+        );
+        const dangerousCalls = detectedToolCalls.filter(
+          (call) => call.requires_approval
+        );
 
-          if (results && results.length > 0) {
-            // Add tool execution results directly to content instead of just to processorUpdates
-            let enhancedContent = finalContent;
+        console.log(
+          `[StreamingMessageItem] ${safeCalls.length} safe tools, ${dangerousCalls.length} require approval`
+        );
 
-            // Format tool execution results and add them to content
-            const toolResultsText = results
-              .map((result: ToolExecutionResult) => {
-                const resultText = result.success
-                  ? `\n\n**工具执行结果 (${result.toolName}):**\n\`\`\`\n${result.result}\n\`\`\``
-                  : `\n\n**工具执行失败 (${result.toolName}):**\n\`\`\`\n${result.error}\n\`\`\``;
+        // 自动执行安全工具并生成消息对
+        if (safeCalls.length > 0) {
+          const autoExecutedWithMessages =
+            await messageProcessor.executeAutoApprovedToolsWithMessages(
+              safeCalls
+            );
 
-                // Also add to processor updates for tracking purposes
-                const resultMessage = result.success
-                  ? `✅ 工具执行成功: ${result.toolName} - ${result.result}`
-                  : `❌ 工具执行失败: ${result.toolName} - ${result.error}`;
+          // 将自动执行的结果转换为消息对
+          autoExecutedWithMessages.forEach(
+            (execResult: ToolExecutionWithMessage) => {
+              const userApprovalMessage: Message = {
+                role: "user",
+                content: execResult.userMessage,
+                id: crypto.randomUUID(),
+                isToolResult: false,
+              };
 
-                processorUpdatesRef.current.push(resultMessage);
-                setProcessorUpdates((prev) => [...prev, resultMessage]);
+              const toolResultMessage: Message = {
+                role: "assistant",
+                content: execResult.toolResult.success
+                  ? `✅ 工具执行成功: ${execResult.toolResult.toolName}\n\n${execResult.toolResult.result}`
+                  : `❌ 工具执行失败: ${execResult.toolResult.toolName}\n\n错误: ${execResult.toolResult.error}`,
+                id: crypto.randomUUID(),
+                isToolResult: true,
+              };
 
-                return resultText;
-              })
-              .join("\n");
-
-            // Append the tool results to the content
-            enhancedContent += toolResultsText;
-
-            // If there are tool execution results, complete the message with the enhanced content
-            onComplete({
-              role: "assistant",
-              content: enhancedContent || "Message interrupted",
-              processorUpdates: processorUpdatesRef.current,
-            });
-
-            // If tool results were added, show notification but return to avoid calling onComplete again
-            if (results.length > 0) {
-              notification.info({
-                message: "工具执行完成",
-                description: `${results.length} 个工具已自动执行`,
-                placement: "bottomRight",
-                duration: 3,
+              approvalMessages.push({
+                userApproval: userApprovalMessage,
+                toolResult: toolResultMessage,
               });
-              return;
             }
-          }
+          );
+
+          notification.info({
+            message: "工具自动执行完成",
+            description: `${autoExecutedWithMessages.length} 个安全工具已自动执行`,
+            placement: "bottomRight",
+            duration: 3,
+          });
+        }
+
+        // 设置需要审批的工具调用以供用户决策
+        if (dangerousCalls.length > 0) {
+          setToolCalls(dangerousCalls);
+
+          // 如果有需要审批的工具，先完成当前消息但不传递批准消息
+          onComplete(
+            {
+              role: "assistant",
+              content: finalContent || "检测到工具调用，等待用户批准",
+              processorUpdates: processorUpdatesRef.current,
+            },
+            undefined, // 没有自动执行的工具结果传递给旧接口
+            approvalMessages.length > 0 ? approvalMessages : undefined // 自动执行的消息对
+          );
+          return;
         }
       } catch (error) {
         console.error(
           "[StreamingMessageItem] Error processing tool calls:",
           error
         );
-        processorUpdatesRef.current.push(`❌ 工具处理错误: ${error}`);
-        setProcessorUpdates((prev) => [...prev, `❌ 工具处理错误: ${error}`]);
+        const errorMessage = `❌ 工具处理错误: ${error}`;
+        processorUpdatesRef.current.push(errorMessage);
+        setProcessorUpdates((prev) => [...prev, errorMessage]);
       }
     }
 
-    // If we didn't return early after processing tools, complete with original content
-    onComplete({
-      role: "assistant",
-      content: finalContent || "Message interrupted",
-      processorUpdates: processorUpdatesRef.current,
-    });
+    // 完成消息，传递自动执行的批准消息
+    onComplete(
+      {
+        role: "assistant",
+        content: finalContent || "Message interrupted",
+        processorUpdates: processorUpdatesRef.current,
+      },
+      undefined, // 不再使用旧的 toolExecutionResults 接口
+      approvalMessages.length > 0 ? approvalMessages : undefined
+    );
   };
 
   useEffect(() => {
@@ -472,19 +501,118 @@ const StreamingMessageItem: React.FC<StreamingMessageItemProps> = ({
   }, []);
 
   // Add handlers for tool approval and rejection
-  const handleToolApprove = (toolCall: ToolCall) => {
+  const handleToolApprove = async (toolCall: ToolCall) => {
     console.log("[StreamingMessageItem] Tool approved:", toolCall);
-    // Here you would implement the execution of the approved tool
-    notification.success({
-      message: "工具已批准",
-      description: `已批准执行: ${toolCall.tool_name}`,
-      placement: "bottomRight",
-      duration: 3,
-    });
 
-    // Call your tool execution logic here
-    if (typeof (window as any).__executeApprovedTool === "function") {
-      (window as any).__executeApprovedTool(toolCall);
+    try {
+      // 1. 创建用户批准消息
+      const userApprovalMessage: Message = {
+        role: "user",
+        content: `已批准执行工具: ${toolCall.tool_name}`,
+        id: crypto.randomUUID(),
+        isToolResult: false,
+      };
+
+      // 2. 执行工具
+      let toolResult: ToolExecutionResult;
+
+      if (typeof (window as any).__executeApprovedTool === "function") {
+        toolResult = await (window as any).__executeApprovedTool(toolCall);
+      } else {
+        // 备用执行逻辑 - 调用 MessageProcessor
+        const results = await messageProcessor.executeApprovedTools([toolCall]);
+        toolResult = results[0] || {
+          success: false,
+          error: "工具执行失败",
+          toolName: toolCall.tool_name,
+        };
+      }
+
+      // 3. 创建工具结果消息
+      const toolResultMessage: Message = {
+        role: "assistant",
+        content: toolResult.success
+          ? `✅ 工具执行成功: ${toolCall.tool_name}\n\n${toolResult.result}`
+          : `❌ 工具执行失败: ${toolCall.tool_name}\n\n错误: ${toolResult.error}`,
+        id: crypto.randomUUID(),
+        isToolResult: true,
+      };
+
+      // 4. 显示成功通知
+      notification.success({
+        message: "工具已批准并执行",
+        description: `${toolCall.tool_name} 执行${
+          toolResult.success ? "成功" : "失败"
+        }`,
+        placement: "bottomRight",
+        duration: 3,
+      });
+
+      // 5. 通过 onComplete 传递批准消息对
+      const approvalMessages: ToolApprovalMessages[] = [
+        {
+          userApproval: userApprovalMessage,
+          toolResult: toolResultMessage,
+        },
+      ];
+
+      // 调用 onComplete 传递当前消息和批准消息
+      onComplete(
+        {
+          role: "assistant",
+          content: fullTextRef.current || "工具调用处理完成",
+          processorUpdates: processorUpdatesRef.current,
+        },
+        undefined, // 没有自动执行的工具结果
+        approvalMessages // 批准后的消息对
+      );
+    } catch (error) {
+      console.error(
+        "[StreamingMessageItem] Error executing approved tool:",
+        error
+      );
+
+      // 创建错误消息
+      const userApprovalMessage: Message = {
+        role: "user",
+        content: `已批准执行工具: ${toolCall.tool_name}`,
+        id: crypto.randomUUID(),
+        isToolResult: false,
+      };
+
+      const errorMessage: Message = {
+        role: "assistant",
+        content: `❌ 工具执行失败: ${toolCall.tool_name}\n\n错误: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+        id: crypto.randomUUID(),
+        isToolResult: true,
+      };
+
+      notification.error({
+        message: "工具执行失败",
+        description: `${toolCall.tool_name} 执行时发生错误`,
+        placement: "bottomRight",
+        duration: 5,
+      });
+
+      // 传递错误消息对
+      const approvalMessages: ToolApprovalMessages[] = [
+        {
+          userApproval: userApprovalMessage,
+          toolResult: errorMessage,
+        },
+      ];
+
+      onComplete(
+        {
+          role: "assistant",
+          content: fullTextRef.current || "工具调用处理完成",
+          processorUpdates: processorUpdatesRef.current,
+        },
+        undefined,
+        approvalMessages
+      );
     }
   };
 
@@ -559,43 +687,9 @@ const StreamingMessageItem: React.FC<StreamingMessageItemProps> = ({
       }}
     >
       <div>
-        {/* Show special UI for tool calls if detected */}
+        {/* Show ToolApprovalCard if tool calls are detected, hide markdown content */}
         {toolCalls.length > 0 ? (
-          <div>
-            <div
-              style={{
-                background: "#f6f8fa",
-                border: "1px solid #e1e4e8",
-                borderRadius: "8px",
-                padding: "12px",
-                marginBottom: "16px",
-              }}
-            >
-              <div
-                style={{
-                  fontWeight: "bold",
-                  marginBottom: "8px",
-                  color: "#0969da",
-                  display: "flex",
-                  alignItems: "center",
-                }}
-              >
-                <span style={{ marginRight: "8px" }}>🤖</span>
-                <span>AI 请求执行工具</span>
-              </div>
-              {renderToolCalls()}
-            </div>
-
-            {/* Hide the raw JSON from view but keep it for processing */}
-            <div style={{ display: "none" }}>
-              <ReactMarkdown
-                remarkPlugins={[remarkGfm]}
-                components={markdownComponents}
-              >
-                {content || " "}
-              </ReactMarkdown>
-            </div>
-          </div>
+          renderToolCalls()
         ) : (
           <div>
             <ReactMarkdown
@@ -608,6 +702,69 @@ const StreamingMessageItem: React.FC<StreamingMessageItemProps> = ({
           </div>
         )}
       </div>
+      {/* Processor updates display, shown below the main content or tool approval */}
+      {processorUpdates.length > 0 && (
+        <Collapse
+          ghost
+          collapsible="header"
+          activeKey={showProcessorUpdates ? ["1"] : []}
+          onChange={() => setShowProcessorUpdates(!showProcessorUpdates)}
+          style={{
+            background: "transparent",
+            padding: 0,
+            marginTop: token.marginSM,
+            position: "absolute",
+            bottom: token.paddingXS,
+            left: token.padding,
+            right: token.padding,
+            zIndex: 1, // Ensure it's above other elements if needed
+          }}
+        >
+          <Collapse.Panel
+            header={
+              <Text
+                type="secondary"
+                style={{ fontSize: token.fontSizeSM, cursor: "pointer" }} // Changed fontSizeXS to fontSizeSM
+              >
+                {showProcessorUpdates ? "隐藏" : "显示"}处理器更新 (
+                {processorUpdates.length})
+              </Text>
+            }
+            key="1"
+            style={{ border: "none" }}
+          >
+            <div
+              style={{
+                fontSize: token.fontSizeSM, // Changed fontSizeXS to fontSizeSM
+                color: token.colorTextTertiary,
+                maxHeight: "100px",
+                overflowY: "auto",
+                padding: `${token.paddingXXS}px ${token.paddingXS}px`,
+                background: token.colorBgLayout,
+                borderRadius: token.borderRadiusSM,
+              }}
+            >
+              {processorUpdates.map((update, index) => (
+                <div
+                  key={index}
+                  style={{
+                    marginBottom: token.marginXXS,
+                    padding: token.paddingXXS,
+                    borderRadius: token.borderRadiusXS,
+                    background: update.includes("成功")
+                      ? token.colorSuccessBgHover
+                      : update.includes("失败")
+                      ? token.colorErrorBgHover
+                      : token.colorInfoBgHover,
+                  }}
+                >
+                  {update}
+                </div>
+              ))}
+            </div>
+          </Collapse.Panel>
+        </Collapse>
+      )}
     </div>
   );
 };
