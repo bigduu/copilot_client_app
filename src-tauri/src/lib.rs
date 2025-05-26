@@ -2,6 +2,7 @@ use std::sync::Arc;
 
 use crate::command::chat::{execute_prompt, get_models};
 use crate::command::copy::copy_to_clipboard;
+use crate::command::image::{cleanup_temp_images, read_image_file, save_image_to_tmp};
 use crate::copilot::{Config, CopilotClient};
 use crate::mcp::client::init_all_clients;
 use crate::tools::create_tool_manager;
@@ -56,6 +57,9 @@ pub fn run() {
             command::tools::execute_local_tool,
             command::tools::execute_mcp_tool,
             command::tools::execute_tools_batch,
+            save_image_to_tmp,
+            read_image_file,
+            cleanup_temp_images,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
