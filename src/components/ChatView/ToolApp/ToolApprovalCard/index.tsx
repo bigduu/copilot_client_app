@@ -1,6 +1,19 @@
 import React from "react";
+import {
+  Card,
+  Space,
+  Typography,
+  Tag,
+  Button,
+  Alert,
+  Descriptions,
+  theme,
+} from "antd";
+import { CheckOutlined, CloseOutlined } from "@ant-design/icons";
 import { ToolCall } from "../../../../utils/toolParser";
-import "./styles.css";
+
+const { Title, Text } = Typography;
+const { useToken } = theme;
 
 interface ToolApprovalCardProps {
   toolCall: ToolCall;
@@ -13,6 +26,8 @@ export const ToolApprovalCard: React.FC<ToolApprovalCardProps> = ({
   onApprove,
   onReject,
 }) => {
+  const { token } = useToken();
+
   // 根据工具类型选择不同的图标
   const getToolIcon = () => {
     switch (toolCall.tool_name) {
@@ -35,24 +50,45 @@ export const ToolApprovalCard: React.FC<ToolApprovalCardProps> = ({
 
     if (toolCall.tool_name === "execute_command" && params.command) {
       return (
-        <div className="tool-parameter command">
-          <span className="param-label">Command:</span>
-          <code className="command-code">{params.command}</code>
-        </div>
+        <Alert
+          type="info"
+          message="Command"
+          description={
+            <Text
+              code
+              style={{
+                display: "block",
+                whiteSpace: "pre-wrap",
+                wordBreak: "break-all",
+                backgroundColor: token.colorBgLayout,
+                padding: token.paddingXS,
+                borderRadius: token.borderRadiusSM,
+                marginTop: token.marginXS,
+              }}
+            >
+              {params.command}
+            </Text>
+          }
+          style={{ marginBottom: 0 }}
+        />
       );
     }
 
+    const items = Object.entries(params).map(([key, value]) => ({
+      key,
+      label: <Text strong>{key}</Text>,
+      children: (
+        <Text>{typeof value === "string" ? value : JSON.stringify(value)}</Text>
+      ),
+    }));
+
     return (
-      <div className="tool-parameters">
-        {Object.entries(params).map(([key, value]) => (
-          <div key={key} className="tool-parameter">
-            <span className="param-label">{key}:</span>
-            <span className="param-value">
-              {typeof value === "string" ? value : JSON.stringify(value)}
-            </span>
-          </div>
-        ))}
-      </div>
+      <Descriptions
+        size="small"
+        column={1}
+        items={items}
+        style={{ marginBottom: 0 }}
+      />
     );
   };
 
@@ -66,34 +102,59 @@ export const ToolApprovalCard: React.FC<ToolApprovalCardProps> = ({
     return toolCall.tool_name;
   };
 
+  // 获取状态标签
+  const getStatusTag = () => {
+    if (toolCall.requires_approval) {
+      return <Tag color="error">Need Approval</Tag>;
+    }
+    return <Tag color="success">Safe Tool</Tag>;
+  };
+
   return (
-    <div
-      className={`tool-approval-card ${
-        toolCall.requires_approval ? "requires-approval" : "safe-tool"
-      }`}
+    <Card
+      style={{
+        marginBottom: token.marginSM,
+        borderLeft: `4px solid ${
+          toolCall.requires_approval ? token.colorError : token.colorSuccess
+        }`,
+        borderRadius: token.borderRadiusLG,
+        boxShadow: token.boxShadow,
+      }}
+      hoverable
     >
-      <div className="tool-header">
-        <div className="tool-icon">{getToolIcon()}</div>
-        <div className="tool-info">
-          <h3 className="tool-name">{getToolName()}</h3>
-          <span className="tool-type">{getToolTypeName()}</span>
-          {toolCall.requires_approval && (
-            <span className="approval-required">Need Approval</span>
-          )}
-        </div>
-      </div>
+      <Space direction="vertical" size="middle" style={{ width: "100%" }}>
+        {/* Header */}
+        <Space size="middle" align="start" style={{ width: "100%" }}>
+          <div style={{ fontSize: "24px" }}>{getToolIcon()}</div>
+          <Space direction="vertical" size="small" style={{ flex: 1 }}>
+            <Title level={5} style={{ margin: 0 }}>
+              {getToolName()}
+            </Title>
+            <Space size="small">
+              <Tag color="blue">{getToolTypeName()}</Tag>
+              {getStatusTag()}
+            </Space>
+          </Space>
+        </Space>
 
-      <div className="tool-content">{renderParameters()}</div>
+        {/* Content */}
+        <div>{renderParameters()}</div>
 
-      <div className="tool-actions">
-        <button className="approve-button" onClick={() => onApprove(toolCall)}>
-          Approve
-        </button>
-        <button className="reject-button" onClick={() => onReject(toolCall)}>
-          Reject
-        </button>
-      </div>
-    </div>
+        {/* Actions */}
+        <Space style={{ justifyContent: "flex-end", width: "100%" }}>
+          <Button
+            type="primary"
+            icon={<CheckOutlined />}
+            onClick={() => onApprove(toolCall)}
+          >
+            Approve
+          </Button>
+          <Button icon={<CloseOutlined />} onClick={() => onReject(toolCall)}>
+            Reject
+          </Button>
+        </Space>
+      </Space>
+    </Card>
   );
 };
 

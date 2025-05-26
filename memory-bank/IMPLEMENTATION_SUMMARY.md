@@ -96,7 +96,7 @@
 
 ## 注意事项
 
-- 工具执行函数需要在 `window.__executeApprovedTool` 或 MessageProcessor 中可用
+- 工具执行通过 MessageProcessor 的 `executeApprovedTools` 方法实现
 - 消息顺序通过延时更新保证
 - 所有新消息都会自动获得唯一 ID
 - 支持向后兼容，不影响现有功能

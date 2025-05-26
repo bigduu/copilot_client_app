@@ -1,6 +1,6 @@
 // Message components
-export { default as MessageCard } from "./MessageCard";
-export { default as StreamingMessageItem } from "./StreamingMessageItem";
+export { default as UnifiedMessageCard } from "./UnifiedMessageCard";
+export { default as MessageRenderer } from "./MessageRenderer";
 
 // Shared components
 export { default as MarkdownRenderer } from "./shared/MarkdownRenderer";

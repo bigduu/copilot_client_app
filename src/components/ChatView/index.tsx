@@ -11,7 +11,7 @@ import {
 } from "antd";
 import { useChat } from "../../contexts/ChatView";
 import SystemMessage from "./SystemMessage";
-import { StreamingMessageItem, MessageCard } from "./Message";
+import { UnifiedMessageCard, MessageRenderer } from "./Message";
 import { DownOutlined } from "@ant-design/icons";
 import { InputContainer } from "./Input";
 import "./ChatView.css"; // Import a new CSS file for animations and specific styles
@@ -334,14 +334,12 @@ export const ChatView: React.FC<ChatViewProps> = ({ showFavorites }) => {
                           message.role === "user" ? "flex-end" : "flex-start",
                       }}
                     >
-                      <MessageCard
-                        role={message.role}
-                        content={message.content}
-                        processorUpdates={message.processorUpdates} // Add this line
+                      <MessageRenderer
+                        message={{
+                          ...message,
+                          id: messageCardId, // 确保messageId正确传递
+                        }}
                         messageIndex={index}
-                        messageId={messageCardId}
-                        isToolResult={message.isToolResult} // Add this line
-                        message={message} // Pass full message object
                         onMessageUpdate={(messageId, updates) => {
                           // Update message in the chat
                           if (currentChatId) {
@@ -362,7 +360,7 @@ export const ChatView: React.FC<ChatViewProps> = ({ showFavorites }) => {
                           }
                         }}
                         onToolExecuted={(approvalMessages) => {
-                          // Handle tool execution from MessageCard
+                          // Handle tool execution from MessageRenderer
                           handleStreamingComplete(
                             message, // Pass current message
                             undefined, // No auto-executed tool results
@@ -412,7 +410,13 @@ export const ChatView: React.FC<ChatViewProps> = ({ showFavorites }) => {
                     Assistant
                   </Text>
                   <div>
-                    <StreamingMessageItem
+                    <UnifiedMessageCard
+                      message={{
+                        id: crypto.randomUUID(),
+                        role: "assistant",
+                        content: "",
+                      }}
+                      isStreaming={true}
                       channel={activeChannel}
                       onComplete={handleStreamingComplete}
                     />
