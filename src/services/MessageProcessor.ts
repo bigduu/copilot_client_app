@@ -1,4 +1,4 @@
-import { Message } from "../types/chat";
+import { Message, MessageType, MessageMetadata } from "../types/chat";
 import { toolParser, ToolCall, ToolInfo } from "../utils/toolParser";
 import { invoke } from "@tauri-apps/api/core";
 import { SystemPromptService } from "./SystemPromptService";
@@ -369,6 +369,129 @@ export class MessageProcessor {
    */
   isInitialized(): boolean {
     return this.initialized;
+  }
+
+  /**
+   * 根据消息内容和上下文确定消息类型
+   */
+  determineMessageType(message: Message, context?: {
+    isStreaming?: boolean;
+    hasToolCalls?: boolean;
+    isProcessorUpdate?: boolean;
+  }): MessageType {
+    // 系统消息
+    if (message.role === 'system') {
+      return 'system';
+    }
+    
+    // 流式消息
+    if (context?.isStreaming) {
+      return 'streaming';
+    }
+    
+    // 工具执行结果
+    if (message.isToolResult) {
+      return 'tool_result';
+    }
+    
+    // 包含工具调用的消息
+    if (context?.hasToolCalls || this.hasToolCalls(message.content)) {
+      return 'tool_call';
+    }
+    
+    // 处理器更新消息
+    if (context?.isProcessorUpdate || (message.processorUpdates && message.processorUpdates.length > 0)) {
+      return 'processor_update';
+    }
+    
+    // 错误消息
+    if (message.content.includes('❌') || message.content.startsWith('Error:')) {
+      return 'error';
+    }
+    
+    // 默认为普通消息
+    return 'normal';
+  }
+
+  /**
+   * 检查消息内容是否包含工具调用
+   */
+  hasToolCalls(content: string): boolean {
+    const toolCalls = toolParser.parseToolCallsFromContent(content);
+    return toolCalls.length > 0;
+  }
+
+  /**
+   * 处理并分类消息
+   */
+  processAndClassifyMessage(
+    content: string, 
+    role: Message['role'],
+    context?: {
+      isStreaming?: boolean;
+      hasToolCalls?: boolean;
+      isProcessorUpdate?: boolean;
+      processorUpdates?: string[];
+      isToolResult?: boolean;
+    }
+  ): Message {
+    const message: Message = {
+      role,
+      content,
+      id: crypto.randomUUID(),
+      processorUpdates: context?.processorUpdates || [],
+      isToolResult: context?.isToolResult || false,
+    };
+    
+    // 自动确定消息类型
+    message.messageType = this.determineMessageType(message, context);
+    
+    // 根据类型添加相应的元数据
+    if (message.messageType === 'tool_call') {
+      const toolCalls = this.parseToolCalls(content);
+      message.metadata = { 
+        toolCalls,
+        timestamp: Date.now(),
+        isStreaming: context?.isStreaming || false
+      };
+    }
+    
+    if (message.messageType === 'streaming') {
+      message.metadata = {
+        isStreaming: true,
+        timestamp: Date.now()
+      };
+    }
+    
+    return message;
+  }
+
+  /**
+   * 创建带有类型的消息
+   */
+  createTypedMessage(
+    role: Message['role'],
+    content: string,
+    messageType?: MessageType,
+    metadata?: MessageMetadata
+  ): Message {
+    const message: Message = {
+      role,
+      content,
+      id: crypto.randomUUID(),
+      messageType: messageType || 'normal',
+      metadata: {
+        timestamp: Date.now(),
+        ...metadata
+      }
+    };
+
+    // 如果没有指定类型，自动判断
+    if (!messageType) {
+      message.messageType = this.determineMessageType(message);
+    }
+
+    return message;
   }
 }
 

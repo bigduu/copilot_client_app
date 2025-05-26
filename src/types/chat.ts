@@ -1,12 +1,32 @@
 export type ToolExecutionStatus = 'pending' | 'approved' | 'rejected' | 'executed';
 
+export type MessageType = 
+  | 'normal'           // 普通对话消息
+  | 'streaming'        // 流式消息
+  | 'system'           // 系统消息
+  | 'tool_call'        // 工具调用消息
+  | 'tool_result'      // 工具执行结果
+  | 'processor_update' // 处理器更新消息
+  | 'approval_request' // 等待审批的消息
+  | 'error';           // 错误消息
+
+export interface MessageMetadata {
+    toolCalls?: any[]; // 工具调用信息
+    executionResults?: any[]; // 执行结果
+    error?: string; // 错误信息
+    timestamp?: number; // 时间戳
+    isStreaming?: boolean; // 是否为流式消息
+}
+
 export interface Message {
     role: "system" | "user" | "assistant";
     content: string;
     id?: string; // Unique identifier for the message
+    messageType?: MessageType; // 消息类型
     processorUpdates?: string[]; // Optional: To store processor update strings
     isToolResult?: boolean; // Optional: To identify tool result messages
     toolExecutionStatus?: Record<string, ToolExecutionStatus>; // Track tool execution status by tool name
+    metadata?: MessageMetadata; // 消息元数据
 }
 
 export interface ToolApprovalMessages {

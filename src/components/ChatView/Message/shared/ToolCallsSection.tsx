@@ -1,8 +1,9 @@
 import React from "react";
-import { Collapse, theme } from "antd";
+import { Space, Typography, theme } from "antd";
 import { ToolCall } from "../../../../utils/toolParser";
 import ToolApprovalCard from "../../ToolApp/ToolApprovalCard";
 
+const { Text } = Typography;
 const { useToken } = theme;
 
 interface ToolCallsSectionProps {
@@ -22,28 +23,28 @@ const ToolCallsSection: React.FC<ToolCallsSectionProps> = ({
 
   return (
     <div style={{ marginTop: token.marginMD }}>
-      <Collapse
-        ghost
-        defaultActiveKey={["1"]}
-        style={{ background: "transparent", padding: 0 }}
+      <Text
+        type="secondary"
+        style={{
+          marginBottom: token.marginSM,
+          display: "block",
+          fontSize: token.fontSizeSM,
+          fontWeight: 500,
+        }}
       >
-        <Collapse.Panel
-          header={`Detected ${toolCalls.length} tool calls`}
-          key="1"
-          style={{ border: "none" }}
-        >
-          <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-            {toolCalls.map((toolCall, index) => (
-              <ToolApprovalCard
-                key={index}
-                toolCall={toolCall}
-                onApprove={onApprove}
-                onReject={onReject}
-              />
-            ))}
-          </div>
-        </Collapse.Panel>
-      </Collapse>
+        Detected {toolCalls.length} tool call
+        {toolCalls.length > 1 ? "s" : " command"}:
+      </Text>
+      <Space direction="vertical" size="middle" style={{ width: "100%" }}>
+        {toolCalls.map((toolCall, index) => (
+          <ToolApprovalCard
+            key={index}
+            toolCall={toolCall}
+            onApprove={onApprove}
+            onReject={onReject}
+          />
+        ))}
+      </Space>
     </div>
   );
 };
