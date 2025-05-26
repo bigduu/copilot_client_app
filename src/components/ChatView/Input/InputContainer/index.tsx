@@ -4,7 +4,9 @@ import { SettingOutlined } from "@ant-design/icons";
 import { MessageInput } from "../MessageInput";
 import SystemPromptModal from "../../../Shared/SystemPromptModal";
 import InputPreview from "./InputPreview";
+import { ImagePreview } from "./ImagePreview";
 import { useChat } from "../../../../contexts/ChatView";
+import { useImagePaste } from "../../../../hooks/ChatView";
 
 const { useToken } = theme;
 
@@ -25,6 +27,17 @@ export const InputContainer: React.FC<InputContainerProps> = ({
   const { token } = useToken();
   const { currentChatId } = useChat();
   const prevChatIdRef = useRef<string | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  // Image paste functionality
+  const {
+    pastedImages,
+    isProcessing,
+    handlePaste,
+    removeImage,
+    clearAllImages,
+    getImagePaths,
+  } = useImagePaste();
 
   // Clear reference text - using useCallback to ensure stable reference
   const clearReferenceText = useCallback((chatId: string) => {
@@ -65,14 +78,34 @@ export const InputContainer: React.FC<InputContainerProps> = ({
     prevChatIdRef.current = currentChatId;
   }, [currentChatId, clearReferenceText]);
 
+  // Add paste event listener
+  useEffect(() => {
+    const container = containerRef.current;
+    if (container) {
+      container.addEventListener("paste", handlePaste);
+      return () => {
+        container.removeEventListener("paste", handlePaste);
+      };
+    }
+  }, [handlePaste]);
+
+  // Clear images when chat switches
+  useEffect(() => {
+    if (prevChatIdRef.current && prevChatIdRef.current !== currentChatId) {
+      clearAllImages();
+    }
+  }, [currentChatId, clearAllImages]);
+
   const handleInputSubmit = useCallback(
     (_content: string) => {
       // Clear reference after submitting for current chat
       if (currentChatId) {
         clearReferenceText(currentChatId);
       }
+      // Clear images after submitting
+      clearAllImages();
     },
-    [currentChatId, clearReferenceText]
+    [currentChatId, clearReferenceText, clearAllImages]
   );
 
   // Calculate current reference text
@@ -87,6 +120,7 @@ export const InputContainer: React.FC<InputContainerProps> = ({
 
   return (
     <div
+      ref={containerRef}
       style={{
         padding: token.paddingMD,
         background: token.colorBgContainer,
@@ -96,9 +130,44 @@ export const InputContainer: React.FC<InputContainerProps> = ({
         boxShadow: isCenteredLayout ? "none" : "0 -2px 8px rgba(0,0,0,0.06)",
         width: "100%",
       }}
+      tabIndex={-1} // Make div focusable for paste events
     >
       {referenceText && (
         <InputPreview text={referenceText} onClose={handleClosePreview} />
+      )}
+
+      {/* Render pasted images */}
+      {pastedImages.length > 0 && (
+        <div style={{ marginBottom: token.marginSM }}>
+          {pastedImages.map((image) => (
+            <ImagePreview
+              key={image.id}
+              imageUrl={image.dataUrl}
+              fileName={
+                image.file.name ||
+                `image.${image.file.type.split("/")[1] || "png"}`
+              }
+              onRemove={() => removeImage(image.id)}
+            />
+          ))}
+        </div>
+      )}
+
+      {/* Processing indicator */}
+      {isProcessing && (
+        <div style={{ marginBottom: token.marginSM, textAlign: "center" }}>
+          <Space size="small">
+            <Spin size="small" />
+            <span
+              style={{
+                color: token.colorTextSecondary,
+                fontSize: token.fontSizeSM,
+              }}
+            >
+              正在处理图片...
+            </span>
+          </Space>
+        </div>
       )}
 
       <Space.Compact block>

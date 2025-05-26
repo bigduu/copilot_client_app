@@ -780,6 +780,7 @@ dependencies = [
  "anyhow",
  "arboard",
  "async-trait",
+ "base64 0.22.1",
  "bytes",
  "crossbeam",
  "env_logger",
