@@ -37,6 +37,7 @@ export const InputContainer: React.FC<InputContainerProps> = ({
     removeImage,
     clearAllImages,
     getImagePaths,
+    processImagesWithOCR,
   } = useImagePaste();
 
   // Clear reference text - using useCallback to ensure stable reference
@@ -192,6 +193,8 @@ export const InputContainer: React.FC<InputContainerProps> = ({
           isCenteredLayout={isCenteredLayout}
           referenceText={referenceText}
           onSubmit={handleInputSubmit}
+          processImagesWithOCR={processImagesWithOCR}
+          hasImages={pastedImages.length > 0}
         />
       </Space.Compact>
 
