@@ -8,6 +8,8 @@ interface MessageInputProps {
   isStreamingInProgress: boolean;
   isCenteredLayout?: boolean;
   referenceText?: string | null;
+  processImagesWithOCR?: () => Promise<string[]>;
+  hasImages?: boolean;
 }
 
 export const MessageInput: React.FC<MessageInputProps> = ({
@@ -15,9 +17,12 @@ export const MessageInput: React.FC<MessageInputProps> = ({
   isStreamingInProgress,
   isCenteredLayout = false,
   referenceText = null,
+  processImagesWithOCR,
+  hasImages = false,
 }) => {
   const [content, setContent] = useState("");
   const [hiddenReference, setHiddenReference] = useState<string | null>(null);
+  const [isOcrProcessing, setIsOcrProcessing] = useState(false);
   const textAreaRef = useRef<HTMLTextAreaElement>(null);
   const { token } = theme.useToken();
 
@@ -49,16 +54,40 @@ export const MessageInput: React.FC<MessageInputProps> = ({
 
   const handleSubmit = async () => {
     const trimmedContent = content.trim();
-    if ((!trimmedContent && !hiddenReference) || isStreamingInProgress) return;
+    if (
+      (!trimmedContent && !hiddenReference && !hasImages) ||
+      isStreamingInProgress ||
+      isOcrProcessing
+    )
+      return;
 
     console.log("Submitting message:", trimmedContent);
 
     let messageToSend = trimmedContent;
 
+    // Process images with OCR if available
+    if (hasImages && processImagesWithOCR) {
+      setIsOcrProcessing(true);
+      try {
+        const ocrResults = await processImagesWithOCR();
+        if (ocrResults.length > 0) {
+          const ocrText = ocrResults.join("\n\n");
+          messageToSend = messageToSend
+            ? `${messageToSend}\n\n${ocrText}`
+            : ocrText;
+        }
+      } catch (error) {
+        console.error("OCR processing failed:", error);
+        // Continue with message sending even if OCR fails
+      } finally {
+        setIsOcrProcessing(false);
+      }
+    }
+
     // Append reference text if it exists (but only in the background)
     if (hiddenReference) {
-      messageToSend = trimmedContent
-        ? `${hiddenReference}\n\n${trimmedContent}`
+      messageToSend = messageToSend
+        ? `${hiddenReference}\n\n${messageToSend}`
         : hiddenReference;
     }
 
@@ -95,11 +124,15 @@ export const MessageInput: React.FC<MessageInputProps> = ({
         onChange={(e) => setContent(e.target.value)}
         onKeyDown={handleKeyDown}
         placeholder={
-          hiddenReference
+          isOcrProcessing
+            ? "Processing images with OCR..."
+            : hiddenReference
             ? "Send a message (includes reference)"
+            : hasImages
+            ? "Send a message (images will be processed with OCR)"
             : "Send a message..."
         }
-        disabled={isStreamingInProgress}
+        disabled={isStreamingInProgress || isOcrProcessing}
         style={{
           resize: "none",
           borderRadius: 0,
@@ -115,7 +148,9 @@ export const MessageInput: React.FC<MessageInputProps> = ({
         icon={<SendOutlined />}
         onClick={handleSubmit}
         disabled={
-          (!content.trim() && !hiddenReference) || isStreamingInProgress
+          (!content.trim() && !hiddenReference && !hasImages) ||
+          isStreamingInProgress ||
+          isOcrProcessing
         }
         size={isCenteredLayout ? "large" : "middle"}
         style={{

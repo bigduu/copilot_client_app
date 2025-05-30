@@ -1,8 +1,9 @@
 use base64::{engine::general_purpose, Engine as _};
+use image::ImageFormat;
 use std::fs;
 use std::io::Write;
-use std::path::PathBuf;
 use tauri::Manager;
+use tesseract::Tesseract;
 use uuid::Uuid;
 
 #[derive(Debug, serde::Serialize)]
@@ -141,4 +142,63 @@ pub async fn cleanup_temp_images(app: tauri::AppHandle) -> Result<(), String> {
     }
 
     Ok(())
+}
+
+#[derive(Debug, serde::Serialize)]
+pub struct OcrResult {
+    pub text: String,
+    pub confidence: Option<f32>,
+}
+
+#[tauri::command]
+pub async fn extract_text_from_image(
+    image_path: String,
+    language: Option<String>,
+) -> Result<OcrResult, String> {
+    // Check if file exists
+    let path = std::path::Path::new(&image_path);
+    if !path.exists() {
+        return Err("Image file does not exist".to_string());
+    }
+
+    // Load the image
+    let img = image::open(&path).map_err(|e| format!("Failed to open image: {}", e))?;
+
+    // Convert to RGB format for better OCR results
+    let rgb_img = img.to_rgb8();
+
+    // Create a temporary file for tesseract processing
+    let temp_dir = std::env::temp_dir();
+    let temp_filename = format!("ocr_temp_{}.png", Uuid::new_v4());
+    let temp_path = temp_dir.join(&temp_filename);
+
+    // Save the RGB image as PNG for tesseract
+    rgb_img
+        .save_with_format(&temp_path, ImageFormat::Png)
+        .map_err(|e| format!("Failed to save temp image: {}", e))?;
+
+    // Initialize Tesseract
+    let tesseract = Tesseract::new(None, Some(&language.unwrap_or_else(|| "eng".to_string())))
+        .map_err(|e| format!("Failed to initialize Tesseract: {}", e))?;
+
+    // Set image path and process
+    let mut tesseract = tesseract
+        .set_image(&temp_path.to_string_lossy())
+        .map_err(|e| format!("Failed to set image: {}", e))?;
+
+    // Extract text
+    let text = tesseract
+        .get_text()
+        .map_err(|e| format!("Failed to extract text: {}", e))?;
+
+    // Get confidence (mean_text_conf returns i32, not Result)
+    let confidence = Some(tesseract.mean_text_conf() as f32);
+
+    // Clean up temp file
+    let _ = fs::remove_file(&temp_path);
+
+    Ok(OcrResult {
+        text: text.trim().to_string(),
+        confidence,
+    })
 }

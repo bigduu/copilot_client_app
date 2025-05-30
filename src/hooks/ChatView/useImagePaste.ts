@@ -15,6 +15,11 @@ interface ImageSaveResult {
   base64_data?: string;
 }
 
+interface OcrResult {
+  text: string;
+  confidence?: number;
+}
+
 export const useImagePaste = () => {
   const [pastedImages, setPastedImages] = useState<PastedImage[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -183,6 +188,31 @@ export const useImagePaste = () => {
     }));
   }, [pastedImages]);
 
+  // OCR processing method
+  const processImagesWithOCR = useCallback(async (language?: string): Promise<string[]> => {
+    const ocrResults: string[] = [];
+    
+    for (const image of pastedImages) {
+      if (!image.savedPath) continue;
+      
+      try {
+        const result = await invoke<OcrResult>("extract_text_from_image", {
+          imagePath: image.savedPath,
+          language: language || "eng",
+        });
+        
+        if (result.text && result.text.trim()) {
+          ocrResults.push(`[Image: ${image.file.name}]\n${result.text.trim()}`);
+        }
+      } catch (error) {
+        console.error(`OCR failed for ${image.file.name}:`, error);
+        // Continue processing other images even if one fails
+      }
+    }
+    
+    return ocrResults;
+  }, [pastedImages]);
+
   return {
     pastedImages,
     isProcessing,
@@ -191,5 +221,6 @@ export const useImagePaste = () => {
     clearAllImages,
     getImagePaths,
     getImageDescriptions,
+    processImagesWithOCR,
   };
 };

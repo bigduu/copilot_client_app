@@ -76,9 +76,22 @@ export const ToolApprovalCard: React.FC<ToolApprovalCardProps> = ({
 
     const items = Object.entries(params).map(([key, value]) => ({
       key,
-      label: <Text strong>{key}</Text>,
+      label: (
+        <Text strong style={{ whiteSpace: "nowrap" }}>
+          {key}
+        </Text>
+      ),
       children: (
-        <Text>{typeof value === "string" ? value : JSON.stringify(value)}</Text>
+        <Text
+          style={{
+            wordBreak: "break-word",
+            whiteSpace: "pre-wrap",
+            maxWidth: "100%",
+            display: "block",
+          }}
+        >
+          {typeof value === "string" ? value : JSON.stringify(value)}
+        </Text>
       ),
     }));
 
@@ -88,6 +101,15 @@ export const ToolApprovalCard: React.FC<ToolApprovalCardProps> = ({
         column={1}
         items={items}
         style={{ marginBottom: 0 }}
+        labelStyle={{
+          whiteSpace: "nowrap",
+          verticalAlign: "top",
+          paddingRight: "12px",
+        }}
+        contentStyle={{
+          wordBreak: "break-word",
+          minWidth: 0,
+        }}
       />
     );
   };
@@ -119,18 +141,40 @@ export const ToolApprovalCard: React.FC<ToolApprovalCardProps> = ({
         }`,
         borderRadius: token.borderRadiusLG,
         boxShadow: token.boxShadow,
+        minWidth: 0, // 允许内容收缩
       }}
       hoverable
     >
-      <Space direction="vertical" size="middle" style={{ width: "100%" }}>
+      <Space
+        direction="vertical"
+        size="middle"
+        style={{ width: "100%", minWidth: 0 }}
+      >
         {/* Header */}
-        <Space size="middle" align="start" style={{ width: "100%" }}>
-          <div style={{ fontSize: "24px" }}>{getToolIcon()}</div>
-          <Space direction="vertical" size="small" style={{ flex: 1 }}>
-            <Title level={5} style={{ margin: 0 }}>
+        <Space
+          size="middle"
+          align="start"
+          style={{ width: "100%", minWidth: 0 }}
+        >
+          <div style={{ fontSize: "24px", flexShrink: 0 }}>{getToolIcon()}</div>
+          <Space
+            direction="vertical"
+            size="small"
+            style={{ flex: 1, minWidth: 0 }}
+          >
+            <Title
+              level={5}
+              style={{
+                margin: 0,
+                whiteSpace: "nowrap",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                maxWidth: "100%",
+              }}
+            >
               {getToolName()}
             </Title>
-            <Space size="small">
+            <Space size="small" style={{ flexWrap: "wrap" }}>
               <Tag color="blue">{getToolTypeName()}</Tag>
               {getStatusTag()}
             </Space>
@@ -138,10 +182,18 @@ export const ToolApprovalCard: React.FC<ToolApprovalCardProps> = ({
         </Space>
 
         {/* Content */}
-        <div>{renderParameters()}</div>
+        <div style={{ minWidth: 0, overflow: "hidden" }}>
+          {renderParameters()}
+        </div>
 
         {/* Actions */}
-        <Space style={{ justifyContent: "flex-end", width: "100%" }}>
+        <Space
+          style={{
+            justifyContent: "flex-end",
+            width: "100%",
+            flexWrap: "wrap",
+          }}
+        >
           <Button
             type="primary"
             icon={<CheckOutlined />}

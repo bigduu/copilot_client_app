@@ -106,12 +106,30 @@ const ToolsList = () => {
       size="small"
       dataSource={parameters}
       renderItem={(param) => (
-        <List.Item>
-          <Space>
-            <Text code>{param.name}</Text>
+        <List.Item
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "flex-start",
+          }}
+        >
+          <Space style={{ width: "100%", marginBottom: 4 }}>
+            <Text
+              code
+              style={{
+                whiteSpace: "nowrap",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                maxWidth: "200px",
+              }}
+            >
+              {param.name}
+            </Text>
             {param.required && <Tag color="blue">Required</Tag>}
           </Space>
-          <Text type="secondary">{param.description}</Text>
+          <Text type="secondary" style={{ wordBreak: "break-word" }}>
+            {param.description}
+          </Text>
         </List.Item>
       )}
     />
@@ -146,8 +164,18 @@ const ToolsList = () => {
                     <List.Item>
                       <List.Item.Meta
                         title={
-                          <Space>
-                            <Text strong>{tool.name}</Text>
+                          <Space style={{ width: "100%", flexWrap: "wrap" }}>
+                            <Text
+                              strong
+                              style={{
+                                whiteSpace: "nowrap",
+                                overflow: "hidden",
+                                textOverflow: "ellipsis",
+                                maxWidth: "300px",
+                              }}
+                            >
+                              {tool.name}
+                            </Text>
                             {tool.requires_approval && (
                               <Tooltip title="Requires approval">
                                 <Tag color="orange">Approval</Tag>
@@ -259,7 +287,8 @@ const SystemSettingsModal = ({
       open={open}
       onCancel={onClose}
       footer={null}
-      width={520}
+      width="85vw"
+      style={{ maxWidth: "1000px", minWidth: "600px" }}
     >
       {contextHolder}
 
