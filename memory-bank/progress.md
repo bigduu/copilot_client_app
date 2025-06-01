@@ -16,6 +16,7 @@
    - Search window UI and backend integration
    - Persistent model selection for new chats (via `useModels` and `localStorage`)
    - Modularized components and hooks
+   - **UI重构第一阶段完成**: 统一主题系统和ChatItem组件重构 (2025-06-01)
 
 3. Backend Features
    - Modular Copilot client integration

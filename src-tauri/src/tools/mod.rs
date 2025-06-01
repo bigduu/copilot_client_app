@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 use std::fmt::Debug;
-use std::sync::Arc;
+use std::sync::{Arc, RwLock};
 
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
@@ -36,19 +36,74 @@ pub struct LocalToolInfo {
 #[derive(Debug, Clone)]
 pub struct ToolManager {
     tools: HashMap<String, Arc<dyn Tool>>,
+    enabled_tools: Arc<RwLock<HashMap<String, bool>>>,
 }
 
 impl ToolManager {
     pub fn new(tools: HashMap<String, Arc<dyn Tool>>) -> Self {
-        Self { tools }
+        let mut enabled_tools = HashMap::new();
+        // 默认所有工具都启用
+        for tool_name in tools.keys() {
+            enabled_tools.insert(tool_name.clone(), true);
+        }
+        Self {
+            tools,
+            enabled_tools: Arc::new(RwLock::new(enabled_tools)),
+        }
     }
 
     pub fn get_tool(&self, name: &str) -> Option<Arc<dyn Tool>> {
-        self.tools.get(name).cloned()
+        // 只返回已启用的工具
+        if self.is_tool_enabled(name) {
+            self.tools.get(name).cloned()
+        } else {
+            None
+        }
     }
 
     pub fn register_tool(&mut self, tool: Arc<dyn Tool>) {
-        self.tools.insert(tool.name(), tool);
+        let tool_name = tool.name();
+        self.tools.insert(tool_name.clone(), tool);
+        // 默认新注册的工具是启用的
+        if let Ok(mut enabled_tools) = self.enabled_tools.write() {
+            enabled_tools.insert(tool_name, true);
+        }
+    }
+
+    pub fn is_tool_enabled(&self, name: &str) -> bool {
+        if let Ok(enabled_tools) = self.enabled_tools.read() {
+            enabled_tools.get(name).copied().unwrap_or(false)
+        } else {
+            false
+        }
+    }
+
+    pub fn set_tool_enabled(&self, name: &str, enabled: bool) -> anyhow::Result<()> {
+        if !self.tools.contains_key(name) {
+            return Err(anyhow::anyhow!("Tool '{}' not found", name));
+        }
+
+        if let Ok(mut enabled_tools) = self.enabled_tools.write() {
+            enabled_tools.insert(name.to_string(), enabled);
+            Ok(())
+        } else {
+            Err(anyhow::anyhow!("Failed to update tool status"))
+        }
+    }
+
+    pub fn get_all_tools_info(&self) -> Vec<ToolInfo> {
+        let mut tools_info = Vec::new();
+        for tool in self.tools.values() {
+            let enabled = self.is_tool_enabled(&tool.name());
+            tools_info.push(ToolInfo {
+                name: tool.name(),
+                description: tool.description(),
+                enabled,
+                required_approval: tool.required_approval(),
+            });
+        }
+        tools_info.sort_by(|a, b| a.name.cmp(&b.name));
+        tools_info
     }
 
     pub fn list_tools(&self) -> String {

@@ -115,10 +115,11 @@
 
 ### Immediate Tasks
 1. UI/UX
+   - **UI重构第二阶段**: ChatSidebar和ChatView组件重构
+   - **应用重构模式**: 基于theme.ts和AntD组件标准化
    - Finalize search and filtering features
    - Polish streaming message UI and performance
    - Refine system prompt and settings modals
-   - Enhance chat navigation and favorites
 
 2. Backend
    - Strengthen error handling and logging

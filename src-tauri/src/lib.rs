@@ -54,6 +54,8 @@ pub fn run() {
             set_mcp_servers,
             get_mcp_client_status,
             command::tools::get_available_tools,
+            command::tools::get_tools_info,
+            command::tools::set_tool_enabled,
             command::tools::get_tools_documentation,
             command::tools::get_all_available_tools,
             command::tools::execute_local_tool,

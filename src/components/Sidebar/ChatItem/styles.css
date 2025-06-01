@@ -1,60 +1,39 @@
+/* ChatItem组件样式 - 重构后版本 */
+/* 只保留必要的悬停效果样式，其他样式已迁移到theme.ts */
+
 .chat-item {
-    display: flex;
-    align-items: center;
-    padding: 8px;
-    border-radius: 6px;
-    margin-bottom: 4px;
-    cursor: pointer;
-    transition: all 0.3s;
-    color: var(--ant-color-text);
+  /* 基础样式已通过theme.ts和内联样式处理 */
 }
 
 .chat-item:hover {
-    background-color: var(--ant-color-bg-elevated);
+  background-color: var(--ant-color-bg-elevated) !important;
 }
 
-[data-theme='dark'] .chat-item.selected {
-    background-color: #2b2b2b;
-    color: #fff;
-    font-weight: 500;
+/* 按钮悬停效果 - 保持原有的渐显动画 */
+.chat-item .ant-btn {
+  opacity: 0;
+  transition: opacity 0.2s ease;
 }
 
-[data-theme='light'] .chat-item.selected {
-    background-color: #dddddd;
-    color: var(--ant-color-primary);
-    font-weight: 500;
+.chat-item:hover .ant-btn {
+  opacity: 1;
 }
 
-.chat-item .title {
-    flex: 1;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    font-size: 13px;
+/* 置顶按钮始终显示 */
+.chat-item .ant-btn:has(.anticon-pushpin-filled) {
+  opacity: 1 !important;
 }
 
-.chat-item .edit-input {
-    flex: 1;
-    font-size: 13px;
-    margin-right: 8px;
+/* 选中状态的特殊处理 - 通过CSS变量适配主题 */
+.chat-item[data-selected="true"] {
+  background-color: var(--ant-color-primary-bg) !important;
 }
 
-.chat-item .button-group {
-    display: flex;
-    gap: 4px;
-    align-items: center;
+/* 响应式调整 */
+@media (max-width: 768px) {
+  .chat-item .ant-btn {
+    opacity: 1; /* 移动端直接显示所有按钮 */
+  }
 }
 
-.chat-item .delete-button,
-.chat-item .edit-button,
-.chat-item .pin-button {
-    opacity: 0;
-    transition: opacity 0.2s;
-}
-
-.chat-item:hover .delete-button,
-.chat-item:hover .edit-button,
-.chat-item:hover .pin-button,
-.chat-item .pin-button-active {
-    opacity: 1;
-} 
+/* 深色主题适配 - 通过CSS变量自动处理，无需额外样式 */
