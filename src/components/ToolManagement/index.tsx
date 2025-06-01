@@ -21,12 +21,7 @@ import { theme } from "../../styles/theme";
 
 const { Text, Title } = Typography;
 
-interface ToolInfo {
-  name: string;
-  description: string;
-  enabled: boolean;
-  required_approval: boolean;
-}
+import { ToolInfo } from "../../types/tools";
 
 const ToolManagement: React.FC = () => {
   const [tools, setTools] = useState<ToolInfo[]>([]);
@@ -54,7 +49,7 @@ const ToolManagement: React.FC = () => {
   const toggleTool = async (toolName: string, enabled: boolean) => {
     try {
       await invoke("set_tool_enabled", {
-        toolName,
+        tool_name: toolName,
         enabled,
       });
 
