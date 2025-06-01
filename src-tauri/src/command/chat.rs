@@ -1,44 +1,38 @@
 use log::{debug, error, info};
 
-use crate::copilot::{model::stream_model::Message, CopilotClient};
+use crate::{
+    copilot::{model::stream_model::Message, CopilotClient},
+    processor::ProcessorManager,
+};
 
 #[tauri::command(async)]
 pub async fn execute_prompt(
-    messages: Vec<Message>, // 前端已预处理的消息
+    messages: Vec<Message>,
     model: Option<String>,
     state: tauri::State<'_, CopilotClient>,
+    processor_manager: tauri::State<'_, ProcessorManager>,
     channel: tauri::ipc::Channel<String>,
 ) -> Result<(), String> {
     info!("=== EXECUTE_PROMPT START ===");
-    info!(
-        "The system message: {}",
-        messages
-            .iter()
-            .filter(|m| m.role == "system")
-            .map(|m| m.content.clone())
-            .collect::<Vec<String>>()
-            .join("\n")
-    );
     info!("The latest message: {}", messages.last().unwrap().content);
-
-    // 纯粹的LLM流式请求
+    let messages = processor_manager.process(messages, &channel).await;
     let client = state.clone();
     let (mut rx, handle) = client.send_stream_request(messages, model).await;
 
     let tauri_channel_clone = channel.clone();
-
     tokio::spawn(async move {
         while let Some(message) = rx.recv().await {
             match message {
                 Ok(bytes) => {
                     let result = String::from_utf8_lossy(&bytes);
                     debug!("Received message: {result}");
-                    let _ = tauri_channel_clone.send(result.to_string());
+                    tauri_channel_clone.send(result.to_string()).unwrap();
                 }
                 Err(e) => {
                     error!("Error receiving message: {e}");
-                    let error_msg = format!(r#"{{"error": "{}"}}"#, e);
-                    let _ = tauri_channel_clone.send(error_msg);
+                    tauri_channel_clone
+                        .send(format!(r#"{{\"error\": "{e}"}}"#))
+                        .unwrap();
                 }
             }
         }
@@ -46,7 +40,7 @@ pub async fn execute_prompt(
 
     let _ = handle.await.unwrap();
 
-    info!("Chat completion finished");
+    info!("Calling exchange_chat_completion...");
     Ok(())
 }
 

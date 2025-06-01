@@ -9,14 +9,13 @@ import {
   theme,
   Button,
 } from "antd";
-import { useChat } from "../../contexts/ChatView";
-import SystemMessage from "./SystemMessage";
-import { UnifiedMessageCard, MessageRenderer } from "./Message";
+import { useChat } from "../../contexts/ChatContext";
+import SystemMessage from "../SystemMessage";
+import StreamingMessageItem from "../StreamingMessageItem";
 import { DownOutlined } from "@ant-design/icons";
-import { InputContainer } from "./Input";
+import { InputContainer } from "../InputContainer";
 import "./ChatView.css"; // Import a new CSS file for animations and specific styles
-import { ToolApprovalMessages } from "../../types/chat";
-import { ToolExecutionResult } from "../../services/MessageProcessor";
+import MessageCard from "../MessageCard";
 
 const { Content } = Layout;
 const { Text } = Typography;
@@ -35,55 +34,6 @@ export const ChatView: React.FC<ChatViewProps> = ({ showFavorites }) => {
     addAssistantMessage,
     updateChat,
   } = useChat();
-
-  // Enhanced handler for streaming completion with tool approval messages
-  const handleStreamingComplete = (
-    finalMessage: any,
-    toolExecutionResults?: ToolExecutionResult[],
-    approvalMessages?: ToolApprovalMessages[]
-  ) => {
-    if (!currentChatId) {
-      console.error("[ChatView] No current chat ID, cannot complete streaming");
-      return;
-    }
-
-    console.log("[ChatView] Streaming complete with:", {
-      finalMessage: finalMessage.content?.substring(0, 50),
-      hasToolResults: !!toolExecutionResults?.length,
-      hasApprovalMessages: !!approvalMessages?.length,
-    });
-
-    // Check if this is a tool execution callback from MessageCard
-    if (approvalMessages && approvalMessages.length > 0) {
-      console.log(
-        "[ChatView] Processing approval messages from MessageCard:",
-        approvalMessages.length
-      );
-
-      // For MessageCard tool execution, we don't add the finalMessage again
-      // since it's already in the chat. Just add the approval message pairs.
-      let currentMsgList = [...currentMessages];
-
-      approvalMessages.forEach(({ userApproval, toolResult }, index) => {
-        // Add user approval message
-        currentMsgList = [...currentMsgList, userApproval];
-
-        // Add tool result message
-        currentMsgList = [...currentMsgList, toolResult];
-
-        console.log(`[ChatView] Added approval message pair ${index + 1}`);
-      });
-
-      // Update all messages at once
-      setTimeout(() => {
-        updateChat(currentChatId, { messages: currentMsgList });
-        console.log("[ChatView] Updated chat with all approval messages");
-      }, 150);
-    } else {
-      // For streaming completion (from StreamingMessageItem), add the final message
-      addAssistantMessage(finalMessage);
-    }
-  };
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesListRef = useRef<HTMLDivElement>(null);
   const { token } = useToken();
@@ -334,39 +284,12 @@ export const ChatView: React.FC<ChatViewProps> = ({ showFavorites }) => {
                           message.role === "user" ? "flex-end" : "flex-start",
                       }}
                     >
-                      <MessageRenderer
-                        message={{
-                          ...message,
-                          id: messageCardId, // 确保messageId正确传递
-                        }}
+                      <MessageCard
+                        role={message.role}
+                        content={message.content}
+                        processorUpdates={message.processorUpdates} // Add this line
                         messageIndex={index}
-                        onMessageUpdate={(messageId, updates) => {
-                          // Update message in the chat
-                          if (currentChatId) {
-                            const updatedMessages = currentMessages.map(
-                              (msg, idx) => {
-                                if (
-                                  msg.id === messageId ||
-                                  `msg-${currentChatId}-${idx}` === messageId
-                                ) {
-                                  return { ...msg, ...updates };
-                                }
-                                return msg;
-                              }
-                            );
-                            updateChat(currentChatId, {
-                              messages: updatedMessages,
-                            });
-                          }
-                        }}
-                        onToolExecuted={(approvalMessages) => {
-                          // Handle tool execution from MessageRenderer
-                          handleStreamingComplete(
-                            message, // Pass current message
-                            undefined, // No auto-executed tool results
-                            approvalMessages // Approval message pairs
-                          );
-                        }}
+                        messageId={messageCardId}
                       />
                     </div>
                   </List.Item>
@@ -384,17 +307,15 @@ export const ChatView: React.FC<ChatViewProps> = ({ showFavorites }) => {
               }}
             >
               <Card
-                variant="outlined"
+                bordered={false}
                 style={{
                   maxWidth: "85%",
                   background: token.colorBgLayout, // Changed for better contrast
                   borderRadius: token.borderRadiusLG,
                   boxShadow: token.boxShadow,
                 }}
-                styles={{
-                  body: {
-                    padding: token.paddingMD,
-                  },
+                bodyStyle={{
+                  padding: token.paddingMD,
                 }}
               >
                 <Space
@@ -410,22 +331,15 @@ export const ChatView: React.FC<ChatViewProps> = ({ showFavorites }) => {
                     Assistant
                   </Text>
                   <div>
-                    <UnifiedMessageCard
-                      message={{
-                        id: crypto.randomUUID(),
-                        role: "assistant",
-                        content: "",
-                      }}
-                      isStreaming={true}
+                    <StreamingMessageItem
                       channel={activeChannel}
-                      onComplete={handleStreamingComplete}
+                      onComplete={addAssistantMessage}
                     />
                   </div>
                 </Space>
               </Card>
             </List.Item>
           )}
-
           <div ref={messagesEndRef} />
         </Content>
 

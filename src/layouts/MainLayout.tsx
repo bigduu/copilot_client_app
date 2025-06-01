@@ -1,10 +1,10 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Layout } from "antd";
-import { ChatSidebar } from "../components/Sidebar";
+import { ChatSidebar } from "../components/ChatSidebar";
 import { ChatView } from "../components/ChatView";
-import { FavoritesPanel } from "../components/Favorites";
+import { FavoritesPanel } from "../components/FavoritesPanel";
 import { listen } from "@tauri-apps/api/event";
-import { useChat } from "../contexts/ChatView";
+import { useChat } from "../contexts/ChatContext";
 import "./styles.css";
 
 export const MainLayout: React.FC<{

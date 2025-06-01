@@ -206,24 +206,4 @@ pre {
     min-height: 15vh;
     padding: 12px;
   }
-}
-
-
-/* Style adjustments for dark mode */
-@media (prefers-color-scheme: dark) {
-  
-  [data-theme='dark'] .tool-approval-card {
-    background-color: #262626;
-    border-color: #333;
-  }
-  
-  [data-theme='dark'] .tool-name,
-  [data-theme='dark'] .param-label,
-  [data-theme='dark'] .param-value {
-    color: #e6e6e6;
-  }
-  
-  [data-theme='dark'] .tool-processing-overlay {
-    background-color: rgba(0, 0, 0, 0.7);
-  }
 } 

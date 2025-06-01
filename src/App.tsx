@@ -1,9 +1,9 @@
-import { useEffect, useState } from "react";
-import { ConfigProvider, theme } from "antd";
+import {useEffect, useState} from "react";
+import {ConfigProvider, theme} from "antd";
 import "./App.css";
-import { MainLayout } from "./layouts/MainLayout";
-import { ChatProvider, MessageProcessorProvider } from "./contexts/ChatView";
-import { SystemSettingsModal } from "./components/Shared";
+import {ChatProvider} from "./contexts/ChatContext";
+import {MainLayout} from "./layouts/MainLayout";
+import {SystemSettingsModal} from "./components/SystemSettingsModal";
 
 const DARK_MODE_KEY = "copilot_dark_mode";
 
@@ -29,22 +29,17 @@ function App() {
           themeMode === "dark" ? theme.darkAlgorithm : theme.defaultAlgorithm,
       }}
     >
-      <MessageProcessorProvider>
-        <ChatProvider>
-          <div style={{ position: "relative" }}>
-            <MainLayout
-              themeMode={themeMode}
-              onThemeModeChange={setThemeMode}
-            />
-            <SystemSettingsModal
-              open={settingsOpen}
-              onClose={() => setSettingsOpen(false)}
-              themeMode={themeMode}
-              onThemeModeChange={setThemeMode}
-            />
-          </div>
-        </ChatProvider>
-      </MessageProcessorProvider>
+      <ChatProvider>
+        <div style={{ position: "relative" }}>
+          <MainLayout themeMode={themeMode} onThemeModeChange={setThemeMode} />
+          <SystemSettingsModal
+            open={settingsOpen}
+            onClose={() => setSettingsOpen(false)}
+            themeMode={themeMode}
+            onThemeModeChange={setThemeMode}
+          />
+        </div>
+      </ChatProvider>
     </ConfigProvider>
   );
 }
