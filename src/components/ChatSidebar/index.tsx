@@ -9,6 +9,9 @@ import {
   Space,
   Tooltip,
   Avatar,
+  Grid,
+  Flex,
+  theme,
 } from "antd";
 import {
   PlusOutlined,
@@ -24,11 +27,14 @@ import { ChatItem } from "../ChatItem";
 
 const { Sider } = Layout;
 const { Text } = Typography;
+const { useBreakpoint } = Grid;
+const { useToken } = theme;
 
 export const ChatSidebar: React.FC<{
   themeMode: "light" | "dark";
   onThemeModeChange: (mode: "light" | "dark") => void;
 }> = ({ themeMode, onThemeModeChange }) => {
+  const { token } = useToken();
   const {
     chats,
     addChat,
@@ -46,6 +52,7 @@ export const ChatSidebar: React.FC<{
   const [selectedChatIds, setSelectedChatIds] = useState<string[]>([]);
   const [footerHeight, setFooterHeight] = useState(0);
   const footerRef = useRef<HTMLDivElement>(null);
+  const screens = useBreakpoint();
 
   // 动态计算底部按钮区高度
   useEffect(() => {
@@ -59,14 +66,16 @@ export const ChatSidebar: React.FC<{
     return () => window.removeEventListener("resize", updateFooterHeight);
   }, []);
 
-  // For debugging
-  // console.log("ChatSidebar rendered with chats:", chats);
+  // 响应式折叠逻辑
+  useEffect(() => {
+    if (screens.xs === false && screens.sm === false) {
+      // 小屏幕自动折叠
+      setCollapsed(true);
+    }
+  }, [screens]);
 
   // Group chats by date
   const groupedChats = groupChatsByDate(chats);
-
-  // For debugging grouped chats
-  console.log("Grouped chats:", groupedChats);
 
   const handleDelete = (chatId: string) => {
     Modal.confirm({
@@ -94,11 +103,20 @@ export const ChatSidebar: React.FC<{
     updateChat(chatId, { title: newTitle });
   };
 
+  // 响应式宽度计算
+  const getSiderWidth = () => {
+    if (screens.xxl) return 300;
+    if (screens.xl) return 280;
+    if (screens.lg) return 260;
+    if (screens.md) return 240;
+    return 220;
+  };
+
   return (
     <Sider
       breakpoint="md"
       collapsedWidth={0}
-      width="clamp(120px, 22vw, 300px)"
+      width={getSiderWidth()}
       collapsible
       collapsed={collapsed}
       onCollapse={(value) => setCollapsed(value)}
@@ -108,14 +126,12 @@ export const ChatSidebar: React.FC<{
         borderRight: "1px solid var(--ant-color-border)",
         position: "relative",
         height: "100vh",
-        paddingTop: 8,
         overflow: "hidden",
       }}
     >
-      <Button
-        type="text"
-        icon={collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
-        onClick={() => setCollapsed(!collapsed)}
+      {/* 折叠/展开按钮 */}
+      <Flex
+        justify="flex-end"
         style={{
           position: "absolute",
           right: collapsed ? "50%" : 8,
@@ -123,20 +139,28 @@ export const ChatSidebar: React.FC<{
           transform: collapsed ? "translateX(50%)" : "none",
           zIndex: 10,
         }}
-      />
-      <div
+      >
+        <Button
+          type="text"
+          icon={collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
+          onClick={() => setCollapsed(!collapsed)}
+          size={screens.xs ? "small" : "middle"}
+        />
+      </Flex>
+
+      {/* 聊天列表区域 */}
+      <Flex
+        vertical
         style={{
-          height: `calc(100vh - ${footerHeight}px - 8px)`, // 8px为顶部padding
+          height: `calc(100vh - ${footerHeight}px)`,
           overflowY: "auto",
-          padding: "0 8px",
-          paddingTop: "40px",
-          /* Hide scrollbar for Webkit browsers */
-          scrollbarWidth: "none" /* Firefox */,
-          msOverflowStyle: "none" /* IE and Edge */,
+          padding: "40px 8px 0 8px",
+          scrollbarWidth: "none",
+          msOverflowStyle: "none",
         }}
+        className="chat-sidebar-scroll"
       >
         <style>{`
-          /* Hide scrollbar for Chrome, Safari and Opera */
           .chat-sidebar-scroll::-webkit-scrollbar {
             display: none;
           }
@@ -155,26 +179,35 @@ export const ChatSidebar: React.FC<{
             background: var(--ant-color-bg-elevated);
           }
           [data-theme='dark'] .chat-item-collapsed.selected {
-            background-color: #2b2b2b;
+            background-color: var(--ant-color-primary-bg);
           }
           [data-theme='light'] .chat-item-collapsed.selected {
-            background-color: #aaaaaa;
+            background-color: var(--ant-color-primary-bg);
           }
         `}</style>
-        <div className="chat-sidebar-scroll" style={{ height: "100%" }}>
-          {!collapsed &&
-            Object.entries(groupedChats).map(([date, chatsInGroup], idx) => (
+
+        {!collapsed ? (
+          <Space direction="vertical" size="small" style={{ width: "100%" }}>
+            {Object.entries(groupedChats).map(([date, chatsInGroup], idx) => (
               <div key={date}>
-                {idx > 0 && <Divider style={{ margin: "8px 0" }} />}
+                {idx > 0 && (
+                  <Divider style={{ margin: `${token.marginXS}px 0` }} />
+                )}
                 <Text
                   type="secondary"
-                  style={{ fontSize: 12, margin: "8px 0", display: "block" }}
+                  style={{
+                    fontSize: 12,
+                    margin: "8px 0",
+                    display: "block",
+                    paddingLeft: 8,
+                  }}
                 >
                   {date}
                 </Text>
                 <List
                   itemLayout="horizontal"
                   dataSource={chatsInGroup}
+                  split={false}
                   renderItem={(chat) => (
                     <ChatItem
                       key={chat.id}
@@ -199,25 +232,23 @@ export const ChatSidebar: React.FC<{
                 />
               </div>
             ))}
-          {collapsed && (
-            <List
-              itemLayout="horizontal"
-              dataSource={Object.values(groupedChats).flat()}
-              style={{
-                display: "flex",
-                flexDirection: "column",
-                gap: "4px",
-                padding: "0 8px",
-              }}
-              renderItem={(chat) => (
-                <Tooltip placement="right" title={chat.title}>
-                  <div
+          </Space>
+        ) : (
+          <Space direction="vertical" size="small" style={{ width: "100%" }}>
+            {Object.values(groupedChats)
+              .flat()
+              .map((chat) => (
+                <Tooltip key={chat.id} placement="right" title={chat.title}>
+                  <Flex
+                    justify="center"
+                    align="center"
                     className={`chat-item-collapsed ${
                       chat.id === currentChatId ? "selected" : ""
                     }`}
                     onClick={() => selectChat(chat.id)}
                   >
                     <Avatar
+                      size={screens.xs ? "small" : "default"}
                       style={{
                         backgroundColor:
                           chat.id === currentChatId
@@ -232,89 +263,97 @@ export const ChatSidebar: React.FC<{
                     >
                       {chat.title.charAt(0).toUpperCase()}
                     </Avatar>
-                  </div>
+                  </Flex>
                 </Tooltip>
-              )}
-            />
-          )}
-        </div>
-      </div>
-      <div
+              ))}
+          </Space>
+        )}
+      </Flex>
+
+      {/* 底部操作区 */}
+      <Flex
         ref={footerRef}
+        vertical
+        gap="middle"
         style={{
-          padding: collapsed ? "16px 8px" : 16,
+          padding: collapsed ? 16 : 16,
           background: "var(--ant-color-bg-container)",
           borderTop: "1px solid var(--ant-color-border)",
         }}
       >
-        <Space direction="vertical" style={{ width: "100%" }} size="middle">
-          <Tooltip placement={collapsed ? "right" : "top"} title="New Chat">
-            <Button
-              type="primary"
-              icon={<PlusOutlined />}
-              onClick={() => {
-                const newChatId = addChat();
-                selectChat(newChatId);
-              }}
-              block
-            >
-              {!collapsed && "New Chat"}
-            </Button>
-          </Tooltip>
-          <Tooltip
-            placement={collapsed ? "right" : "top"}
-            title={isSelectMode ? "Exit Select Mode" : "Select Mode"}
+        <Tooltip placement={collapsed ? "right" : "top"} title="New Chat">
+          <Button
+            type="primary"
+            icon={<PlusOutlined />}
+            onClick={() => {
+              const newChatId = addChat();
+              selectChat(newChatId);
+            }}
+            block
+            size={screens.xs ? "small" : "middle"}
           >
-            <Button
-              type={isSelectMode ? "default" : "dashed"}
-              onClick={() => {
-                setIsSelectMode(!isSelectMode);
-                setSelectedChatIds([]);
-              }}
-              block
-            >
-              {!collapsed &&
-                (isSelectMode ? "Exit Select Mode" : "Select Mode")}
-            </Button>
-          </Tooltip>
-          <Tooltip
-            placement={collapsed ? "right" : "top"}
-            title="System Settings"
+            {!collapsed && "New Chat"}
+          </Button>
+        </Tooltip>
+
+        <Tooltip
+          placement={collapsed ? "right" : "top"}
+          title={isSelectMode ? "Exit Select Mode" : "Select Mode"}
+        >
+          <Button
+            type={isSelectMode ? "default" : "dashed"}
+            onClick={() => {
+              setIsSelectMode(!isSelectMode);
+              setSelectedChatIds([]);
+            }}
+            block
+            size={screens.xs ? "small" : "middle"}
           >
-            <Button
-              icon={<SettingOutlined />}
-              onClick={handleOpenSettings}
-              block
-            >
-              {!collapsed && "System Settings"}
-            </Button>
-          </Tooltip>
-          {isSelectMode && (
-            <Button
-              danger
-              type="primary"
-              disabled={selectedChatIds.length === 0}
-              onClick={() => {
-                Modal.confirm({
-                  title: `Delete selected chats`,
-                  content: `Are you sure you want to delete the selected ${selectedChatIds.length} chats? This action cannot be undone.`,
-                  okText: "Delete",
-                  okType: "danger",
-                  cancelText: "Cancel",
-                  onOk: () => {
-                    deleteChats(selectedChatIds);
-                    setSelectedChatIds([]);
-                    setIsSelectMode(false);
-                  },
-                });
-              }}
-              block
-            >
-              Delete selected chats
-            </Button>
-          )}
-        </Space>
-      </div>
+            {!collapsed && (isSelectMode ? "Exit Select Mode" : "Select Mode")}
+          </Button>
+        </Tooltip>
+
+        <Tooltip
+          placement={collapsed ? "right" : "top"}
+          title="System Settings"
+        >
+          <Button
+            icon={<SettingOutlined />}
+            onClick={handleOpenSettings}
+            block
+            size={screens.xs ? "small" : "middle"}
+          >
+            {!collapsed && "System Settings"}
+          </Button>
+        </Tooltip>
+
+        {isSelectMode && (
+          <Button
+            danger
+            type="primary"
+            disabled={selectedChatIds.length === 0}
+            onClick={() => {
+              Modal.confirm({
+                title: `Delete selected chats`,
+                content: `Are you sure you want to delete the selected ${selectedChatIds.length} chats? This action cannot be undone.`,
+                okText: "Delete",
+                okType: "danger",
+                cancelText: "Cancel",
+                onOk: () => {
+                  deleteChats(selectedChatIds);
+                  setSelectedChatIds([]);
+                  setIsSelectMode(false);
+                },
+              });
+            }}
+            block
+            size={screens.xs ? "small" : "middle"}
+          >
+            Delete selected chats
+          </Button>
+        )}
+      </Flex>
+
       <SystemSettingsModal
         open={isSettingsModalOpen}
         onClose={handleCloseSettings}

@@ -1,6 +1,9 @@
 import React, { useState, useEffect } from "react";
-import { Modal, message, List, Radio } from "antd";
+import { Modal, message, List, Radio, theme, Typography, Space } from "antd";
 import { useChat } from "../../contexts/ChatContext";
+
+const { Text } = Typography;
+const { useToken } = theme;
 
 interface SystemPromptModalProps {
   open: boolean;
@@ -11,6 +14,7 @@ const SystemPromptModal: React.FC<SystemPromptModalProps> = ({
   open,
   onClose,
 }) => {
+  const { token } = useToken();
   const {
     currentChatId,
     currentChat,
@@ -64,12 +68,22 @@ const SystemPromptModal: React.FC<SystemPromptModalProps> = ({
             dataSource={systemPromptPresets}
             renderItem={(item) => (
               <List.Item>
-                <Radio value={item.id} style={{ marginRight: 8 }}>
-                  {item.name}
-                </Radio>
-                <div style={{ color: "#888", fontSize: 12, marginTop: 4 }}>
-                  {item.content.slice(0, 40)}...
-                </div>
+                <Space
+                  direction="vertical"
+                  size={token.marginXS}
+                  style={{ width: "100%" }}
+                >
+                  <Radio value={item.id}>{item.name}</Radio>
+                  <Text
+                    type="secondary"
+                    style={{
+                      fontSize: token.fontSizeSM,
+                      marginLeft: token.marginLG,
+                    }}
+                  >
+                    {item.content.slice(0, 40)}...
+                  </Text>
+                </Space>
               </List.Item>
             )}
           />

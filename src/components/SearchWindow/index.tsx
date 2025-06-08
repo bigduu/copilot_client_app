@@ -1,11 +1,14 @@
 import { useState, useCallback } from "react";
-import { Input, Space } from "antd";
+import { Input, Space, theme } from "antd";
 import { SearchOutlined } from "@ant-design/icons";
 import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { invoke } from "@tauri-apps/api/core";
 import "./styles.css";
 
+const { useToken } = theme;
+
 export default function SearchWindow() {
+  const { token } = useToken();
   const [searchText, setSearchText] = useState("");
   const [isSending, setIsSending] = useState(false);
 
@@ -50,7 +53,7 @@ export default function SearchWindow() {
         <Space
           direction="vertical"
           size="middle"
-          style={{ width: "100%", padding: "16px" }}
+          style={{ width: "100%", padding: token.padding }}
         >
           <Input
             size="large"

@@ -7,7 +7,9 @@ import {
   Button,
   Dropdown,
   Tooltip,
-  Collapse, // Added Collapse
+  Collapse,
+  Grid,
+  Flex,
 } from "antd";
 import { CopyOutlined, BookOutlined, StarOutlined } from "@ant-design/icons";
 import ReactMarkdown from "react-markdown";
@@ -19,11 +21,12 @@ import { useChat } from "../../contexts/ChatContext";
 
 const { Text } = Typography;
 const { useToken } = theme;
+const { useBreakpoint } = Grid;
 
 interface MessageCardProps {
   role: string;
   content: string;
-  processorUpdates?: string[]; // Add this
+  processorUpdates?: string[];
   messageIndex?: number;
   children?: React.ReactNode;
   messageId?: string;
@@ -32,15 +35,27 @@ interface MessageCardProps {
 const MessageCard: React.FC<MessageCardProps> = ({
   role,
   content,
-  processorUpdates, // Add this
+  processorUpdates,
   children,
   messageId,
 }) => {
   const { token } = useToken();
+  const screens = useBreakpoint();
   const { currentChatId, addFavorite } = useChat();
   const cardRef = useRef<HTMLDivElement>(null);
   const [selectedText, setSelectedText] = useState<string>("");
   const [isHovering, setIsHovering] = useState<boolean>(false);
+
+  // 响应式计算
+  const getCardMaxWidth = () => {
+    if (screens.xs) return "100%";
+    if (screens.sm) return "95%";
+    return "800px";
+  };
+
+  const getActionButtonSize = (): "small" | "middle" | "large" => {
+    return screens.xs ? "small" : "small";
+  };
 
   // 添加整个消息到收藏夹
   const addMessageToFavorites = () => {
@@ -157,7 +172,7 @@ const MessageCard: React.FC<MessageCardProps> = ({
           style={{
             width: "100%",
             minWidth: "100%",
-            maxWidth: "800px",
+            maxWidth: getCardMaxWidth(),
             margin: "0 auto",
             background:
               role === "user"
@@ -190,6 +205,8 @@ const MessageCard: React.FC<MessageCardProps> = ({
                 ? "Assistant"
                 : role}
             </Text>
+
+            {/* Processor Updates */}
             {processorUpdates && processorUpdates.length > 0 && (
               <Collapse
                 ghost
@@ -200,24 +217,32 @@ const MessageCard: React.FC<MessageCardProps> = ({
                   header="View Processing Steps"
                   key="proc-updates-panel"
                 >
-                  {processorUpdates.map((update, index) => (
-                    <Text
-                      key={`mc-proc-${index}`}
-                      style={{
-                        display: "block",
-                        fontSize: "0.9em",
-                        color: token.colorTextSecondary,
-                        fontStyle: "italic",
-                        whiteSpace: "pre-wrap",
-                        paddingLeft: token.paddingSM,
-                      }}
-                    >
-                      {update}
-                    </Text>
-                  ))}
+                  <Space
+                    direction="vertical"
+                    size="small"
+                    style={{ width: "100%" }}
+                  >
+                    {processorUpdates.map((update, index) => (
+                      <Text
+                        key={`mc-proc-${index}`}
+                        style={{
+                          display: "block",
+                          fontSize: token.fontSizeSM * 0.9,
+                          color: token.colorTextSecondary,
+                          fontStyle: "italic",
+                          whiteSpace: "pre-wrap",
+                          paddingLeft: token.paddingSM,
+                        }}
+                      >
+                        {update}
+                      </Text>
+                    ))}
+                  </Space>
                 </Collapse.Panel>
               </Collapse>
             )}
+
+            {/* Content */}
             <div style={{ width: "100%", maxWidth: "100%" }}>
               <ReactMarkdown
                 remarkPlugins={
@@ -325,12 +350,11 @@ const MessageCard: React.FC<MessageCardProps> = ({
             </div>
             {children}
 
-            {/* Action buttons - shown for both user and assistant messages when hovering */}
-            <div
+            {/* Action buttons */}
+            <Flex
+              justify="flex-end"
+              gap={token.marginXS}
               style={{
-                display: "flex",
-                justifyContent: "flex-end",
-                gap: token.marginXS,
                 marginTop: token.marginXS,
                 position: "absolute",
                 bottom: token.paddingXS,
@@ -345,7 +369,7 @@ const MessageCard: React.FC<MessageCardProps> = ({
               <Tooltip title="Copy message">
                 <Button
                   icon={<CopyOutlined />}
-                  size="small"
+                  size={getActionButtonSize()}
                   type="text"
                   onClick={() => copyToClipboard(content)}
                   style={{
@@ -357,7 +381,7 @@ const MessageCard: React.FC<MessageCardProps> = ({
               <Tooltip title="Add to favorites">
                 <Button
                   icon={<StarOutlined />}
-                  size="small"
+                  size={getActionButtonSize()}
                   type="text"
                   onClick={addMessageToFavorites}
                   style={{
@@ -369,7 +393,7 @@ const MessageCard: React.FC<MessageCardProps> = ({
               <Tooltip title="Reference message">
                 <Button
                   icon={<BookOutlined />}
-                  size="small"
+                  size={getActionButtonSize()}
                   type="text"
                   onClick={referenceMessage}
                   style={{
@@ -378,7 +402,7 @@ const MessageCard: React.FC<MessageCardProps> = ({
                   }}
                 />
               </Tooltip>
-            </div>
+            </Flex>
           </Space>
         </Card>
       </Dropdown>

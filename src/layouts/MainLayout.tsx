@@ -96,7 +96,7 @@ export const MainLayout: React.FC<{
         onThemeModeChange={onThemeModeChange}
       />
       <Layout className="content-layout">
-        <ChatView showFavorites={showFavorites} />
+        <ChatView />
       </Layout>
       {/* Favorites Panel */}
       {showFavorites && currentChatId && currentMessages.length > 0 && (
