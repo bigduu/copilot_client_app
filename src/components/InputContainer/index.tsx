@@ -1,10 +1,11 @@
-import React, { useEffect, useState, useRef, useCallback } from "react";
+import React from "react";
 import { Button, Space, Tooltip, Spin, theme } from "antd";
 import { SettingOutlined } from "@ant-design/icons";
 import { MessageInput } from "../MessageInput";
 import SystemPromptModal from "../SystemPromptModal";
 import InputPreview from "./InputPreview";
 import { useChat } from "../../contexts/ChatContext";
+import { useChatInput } from "../../hooks/useChatInput";
 
 const { useToken } = theme;
 
@@ -18,72 +19,23 @@ export const InputContainer: React.FC<InputContainerProps> = ({
   isCenteredLayout = false,
 }) => {
   const [isPromptModalOpen, setPromptModalOpen] = React.useState(false);
-  // Store reference text per chatId
-  const [referenceMap, setReferenceMap] = useState<{
-    [chatId: string]: string | null;
-  }>({});
   const { token } = useToken();
-  const { currentChatId } = useChat();
-  const prevChatIdRef = useRef<string | null>(null);
+  const { currentMessages } = useChat();
 
-  // Clear reference text - using useCallback to ensure stable reference
-  const clearReferenceText = useCallback((chatId: string) => {
-    if (!chatId) return;
+  // Use the new chat input hook for state management
+  const {
+    content,
+    setContent,
+    referenceText,
+    handleSubmit,
+    handleRetry,
+    handleCloseReferencePreview,
+  } = useChatInput();
 
-    setReferenceMap((prevMap) => {
-      const newMap = { ...prevMap };
-      newMap[chatId] = null;
-      return newMap;
-    });
-  }, []);
-
-  // Listen for reference-text events from MessageCard/FavoritesPanel
-  useEffect(() => {
-    const handleReferenceText = (e: Event) => {
-      const customEvent = e as CustomEvent<{ text: string; chatId?: string }>;
-      const chatId = customEvent.detail.chatId || currentChatId;
-      if (chatId) {
-        setReferenceMap((prev) => ({
-          ...prev,
-          [chatId]: customEvent.detail.text,
-        }));
-      }
-    };
-
-    window.addEventListener("reference-text", handleReferenceText);
-
-    return () => {
-      window.removeEventListener("reference-text", handleReferenceText);
-    };
-  }, [currentChatId]);
-
-  // Clear reference when chat switches
-  useEffect(() => {
-    if (prevChatIdRef.current && prevChatIdRef.current !== currentChatId) {
-      clearReferenceText(prevChatIdRef.current);
-    }
-    prevChatIdRef.current = currentChatId;
-  }, [currentChatId, clearReferenceText]);
-
-  const handleInputSubmit = useCallback(
-    (_content: string) => {
-      // Clear reference after submitting for current chat
-      if (currentChatId) {
-        clearReferenceText(currentChatId);
-      }
-    },
-    [currentChatId, clearReferenceText]
-  );
-
-  // Calculate current reference text
-  const referenceText = currentChatId ? referenceMap[currentChatId] : null;
-
-  // Handler for closing the input preview
-  const handleClosePreview = useCallback(() => {
-    if (currentChatId) {
-      clearReferenceText(currentChatId);
-    }
-  }, [currentChatId, clearReferenceText]);
+  // Generate placeholder text based on reference
+  const placeholder = referenceText
+    ? "Send a message (includes reference)"
+    : "Send a message...";
 
   return (
     <div
@@ -98,7 +50,10 @@ export const InputContainer: React.FC<InputContainerProps> = ({
       }}
     >
       {referenceText && (
-        <InputPreview text={referenceText} onClose={handleClosePreview} />
+        <InputPreview
+          text={referenceText}
+          onClose={handleCloseReferencePreview}
+        />
       )}
 
       <Space.Compact block>
@@ -119,10 +74,14 @@ export const InputContainer: React.FC<InputContainerProps> = ({
           />
         </Tooltip>
         <MessageInput
-          isStreamingInProgress={isStreaming}
+          value={content}
+          onChange={setContent}
+          onSubmit={handleSubmit}
+          onRetry={handleRetry}
+          isStreaming={isStreaming}
           isCenteredLayout={isCenteredLayout}
-          referenceText={referenceText}
-          onSubmit={handleInputSubmit}
+          placeholder={placeholder}
+          hasMessages={currentMessages.length > 0}
         />
       </Space.Compact>
 

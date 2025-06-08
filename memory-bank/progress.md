@@ -17,6 +17,11 @@
    - Persistent model selection for new chats (via `useModels` and `localStorage`)
    - Modularized components and hooks
    - **UI重构第一阶段完成**: 统一主题系统和ChatItem组件重构 (2025-06-01)
+   - **前端重构第一阶段完成**: 组件职责分离和输入模块重构 (2025-06-01)
+     - 创建了useChatInput hook分离状态管理逻辑
+     - 重构MessageInput为纯UI组件
+     - 重构InputContainer使用新的hook架构
+     - 所有现有功能保持完整，构建通过
 
 3. Backend Features
    - Modular Copilot client integration
@@ -25,7 +30,13 @@
    - Improved error handling and IPC communication
 
 ### In Progress
-1. UI/UX Development
+1. 前端重构第二阶段
+   - 按功能域重新组织代码结构
+   - 拆分useChatManager为更小的hooks
+   - 创建features目录结构
+   - 组件迁移和模块化
+
+2. UI/UX Development
    - Finalizing search and filtering features
    - Polishing streaming message UI and performance
    - Refining system prompt and settings modals
@@ -40,13 +51,19 @@
 ## What's Left to Build
 
 ### Frontend Tasks
-1. Features
+1. 重构任务 (按优先级)
+   - **第二阶段**: 功能域驱动的目录结构重组
+   - **第三阶段**: 架构优化与现代化
+   - 组件复合模式和性能优化
+   - 类型系统强化
+
+2. Features
    - Advanced search and message organization
    - System prompt templates and user preferences
    - Theme customization and accessibility
    - Migration to Shadcn UI/Tailwind (if approved)
 
-2. Improvements
+3. Improvements
    - Comprehensive documentation
    - Automated test coverage
    - Error and performance monitoring
@@ -124,13 +141,18 @@
    - Search window and persistent model selection
 
 ### Current Phase
-1. Feature Development
+1. 前端架构重构 (2025-06-01)
+   - ✅ 第一阶段完成: 组件职责分离
+   - 🔄 第二阶段进行中: 功能域重组
+   - 📋 第三阶段计划: 架构优化
+
+2. Feature Development
    - Search and filtering
    - Streaming message UI/UX
    - System prompt and settings management
    - Chat navigation and favorites
 
-2. Improvements
+3. Improvements
    - Error handling and performance optimization
    - UI/UX polish and backend stability
 
@@ -152,6 +174,9 @@
    - Advanced React context and hooks patterns
    - Modular UI and persistent preferences
    - TypeScript best practices
+   - **组件职责分离**: 纯UI组件与业务逻辑分离
+   - **Custom Hooks模式**: 状态管理逻辑的有效抽象
+   - **渐进式重构**: 保持功能完整性的重构策略
 
 2. Backend
    - Tauri IPC and Rust async patterns
