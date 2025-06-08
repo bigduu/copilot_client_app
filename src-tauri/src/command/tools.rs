@@ -1,6 +1,23 @@
+use serde::Serialize;
 use tauri::State;
 
 use crate::tools::ToolManager;
+
+#[derive(Serialize)]
+pub struct ParameterInfo {
+    pub name: String,
+    pub description: String,
+    pub required: bool,
+    #[serde(rename = "type")]
+    pub param_type: String,
+}
+
+#[derive(Serialize)]
+pub struct ToolUIInfo {
+    pub name: String,
+    pub description: String,
+    pub parameters: Vec<ParameterInfo>,
+}
 
 #[tauri::command]
 pub fn get_available_tools(
@@ -8,6 +25,14 @@ pub fn get_available_tools(
 ) -> Result<String, String> {
     let tools_list = tool_manager.list_tools();
     Ok(tools_list)
+}
+
+#[tauri::command]
+pub fn get_tools_for_ui(
+    tool_manager: State<'_, std::sync::Arc<ToolManager>>,
+) -> Result<Vec<ToolUIInfo>, String> {
+    let tools = tool_manager.list_tools_for_ui();
+    Ok(tools)
 }
 
 // This command is mainly for UI information purposes,
