@@ -27,6 +27,9 @@ fn setup<R: Runtime>(app: &mut App<R>) -> std::result::Result<(), Box<dyn std::e
     // Create tool manager and initialize tools
     let tool_manager = Arc::new(create_tool_manager());
 
+    // Register tool manager with Tauri state management
+    app.manage(tool_manager.clone());
+
     // Initialize MCP processor
     let mcp_processor = McpProcessor::new(Arc::new(client.clone()));
 

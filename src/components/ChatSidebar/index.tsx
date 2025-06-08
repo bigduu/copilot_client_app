@@ -18,7 +18,6 @@ import {
   SettingOutlined,
   MenuFoldOutlined,
   MenuUnfoldOutlined,
-  MessageOutlined,
 } from "@ant-design/icons";
 import { useChat } from "../../contexts/ChatContext";
 import { groupChatsByDate } from "../../utils/chatUtils";
