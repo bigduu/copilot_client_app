@@ -84,6 +84,32 @@ impl ToolManager {
         }
         prompt
     }
+
+    pub fn list_tools_for_ui(&self) -> Vec<crate::command::tools::ToolUIInfo> {
+        self.tools
+            .values()
+            .map(|tool| {
+                let parameters = tool
+                    .parameters()
+                    .into_iter()
+                    .map(|param| {
+                        crate::command::tools::ParameterInfo {
+                            name: param.name,
+                            description: param.description,
+                            required: param.required,
+                            param_type: "string".to_string(), // Simplified for now
+                        }
+                    })
+                    .collect();
+
+                crate::command::tools::ToolUIInfo {
+                    name: tool.name(),
+                    description: tool.description(),
+                    parameters,
+                }
+            })
+            .collect()
+    }
 }
 
 // Function to create a new tool manager with all tools registered
