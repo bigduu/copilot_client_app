@@ -15,11 +15,19 @@ import {
   Spin,
   theme,
   Flex,
+  Card,
 } from "antd";
-import { DeleteOutlined, EditOutlined, PlusOutlined } from "@ant-design/icons";
+import {
+  DeleteOutlined,
+  EditOutlined,
+  PlusOutlined,
+  ToolOutlined,
+  InfoCircleOutlined,
+} from "@ant-design/icons";
 import { useChat } from "../../contexts/ChatContext";
 import { useModels } from "../../hooks/useModels";
 import { MCPServerManagementComponent } from "../MCPServerManagement";
+import { invoke } from "@tauri-apps/api/core";
 
 const { Text } = Typography;
 const { useToken } = theme;
@@ -69,6 +77,108 @@ const ModelSelection = ({
             </Select.Option>
           ))}
         </Select>
+      )}
+    </Space>
+  );
+};
+
+// Tool Manager Component
+const ToolManagerComponent = () => {
+  const { token } = useToken();
+  const [loading, setLoading] = useState(false);
+  const [toolsList, setToolsList] = useState<string>("");
+  const [toolsDoc, setToolsDoc] = useState<string>("");
+  const [showToolsList, setShowToolsList] = useState(false);
+  const [showToolsDoc, setShowToolsDoc] = useState(false);
+
+  const loadAvailableTools = async () => {
+    setLoading(true);
+    try {
+      const tools = await invoke<string>("get_available_tools");
+      setToolsList(tools);
+      setShowToolsList(true);
+    } catch (error) {
+      console.error("Failed to load tools:", error);
+      message.error("Failed to load available tools");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadToolsDocumentation = async () => {
+    setLoading(true);
+    try {
+      const doc = await invoke<string>("get_tools_documentation");
+      setToolsDoc(doc);
+      setShowToolsDoc(true);
+    } catch (error) {
+      console.error("Failed to load tools documentation:", error);
+      message.error("Failed to load tools documentation");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <Space direction="vertical" size={token.marginXS} style={{ width: "100%" }}>
+      <Text strong>Tool Management</Text>
+      <Space wrap>
+        <Button
+          icon={<ToolOutlined />}
+          onClick={loadAvailableTools}
+          loading={loading}
+          size="small"
+        >
+          Show Available Tools
+        </Button>
+        <Button
+          icon={<InfoCircleOutlined />}
+          onClick={loadToolsDocumentation}
+          loading={loading}
+          size="small"
+        >
+          Show Documentation
+        </Button>
+      </Space>
+
+      {showToolsList && (
+        <Card
+          size="small"
+          title="Available Tools"
+          style={{ marginTop: token.marginXS }}
+        >
+          <pre
+            style={{
+              fontSize: "12px",
+              maxHeight: "200px",
+              overflow: "auto",
+              whiteSpace: "pre-wrap",
+              wordBreak: "break-word",
+            }}
+          >
+            {toolsList}
+          </pre>
+        </Card>
+      )}
+
+      {showToolsDoc && (
+        <Card
+          size="small"
+          title="Tools Documentation"
+          style={{ marginTop: token.marginXS }}
+        >
+          <pre
+            style={{
+              fontSize: "12px",
+              maxHeight: "200px",
+              overflow: "auto",
+              whiteSpace: "pre-wrap",
+              wordBreak: "break-word",
+            }}
+          >
+            {toolsDoc}
+          </pre>
+        </Card>
       )}
     </Space>
   );
@@ -182,6 +292,11 @@ const SystemSettingsModal = ({
         <Text strong>MCP Server Management</Text>
         <MCPServerManagementComponent />
       </Space>
+
+      <Divider />
+
+      {/* Tool Manager Section */}
+      <ToolManagerComponent />
 
       <Divider />
 
