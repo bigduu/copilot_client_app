@@ -1,89 +1,52 @@
-import React, { useState, useRef, useEffect } from "react";
+import React, { useRef } from "react";
 import { Input, Button, Space, theme } from "antd";
 import { SendOutlined, SyncOutlined } from "@ant-design/icons";
-import { useChat } from "../../contexts/ChatContext";
 
 interface MessageInputProps {
-  onSubmit?: (content: string) => void;
-  isStreamingInProgress: boolean;
+  value: string;
+  onChange: (value: string) => void;
+  onSubmit: (content: string) => void;
+  onRetry?: () => void;
+  isStreaming: boolean;
   isCenteredLayout?: boolean;
-  referenceText?: string | null;
+  placeholder?: string;
+  disabled?: boolean;
+  showRetryButton?: boolean;
+  hasMessages?: boolean;
 }
 
 export const MessageInput: React.FC<MessageInputProps> = ({
+  value,
+  onChange,
   onSubmit,
-  isStreamingInProgress,
+  onRetry,
+  isStreaming,
   isCenteredLayout = false,
-  referenceText = null,
+  placeholder = "Send a message...",
+  disabled = false,
+  showRetryButton = true,
+  hasMessages = false,
 }) => {
-  const [content, setContent] = useState("");
-  const [hiddenReference, setHiddenReference] = useState<string | null>(null);
   const textAreaRef = useRef<HTMLTextAreaElement>(null);
   const { token } = theme.useToken();
 
-  const { sendMessage, initiateAIResponse, currentMessages } = useChat();
-
-  // Store or clear reference text when it changes
-  useEffect(() => {
-    if (referenceText) {
-      setHiddenReference(referenceText);
-
-      // Focus the textarea
-      if (textAreaRef.current) {
-        setTimeout(() => {
-          textAreaRef.current?.focus();
-        }, 50);
-      }
-    } else {
-      // Clear the hidden reference when referenceText becomes null
-      setHiddenReference(null);
-    }
-  }, [referenceText]);
-
   const handleKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (event.key === "Enter" && !event.shiftKey && !isStreamingInProgress) {
+    if (event.key === "Enter" && !event.shiftKey && !isStreaming && !disabled) {
       event.preventDefault();
       handleSubmit();
     }
   };
 
-  const handleSubmit = async () => {
-    const trimmedContent = content.trim();
-    if ((!trimmedContent && !hiddenReference) || isStreamingInProgress) return;
+  const handleSubmit = () => {
+    const trimmedContent = value.trim();
+    if (!trimmedContent || isStreaming || disabled) return;
 
-    console.log("Submitting message:", trimmedContent);
-
-    let messageToSend = trimmedContent;
-
-    // Append reference text if it exists (but only in the background)
-    if (hiddenReference) {
-      messageToSend = trimmedContent
-        ? `${hiddenReference}\n\n${trimmedContent}`
-        : hiddenReference;
-    }
-
-    if (onSubmit) {
-      onSubmit(messageToSend);
-    }
-
-    try {
-      await sendMessage(messageToSend);
-    } catch (error) {
-      console.error("Error sending message:", error);
-    }
-
-    setContent("");
-    setHiddenReference(null);
+    onSubmit(trimmedContent);
   };
 
-  const handleAIRetry = async () => {
-    if (isStreamingInProgress) return;
-
-    try {
-      await initiateAIResponse();
-    } catch (error) {
-      console.error("Error initiating AI response:", error);
-    }
+  const handleRetry = () => {
+    if (isStreaming || disabled || !onRetry) return;
+    onRetry();
   };
 
   return (
@@ -91,15 +54,11 @@ export const MessageInput: React.FC<MessageInputProps> = ({
       <Input.TextArea
         ref={textAreaRef}
         autoSize={{ minRows: isCenteredLayout ? 3 : 1, maxRows: 8 }}
-        value={content}
-        onChange={(e) => setContent(e.target.value)}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
         onKeyDown={handleKeyDown}
-        placeholder={
-          hiddenReference
-            ? "Send a message (includes reference)"
-            : "Send a message..."
-        }
-        disabled={isStreamingInProgress}
+        placeholder={placeholder}
+        disabled={disabled || isStreaming}
         style={{
           resize: "none",
           borderRadius: 0,
@@ -114,9 +73,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
         type="primary"
         icon={<SendOutlined />}
         onClick={handleSubmit}
-        disabled={
-          (!content.trim() && !hiddenReference) || isStreamingInProgress
-        }
+        disabled={!value.trim() || isStreaming || disabled}
         size={isCenteredLayout ? "large" : "middle"}
         style={{
           height: isCenteredLayout ? "auto" : undefined,
@@ -124,11 +81,11 @@ export const MessageInput: React.FC<MessageInputProps> = ({
       >
         Send
       </Button>
-      {currentMessages.length > 0 && (
+      {showRetryButton && hasMessages && (
         <Button
-          icon={<SyncOutlined spin={isStreamingInProgress} />}
-          onClick={handleAIRetry}
-          disabled={isStreamingInProgress}
+          icon={<SyncOutlined spin={isStreaming} />}
+          onClick={handleRetry}
+          disabled={isStreaming || disabled || !onRetry}
           title="Regenerate last AI response"
           size={isCenteredLayout ? "large" : "middle"}
           style={{
