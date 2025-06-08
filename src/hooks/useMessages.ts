@@ -2,26 +2,34 @@ import { useState, useCallback } from "react";
 import { invoke, Channel } from "@tauri-apps/api/core";
 import { Message, ChatItem } from "../types/chat";
 import { DEFAULT_MESSAGE } from "../constants";
+import { isMermaidEnhancementEnabled, getMermaidEnhancementPrompt } from "../utils/mermaidUtils";
 
 // System prompt storage key
 const SYSTEM_PROMPT_KEY = "system_prompt";
 
 const getEffectiveSystemPrompt = (chat: ChatItem | null) => {
-  if (!chat) return localStorage.getItem(SYSTEM_PROMPT_KEY) || DEFAULT_MESSAGE;
-  
-  // First try to use chat's stored systemPrompt
-  if (chat.systemPrompt) {
-    return chat.systemPrompt;
+  let basePrompt = "";
+
+  if (!chat) {
+    basePrompt = localStorage.getItem(SYSTEM_PROMPT_KEY) || DEFAULT_MESSAGE;
+  } else {
+    // First try to use chat's stored systemPrompt
+    if (chat.systemPrompt) {
+      basePrompt = chat.systemPrompt;
+    } else {
+      // Look for existing system message
+      const systemMessage = chat.messages.find(m => m.role === "system");
+      if (systemMessage) {
+        basePrompt = systemMessage.content;
+      } else {
+        // Fall back to current global system prompt
+        basePrompt = localStorage.getItem(SYSTEM_PROMPT_KEY) || DEFAULT_MESSAGE;
+      }
+    }
   }
-  
-  // Look for existing system message
-  const systemMessage = chat.messages.find(m => m.role === "system");
-  if (systemMessage) {
-    return systemMessage.content;
-  }
-  
-  // Fall back to current global system prompt
-  return localStorage.getItem(SYSTEM_PROMPT_KEY) || DEFAULT_MESSAGE;
+
+  // Append Mermaid enhancement if enabled
+  return isMermaidEnhancementEnabled() ? basePrompt + getMermaidEnhancementPrompt() : basePrompt;
 };
 
 export const useMessages = (

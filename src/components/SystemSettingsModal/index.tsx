@@ -28,6 +28,10 @@ import { useChat } from "../../contexts/ChatContext";
 import { useModels } from "../../hooks/useModels";
 import { MCPServerManagementComponent } from "../MCPServerManagement";
 import { invoke } from "@tauri-apps/api/core";
+import {
+  isMermaidEnhancementEnabled,
+  setMermaidEnhancementEnabled,
+} from "../../utils/mermaidUtils";
 
 const { Text } = Typography;
 const { useToken } = theme;
@@ -211,6 +215,10 @@ const SystemSettingsModal = ({
   const [msgApi, contextHolder] = message.useMessage();
   const [showEditModal, setShowEditModal] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [mermaidEnhancementEnabled, setMermaidEnhancementEnabledState] =
+    useState<boolean>(() => {
+      return isMermaidEnhancementEnabled();
+    });
   const [editingName, setEditingName] = useState("");
   const [editingContent, setEditingContent] = useState("");
   const {
@@ -323,6 +331,22 @@ const SystemSettingsModal = ({
             unCheckedChildren="Light"
           />
         </Flex>
+        <Flex align="center" gap={token.marginSM}>
+          <Text strong>Mermaid Diagrams Enhancement</Text>
+          <Switch
+            checked={mermaidEnhancementEnabled}
+            onChange={(checked) => {
+              setMermaidEnhancementEnabledState(checked);
+              setMermaidEnhancementEnabled(checked);
+            }}
+            checkedChildren="ON"
+            unCheckedChildren="OFF"
+          />
+        </Flex>
+        <Text type="secondary" style={{ fontSize: token.fontSizeSM }}>
+          When enabled, AI will be encouraged to use Mermaid diagrams for visual
+          explanations
+        </Text>
         <Popconfirm
           title="Delete all chats"
           description="Are you sure? This will delete all chats except pinned."
