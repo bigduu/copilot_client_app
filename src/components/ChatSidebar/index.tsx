@@ -115,7 +115,7 @@ export const ChatSidebar: React.FC<{
   return (
     <Sider
       breakpoint="md"
-      collapsedWidth={0}
+      collapsedWidth={60}
       width={getSiderWidth()}
       collapsible
       collapsed={collapsed}
@@ -131,12 +131,12 @@ export const ChatSidebar: React.FC<{
     >
       {/* 折叠/展开按钮 */}
       <Flex
-        justify="flex-end"
+        justify={collapsed ? "center" : "flex-end"}
         style={{
           position: "absolute",
-          right: collapsed ? "50%" : 8,
+          right: collapsed ? 0 : 8,
+          left: collapsed ? 0 : "auto",
           top: 8,
-          transform: collapsed ? "translateX(50%)" : "none",
           zIndex: 10,
         }}
       >
@@ -154,7 +154,7 @@ export const ChatSidebar: React.FC<{
         style={{
           height: `calc(100vh - ${footerHeight}px)`,
           overflowY: "auto",
-          padding: "40px 8px 0 8px",
+          padding: collapsed ? "40px 4px 0 4px" : "40px 8px 0 8px",
           scrollbarWidth: "none",
           msOverflowStyle: "none",
         }}
@@ -165,24 +165,27 @@ export const ChatSidebar: React.FC<{
             display: none;
           }
           .chat-item-collapsed {
-            padding: 8px 0;
-            margin: 10px 0;
+            padding: 6px 4px;
+            margin: 4px 0;
             text-align: center;
             cursor: pointer;
-            border-radius: 6px;
+            border-radius: 8px;
             transition: all 0.3s;
             display: flex;
             justify-content: center;
             align-items: center;
+            min-height: 40px;
           }
           .chat-item-collapsed:hover {
             background: var(--ant-color-bg-elevated);
           }
           [data-theme='dark'] .chat-item-collapsed.selected {
-            background-color: var(--ant-color-primary-bg);
+            background-color: rgba(22, 104, 220, 0.1);
+            border: 1px solid #1668dc;
           }
           [data-theme='light'] .chat-item-collapsed.selected {
-            background-color: var(--ant-color-primary-bg);
+            background-color: rgba(22, 119, 255, 0.08);
+            border: 1px solid #1677ff;
           }
         `}</style>
 
@@ -248,18 +251,37 @@ export const ChatSidebar: React.FC<{
                     onClick={() => selectChat(chat.id)}
                   >
                     <Avatar
-                      size={screens.xs ? "small" : "default"}
+                      size={screens.xs ? 32 : 36}
                       style={{
                         backgroundColor:
                           chat.id === currentChatId
-                            ? "var(--ant-color-primary)"
-                            : "var(--ant-color-bg-container)",
+                            ? themeMode === "light"
+                              ? "#1677ff"
+                              : "#1668dc"
+                            : themeMode === "light"
+                            ? "#f5f5f5"
+                            : "var(--ant-color-fill-quaternary)",
                         color:
                           chat.id === currentChatId
                             ? "#fff"
+                            : themeMode === "light"
+                            ? "#595959"
                             : "var(--ant-color-text)",
+                        border:
+                          chat.id === currentChatId
+                            ? themeMode === "light"
+                              ? "2px solid #1677ff"
+                              : "2px solid #1668dc"
+                            : themeMode === "light"
+                            ? "1px solid #d9d9d9"
+                            : "1px solid var(--ant-color-border)",
+                        fontSize: screens.xs ? "14px" : "16px",
+                        fontWeight: "500",
+                        boxShadow:
+                          chat.id === currentChatId
+                            ? "0 2px 8px rgba(22, 119, 255, 0.15)"
+                            : "none",
                       }}
-                      icon={<MessageOutlined />}
                     >
                       {chat.title.charAt(0).toUpperCase()}
                     </Avatar>
@@ -274,9 +296,9 @@ export const ChatSidebar: React.FC<{
       <Flex
         ref={footerRef}
         vertical
-        gap="middle"
+        gap={collapsed ? "small" : "middle"}
         style={{
-          padding: collapsed ? 16 : 16,
+          padding: collapsed ? 8 : 16,
           background: "var(--ant-color-bg-container)",
           borderTop: "1px solid var(--ant-color-border)",
         }}
@@ -289,29 +311,37 @@ export const ChatSidebar: React.FC<{
               const newChatId = addChat();
               selectChat(newChatId);
             }}
-            block
-            size={screens.xs ? "small" : "middle"}
+            block={!collapsed}
+            shape={collapsed ? "circle" : "default"}
+            size={collapsed ? "large" : screens.xs ? "small" : "middle"}
+            style={
+              collapsed
+                ? { width: "44px", height: "44px", margin: "0 auto" }
+                : {}
+            }
           >
             {!collapsed && "New Chat"}
           </Button>
         </Tooltip>
 
-        <Tooltip
-          placement={collapsed ? "right" : "top"}
-          title={isSelectMode ? "Exit Select Mode" : "Select Mode"}
-        >
-          <Button
-            type={isSelectMode ? "default" : "dashed"}
-            onClick={() => {
-              setIsSelectMode(!isSelectMode);
-              setSelectedChatIds([]);
-            }}
-            block
-            size={screens.xs ? "small" : "middle"}
+        {!collapsed && (
+          <Tooltip
+            placement={collapsed ? "right" : "top"}
+            title={isSelectMode ? "Exit Select Mode" : "Select Mode"}
           >
-            {!collapsed && (isSelectMode ? "Exit Select Mode" : "Select Mode")}
-          </Button>
-        </Tooltip>
+            <Button
+              type={isSelectMode ? "default" : "dashed"}
+              onClick={() => {
+                setIsSelectMode(!isSelectMode);
+                setSelectedChatIds([]);
+              }}
+              block
+              size={screens.xs ? "small" : "middle"}
+            >
+              {isSelectMode ? "Exit Select Mode" : "Select Mode"}
+            </Button>
+          </Tooltip>
+        )}
 
         <Tooltip
           placement={collapsed ? "right" : "top"}
@@ -320,14 +350,20 @@ export const ChatSidebar: React.FC<{
           <Button
             icon={<SettingOutlined />}
             onClick={handleOpenSettings}
-            block
-            size={screens.xs ? "small" : "middle"}
+            block={!collapsed}
+            shape={collapsed ? "circle" : "default"}
+            size={collapsed ? "large" : screens.xs ? "small" : "middle"}
+            style={
+              collapsed
+                ? { width: "44px", height: "44px", margin: "0 auto" }
+                : {}
+            }
           >
             {!collapsed && "System Settings"}
           </Button>
         </Tooltip>
 
-        {isSelectMode && (
+        {isSelectMode && !collapsed && (
           <Button
             danger
             type="primary"
