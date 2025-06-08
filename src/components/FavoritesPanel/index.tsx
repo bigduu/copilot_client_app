@@ -13,6 +13,8 @@ import {
   Input,
   Modal,
   Select,
+  Grid,
+  Flex,
 } from "antd";
 import {
   DeleteOutlined,
@@ -37,9 +39,11 @@ const { Title, Text } = Typography;
 const { useToken } = theme;
 const { TextArea } = Input;
 const { Option } = Select;
+const { useBreakpoint } = Grid;
 
 export const FavoritesPanel: React.FC = () => {
   const { token } = useToken();
+  const screens = useBreakpoint();
   const {
     getCurrentChatFavorites,
     removeFavorite,
@@ -67,16 +71,23 @@ export const FavoritesPanel: React.FC = () => {
   // Sort favorites based on current sorting options
   const sortedFavorites = [...favorites].sort((a, b) => {
     if (sortField === "role") {
-      // Sort by role (user/assistant)
       const roleComparison = a.role.localeCompare(b.role);
       return sortOrder === "ascending" ? roleComparison : -roleComparison;
     } else {
-      // Sort by creation date
       return sortOrder === "ascending"
         ? a.createdAt - b.createdAt
         : b.createdAt - a.createdAt;
     }
   });
+
+  // 响应式宽度计算
+  const getSiderWidth = () => {
+    if (screens.xs) return 300;
+    if (screens.sm) return 350;
+    if (screens.md) return 400;
+    if (screens.lg) return 450;
+    return 500;
+  };
 
   // Copy to clipboard
   const copyToClipboard = async (text: string) => {
@@ -122,7 +133,6 @@ export const FavoritesPanel: React.FC = () => {
   // Reference a favorite
   const referenceFavorite = (content: string) => {
     const referenceText = createReference(content);
-    // Dispatch event for InputContainer to catch
     const event = new CustomEvent("reference-text", {
       detail: { text: referenceText, chatId: currentChatId },
     });
@@ -131,7 +141,9 @@ export const FavoritesPanel: React.FC = () => {
 
   if (collapsed) {
     return (
-      <div
+      <Flex
+        align="center"
+        justify="center"
         style={{
           position: "fixed",
           right: 0,
@@ -145,17 +157,16 @@ export const FavoritesPanel: React.FC = () => {
           icon={<BookOutlined />}
           onClick={() => setCollapsed(false)}
           style={{ borderTopRightRadius: 0, borderBottomRightRadius: 0 }}
+          size={screens.xs ? "small" : "middle"}
         />
-      </div>
+      </Flex>
     );
   }
 
   return (
     <>
       <Sider
-        breakpoint="md"
-        collapsedWidth={0}
-        width="clamp(220px, 32vw, 500px)"
+        width={getSiderWidth()}
         style={{
           background: token.colorBgContainer,
           borderLeft: `1px solid ${token.colorBorderSecondary}`,
@@ -163,19 +174,23 @@ export const FavoritesPanel: React.FC = () => {
           height: "100vh",
         }}
       >
-        <div style={{ padding: token.paddingMD }}>
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-              marginBottom: token.marginMD,
-            }}
+        <Flex
+          vertical
+          style={{
+            padding: token.paddingMD,
+            height: "100%",
+          }}
+        >
+          {/* Header */}
+          <Flex
+            justify="space-between"
+            align="center"
+            style={{ marginBottom: token.marginMD }}
           >
             <Title level={4} style={{ margin: 0 }}>
               Favorites
             </Title>
-            <Space>
+            <Space size="small">
               <Tooltip title="Summarize">
                 <Button
                   icon={<FileTextOutlined />}
@@ -190,7 +205,7 @@ export const FavoritesPanel: React.FC = () => {
                   value={sortField}
                   onChange={(value) => setSortField(value)}
                   size="small"
-                  style={{ width: 100 }}
+                  style={{ width: screens.xs ? 80 : 100 }}
                 >
                   <Option value="createdAt">Date</Option>
                   <Option value="role">Role</Option>
@@ -238,246 +253,250 @@ export const FavoritesPanel: React.FC = () => {
                 type="text"
               />
             </Space>
-          </div>
+          </Flex>
 
-          {sortedFavorites.length === 0 ? (
-            <Empty
-              description="No favorites yet"
-              image={Empty.PRESENTED_IMAGE_SIMPLE}
-            />
-          ) : (
-            <List
-              dataSource={sortedFavorites}
-              renderItem={(favorite: FavoriteItem) => (
-                <List.Item
-                  key={favorite.id}
-                  style={{ padding: token.paddingXS }}
-                >
-                  <Card
-                    size="small"
-                    style={{
-                      width: "100%",
-                      background:
-                        favorite.role === "user"
-                          ? token.colorPrimaryBg
-                          : token.colorBgLayout,
-                      borderRadius: token.borderRadiusSM,
-                      boxShadow: token.boxShadowTertiary,
-                      border: `1px solid ${token.colorBorderSecondary}`,
-                    }}
-                    bodyStyle={{ padding: token.paddingSM }}
-                  >
-                    <Space
-                      direction="vertical"
-                      size={token.marginXS}
-                      style={{ width: "100%" }}
+          {/* Content */}
+          <Flex vertical style={{ flex: 1, overflow: "hidden" }}>
+            {sortedFavorites.length === 0 ? (
+              <Empty
+                description="No favorites yet"
+                image={Empty.PRESENTED_IMAGE_SIMPLE}
+              />
+            ) : (
+              <List
+                dataSource={sortedFavorites}
+                style={{ flex: 1, overflow: "auto" }}
+                renderItem={(favorite: FavoriteItem) => (
+                  <List.Item style={{ padding: token.paddingXS }}>
+                    <Card
+                      size="small"
+                      style={{
+                        width: "100%",
+                        background:
+                          favorite.role === "user"
+                            ? token.colorPrimaryBg
+                            : token.colorBgLayout,
+                        borderRadius: token.borderRadiusSM,
+                        boxShadow: token.boxShadowTertiary,
+                        border: `1px solid ${token.colorBorderSecondary}`,
+                      }}
+                      bodyStyle={{ padding: token.paddingSM }}
                     >
-                      <div
-                        style={{
-                          display: "flex",
-                          justifyContent: "space-between",
-                          alignItems: "center",
-                          borderBottom: `1px solid ${token.colorBorderSecondary}`,
-                          paddingBottom: token.paddingXS,
-                          marginBottom: token.marginXS,
-                        }}
+                      <Space
+                        direction="vertical"
+                        size={token.marginXS}
+                        style={{ width: "100%" }}
                       >
-                        <Text
-                          type="secondary"
-                          style={{ fontSize: token.fontSizeSM }}
+                        {/* Header */}
+                        <Flex
+                          justify="space-between"
+                          align="center"
+                          style={{
+                            borderBottom: `1px solid ${token.colorBorderSecondary}`,
+                            paddingBottom: token.paddingXS,
+                            marginBottom: token.marginXS,
+                          }}
                         >
-                          {favorite.role === "user" ? "You" : "Assistant"}
-                        </Text>
-                        <Text
-                          type="secondary"
-                          style={{ fontSize: token.fontSizeSM * 0.85 }}
-                        >
-                          {formatDate(favorite.createdAt)}
-                        </Text>
-                      </div>
+                          <Text
+                            type="secondary"
+                            style={{ fontSize: token.fontSizeSM }}
+                          >
+                            {favorite.role === "user" ? "You" : "Assistant"}
+                          </Text>
+                          <Text
+                            type="secondary"
+                            style={{ fontSize: token.fontSizeSM * 0.85 }}
+                          >
+                            {formatDate(favorite.createdAt)}
+                          </Text>
+                        </Flex>
 
-                      <div style={{ fontSize: token.fontSizeSM }}>
-                        <ReactMarkdown
-                          remarkPlugins={[remarkGfm]}
-                          components={{
-                            p: ({ children }) => (
-                              <Text
-                                style={{
-                                  marginBottom: token.marginSM,
-                                  display: "block",
-                                }}
-                              >
-                                {children}
-                              </Text>
-                            ),
-                            ol: ({ children }) => (
-                              <ol
-                                style={{
-                                  marginBottom: token.marginSM,
-                                  paddingLeft: 20,
-                                }}
-                              >
-                                {children}
-                              </ol>
-                            ),
-                            ul: ({ children }) => (
-                              <ul
-                                style={{
-                                  marginBottom: token.marginSM,
-                                  paddingLeft: 20,
-                                }}
-                              >
-                                {children}
-                              </ul>
-                            ),
-                            li: ({ children }) => (
-                              <li style={{ marginBottom: token.marginXS }}>
-                                {children}
-                              </li>
-                            ),
-                            blockquote: ({ children }) => (
-                              <div
-                                style={{
-                                  borderLeft: `3px solid ${token.colorPrimary}`,
-                                  background: token.colorPrimaryBg,
-                                  padding: `${token.paddingXS}px ${token.padding}px`,
-                                  margin: `${token.marginXS}px 0`,
-                                  color: token.colorTextSecondary,
-                                  fontStyle: "italic",
-                                }}
-                              >
-                                {children}
-                              </div>
-                            ),
-                            code({ className, children, ...props }) {
-                              const match = /language-(\w+)/.exec(
-                                className || ""
-                              );
-                              const language = match ? match[1] : "";
-                              const isInline = !match && !className;
-                              const codeString = String(children).replace(
-                                /\n$/,
-                                ""
-                              );
-
-                              if (isInline) {
-                                return (
-                                  <Text code className={className} {...props}>
-                                    {children}
-                                  </Text>
-                                );
-                              }
-
-                              return (
-                                <div
+                        {/* Content */}
+                        <div style={{ fontSize: token.fontSizeSM }}>
+                          <ReactMarkdown
+                            remarkPlugins={[remarkGfm]}
+                            components={{
+                              p: ({ children }) => (
+                                <Text
                                   style={{
-                                    position: "relative",
-                                    overflowX: "auto",
+                                    marginBottom: token.marginSM,
+                                    display: "block",
                                   }}
                                 >
-                                  <SyntaxHighlighter
-                                    style={oneDark}
-                                    language={language || "text"}
-                                    PreTag="div"
-                                    customStyle={{
-                                      margin: `${token.marginXS}px 0`,
-                                      borderRadius: token.borderRadiusSM,
-                                      fontSize: token.fontSizeSM,
+                                  {children}
+                                </Text>
+                              ),
+                              ol: ({ children }) => (
+                                <ol
+                                  style={{
+                                    marginBottom: token.marginSM,
+                                    paddingLeft: 20,
+                                  }}
+                                >
+                                  {children}
+                                </ol>
+                              ),
+                              ul: ({ children }) => (
+                                <ul
+                                  style={{
+                                    marginBottom: token.marginSM,
+                                    paddingLeft: 20,
+                                  }}
+                                >
+                                  {children}
+                                </ul>
+                              ),
+                              li: ({ children }) => (
+                                <li style={{ marginBottom: token.marginXS }}>
+                                  {children}
+                                </li>
+                              ),
+                              blockquote: ({ children }) => (
+                                <div
+                                  style={{
+                                    borderLeft: `3px solid ${token.colorPrimary}`,
+                                    background: token.colorPrimaryBg,
+                                    padding: `${token.paddingXS}px ${token.padding}px`,
+                                    margin: `${token.marginXS}px 0`,
+                                    color: token.colorTextSecondary,
+                                    fontStyle: "italic",
+                                  }}
+                                >
+                                  {children}
+                                </div>
+                              ),
+                              code({ className, children, ...props }) {
+                                const match = /language-(\w+)/.exec(
+                                  className || ""
+                                );
+                                const language = match ? match[1] : "";
+                                const isInline = !match && !className;
+                                const codeString = String(children).replace(
+                                  /\n$/,
+                                  ""
+                                );
+
+                                if (isInline) {
+                                  return (
+                                    <Text code className={className} {...props}>
+                                      {children}
+                                    </Text>
+                                  );
+                                }
+
+                                return (
+                                  <div
+                                    style={{
+                                      position: "relative",
+                                      overflowX: "auto",
                                     }}
                                   >
-                                    {codeString}
-                                  </SyntaxHighlighter>
-                                </div>
-                              );
-                            },
-                          }}
-                        >
-                          {favorite.content}
-                        </ReactMarkdown>
-                      </div>
-
-                      {favorite.note && (
-                        <div
-                          style={{
-                            fontSize: token.fontSizeSM * 0.85,
-                            color: token.colorTextSecondary,
-                            background: token.colorBgTextHover,
-                            padding: token.paddingXS,
-                            borderRadius: token.borderRadiusSM,
-                          }}
-                        >
-                          <Space align="start">
-                            <Text
-                              strong
-                              style={{ fontSize: token.fontSizeSM * 0.85 }}
-                            >
-                              Note:
-                            </Text>
-                            {favorite.note}
-                          </Space>
+                                    <SyntaxHighlighter
+                                      style={oneDark}
+                                      language={language || "text"}
+                                      PreTag="div"
+                                      customStyle={{
+                                        margin: `${token.marginXS}px 0`,
+                                        borderRadius: token.borderRadiusSM,
+                                        fontSize: token.fontSizeSM,
+                                      }}
+                                    >
+                                      {codeString}
+                                    </SyntaxHighlighter>
+                                  </div>
+                                );
+                              },
+                            }}
+                          >
+                            {favorite.content}
+                          </ReactMarkdown>
                         </div>
-                      )}
 
-                      <div
-                        style={{
-                          display: "flex",
-                          justifyContent: "flex-end",
-                          gap: token.marginXS,
-                        }}
-                      >
-                        <Tooltip title="Copy">
-                          <Button
-                            icon={<CopyOutlined />}
-                            size="small"
-                            type="text"
-                            onClick={() => copyToClipboard(favorite.content)}
-                          />
-                        </Tooltip>
-                        <Tooltip title="Add Note">
-                          <Button
-                            icon={<EditOutlined />}
-                            size="small"
-                            type="text"
-                            onClick={() => openNoteModal(favorite)}
-                          />
-                        </Tooltip>
-                        <Tooltip title="Reference">
-                          <Button
-                            icon={<BookOutlined />}
-                            size="small"
-                            type="text"
-                            onClick={() => referenceFavorite(favorite.content)}
-                          />
-                        </Tooltip>
-                        {favorite.messageId && (
-                          <Tooltip title="Locate Message">
+                        {/* Note */}
+                        {favorite.note && (
+                          <div
+                            style={{
+                              fontSize: token.fontSizeSM * 0.85,
+                              color: token.colorTextSecondary,
+                              background: token.colorBgTextHover,
+                              padding: token.paddingXS,
+                              borderRadius: token.borderRadiusSM,
+                            }}
+                          >
+                            <Space align="start">
+                              <Text
+                                strong
+                                style={{ fontSize: token.fontSizeSM * 0.85 }}
+                              >
+                                Note:
+                              </Text>
+                              {favorite.note}
+                            </Space>
+                          </div>
+                        )}
+
+                        {/* Actions */}
+                        <Flex
+                          justify="flex-end"
+                          gap={token.marginXS}
+                          wrap="wrap"
+                        >
+                          <Tooltip title="Copy">
                             <Button
-                              icon={<EnvironmentOutlined />}
+                              icon={<CopyOutlined />}
+                              size="small"
+                              type="text"
+                              onClick={() => copyToClipboard(favorite.content)}
+                            />
+                          </Tooltip>
+                          <Tooltip title="Add Note">
+                            <Button
+                              icon={<EditOutlined />}
+                              size="small"
+                              type="text"
+                              onClick={() => openNoteModal(favorite)}
+                            />
+                          </Tooltip>
+                          <Tooltip title="Reference">
+                            <Button
+                              icon={<BookOutlined />}
                               size="small"
                               type="text"
                               onClick={() =>
-                                navigateToMessage(favorite.messageId)
+                                referenceFavorite(favorite.content)
                               }
                             />
                           </Tooltip>
-                        )}
-                        <Tooltip title="Remove">
-                          <Button
-                            icon={<DeleteOutlined />}
-                            size="small"
-                            type="text"
-                            onClick={() => removeFavorite(favorite.id)}
-                            danger
-                          />
-                        </Tooltip>
-                      </div>
-                    </Space>
-                  </Card>
-                </List.Item>
-              )}
-            />
-          )}
-        </div>
+                          {favorite.messageId && (
+                            <Tooltip title="Locate Message">
+                              <Button
+                                icon={<EnvironmentOutlined />}
+                                size="small"
+                                type="text"
+                                onClick={() =>
+                                  navigateToMessage(favorite.messageId)
+                                }
+                              />
+                            </Tooltip>
+                          )}
+                          <Tooltip title="Remove">
+                            <Button
+                              icon={<DeleteOutlined />}
+                              size="small"
+                              type="text"
+                              onClick={() => removeFavorite(favorite.id)}
+                              danger
+                            />
+                          </Tooltip>
+                        </Flex>
+                      </Space>
+                    </Card>
+                  </List.Item>
+                )}
+              />
+            )}
+          </Flex>
+        </Flex>
       </Sider>
 
       {/* Note Modal */}

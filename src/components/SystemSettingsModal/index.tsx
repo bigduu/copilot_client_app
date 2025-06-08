@@ -13,6 +13,8 @@ import {
   Select,
   Divider,
   Spin,
+  theme,
+  Flex,
 } from "antd";
 import { DeleteOutlined, EditOutlined, PlusOutlined } from "@ant-design/icons";
 import { useChat } from "../../contexts/ChatContext";
@@ -20,6 +22,7 @@ import { useModels } from "../../hooks/useModels";
 import { MCPServerManagementComponent } from "../MCPServerManagement";
 
 const { Text } = Typography;
+const { useToken } = theme;
 
 const DARK_MODE_KEY = "copilot_dark_mode";
 
@@ -36,6 +39,7 @@ const ModelSelection = ({
   selectedModel: string | undefined; // This is the prop name
   onModelChange: (model: string) => void;
 }) => {
+  const { token } = useToken();
   const fallbackModel = "gpt-4o";
   // Ensure modelOptions always has at least the fallback or the selected model if models array is empty
   const modelOptions =
@@ -46,29 +50,27 @@ const ModelSelection = ({
       : [fallbackModel]; // Use selectedModel here
   const value = selectedModel || fallbackModel; // And here
   return (
-    <div style={{ marginBottom: 24 }}>
+    <Space direction="vertical" size={token.marginXS} style={{ width: "100%" }}>
       <Text strong>Model Selection</Text>
-      <div style={{ marginTop: 8 }}>
-        {isLoadingModels ? (
-          <Spin size="small" />
-        ) : modelsError ? (
-          <Text type="danger">{modelsError}</Text>
-        ) : (
-          <Select
-            style={{ width: "100%" }}
-            placeholder="Select a model"
-            value={value}
-            onChange={onModelChange}
-          >
-            {modelOptions.map((model) => (
-              <Select.Option key={model} value={model}>
-                {model}
-              </Select.Option>
-            ))}
-          </Select>
-        )}
-      </div>
-    </div>
+      {isLoadingModels ? (
+        <Spin size="small" />
+      ) : modelsError ? (
+        <Text type="danger">{modelsError}</Text>
+      ) : (
+        <Select
+          style={{ width: "100%" }}
+          placeholder="Select a model"
+          value={value}
+          onChange={onModelChange}
+        >
+          {modelOptions.map((model) => (
+            <Select.Option key={model} value={model}>
+              {model}
+            </Select.Option>
+          ))}
+        </Select>
+      )}
+    </Space>
   );
 };
 
@@ -83,6 +85,7 @@ const SystemSettingsModal = ({
   themeMode: "light" | "dark";
   onThemeModeChange: (mode: "light" | "dark") => void;
 }) => {
+  const { token } = useToken();
   const {
     deleteAllChats,
     systemPromptPresets,
@@ -171,27 +174,29 @@ const SystemSettingsModal = ({
       <Divider />
 
       {/* MCP Server Management Section */}
-      <div style={{ marginBottom: 24 }}>
-        <div style={{ fontWeight: 500, marginBottom: 8 }}>
-          MCP Server Management
-        </div>
+      <Space
+        direction="vertical"
+        size={token.marginXS}
+        style={{ width: "100%" }}
+      >
+        <Text strong>MCP Server Management</Text>
         <MCPServerManagementComponent />
-      </div>
+      </Space>
 
       <Divider />
 
       {/* Dark Mode Switch */}
-      <div
+      <Space
+        direction="vertical"
+        size={token.marginSM}
         style={{
-          borderTop: "1px solid #eee",
-          paddingTop: 16,
-          marginBottom: 24,
+          width: "100%",
+          borderTop: `1px solid ${token.colorBorder}`,
+          paddingTop: token.padding,
         }}
       >
-        <div
-          style={{ display: "flex", alignItems: "center", marginBottom: 12 }}
-        >
-          <span style={{ marginRight: 12, fontWeight: 500 }}>Dark Mode</span>
+        <Flex align="center" gap={token.marginSM}>
+          <Text strong>Dark Mode</Text>
           <Switch
             checked={themeMode === "dark"}
             onChange={(checked) => {
@@ -202,7 +207,7 @@ const SystemSettingsModal = ({
             checkedChildren="Dark"
             unCheckedChildren="Light"
           />
-        </div>
+        </Flex>
         <Popconfirm
           title="Delete all chats"
           description="Are you sure? This will delete all chats except pinned."
@@ -222,25 +227,25 @@ const SystemSettingsModal = ({
           okText="Yes, delete empty"
           cancelText="Cancel"
           placement="top"
-          style={{ marginTop: 8 }}
         >
-          <Button
-            danger
-            block
-            icon={<DeleteOutlined />}
-            style={{ marginTop: 8 }}
-          >
+          <Button danger block icon={<DeleteOutlined />}>
             Delete Empty Chats
           </Button>
         </Popconfirm>
-      </div>
+      </Space>
 
       {/* Prompt Management Section */}
-      <div style={{ borderTop: "1px solid #eee", paddingTop: 16 }}>
-        <div style={{ fontWeight: 500, marginBottom: 8 }}>
-          Prompt Management
-        </div>
-        <Space style={{ marginBottom: 16 }} align="center">
+      <Space
+        direction="vertical"
+        size={token.marginSM}
+        style={{
+          width: "100%",
+          borderTop: `1px solid ${token.colorBorder}`,
+          paddingTop: token.padding,
+        }}
+      >
+        <Text strong>Prompt Management</Text>
+        <Flex align="center" gap={token.marginSM}>
           <Text strong>System Prompts</Text>
           <Button
             type="primary"
@@ -255,7 +260,7 @@ const SystemSettingsModal = ({
           >
             Add New
           </Button>
-        </Space>
+        </Flex>
         <Radio.Group
           value={selectedSystemPromptPresetId}
           onChange={(e) => selectSystemPromptPreset(e.target.value)}
@@ -294,7 +299,7 @@ const SystemSettingsModal = ({
             )}
           />
         </Radio.Group>
-      </div>
+      </Space>
 
       {/* Edit Modal */}
       <Modal
@@ -303,18 +308,23 @@ const SystemSettingsModal = ({
         onCancel={() => setShowEditModal(false)}
         onOk={handleEditSave}
       >
-        <Input
-          placeholder="Prompt Name"
-          value={editingName}
-          onChange={(e) => setEditingName(e.target.value)}
-          style={{ marginBottom: 12 }}
-        />
-        <Input.TextArea
-          placeholder="Prompt Content"
-          value={editingContent}
-          onChange={(e) => setEditingContent(e.target.value)}
-          autoSize={{ minRows: 6, maxRows: 16 }}
-        />
+        <Space
+          direction="vertical"
+          size={token.marginSM}
+          style={{ width: "100%" }}
+        >
+          <Input
+            placeholder="Prompt Name"
+            value={editingName}
+            onChange={(e) => setEditingName(e.target.value)}
+          />
+          <Input.TextArea
+            placeholder="Prompt Content"
+            value={editingContent}
+            onChange={(e) => setEditingContent(e.target.value)}
+            autoSize={{ minRows: 6, maxRows: 16 }}
+          />
+        </Space>
       </Modal>
     </Modal>
   );
