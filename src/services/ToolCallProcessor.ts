@@ -1,5 +1,10 @@
 import { Message } from "../types/chat";
-import { ToolService, ToolCallRequest, ParameterValue, ToolUIInfo } from "./ToolService";
+import {
+  ToolService,
+  ToolCallRequest,
+  ParameterValue,
+  ToolUIInfo,
+} from "./ToolService";
 
 export enum ToolType {
   AIParameterParsing = "AIParameterParsing",
@@ -42,7 +47,7 @@ export class ToolCallProcessor {
    * 检查消息是否为工具调用
    */
   isToolCall(content: string): boolean {
-    return content.startsWith('/');
+    return content.startsWith("/");
   }
 
   /**
@@ -65,7 +70,7 @@ export class ToolCallProcessor {
       onUpdate?.({
         type: "processor_update",
         source: "ToolCallProcessor",
-        content: `Processing tool call: /${toolCall.tool_name} ${toolCall.user_description}`
+        content: `Processing tool call: /${toolCall.tool_name} ${toolCall.user_description}`,
       });
 
       // 1. 检查工具是否存在
@@ -73,33 +78,37 @@ export class ToolCallProcessor {
       if (!toolInfo) {
         return {
           success: false,
-          content: `Tool '${toolCall.tool_name}' not found. Available tools: ${await this.getAvailableToolNames()}`,
+          content: `Tool '${
+            toolCall.tool_name
+          }' not found. Available tools: ${await this.getAvailableToolNames()}`,
           toolName: toolCall.tool_name,
-          parameters: []
+          parameters: [],
         };
       }
 
       // 2. 根据工具类型处理参数
       let parameters: ParameterValue[];
-      
+
       if (this.isRegexTool(toolInfo)) {
         onUpdate?.({
           type: "processor_update",
           source: "ToolCallProcessor",
-          content: `Extracting parameters using regex for tool: ${toolCall.tool_name}`
+          content: `Extracting parameters using regex for tool: ${toolCall.tool_name}`,
         });
         parameters = await this.extractParametersWithRegex(toolCall, toolInfo);
       } else {
         onUpdate?.({
           type: "processor_update",
           source: "ToolCallProcessor",
-          content: `Analyzing parameters with AI for tool: ${toolCall.tool_name}`
+          content: `Analyzing parameters with AI for tool: ${toolCall.tool_name}`,
         });
-        
+
         if (!sendLLMRequest) {
-          throw new Error("AI parameter parsing requires sendLLMRequest function");
+          throw new Error(
+            "AI parameter parsing requires sendLLMRequest function"
+          );
         }
-        
+
         parameters = await this.toolService.parseToolParameters(
           toolCall,
           toolInfo,
@@ -111,12 +120,12 @@ export class ToolCallProcessor {
       onUpdate?.({
         type: "processor_update",
         source: "ToolCallProcessor",
-        content: `Executing tool: ${toolCall.tool_name}`
+        content: `Executing tool: ${toolCall.tool_name}`,
       });
 
       const result = await this.toolService.executeTool({
         tool_name: toolCall.tool_name,
-        parameters
+        parameters,
       });
 
       // 4. 处理结果
@@ -126,22 +135,27 @@ export class ToolCallProcessor {
         onUpdate?.({
           type: "processor_update",
           source: "ToolCallProcessor",
-          content: `Generating AI summary for regex tool: ${toolCall.tool_name}`
+          content: `Generating AI summary for regex tool: ${toolCall.tool_name}`,
         });
 
         try {
           // 构建提示，使用工具提供的模板或默认模板
-          const systemPrompt = this.buildAIResponsePrompt(toolInfo, toolCall, parameters, result);
+          const systemPrompt = this.buildAIResponsePrompt(
+            toolInfo,
+            toolCall,
+            parameters,
+            result
+          );
 
           const messages: Message[] = [
             {
               role: "system",
-              content: systemPrompt
+              content: systemPrompt,
             },
             {
               role: "user",
-              content: toolCall.user_description
-            }
+              content: toolCall.user_description,
+            },
           ];
 
           // 调用LLM生成最终响应
@@ -151,10 +165,13 @@ export class ToolCallProcessor {
             success: true,
             content: aiResponse,
             toolName: toolCall.tool_name,
-            parameters
+            parameters,
           };
         } catch (aiError) {
-          console.error("AI response generation failed for regex tool:", aiError);
+          console.error(
+            "AI response generation failed for regex tool:",
+            aiError
+          );
           // 降级到格式化结果
           const formattedResult = this.toolService.formatToolResult(
             toolCall.tool_name,
@@ -166,7 +183,7 @@ export class ToolCallProcessor {
             success: true,
             content: formattedResult,
             toolName: toolCall.tool_name,
-            parameters
+            parameters,
           };
         }
       } else {
@@ -181,17 +198,16 @@ export class ToolCallProcessor {
           success: true,
           content: formattedResult,
           toolName: toolCall.tool_name,
-          parameters
+          parameters,
         };
       }
-
     } catch (error) {
       console.error("Tool call processing failed:", error);
       return {
         success: false,
         content: `Tool execution failed: ${error}`,
         toolName: toolCall.tool_name,
-        parameters: []
+        parameters: [],
       };
     }
   }
@@ -203,8 +219,6 @@ export class ToolCallProcessor {
     return toolInfo.tool_type === "RegexParameterExtraction";
   }
 
-
-
   /**
    * 构建AI响应提示，基础格式 + 工具自定义提示
    */
@@ -215,12 +229,18 @@ export class ToolCallProcessor {
     result: string
   ): string {
     // 基础格式（固定）
-    const basePrompt = `You are a helpful assistant. I executed the ${toolCall.tool_name} tool with the following parameters: ${parameters.map(p => `${p.name}: ${p.value}`).join(', ')}.
+    const basePrompt = `You are a helpful assistant. I executed the ${
+      toolCall.tool_name
+    } tool with the following parameters: ${parameters
+      .map((p) => `${p.name}: ${p.value}`)
+      .join(", ")}.
 
 Result:
 ${result}
 
-Based on the original request "${toolCall.user_description}" and the tool execution result above, please provide a helpful summary and explanation.`;
+Based on the original request "${
+      toolCall.user_description
+    }" and the tool execution result above, please provide a helpful summary and explanation.`;
 
     // 如果工具提供了自定义提示，追加到基础格式后面
     if (toolInfo.ai_response_template) {
@@ -266,7 +286,7 @@ Do not include any tool calls (starting with '/') in your response.`;
       // 将匹配的内容分配给第一个参数
       parameters.push({
         name: toolInfo.parameters[0].name,
-        value: match[1].trim()
+        value: match[1].trim(),
       });
     }
 
@@ -279,7 +299,7 @@ Do not include any tool calls (starting with '/') in your response.`;
   private async getAvailableToolNames(): Promise<string> {
     try {
       const tools = await this.toolService.getAvailableTools();
-      return tools.map(tool => tool.name).join(', ');
+      return tools.map((tool) => tool.name).join(", ");
     } catch (error) {
       return "Unable to fetch available tools";
     }
@@ -308,12 +328,12 @@ Do not include any tool calls (starting with '/') in your response.`;
    * 验证工具调用格式
    */
   validateToolCall(content: string): { valid: boolean; error?: string } {
-    if (!content.startsWith('/')) {
+    if (!content.startsWith("/")) {
       return { valid: false, error: "Tool call must start with '/'" };
     }
 
-    const parts = content.slice(1).split(' ');
-    if (parts.length === 0 || parts[0].trim() === '') {
+    const parts = content.slice(1).split(" ");
+    if (parts.length === 0 || parts[0].trim() === "") {
       return { valid: false, error: "Tool name is required" };
     }
 
