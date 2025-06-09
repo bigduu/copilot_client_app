@@ -40,170 +40,172 @@ interface MermaidProps {
   id: string;
 }
 
-const MermaidChart: React.FC<MermaidProps> = React.memo(({ chart, id }) => {
-  const { token } = useToken();
-  // 初始化时检查缓存
-  const cacheKey = chart.trim();
-  const initialCached = mermaidCache.get(cacheKey);
+const MermaidChart: React.FC<MermaidProps> = React.memo(
+  ({ chart, id: _id }) => {
+    const { token } = useToken();
+    // 初始化时检查缓存
+    const cacheKey = chart.trim();
+    const initialCached = mermaidCache.get(cacheKey);
 
-  const [renderState, setRenderState] = useState<{
-    svg: string;
-    height: number;
-    error: string;
-    isLoading: boolean;
-  }>({
-    svg: initialCached?.svg || "",
-    height: initialCached?.height || 200,
-    error: "",
-    isLoading: !initialCached, // 如果有缓存就不需要加载
-  });
+    const [renderState, setRenderState] = useState<{
+      svg: string;
+      height: number;
+      error: string;
+      isLoading: boolean;
+    }>({
+      svg: initialCached?.svg || "",
+      height: initialCached?.height || 200,
+      error: "",
+      isLoading: !initialCached, // 如果有缓存就不需要加载
+    });
 
-  const containerRef = useRef<HTMLDivElement>(null);
+    const containerRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    // 如果有缓存，直接使用
-    if (initialCached) {
-      return;
-    }
-
-    // 如果当前状态不是 loading，说明已经渲染过了
-    if (!renderState.isLoading) {
-      return;
-    }
-
-    let isMounted = true;
-
-    const renderChart = async () => {
-      try {
-        // 使用唯一的 ID 避免冲突
-        const uniqueId = `mermaid-${Math.random().toString(36).substr(2, 9)}`;
-        const { svg: renderedSvg } = await mermaid.render(uniqueId, chart);
-
-        if (isMounted) {
-          // 创建临时元素来测量高度
-          const tempDiv = document.createElement("div");
-          tempDiv.style.position = "absolute";
-          tempDiv.style.visibility = "hidden";
-          tempDiv.style.width = "800px"; // 假设最大宽度
-          tempDiv.innerHTML = renderedSvg;
-          document.body.appendChild(tempDiv);
-
-          const svgElement = tempDiv.querySelector("svg");
-          let finalHeight = 200; // 默认高度
-
-          if (svgElement) {
-            finalHeight = svgElement.getBoundingClientRect().height + 32;
-          }
-
-          document.body.removeChild(tempDiv);
-
-          // 缓存结果
-          mermaidCache.set(chart.trim(), {
-            svg: renderedSvg,
-            height: finalHeight,
-          });
-
-          setRenderState({
-            svg: renderedSvg,
-            height: finalHeight,
-            error: "",
-            isLoading: false,
-          });
-        }
-      } catch (err) {
-        console.error("Mermaid rendering error:", err);
-        if (isMounted) {
-          setRenderState((prev) => ({
-            ...prev,
-            error: "Failed to render Mermaid diagram",
-            isLoading: false,
-          }));
-        }
+    useEffect(() => {
+      // 如果有缓存，直接使用
+      if (initialCached) {
+        return;
       }
-    };
 
-    renderChart();
+      // 如果当前状态不是 loading，说明已经渲染过了
+      if (!renderState.isLoading) {
+        return;
+      }
 
-    return () => {
-      isMounted = false;
-    };
-  }, [chart, initialCached]);
+      let isMounted = true;
 
-  const { svg, height, error, isLoading } = renderState;
+      const renderChart = async () => {
+        try {
+          // 使用唯一的 ID 避免冲突
+          const uniqueId = `mermaid-${Math.random().toString(36).substr(2, 9)}`;
+          const { svg: renderedSvg } = await mermaid.render(uniqueId, chart);
 
-  if (error) {
+          if (isMounted) {
+            // 创建临时元素来测量高度
+            const tempDiv = document.createElement("div");
+            tempDiv.style.position = "absolute";
+            tempDiv.style.visibility = "hidden";
+            tempDiv.style.width = "800px"; // 假设最大宽度
+            tempDiv.innerHTML = renderedSvg;
+            document.body.appendChild(tempDiv);
+
+            const svgElement = tempDiv.querySelector("svg");
+            let finalHeight = 200; // 默认高度
+
+            if (svgElement) {
+              finalHeight = svgElement.getBoundingClientRect().height + 32;
+            }
+
+            document.body.removeChild(tempDiv);
+
+            // 缓存结果
+            mermaidCache.set(chart.trim(), {
+              svg: renderedSvg,
+              height: finalHeight,
+            });
+
+            setRenderState({
+              svg: renderedSvg,
+              height: finalHeight,
+              error: "",
+              isLoading: false,
+            });
+          }
+        } catch (err) {
+          console.error("Mermaid rendering error:", err);
+          if (isMounted) {
+            setRenderState((prev) => ({
+              ...prev,
+              error: "Failed to render Mermaid diagram",
+              isLoading: false,
+            }));
+          }
+        }
+      };
+
+      renderChart();
+
+      return () => {
+        isMounted = false;
+      };
+    }, [chart, initialCached]);
+
+    const { svg, height, error, isLoading } = renderState;
+
+    if (error) {
+      return (
+        <div
+          style={{
+            color: token.colorError,
+            padding: token.paddingXS,
+            fontSize: token.fontSizeSM,
+            background: token.colorErrorBg,
+            borderRadius: token.borderRadiusSM,
+            border: `1px solid ${token.colorErrorBorder}`,
+            margin: `${token.marginXS}px 0`,
+            height: "60px",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          {error}
+        </div>
+      );
+    }
+
     return (
       <div
+        ref={containerRef}
         style={{
-          color: token.colorError,
-          padding: token.paddingXS,
-          fontSize: token.fontSizeSM,
-          background: token.colorErrorBg,
-          borderRadius: token.borderRadiusSM,
-          border: `1px solid ${token.colorErrorBorder}`,
+          textAlign: "center",
           margin: `${token.marginXS}px 0`,
-          height: "60px",
+          padding: token.padding,
+          background: token.colorBgContainer,
+          borderRadius: token.borderRadiusSM,
+          border: `1px solid ${token.colorBorder}`,
+          overflow: "hidden",
+          height: `${height}px`, // 使用固定高度
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
+          position: "relative",
+          // 优化性能
+          willChange: "auto",
+          contain: "layout style paint",
         }}
       >
-        {error}
+        {isLoading && (
+          <div
+            style={{
+              position: "absolute",
+              top: "50%",
+              left: "50%",
+              transform: "translate(-50%, -50%)",
+              color: token.colorTextSecondary,
+              fontSize: token.fontSizeSM,
+              zIndex: 2,
+            }}
+          >
+            Rendering diagram...
+          </div>
+        )}
+        <div
+          style={{
+            width: "100%",
+            height: "100%",
+            opacity: isLoading ? 0 : 1,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            overflow: "auto",
+          }}
+          dangerouslySetInnerHTML={{ __html: svg }}
+        />
       </div>
     );
   }
-
-  return (
-    <div
-      ref={containerRef}
-      style={{
-        textAlign: "center",
-        margin: `${token.marginXS}px 0`,
-        padding: token.padding,
-        background: token.colorBgContainer,
-        borderRadius: token.borderRadiusSM,
-        border: `1px solid ${token.colorBorder}`,
-        overflow: "hidden",
-        height: `${height}px`, // 使用固定高度
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        position: "relative",
-        // 优化性能
-        willChange: "auto",
-        contain: "layout style paint",
-      }}
-    >
-      {isLoading && (
-        <div
-          style={{
-            position: "absolute",
-            top: "50%",
-            left: "50%",
-            transform: "translate(-50%, -50%)",
-            color: token.colorTextSecondary,
-            fontSize: token.fontSizeSM,
-            zIndex: 2,
-          }}
-        >
-          Rendering diagram...
-        </div>
-      )}
-      <div
-        style={{
-          width: "100%",
-          height: "100%",
-          opacity: isLoading ? 0 : 1,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          overflow: "auto",
-        }}
-        dangerouslySetInnerHTML={{ __html: svg }}
-      />
-    </div>
-  );
-});
+);
 
 interface MessageCardProps {
   role: string;
