@@ -116,7 +116,7 @@ export const useMessages = (
   }, [currentChat, addAssistantMessage]);
 
   // Helper function to handle tool calls
-  const handleToolCall = useCallback(async (toolCall: any, _messagesToSend: Message[]) => {
+  const handleToolCall = useCallback(async (toolCall: any) => {
     const toolProcessor = ToolCallProcessor.getInstance();
 
     try {
