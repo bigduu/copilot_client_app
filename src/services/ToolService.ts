@@ -224,12 +224,66 @@ Respond with only the parameter value(s), no explanation:`;
       .map(p => `${p.name}: ${p.value}`)
       .join(', ');
 
+    // 根据工具类型选择合适的代码块语言
+    let codeLanguage = 'text';
+    switch (toolName) {
+      case 'execute_command':
+        codeLanguage = 'bash';
+        break;
+      case 'create_file':
+      case 'read_file':
+        // 尝试从文件扩展名推断语言
+        const fileParam = parameters.find(p => p.name === 'path' || p.name === 'file_path');
+        if (fileParam) {
+          const ext = fileParam.value.split('.').pop()?.toLowerCase();
+          switch (ext) {
+            case 'js':
+            case 'jsx':
+              codeLanguage = 'javascript';
+              break;
+            case 'ts':
+            case 'tsx':
+              codeLanguage = 'typescript';
+              break;
+            case 'py':
+              codeLanguage = 'python';
+              break;
+            case 'rs':
+              codeLanguage = 'rust';
+              break;
+            case 'json':
+              codeLanguage = 'json';
+              break;
+            case 'md':
+              codeLanguage = 'markdown';
+              break;
+            case 'html':
+              codeLanguage = 'html';
+              break;
+            case 'css':
+              codeLanguage = 'css';
+              break;
+            case 'sh':
+              codeLanguage = 'bash';
+              break;
+            default:
+              codeLanguage = 'text';
+          }
+        }
+        break;
+      case 'list_files':
+        codeLanguage = 'bash';
+        break;
+      default:
+        codeLanguage = 'text';
+    }
+
     return `**Tool: ${toolName}**
 
 **Parameters:** ${paramStr}
 
 **Result:**
-\`\`\`
+\`\`\`${codeLanguage}
 ${result}
 \`\`\``;
   }
