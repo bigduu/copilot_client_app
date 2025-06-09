@@ -55,6 +55,7 @@ pub fn run() {
             command::tools::get_available_tools,
             command::tools::get_tools_documentation,
             command::tools::get_tools_for_ui,
+            command::tools::execute_tool,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

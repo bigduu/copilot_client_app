@@ -1,7 +1,8 @@
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
+use std::sync::Arc;
 use tauri::State;
 
-use crate::tools::ToolManager;
+use crate::tools::{Parameter, ToolManager};
 
 #[derive(Serialize)]
 pub struct ParameterInfo {
@@ -19,6 +20,18 @@ pub struct ToolUIInfo {
     pub parameters: Vec<ParameterInfo>,
 }
 
+#[derive(Deserialize)]
+pub struct ToolExecutionRequest {
+    pub tool_name: String,
+    pub parameters: Vec<ParameterValue>,
+}
+
+#[derive(Deserialize)]
+pub struct ParameterValue {
+    pub name: String,
+    pub value: String,
+}
+
 #[tauri::command]
 pub fn get_available_tools(
     tool_manager: State<'_, std::sync::Arc<ToolManager>>,
@@ -29,10 +42,38 @@ pub fn get_available_tools(
 
 #[tauri::command]
 pub fn get_tools_for_ui(
-    tool_manager: State<'_, std::sync::Arc<ToolManager>>,
+    tool_manager: State<'_, Arc<ToolManager>>,
 ) -> Result<Vec<ToolUIInfo>, String> {
     let tools = tool_manager.list_tools_for_ui();
     Ok(tools)
+}
+
+#[tauri::command(async)]
+pub async fn execute_tool(
+    request: ToolExecutionRequest,
+    tool_manager: State<'_, Arc<ToolManager>>,
+) -> Result<String, String> {
+    // Get the tool
+    let tool = tool_manager
+        .get_tool(&request.tool_name)
+        .ok_or_else(|| format!("Tool '{}' not found", request.tool_name))?;
+
+    // Convert ParameterValue to Parameter
+    let parameters: Vec<Parameter> = request
+        .parameters
+        .into_iter()
+        .map(|pv| Parameter {
+            name: pv.name,
+            value: pv.value,
+            description: String::new(), // Not needed for execution
+            required: false,            // Not needed for execution
+        })
+        .collect();
+
+    // Execute the tool
+    tool.execute(parameters)
+        .await
+        .map_err(|e| format!("Tool execution failed: {}", e))
 }
 
 // This command is mainly for UI information purposes,

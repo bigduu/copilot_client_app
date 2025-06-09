@@ -3,6 +3,7 @@ import { invoke, Channel } from "@tauri-apps/api/core";
 import { Message, ChatItem } from "../types/chat";
 import { DEFAULT_MESSAGE } from "../constants";
 import { isMermaidEnhancementEnabled, getMermaidEnhancementPrompt } from "../utils/mermaidUtils";
+import { ToolService } from "../services/ToolService";
 
 // System prompt storage key
 const SYSTEM_PROMPT_KEY = "system_prompt";
@@ -65,6 +66,139 @@ export const useMessages = (
     [currentChatId, currentMessages, updateChatMessages]
   );
 
+  // Helper function to send direct LLM request
+  const sendDirectLLMRequest = useCallback(async (messagesToSend: Message[]) => {
+    try {
+      console.log("Creating channel for response");
+      const channel = new Channel<string>();
+
+      // Store the active channel
+      setActiveChannel(channel);
+
+      // Set streaming state
+      setIsStreaming(true);
+
+      // Small delay to ensure streaming state is set before invoking backend
+      await new Promise((resolve) => setTimeout(resolve, 100));
+
+      // Get the effective system prompt for this chat
+      const systemPromptContent = getEffectiveSystemPrompt(currentChat);
+      const systemPromptMessage = {
+        role: "system" as const,
+        content: systemPromptContent
+      };
+      console.log("Including system prompt in request, length:", systemPromptContent.length);
+
+      // Prepare messages array with system prompt if available
+      const messagesWithSystemPrompt = systemPromptMessage
+        ? [systemPromptMessage, ...messagesToSend]
+        : messagesToSend;
+
+      console.log("Invoking execute_prompt with message count:", messagesWithSystemPrompt.length);
+
+      await invoke("execute_prompt", {
+        messages: messagesWithSystemPrompt,
+        channel: channel,
+        model: currentChat?.model,
+      }).catch((error) => {
+        console.error("Error invoking execute_prompt:", error);
+        addAssistantMessage({
+          role: "assistant",
+          content: `Error: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+          id: crypto.randomUUID(),
+        });
+      });
+    } catch (error) {
+      console.error("Failed to invoke execute_prompt:", error);
+    }
+  }, [currentChat, addAssistantMessage]);
+
+  // Helper function to handle tool calls
+  const handleToolCall = useCallback(async (toolCall: any, _messagesToSend: Message[]) => {
+    const toolService = ToolService.getInstance();
+
+    try {
+      setIsStreaming(true);
+
+      // 1. Check if tool exists
+      const toolInfo = await toolService.getToolInfo(toolCall.tool_name);
+      if (!toolInfo) {
+        const errorMsg = `Tool '${toolCall.tool_name}' not found.`;
+        addAssistantMessage({
+          role: "assistant",
+          content: errorMsg,
+          id: crypto.randomUUID(),
+        });
+        return;
+      }
+
+      // 2. Parse parameters using AI
+      const parameters = await toolService.parseToolParameters(
+        toolCall,
+        toolInfo,
+        async (messages: Message[]) => {
+          // Create a simple LLM request for parameter parsing
+          return new Promise<string>((resolve, reject) => {
+            const channel = new Channel<string>();
+            let response = "";
+
+            channel.onmessage = (message) => {
+              try {
+                const data = JSON.parse(message);
+                if (data.choices?.[0]?.delta?.content) {
+                  response += data.choices[0].delta.content;
+                }
+                if (data.choices?.[0]?.finish_reason === "stop") {
+                  resolve(response);
+                }
+              } catch (e) {
+                // Handle non-JSON responses
+                if (message.includes("[DONE]")) {
+                  resolve(response);
+                }
+              }
+            };
+
+            invoke("execute_prompt", {
+              messages,
+              channel,
+              model: currentChat?.model,
+            }).catch(reject);
+          });
+        }
+      );
+
+      // 3. Execute tool
+      const result = await toolService.executeTool({
+        tool_name: toolCall.tool_name,
+        parameters,
+      });
+
+      // 4. Format and display result
+      const formattedResult = toolService.formatToolResult(
+        toolCall.tool_name,
+        parameters,
+        result
+      );
+
+      addAssistantMessage({
+        role: "assistant",
+        content: formattedResult,
+        id: crypto.randomUUID(),
+      });
+
+    } catch (error) {
+      console.error("Tool call failed:", error);
+      addAssistantMessage({
+        role: "assistant",
+        content: `Tool execution failed: ${error}`,
+        id: crypto.randomUUID(),
+      });
+    }
+  }, [currentChat, addAssistantMessage]);
+
   const sendMessage = useCallback(
     async (content: string) => {
       if (isStreaming) {
@@ -102,51 +236,16 @@ export const useMessages = (
       // Small delay to ensure state updates
       await new Promise((resolve) => setTimeout(resolve, 100));
 
-      // Create channel and send message to backend
-      try {
-        console.log("Creating channel for response");
-        const channel = new Channel<string>();
-        
-        // Store the active channel
-        setActiveChannel(channel);
+      // Check if this is a tool call
+      const toolService = ToolService.getInstance();
+      const toolCall = toolService.parseToolCallFormat(content);
 
-        // Set streaming state after user message is added
-        setIsStreaming(true);
-
-        // Small delay to ensure streaming state is set before invoking backend
-        await new Promise((resolve) => setTimeout(resolve, 100));
-
-        // Get the effective system prompt for this chat
-        const systemPromptContent = getEffectiveSystemPrompt(currentChat);
-        const systemPromptMessage = {
-          role: "system" as const,
-          content: systemPromptContent
-        };
-        console.log("Including system prompt in request, length:", systemPromptContent.length);
-
-        // Prepare messages array with system prompt if available
-        const messagesWithSystemPrompt = systemPromptMessage 
-          ? [systemPromptMessage, ...messagesToSend] 
-          : messagesToSend;
-
-        console.log("Invoking execute_prompt with message count:", messagesWithSystemPrompt.length);
-        
-        await invoke("execute_prompt", {
-          messages: messagesWithSystemPrompt,
-          channel: channel,
-          model: currentChat?.model,
-        }).catch((error) => {
-          console.error("Error invoking execute_prompt:", error);
-          addAssistantMessage({
-            role: "assistant",
-            content: `Error: ${
-              error instanceof Error ? error.message : String(error)
-            }`,
-            id: crypto.randomUUID(),
-          });
-        });
-      } catch (error) {
-        console.error("Failed to invoke execute_prompt:", error);
+      if (toolCall) {
+        // Handle tool call
+        await handleToolCall(toolCall, messagesToSend);
+      } else {
+        // Regular message - send directly to LLM
+        await sendDirectLLMRequest(messagesToSend);
       }
     },
     [
@@ -156,6 +255,8 @@ export const useMessages = (
       currentChat,
       addAssistantMessage,
       updateChatMessages,
+      handleToolCall,
+      sendDirectLLMRequest,
     ]
   );
 
