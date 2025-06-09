@@ -139,38 +139,7 @@ export const useMessages = (
       const toolProcessor = ToolCallProcessor.getInstance();
 
       try {
-        setIsStreaming(true);
-
-        // 创建LLM请求函数
-        const sendLLMRequest = async (messages: Message[]): Promise<string> => {
-          return new Promise<string>((resolve, reject) => {
-            const channel = new Channel<string>();
-            let response = "";
-
-            channel.onmessage = (message) => {
-              try {
-                const data = JSON.parse(message);
-                if (data.choices?.[0]?.delta?.content) {
-                  response += data.choices[0].delta.content;
-                }
-                if (data.choices?.[0]?.finish_reason === "stop") {
-                  resolve(response);
-                }
-              } catch (e) {
-                // Handle non-JSON responses
-                if (message.includes("[DONE]")) {
-                  resolve(response);
-                }
-              }
-            };
-
-            invoke("execute_prompt", {
-              messages,
-              channel,
-              model: currentChat?.model,
-            }).catch(reject);
-          });
-        };
+        console.log("Processing tool call:", toolCall);
 
         // 处理更新回调
         const onUpdate = (update: any) => {
@@ -178,19 +147,86 @@ export const useMessages = (
           // 这里可以添加UI更新逻辑，比如显示处理步骤
         };
 
-        // 使用处理器处理工具调用
-        const result = await toolProcessor.processToolCall(
-          toolCall,
-          onUpdate,
-          sendLLMRequest
-        );
+        // 检查工具类型
+        const toolTypeInfo = await toolProcessor.getToolTypeInfo(toolCall.tool_name);
 
-        // 显示结果
-        addAssistantMessage({
-          role: "assistant",
-          content: result.content,
-          id: crypto.randomUUID(),
-        });
+        if (toolTypeInfo === "RegexParameterExtraction") {
+          // 对于regex工具：执行工具获取结果，然后模拟用户发送消息
+          const result = await toolProcessor.executeToolAndGetResult(toolCall, onUpdate);
+
+          if (!result.success) {
+            addAssistantMessage({
+              role: "assistant",
+              content: result.error || "Tool execution failed",
+              id: crypto.randomUUID(),
+            });
+            return;
+          }
+
+          // 构建AI响应消息
+          const aiMessage = toolProcessor.buildAIResponseMessage(
+            result.toolInfo,
+            toolCall,
+            result.toolResult
+          );
+
+          // 模拟用户发送消息，复用chat流程（不在UI中显示工具执行结果）
+          console.log("Simulating user message for AI response:", aiMessage);
+
+          // 创建包含AI响应请求的消息（不添加到UI消息历史中）
+          const simulatedMessages = [...currentMessages, {
+            role: "user",
+            content: aiMessage,
+            id: crypto.randomUUID(),
+          }];
+
+          // 直接发送AI响应请求（复用现有流程），不更新UI消息历史
+          await sendDirectLLMRequest(simulatedMessages);
+
+        } else {
+          // 对于AI参数解析工具，使用原有的非流式处理
+          const sendLLMRequest = async (messages: Message[]): Promise<string> => {
+            return new Promise<string>((resolve, reject) => {
+              const tempChannel = new Channel<string>();
+              let response = "";
+
+              tempChannel.onmessage = (message) => {
+                try {
+                  const data = JSON.parse(message);
+                  if (data.choices?.[0]?.delta?.content) {
+                    response += data.choices[0].delta.content;
+                  }
+                  if (data.choices?.[0]?.finish_reason === "stop") {
+                    resolve(response);
+                  }
+                } catch (e) {
+                  if (message.includes("[DONE]")) {
+                    resolve(response);
+                  }
+                }
+              };
+
+              invoke("execute_prompt", {
+                messages,
+                channel: tempChannel,
+                model: currentChat?.model,
+              }).catch(reject);
+            });
+          };
+
+          const result = await toolProcessor.processToolCall(
+            toolCall,
+            onUpdate,
+            sendLLMRequest
+          );
+
+          addAssistantMessage({
+            role: "assistant",
+            content: result.content,
+            id: crypto.randomUUID(),
+          });
+        }
+
       } catch (error) {
         console.error("Tool call failed:", error);
         addAssistantMessage({
@@ -200,7 +236,7 @@ export const useMessages = (
         });
       }
     },
-    [currentChat, addAssistantMessage]
+    [currentChat, addAssistantMessage, currentMessages, updateChatMessages, currentChatId, sendDirectLLMRequest]
   );
 
   const sendMessage = useCallback(

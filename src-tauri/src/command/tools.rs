@@ -29,7 +29,7 @@ pub struct ToolExecutionRequest {
     pub parameters: Vec<ParameterValue>,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug)]
 pub struct ParameterValue {
     pub name: String,
     pub value: String,
