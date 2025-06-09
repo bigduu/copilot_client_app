@@ -58,7 +58,113 @@ export class ToolCallProcessor {
   }
 
   /**
-   * 处理工具调用的主要入口点
+   * 执行工具并获取结果 - 用于regex类型工具
+   */
+  async executeToolAndGetResult(
+    toolCall: ToolCallRequest,
+    onUpdate?: (update: ProcessorUpdate) => void
+  ): Promise<{
+    success: boolean;
+    toolResult: string;
+    toolInfo: ToolUIInfo;
+    parameters: ParameterValue[];
+    error?: string;
+  }> {
+    try {
+      // 发送处理更新
+      onUpdate?.({
+        type: "processor_update",
+        source: "ToolCallProcessor",
+        content: `Processing tool call: /${toolCall.tool_name} ${toolCall.user_description}`,
+      });
+
+      // 1. 检查工具是否存在
+      const toolInfo = await this.toolService.getToolInfo(toolCall.tool_name);
+      if (!toolInfo) {
+        return {
+          success: false,
+          toolResult: "",
+          toolInfo: {} as ToolUIInfo,
+          parameters: [],
+          error: `Tool '${toolCall.tool_name}' not found. Available tools: ${await this.getAvailableToolNames()}`,
+        };
+      }
+
+      // 2. 提取参数（只支持regex工具）
+      if (!this.isRegexTool(toolInfo)) {
+        return {
+          success: false,
+          toolResult: "",
+          toolInfo,
+          parameters: [],
+          error: "This method only supports regex parameter extraction tools",
+        };
+      }
+
+      onUpdate?.({
+        type: "processor_update",
+        source: "ToolCallProcessor",
+        content: `Extracting parameters using regex for tool: ${toolCall.tool_name}`,
+      });
+
+      const parameters = await this.extractParametersWithRegex(toolCall, toolInfo);
+
+      // 3. 执行工具
+      onUpdate?.({
+        type: "processor_update",
+        source: "ToolCallProcessor",
+        content: `Executing tool: ${toolCall.tool_name}`,
+      });
+
+      const toolResult = await this.toolService.executeTool({
+        tool_name: toolCall.tool_name,
+        parameters,
+      });
+
+      return {
+        success: true,
+        toolResult,
+        toolInfo,
+        parameters,
+      };
+    } catch (error) {
+      console.error("Tool execution failed:", error);
+      return {
+        success: false,
+        toolResult: "",
+        toolInfo: {} as ToolUIInfo,
+        parameters: [],
+        error: `Tool execution failed: ${error}`,
+      };
+    }
+  }
+
+  /**
+   * 构建AI响应消息 - 基于工具执行结果
+   */
+  buildAIResponseMessage(
+    toolInfo: ToolUIInfo,
+    toolCall: ToolCallRequest,
+    toolResult: string
+  ): string {
+    // 构建用户消息，包含工具执行结果和自定义提示
+    let userMessage = `Based on the tool execution result, please provide a helpful summary and explanation for: "${toolCall.user_description}"
+
+Tool execution result:
+${toolResult}`;
+
+    // 如果工具提供了自定义AI响应模板，添加到消息中
+    if (toolInfo.ai_response_template) {
+      userMessage += `\n\nAdditional instructions: ${toolInfo.ai_response_template}`;
+    }
+
+    userMessage += "\n\nDo not include any tool calls (starting with '/') in your response.";
+
+    return userMessage;
+  }
+
+  /**
+   * 处理工具调用的主要入口点 - 非流式版本（保持向后兼容）
    */
   async processToolCall(
     toolCall: ToolCallRequest,
@@ -304,6 +410,8 @@ Do not include any tool calls (starting with '/') in your response.`;
       return "Unable to fetch available tools";
     }
   }
+
+
 
   /**
    * 获取工具类型信息（从后端）
