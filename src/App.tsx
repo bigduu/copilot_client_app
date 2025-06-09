@@ -1,9 +1,9 @@
-import {useEffect, useState} from "react";
-import {ConfigProvider, theme} from "antd";
+import { useEffect, useState } from "react";
+import { ConfigProvider, theme } from "antd";
 import "./App.css";
-import {ChatProvider} from "./contexts/ChatContext";
-import {MainLayout} from "./layouts/MainLayout";
-import {SystemSettingsModal} from "./components/SystemSettingsModal";
+import { ChatProvider } from "./contexts/ChatContext";
+import { MainLayout } from "./layouts/MainLayout";
+import { SystemSettingsModal } from "./components/SystemSettingsModal";
 
 const DARK_MODE_KEY = "copilot_dark_mode";
 
