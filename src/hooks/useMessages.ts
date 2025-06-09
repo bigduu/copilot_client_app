@@ -3,7 +3,7 @@ import { invoke, Channel } from "@tauri-apps/api/core";
 import { Message, ChatItem } from "../types/chat";
 import { DEFAULT_MESSAGE } from "../constants";
 import { isMermaidEnhancementEnabled, getMermaidEnhancementPrompt } from "../utils/mermaidUtils";
-import { ToolService } from "../services/ToolService";
+import { ToolCallProcessor } from "../services/ToolCallProcessor";
 
 // System prompt storage key
 const SYSTEM_PROMPT_KEY = "system_prompt";
@@ -117,75 +117,59 @@ export const useMessages = (
 
   // Helper function to handle tool calls
   const handleToolCall = useCallback(async (toolCall: any, _messagesToSend: Message[]) => {
-    const toolService = ToolService.getInstance();
+    const toolProcessor = ToolCallProcessor.getInstance();
 
     try {
       setIsStreaming(true);
 
-      // 1. Check if tool exists
-      const toolInfo = await toolService.getToolInfo(toolCall.tool_name);
-      if (!toolInfo) {
-        const errorMsg = `Tool '${toolCall.tool_name}' not found.`;
-        addAssistantMessage({
-          role: "assistant",
-          content: errorMsg,
-          id: crypto.randomUUID(),
-        });
-        return;
-      }
+      // 创建LLM请求函数
+      const sendLLMRequest = async (messages: Message[]): Promise<string> => {
+        return new Promise<string>((resolve, reject) => {
+          const channel = new Channel<string>();
+          let response = "";
 
-      // 2. Parse parameters using AI
-      const parameters = await toolService.parseToolParameters(
-        toolCall,
-        toolInfo,
-        async (messages: Message[]) => {
-          // Create a simple LLM request for parameter parsing
-          return new Promise<string>((resolve, reject) => {
-            const channel = new Channel<string>();
-            let response = "";
-
-            channel.onmessage = (message) => {
-              try {
-                const data = JSON.parse(message);
-                if (data.choices?.[0]?.delta?.content) {
-                  response += data.choices[0].delta.content;
-                }
-                if (data.choices?.[0]?.finish_reason === "stop") {
-                  resolve(response);
-                }
-              } catch (e) {
-                // Handle non-JSON responses
-                if (message.includes("[DONE]")) {
-                  resolve(response);
-                }
+          channel.onmessage = (message) => {
+            try {
+              const data = JSON.parse(message);
+              if (data.choices?.[0]?.delta?.content) {
+                response += data.choices[0].delta.content;
               }
-            };
+              if (data.choices?.[0]?.finish_reason === "stop") {
+                resolve(response);
+              }
+            } catch (e) {
+              // Handle non-JSON responses
+              if (message.includes("[DONE]")) {
+                resolve(response);
+              }
+            }
+          };
 
-            invoke("execute_prompt", {
-              messages,
-              channel,
-              model: currentChat?.model,
-            }).catch(reject);
-          });
-        }
+          invoke("execute_prompt", {
+            messages,
+            channel,
+            model: currentChat?.model,
+          }).catch(reject);
+        });
+      };
+
+      // 处理更新回调
+      const onUpdate = (update: any) => {
+        console.log("Tool processing update:", update.content);
+        // 这里可以添加UI更新逻辑，比如显示处理步骤
+      };
+
+      // 使用处理器处理工具调用
+      const result = await toolProcessor.processToolCall(
+        toolCall,
+        onUpdate,
+        sendLLMRequest
       );
 
-      // 3. Execute tool
-      const result = await toolService.executeTool({
-        tool_name: toolCall.tool_name,
-        parameters,
-      });
-
-      // 4. Format and display result
-      const formattedResult = toolService.formatToolResult(
-        toolCall.tool_name,
-        parameters,
-        result
-      );
-
+      // 显示结果
       addAssistantMessage({
         role: "assistant",
-        content: formattedResult,
+        content: result.content,
         id: crypto.randomUUID(),
       });
 
@@ -237,12 +221,21 @@ export const useMessages = (
       await new Promise((resolve) => setTimeout(resolve, 100));
 
       // Check if this is a tool call
-      const toolService = ToolService.getInstance();
-      const toolCall = toolService.parseToolCallFormat(content);
+      const toolProcessor = ToolCallProcessor.getInstance();
 
-      if (toolCall) {
-        // Handle tool call
-        await handleToolCall(toolCall, messagesToSend);
+      if (toolProcessor.isToolCall(content)) {
+        const toolCall = toolProcessor.parseToolCall(content);
+        if (toolCall) {
+          // Handle tool call
+          await handleToolCall(toolCall, messagesToSend);
+        } else {
+          // Invalid tool call format
+          addAssistantMessage({
+            role: "assistant",
+            content: "Invalid tool call format. Tool calls should start with '/' followed by the tool name.",
+            id: crypto.randomUUID(),
+          });
+        }
       } else {
         // Regular message - send directly to LLM
         await sendDirectLLMRequest(messagesToSend);

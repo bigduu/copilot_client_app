@@ -1,4 +1,4 @@
-use crate::tools::{Parameter, Tool};
+use crate::tools::{Parameter, Tool, ToolType};
 use anyhow::{Context, Result};
 use async_trait::async_trait;
 
@@ -27,6 +27,10 @@ impl Tool for ExecuteCommandTool {
 
     fn required_approval(&self) -> bool {
         true
+    }
+
+    fn tool_type(&self) -> ToolType {
+        ToolType::AIParameterParsing
     }
 
     async fn execute(&self, parameters: Vec<Parameter>) -> Result<String> {
