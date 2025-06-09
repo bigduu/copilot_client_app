@@ -18,6 +18,9 @@ pub struct ToolUIInfo {
     pub name: String,
     pub description: String,
     pub parameters: Vec<ParameterInfo>,
+    pub tool_type: String,
+    pub parameter_regex: Option<String>,
+    pub ai_response_template: Option<String>,
 }
 
 #[derive(Deserialize)]

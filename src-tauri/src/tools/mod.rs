@@ -12,6 +12,16 @@ pub trait Tool: Debug + Send + Sync {
     fn description(&self) -> String;
     fn parameters(&self) -> Vec<Parameter>;
     fn required_approval(&self) -> bool;
+    fn tool_type(&self) -> ToolType;
+    /// 对于 RegexParameterExtraction 类型的工具，返回参数提取的正则表达式
+    fn parameter_regex(&self) -> Option<String> {
+        None
+    }
+    /// 返回工具特定的自定义提示内容，会追加到标准格式后面
+    /// 用于提供工具特定的格式要求或处理指导
+    fn custom_prompt(&self) -> Option<String> {
+        None
+    }
     async fn execute(&self, parameters: Vec<Parameter>) -> anyhow::Result<String>;
 }
 
@@ -21,6 +31,14 @@ pub struct Parameter {
     pub description: String,
     pub required: bool,
     pub value: String,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum ToolType {
+    /// 需要AI分析参数的工具
+    AIParameterParsing,
+    /// 使用正则表达式直接提取参数的工具
+    RegexParameterExtraction,
 }
 
 #[derive(Debug, Clone)]
@@ -102,10 +120,18 @@ impl ToolManager {
                     })
                     .collect();
 
+                let tool_type_str = match tool.tool_type() {
+                    ToolType::AIParameterParsing => "AIParameterParsing".to_string(),
+                    ToolType::RegexParameterExtraction => "RegexParameterExtraction".to_string(),
+                };
+
                 crate::command::tools::ToolUIInfo {
                     name: tool.name(),
                     description: tool.description(),
                     parameters,
+                    tool_type: tool_type_str,
+                    parameter_regex: tool.parameter_regex(),
+                    ai_response_template: tool.custom_prompt(),
                 }
             })
             .collect()

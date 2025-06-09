@@ -1,8 +1,8 @@
-# 工具调用系统重构指南
+# 工具调用系统重构指南 v2.0
 
 ## 概述
 
-我们已经成功将工具调用的业务逻辑从后端移动到前端，实现了您要求的架构改进。
+我们已经成功将工具调用的业务逻辑从后端移动到前端，并实现了两种不同类型的工具调用处理机制，完全满足您的需求。
 
 ## 重构内容
 
@@ -18,6 +18,11 @@
    - 添加了 `ToolExecutionRequest` 和 `ParameterValue` 结构体
    - 后端现在只负责提供工具实现和描述
 
+3. **新增工具类型系统**：
+   - 添加了 `ToolType` 枚举：`AIParameterParsing` 和 `RegexParameterExtraction`
+   - 每个工具现在都有 `tool_type()` 方法来标识其类型
+   - 支持 `parameter_regex()` 方法为正则工具定义参数提取规则
+
 ### 前端变化
 
 1. **新增 `ToolService.ts`**：
@@ -27,23 +32,45 @@
    - 执行工具 (`executeTool`)
    - 格式化工具结果 (`formatToolResult`)
 
-2. **修改了 `useMessages.ts`**：
-   - 集成了工具调用检查
-   - 添加了 `handleToolCall` 函数处理工具调用流程
+2. **新增 `ToolCallProcessor.ts`**（独立处理器）：
+   - 专门处理工具调用的业务逻辑
+   - 支持两种工具类型的不同处理流程
+   - 提供统一的工具调用接口
+   - 独立于消息处理逻辑
+
+3. **修改了 `useMessages.ts`**：
+   - 集成了 `ToolCallProcessor` 而不是直接处理工具调用
+   - 保持消息处理逻辑的简洁性
    - 添加了 `sendDirectLLMRequest` 函数处理普通消息
 
 ## 工具调用流程
 
-新的工具调用流程如下：
+### 两种工具类型
 
+#### 1. AI参数解析工具 (AIParameterParsing)
+适用于需要复杂参数解析的工具，如 `create_file`, `execute_command` 等。
+
+```text
+用户输入 "/create_file 创建一个测试文件"
+    ↓
+ToolCallProcessor 检测工具类型
+    ↓
+使用LLM解析参数 (文件路径、内容等)
+    ↓
+调用后端执行工具
+    ↓
+格式化并显示结果
 ```
-用户输入 "/tool_name description"
+
+#### 2. 正则参数提取工具 (RegexParameterExtraction)
+适用于简单参数提取的工具，如 `search` 等。
+
+```text
+用户输入 "/search keyword"
     ↓
-前端解析工具调用格式
+ToolCallProcessor 检测工具类型
     ↓
-检查工具是否存在
-    ↓
-使用LLM解析参数
+使用正则表达式直接提取参数
     ↓
 调用后端执行工具
     ↓
@@ -66,6 +93,9 @@
 ### 支持的工具
 
 当前支持以下工具：
+
+**AI参数解析工具：**
+
 - `create_file`: 创建文件
 - `read_file`: 读取文件
 - `delete_file`: 删除文件
@@ -73,6 +103,10 @@
 - `update_file`: 更新文件
 - `append_file`: 追加文件内容
 - `search_files`: 搜索文件
+
+**正则参数提取工具：**
+
+- `search`: 简单搜索 (使用: `/search keyword`)
 
 ## 优势
 
@@ -120,10 +154,37 @@
 
 ## 迁移完成
 
-✅ 后端工具调用逻辑已移除
-✅ 前端ToolService已实现
-✅ 工具执行接口已创建
-✅ 消息处理已集成工具调用
-✅ 编译和运行测试通过
+✅ **后端工具调用逻辑已移除**
+✅ **前端ToolService已实现**
+✅ **独立ToolCallProcessor已创建**
+✅ **两种工具类型系统已实现**
+✅ **工具执行接口已创建**
+✅ **消息处理已集成工具调用**
+✅ **编译和运行测试通过**
 
-重构已完成，您现在可以享受更灵活和强大的工具调用系统！
+## 🎉 重构成功完成！
+
+您现在拥有了一个完全独立、灵活且强大的工具调用系统：
+
+### ✨ **核心优势**
+- **完全独立的处理器**：`ToolCallProcessor` 独立于消息处理逻辑
+- **两种工具类型支持**：AI参数解析 + 正则参数提取
+- **前端完全控制**：拥有工具调用的完整上下文和流程控制
+- **易于扩展**：可以轻松添加新的工具类型和处理逻辑
+
+### 🚀 **立即测试**
+现在您可以测试两种类型的工具调用：
+
+**AI参数解析工具：**
+```
+/create_file 创建一个名为test.txt的文件，内容是Hello World
+/execute_command ls -la
+```
+
+**正则参数提取工具：**
+```
+/search package.json
+/search src
+```
+
+重构已完成，您现在可以享受更灵活和强大的工具调用系统！🎊

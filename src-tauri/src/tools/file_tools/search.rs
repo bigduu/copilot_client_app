@@ -1,4 +1,4 @@
-use crate::tools::{Parameter, Tool};
+use crate::tools::{Parameter, Tool, ToolType};
 use anyhow::Result;
 use async_trait::async_trait;
 use std::fs;
@@ -43,6 +43,10 @@ impl Tool for SearchFilesTool {
 
     fn required_approval(&self) -> bool {
         false
+    }
+
+    fn tool_type(&self) -> ToolType {
+        ToolType::AIParameterParsing
     }
 
     async fn execute(&self, parameters: Vec<Parameter>) -> Result<String> {

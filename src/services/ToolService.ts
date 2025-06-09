@@ -20,6 +20,9 @@ export interface ToolUIInfo {
   name: string;
   description: string;
   parameters: ParameterInfo[];
+  tool_type: string;
+  parameter_regex?: string;
+  ai_response_template?: string; // 保持字段名一致，但内容是 custom_prompt
 }
 
 export interface ParameterInfo {
