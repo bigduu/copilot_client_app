@@ -20,9 +20,15 @@ import {
   MenuUnfoldOutlined,
 } from "@ant-design/icons";
 import { useChat } from "../../contexts/ChatContext";
-import { groupChatsByDate } from "../../utils/chatUtils";
+import {
+  groupChatsByToolCategory,
+  getCategoryDisplayInfo,
+  sortGroupedChatsByWeight,
+} from "../../utils/chatUtils";
 import { SystemSettingsModal } from "../SystemSettingsModal";
 import { ChatItem } from "../ChatItem";
+import SystemPromptSelector from "../SystemPromptSelector";
+import { SystemPromptPreset, ToolCategory } from "../../types/chat";
 
 const { Sider } = Layout;
 const { Text } = Typography;
@@ -44,8 +50,10 @@ export const ChatSidebar: React.FC<{
     pinChat,
     unpinChat,
     updateChat,
+    systemPromptPresets,
   } = useChat();
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
+  const [isNewChatSelectorOpen, setIsNewChatSelectorOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
   const [isSelectMode, setIsSelectMode] = useState(false);
   const [selectedChatIds, setSelectedChatIds] = useState<string[]>([]);
@@ -73,8 +81,10 @@ export const ChatSidebar: React.FC<{
     }
   }, [screens]);
 
-  // Group chats by date
-  const groupedChats = groupChatsByDate(chats);
+  // Group chats by tool category
+  const groupedChats = sortGroupedChatsByWeight(
+    groupChatsByToolCategory(chats)
+  );
 
   const handleDelete = (chatId: string) => {
     Modal.confirm({
@@ -100,6 +110,37 @@ export const ChatSidebar: React.FC<{
 
   const handleEditTitle = (chatId: string, newTitle: string) => {
     updateChat(chatId, { title: newTitle });
+  };
+
+  const handleNewChat = () => {
+    setIsNewChatSelectorOpen(true);
+  };
+
+  const handleNewChatSelectorClose = () => {
+    setIsNewChatSelectorOpen(false);
+  };
+
+  const handleSystemPromptSelect = (preset: SystemPromptPreset) => {
+    try {
+      // 创建新聊天并应用选中的 System Prompt 设置
+      const newChatId = addChat(undefined, {
+        systemPromptId: preset.id,
+        toolCategory: preset.category,
+        systemPrompt: preset.content,
+      });
+
+      // 选择新创建的聊天
+      selectChat(newChatId);
+
+      // 关闭选择器
+      setIsNewChatSelectorOpen(false);
+    } catch (error) {
+      console.error("创建聊天失败:", error);
+      Modal.error({
+        title: "创建聊天失败",
+        content: error instanceof Error ? error.message : "未知错误，请重试",
+      });
+    }
   };
 
   // Responsive width calculation
@@ -190,103 +231,154 @@ export const ChatSidebar: React.FC<{
 
         {!collapsed ? (
           <Space direction="vertical" size="small" style={{ width: "100%" }}>
-            {Object.entries(groupedChats).map(([date, chatsInGroup], idx) => (
-              <div key={date}>
-                {idx > 0 && (
-                  <Divider style={{ margin: `${token.marginXS}px 0` }} />
-                )}
-                <Text
-                  type="secondary"
-                  style={{
-                    fontSize: 12,
-                    margin: "8px 0",
-                    display: "block",
-                    paddingLeft: 8,
-                  }}
-                >
-                  {date}
-                </Text>
-                <List
-                  itemLayout="horizontal"
-                  dataSource={chatsInGroup}
-                  split={false}
-                  renderItem={(chat) => (
-                    <ChatItem
-                      key={chat.id}
-                      chat={chat}
-                      isSelected={chat.id === currentChatId}
-                      onSelect={(chatId) => selectChat(chatId)}
-                      onDelete={handleDelete}
-                      onPin={pinChat}
-                      onUnpin={unpinChat}
-                      onEdit={handleEditTitle}
-                      SelectMode={isSelectMode}
-                      checked={selectedChatIds.includes(chat.id)}
-                      onCheck={(chatId, checked) => {
-                        setSelectedChatIds((prev) =>
-                          checked
-                            ? [...prev, chatId]
-                            : prev.filter((id) => id !== chatId)
-                        );
+            {Object.entries(groupedChats).map(
+              ([category, chatsInGroup], idx) => {
+                const categoryInfo = getCategoryDisplayInfo(category);
+                return (
+                  <div key={category}>
+                    {idx > 0 && (
+                      <Divider style={{ margin: `${token.marginXS}px 0` }} />
+                    )}
+                    <Text
+                      type="secondary"
+                      style={{
+                        fontSize: 12,
+                        margin: "8px 0",
+                        display: "flex",
+                        alignItems: "center",
+                        paddingLeft: 8,
+                        color: categoryInfo.color,
+                        fontWeight: 500,
                       }}
+                    >
+                      <span style={{ marginRight: 6 }}>
+                        {categoryInfo.icon}
+                      </span>
+                      {categoryInfo.name}
+                    </Text>
+                    <List
+                      itemLayout="horizontal"
+                      dataSource={chatsInGroup}
+                      split={false}
+                      renderItem={(chat) => (
+                        <ChatItem
+                          key={chat.id}
+                          chat={chat}
+                          isSelected={chat.id === currentChatId}
+                          onSelect={(chatId) => selectChat(chatId)}
+                          onDelete={handleDelete}
+                          onPin={pinChat}
+                          onUnpin={unpinChat}
+                          onEdit={handleEditTitle}
+                          SelectMode={isSelectMode}
+                          checked={selectedChatIds.includes(chat.id)}
+                          onCheck={(chatId, checked) => {
+                            setSelectedChatIds((prev) =>
+                              checked
+                                ? [...prev, chatId]
+                                : prev.filter((id) => id !== chatId)
+                            );
+                          }}
+                        />
+                      )}
                     />
-                  )}
-                />
-              </div>
-            ))}
+                  </div>
+                );
+              }
+            )}
           </Space>
         ) : (
           <Space direction="vertical" size="small" style={{ width: "100%" }}>
             {Object.values(groupedChats)
               .flat()
-              .map((chat) => (
-                <Tooltip key={chat.id} placement="right" title={chat.title}>
-                  <Flex
-                    justify="center"
-                    align="center"
-                    className={`chat-item-collapsed ${
-                      chat.id === currentChatId ? "selected" : ""
-                    }`}
-                    onClick={() => selectChat(chat.id)}
+              .map((chat) => {
+                const categoryInfo = getCategoryDisplayInfo(
+                  chat.toolCategory || ToolCategory.GENERAL
+                );
+                return (
+                  <Tooltip
+                    key={chat.id}
+                    placement="right"
+                    title={
+                      <div>
+                        <div style={{ fontWeight: 500, marginBottom: "4px" }}>
+                          {chat.title}
+                        </div>
+                        <div
+                          style={{
+                            fontSize: "11px",
+                            opacity: 0.9,
+                            color: categoryInfo.color,
+                            marginBottom: "2px",
+                          }}
+                        >
+                          {categoryInfo.icon} {categoryInfo.name}
+                        </div>
+                        <div
+                          style={{
+                            fontSize: "10px",
+                            opacity: 0.7,
+                            fontStyle: "italic",
+                          }}
+                        >
+                          {categoryInfo.description}
+                        </div>
+                      </div>
+                    }
                   >
-                    <Avatar
-                      size={screens.xs ? 32 : 36}
-                      style={{
-                        backgroundColor:
-                          chat.id === currentChatId
-                            ? themeMode === "light"
-                              ? "#1677ff"
-                              : "#1668dc"
-                            : themeMode === "light"
-                            ? "#f5f5f5"
-                            : "var(--ant-color-fill-quaternary)",
-                        color:
-                          chat.id === currentChatId
-                            ? "#fff"
-                            : themeMode === "light"
-                            ? "#595959"
-                            : "var(--ant-color-text)",
-                        border:
-                          chat.id === currentChatId
-                            ? themeMode === "light"
-                              ? "2px solid #1677ff"
-                              : "2px solid #1668dc"
-                            : themeMode === "light"
-                            ? "1px solid #d9d9d9"
-                            : "1px solid var(--ant-color-border)",
-                        fontSize: screens.xs ? "14px" : "16px",
-                        fontWeight: "500",
-                        boxShadow:
-                          chat.id === currentChatId
-                            ? "0 2px 8px rgba(22, 119, 255, 0.15)"
-                            : "none",
-                      }}
+                    <Flex
+                      justify="center"
+                      align="center"
+                      className={`chat-item-collapsed ${
+                        chat.id === currentChatId ? "selected" : ""
+                      }`}
+                      onClick={() => selectChat(chat.id)}
                     >
-                      {chat.title.charAt(0).toUpperCase()}
-                    </Avatar>
-                  </Flex>
-                </Tooltip>
-              ))}
+                      <Avatar
+                        size={screens.xs ? 32 : 36}
+                        style={{
+                          backgroundColor:
+                            chat.id === currentChatId
+                              ? categoryInfo.color ||
+                                (themeMode === "light" ? "#1677ff" : "#1668dc")
+                              : themeMode === "light"
+                              ? "#f5f5f5"
+                              : "var(--ant-color-fill-quaternary)",
+                          color:
+                            chat.id === currentChatId
+                              ? "#fff"
+                              : themeMode === "light"
+                              ? "#595959"
+                              : "var(--ant-color-text)",
+                          border:
+                            chat.id === currentChatId
+                              ? `2px solid ${
+                                  categoryInfo.color ||
+                                  (themeMode === "light"
+                                    ? "#1677ff"
+                                    : "#1668dc")
+                                }`
+                              : themeMode === "light"
+                              ? "1px solid #d9d9d9"
+                              : "1px solid var(--ant-color-border)",
+                          fontSize: screens.xs ? "14px" : "16px",
+                          fontWeight: "500",
+                          boxShadow:
+                            chat.id === currentChatId
+                              ? `0 2px 8px ${
+                                  categoryInfo.color
+                                    ? categoryInfo.color + "30"
+                                    : "rgba(22, 119, 255, 0.15)"
+                                }`
+                              : "none",
+                        }}
+                      >
+                        {categoryInfo.icon}
+                      </Avatar>
+                    </Flex>
+                  </Tooltip>
+                );
+              })}
           </Space>
         )}
       </Flex>
@@ -306,10 +398,7 @@ export const ChatSidebar: React.FC<{
           <Button
             type="primary"
             icon={<PlusOutlined />}
-            onClick={() => {
-              const newChatId = addChat();
-              selectChat(newChatId);
-            }}
+            onClick={handleNewChat}
             block={!collapsed}
             shape={collapsed ? "circle" : "default"}
             size={collapsed ? "large" : screens.xs ? "small" : "middle"}
@@ -394,6 +483,15 @@ export const ChatSidebar: React.FC<{
         onClose={handleCloseSettings}
         themeMode={themeMode}
         onThemeModeChange={onThemeModeChange}
+      />
+
+      <SystemPromptSelector
+        open={isNewChatSelectorOpen}
+        onClose={handleNewChatSelectorClose}
+        onSelect={handleSystemPromptSelect}
+        presets={systemPromptPresets}
+        title="创建新聊天 - 选择 System Prompt"
+        showCancelButton={true}
       />
     </Sider>
   );

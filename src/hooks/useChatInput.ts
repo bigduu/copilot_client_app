@@ -1,5 +1,7 @@
 import { useState, useCallback, useEffect, useRef } from "react";
+import { message } from "antd";
 import { useChat } from "../contexts/ChatContext";
+import { ToolService } from "../services/ToolService";
 
 /**
  * useChatInput - Manages chat input related state and logic
@@ -11,8 +13,15 @@ export function useChatInput() {
     [chatId: string]: string | null;
   }>({});
   
-  const { currentChatId, sendMessage, initiateAIResponse } = useChat();
+  const {
+    currentChatId,
+    sendMessage,
+    initiateAIResponse,
+    currentChat,
+    selectedSystemPromptPresetId
+  } = useChat();
   const prevChatIdRef = useRef<string | null>(null);
+  const toolService = ToolService.getInstance();
 
   // Get the reference text for the current chat
   const referenceText = currentChatId ? referenceMap[currentChatId] : null;
@@ -75,8 +84,22 @@ export function useChatInput() {
         : referenceText;
     }
 
+    // 获取当前聊天的系统提示 ID
+    const systemPromptId = currentChat?.systemPromptId || selectedSystemPromptPresetId;
+
     try {
-      await sendMessage(messageToSend);
+      // 使用 ToolService 处理消息：应用自动前缀和权限验证
+      const processResult = await toolService.processMessage(messageToSend, systemPromptId);
+      
+      // 检查验证结果
+      if (!processResult.validation.isValid) {
+        // 显示权限错误提示
+        message.error(processResult.validation.errorMessage);
+        return;
+      }
+
+      // 使用处理后的内容发送消息
+      await sendMessage(processResult.processedContent);
       
       // Clear input content and reference text
       setContent("");
@@ -87,7 +110,15 @@ export function useChatInput() {
       console.error("Error sending message:", error);
       throw error;
     }
-  }, [referenceText, sendMessage, currentChatId, clearReferenceText]);
+  }, [
+    referenceText,
+    sendMessage,
+    currentChatId,
+    clearReferenceText,
+    toolService,
+    currentChat?.systemPromptId,
+    selectedSystemPromptPresetId
+  ]);
 
   // Handle AI retry
   const handleRetry = useCallback(async () => {

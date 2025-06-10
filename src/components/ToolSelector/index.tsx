@@ -23,6 +23,7 @@ interface ToolSelectorProps {
   onCancel: () => void;
   searchText: string;
   onAutoComplete?: (toolName: string) => void;
+  allowedTools?: string[]; // 允许的工具列表，如果为空则显示所有工具
 }
 
 const ToolSelector: React.FC<ToolSelectorProps> = ({
@@ -31,6 +32,7 @@ const ToolSelector: React.FC<ToolSelectorProps> = ({
   onCancel,
   searchText,
   onAutoComplete,
+  allowedTools,
 }) => {
   const [tools, setTools] = useState<ToolUIInfo[]>([]);
   const [filteredTools, setFilteredTools] = useState<ToolUIInfo[]>([]);
@@ -51,16 +53,22 @@ const ToolSelector: React.FC<ToolSelectorProps> = ({
     }
   }, [visible]);
 
-  // Filter tools based on search text
+  // Filter tools based on search text and allowed tools
   useEffect(() => {
-    const filtered = tools.filter(
+    let filtered = tools.filter(
       (tool) =>
         tool.name.toLowerCase().includes(searchText.toLowerCase()) ||
         tool.description.toLowerCase().includes(searchText.toLowerCase())
     );
+
+    // 如果有工具权限限制，则只显示允许的工具
+    if (allowedTools && allowedTools.length > 0) {
+      filtered = filtered.filter((tool) => allowedTools.includes(tool.name));
+    }
+
     setFilteredTools(filtered);
     setSelectedIndex(0);
-  }, [tools, searchText]);
+  }, [tools, searchText, allowedTools]);
 
   // Handle keyboard navigation
   useEffect(() => {
