@@ -3,7 +3,7 @@ use anyhow::{Context, Result};
 use async_trait::async_trait;
 use tokio::io::AsyncWriteExt;
 
-// 文件追加工具
+// File append tool
 #[derive(Debug)]
 pub struct AppendFileTool;
 

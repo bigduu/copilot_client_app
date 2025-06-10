@@ -44,7 +44,7 @@ export const ChatView: React.FC = () => {
   // Scroll-to-bottom button state
   const [showScrollToBottom, setShowScrollToBottom] = useState(false);
 
-  // 响应式容器宽度计算
+  // Responsive container width calculation
   const getContainerMaxWidth = () => {
     if (screens.xs) return "100%";
     if (screens.sm) return "95%";
@@ -53,7 +53,7 @@ export const ChatView: React.FC = () => {
     return "768px";
   };
 
-  // 响应式内边距计算
+  // Responsive padding calculation
   const getContainerPadding = () => {
     if (screens.xs) return token.paddingXS;
     if (screens.sm) return token.paddingSM;
@@ -164,7 +164,7 @@ export const ChatView: React.FC = () => {
   const showMessagesView =
     currentChatId && (hasMessages || (isStreaming && activeChannel));
 
-  // 计算滚动到底部按钮的位置
+  // Calculate scroll to bottom button position
   const getScrollButtonPosition = () => {
     return screens.xs ? 16 : 32;
   };
@@ -299,7 +299,7 @@ export const ChatView: React.FC = () => {
                   );
                 })}
 
-              {/* AI 流式消息 */}
+              {/* AI streaming message */}
               {isStreaming && activeChannel && (
                 <Flex justify="flex-start" style={{ width: "100%" }}>
                   <Card

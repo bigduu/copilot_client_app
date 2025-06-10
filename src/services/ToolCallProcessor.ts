@@ -25,8 +25,8 @@ export interface ProcessorUpdate {
 }
 
 /**
- * 独立的工具调用处理器
- * 负责处理不同类型的工具调用流程
+ * Independent tool call processor
+ * Responsible for handling different types of tool call workflows
  */
 export class ToolCallProcessor {
   private static instance: ToolCallProcessor;
@@ -44,21 +44,21 @@ export class ToolCallProcessor {
   }
 
   /**
-   * 检查消息是否为工具调用
+   * Check if message is a tool call
    */
   isToolCall(content: string): boolean {
     return content.startsWith("/");
   }
 
   /**
-   * 解析工具调用
+   * Parse tool call
    */
   parseToolCall(content: string): ToolCallRequest | null {
     return this.toolService.parseToolCallFormat(content);
   }
 
   /**
-   * 执行工具并获取结果 - 用于regex类型工具
+   * Execute tool and get result - for regex type tools
    */
   async executeToolAndGetResult(
     toolCall: ToolCallRequest,
@@ -71,14 +71,14 @@ export class ToolCallProcessor {
     error?: string;
   }> {
     try {
-      // 发送处理更新
+      // Send processing update
       onUpdate?.({
         type: "processor_update",
         source: "ToolCallProcessor",
         content: `Processing tool call: /${toolCall.tool_name} ${toolCall.user_description}`,
       });
 
-      // 1. 检查工具是否存在
+      // 1. Check if tool exists
       const toolInfo = await this.toolService.getToolInfo(toolCall.tool_name);
       if (!toolInfo) {
         return {
@@ -90,7 +90,7 @@ export class ToolCallProcessor {
         };
       }
 
-      // 2. 提取参数（只支持regex工具）
+      // 2. Extract parameters (only supports regex tools)
       if (!this.isRegexTool(toolInfo)) {
         return {
           success: false,
@@ -109,7 +109,7 @@ export class ToolCallProcessor {
 
       const parameters = await this.extractParametersWithRegex(toolCall, toolInfo);
 
-      // 3. 执行工具
+      // 3. Execute tool
       onUpdate?.({
         type: "processor_update",
         source: "ToolCallProcessor",
@@ -140,20 +140,20 @@ export class ToolCallProcessor {
   }
 
   /**
-   * 构建AI响应消息 - 基于工具执行结果
+   * Build AI response message - based on tool execution result
    */
   buildAIResponseMessage(
     toolInfo: ToolUIInfo,
     toolCall: ToolCallRequest,
     toolResult: string
   ): string {
-    // 构建用户消息，包含工具执行结果和自定义提示
+    // Build user message, including tool execution result and custom prompts
     let userMessage = `Based on the tool execution result, please provide a helpful summary and explanation for: "${toolCall.user_description}"
 
 Tool execution result:
 ${toolResult}`;
 
-    // 如果工具提供了自定义AI响应模板，添加到消息中
+    // If tool provides custom AI response template, add it to message
     if (toolInfo.ai_response_template) {
       userMessage += `\n\nAdditional instructions: ${toolInfo.ai_response_template}`;
     }
@@ -164,7 +164,7 @@ ${toolResult}`;
   }
 
   /**
-   * 处理工具调用的主要入口点 - 非流式版本（保持向后兼容）
+   * Main entry point for processing tool calls - non-streaming version (maintains backward compatibility)
    */
   async processToolCall(
     toolCall: ToolCallRequest,
@@ -172,14 +172,14 @@ ${toolResult}`;
     sendLLMRequest?: (messages: Message[]) => Promise<string>
   ): Promise<ToolCallResult> {
     try {
-      // 发送处理更新
+      // Send processing update
       onUpdate?.({
         type: "processor_update",
         source: "ToolCallProcessor",
         content: `Processing tool call: /${toolCall.tool_name} ${toolCall.user_description}`,
       });
 
-      // 1. 检查工具是否存在
+      // 1. Check if tool exists
       const toolInfo = await this.toolService.getToolInfo(toolCall.tool_name);
       if (!toolInfo) {
         return {
@@ -192,7 +192,7 @@ ${toolResult}`;
         };
       }
 
-      // 2. 根据工具类型处理参数
+      // 2. Process parameters based on tool type
       let parameters: ParameterValue[];
 
       if (this.isRegexTool(toolInfo)) {
@@ -222,7 +222,7 @@ ${toolResult}`;
         );
       }
 
-      // 3. 执行工具
+      // 3. Execute tool
       onUpdate?.({
         type: "processor_update",
         source: "ToolCallProcessor",
@@ -234,9 +234,9 @@ ${toolResult}`;
         parameters,
       });
 
-      // 4. 处理结果
-      // 对于正则工具，使用AI对结果进行总结
-      // 对于AI参数解析工具，直接格式化结果
+      // 4. Process results
+      // For regex tools, use AI to summarize results
+      // For AI parameter parsing tools, directly format results
       if (this.isRegexTool(toolInfo) && sendLLMRequest) {
         onUpdate?.({
           type: "processor_update",
@@ -245,7 +245,7 @@ ${toolResult}`;
         });
 
         try {
-          // 构建提示，使用工具提供的模板或默认模板
+          // Build prompt, using tool-provided template or default template
           const systemPrompt = this.buildAIResponsePrompt(
             toolInfo,
             toolCall,
@@ -264,7 +264,7 @@ ${toolResult}`;
             },
           ];
 
-          // 调用LLM生成最终响应
+          // Call LLM to generate final response
           const aiResponse = await sendLLMRequest(messages);
 
           return {
@@ -278,7 +278,7 @@ ${toolResult}`;
             "AI response generation failed for regex tool:",
             aiError
           );
-          // 降级到格式化结果
+          // Fallback to formatted result
           const formattedResult = this.toolService.formatToolResult(
             toolCall.tool_name,
             parameters,
@@ -293,7 +293,7 @@ ${toolResult}`;
           };
         }
       } else {
-        // 对于AI参数解析工具，直接格式化结果（不需要AI总结）
+        // For AI parameter parsing tools, directly format result (no AI summary needed)
         const formattedResult = this.toolService.formatToolResult(
           toolCall.tool_name,
           parameters,
@@ -319,14 +319,14 @@ ${toolResult}`;
   }
 
   /**
-   * 检查工具是否为正则提取类型
+   * Check if tool is regex extraction type
    */
   private isRegexTool(toolInfo: ToolUIInfo): boolean {
     return toolInfo.tool_type === "RegexParameterExtraction";
   }
 
   /**
-   * 构建AI响应提示，基础格式 + 工具自定义提示
+   * Build AI response prompt, base format + tool custom prompt
    */
   private buildAIResponsePrompt(
     toolInfo: ToolUIInfo,
@@ -334,7 +334,7 @@ ${toolResult}`;
     parameters: ParameterValue[],
     result: string
   ): string {
-    // 基础格式（固定）
+    // Base format (fixed)
     const basePrompt = `You are a helpful assistant. I executed the ${
       toolCall.tool_name
     } tool with the following parameters: ${parameters
@@ -348,7 +348,7 @@ Based on the original request "${
       toolCall.user_description
     }" and the tool execution result above, please provide a helpful summary and explanation.`;
 
-    // 如果工具提供了自定义提示，追加到基础格式后面
+    // If tool provides custom prompt, append it after base format
     if (toolInfo.ai_response_template) {
       return `${basePrompt}
 
@@ -357,12 +357,12 @@ ${toolInfo.ai_response_template}
 Do not include any tool calls (starting with '/') in your response.`;
     }
 
-    // 否则使用默认结尾
+    // Otherwise use default ending
     return `${basePrompt} Do not include any tool calls (starting with '/') in your response.`;
   }
 
   /**
-   * 使用正则表达式提取参数
+   * Extract parameters using regular expressions
    */
   private async extractParametersWithRegex(
     toolCall: ToolCallRequest,
@@ -370,13 +370,13 @@ Do not include any tool calls (starting with '/') in your response.`;
   ): Promise<ParameterValue[]> {
     const fullCommand = `/${toolCall.tool_name} ${toolCall.user_description}`;
 
-    // 使用工具定义的正则表达式，或者使用默认的
+    // Use tool-defined regex, or use default
     let regex: RegExp;
 
     if (toolInfo.parameter_regex) {
       regex = new RegExp(toolInfo.parameter_regex);
     } else {
-      // 默认正则：提取工具名后的所有内容
+      // Default regex: extract all content after tool name
       regex = new RegExp(`^\\/${toolInfo.name}\\s+(.+)$`);
     }
 
@@ -385,11 +385,11 @@ Do not include any tool calls (starting with '/') in your response.`;
       throw new Error(`Failed to extract parameters from: ${fullCommand}`);
     }
 
-    // 根据工具的参数定义返回参数值
+    // Return parameter values based on tool's parameter definition
     const parameters: ParameterValue[] = [];
 
     if (toolInfo.parameters.length > 0) {
-      // 将匹配的内容分配给第一个参数
+      // Assign matched content to first parameter
       parameters.push({
         name: toolInfo.parameters[0].name,
         value: match[1].trim(),
@@ -400,7 +400,7 @@ Do not include any tool calls (starting with '/') in your response.`;
   }
 
   /**
-   * 获取可用工具名称列表
+   * Get list of available tool names
    */
   private async getAvailableToolNames(): Promise<string> {
     try {
@@ -414,7 +414,7 @@ Do not include any tool calls (starting with '/') in your response.`;
 
 
   /**
-   * 获取工具类型信息（从后端）
+   * Get tool type information (from backend)
    */
   async getToolTypeInfo(toolName: string): Promise<ToolType | null> {
     try {
@@ -433,7 +433,7 @@ Do not include any tool calls (starting with '/') in your response.`;
   }
 
   /**
-   * 验证工具调用格式
+   * Validate tool call format
    */
   validateToolCall(content: string): { valid: boolean; error?: string } {
     if (!content.startsWith("/")) {

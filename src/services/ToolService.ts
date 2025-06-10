@@ -22,7 +22,7 @@ export interface ToolUIInfo {
   parameters: ParameterInfo[];
   tool_type: string;
   parameter_regex?: string;
-  ai_response_template?: string; // 保持字段名一致，但内容是 custom_prompt
+  ai_response_template?: string; // Keep field name consistent, but content is custom_prompt
 }
 
 export interface ParameterInfo {
@@ -33,8 +33,8 @@ export interface ParameterInfo {
 }
 
 /**
- * ToolService 处理工具调用的业务逻辑
- * 包括工具调用解析、参数处理、工具执行等
+ * ToolService handles business logic for tool invocations
+ * Including tool call parsing, parameter processing, tool execution, etc.
  */
 export class ToolService {
   private static instance: ToolService;
@@ -47,7 +47,7 @@ export class ToolService {
   }
 
   /**
-   * 解析工具调用格式 (例如: "/create_file 创建一个测试文件")
+   * Parse tool call format (e.g., "/create_file Create a test file")
    */
   parseToolCallFormat(content: string): ToolCallRequest | null {
     if (content.startsWith('/')) {
@@ -75,7 +75,7 @@ export class ToolService {
   }
 
   /**
-   * 获取可用工具列表
+   * Get available tools list
    */
   async getAvailableTools(): Promise<ToolUIInfo[]> {
     try {
@@ -87,14 +87,14 @@ export class ToolService {
   }
 
   /**
-   * 使用AI解析工具参数
+   * Parse tool parameters using AI
    */
   async parseToolParameters(
     toolCall: ToolCallRequest,
     tool: ToolUIInfo,
     sendLLMRequest: (messages: Message[]) => Promise<string>
   ): Promise<ParameterValue[]> {
-    // 构建参数解析的系统提示
+    // Build system prompt for parameter parsing
     const systemPrompt = this.buildParameterParsingPrompt(tool, toolCall.user_description);
     
     const messages: Message[] = [
@@ -108,15 +108,15 @@ export class ToolService {
       }
     ];
 
-    // 调用LLM解析参数
+    // Call LLM to parse parameters
     const aiResponse = await sendLLMRequest(messages);
     
-    // 解析AI返回的参数
+    // Parse parameters returned by AI
     return this.parseAIParameterResponse(aiResponse, tool, toolCall.user_description);
   }
 
   /**
-   * 执行工具
+   * Execute tool
    */
   async executeTool(request: ToolExecutionRequest): Promise<string> {
     try {
@@ -128,7 +128,7 @@ export class ToolService {
   }
 
   /**
-   * 构建参数解析的系统提示
+   * Build system prompt for parameter parsing
    */
   private buildParameterParsingPrompt(tool: ToolUIInfo, userDescription: string): string {
     const parametersDesc = tool.parameters
@@ -152,7 +152,7 @@ Respond with only the parameter value(s), no explanation:`;
   }
 
   /**
-   * 解析AI返回的参数响应
+   * Parse AI parameter response
    */
   private parseAIParameterResponse(
     aiResponse: string,
@@ -167,7 +167,7 @@ Respond with only the parameter value(s), no explanation:`;
 
     const parameters: ParameterValue[] = [];
 
-    // 根据工具类型解析参数
+    // Parse parameters based on tool type
     switch (tool.name) {
       case "execute_command":
         parameters.push({
@@ -217,14 +217,14 @@ Respond with only the parameter value(s), no explanation:`;
   }
 
   /**
-   * 格式化工具执行结果
+   * Format tool execution result
    */
   formatToolResult(toolName: string, parameters: ParameterValue[], result: string): string {
     const paramStr = parameters
       .map(p => `${p.name}: ${p.value}`)
       .join(', ');
 
-    // 根据工具类型选择合适的代码块语言
+    // Select appropriate code block language based on tool type
     let codeLanguage = 'text';
     switch (toolName) {
       case 'execute_command':
@@ -232,7 +232,7 @@ Respond with only the parameter value(s), no explanation:`;
         break;
       case 'create_file':
       case 'read_file':
-        // 尝试从文件扩展名推断语言
+        // Try to infer language from file extension
         const fileParam = parameters.find(p => p.name === 'path' || p.name === 'file_path');
         if (fileParam) {
           const ext = fileParam.value.split('.').pop()?.toLowerCase();
@@ -289,7 +289,7 @@ ${result}
   }
 
   /**
-   * 检查工具是否存在
+   * Check if tool exists
    */
   async toolExists(toolName: string): Promise<boolean> {
     try {
@@ -302,7 +302,7 @@ ${result}
   }
 
   /**
-   * 获取工具信息
+   * Get tool information
    */
   async getToolInfo(toolName: string): Promise<ToolUIInfo | null> {
     try {

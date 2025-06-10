@@ -2,7 +2,7 @@ use crate::tools::{Parameter, Tool, ToolType};
 use anyhow::{Context, Result};
 use async_trait::async_trait;
 
-// 命令执行工具
+// Command execution tool
 #[derive(Debug)]
 pub struct ExecuteCommandTool;
 

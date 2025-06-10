@@ -4,7 +4,7 @@ use async_trait::async_trait;
 use similar::{ChangeTag, TextDiff};
 use tokio::fs as tokio_fs;
 
-// 文件更新工具（基于差异）
+// File update tool (diff-based)
 #[derive(Debug)]
 pub struct UpdateFileTool;
 

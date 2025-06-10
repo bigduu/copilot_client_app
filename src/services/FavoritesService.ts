@@ -3,8 +3,8 @@ import { FavoriteItem } from "../types/chat";
 const FAVORITES_STORAGE_KEY = "chat_favorites";
 
 /**
- * FavoritesService 处理收藏夹相关的核心业务逻辑
- * 包括收藏夹的增删改查、持久化等
+ * FavoritesService handles core business logic for favorites functionality
+ * Including CRUD operations and persistence for favorites
  */
 export class FavoritesService {
   private static instance: FavoritesService;
@@ -17,7 +17,7 @@ export class FavoritesService {
   }
 
   /**
-   * 从本地存储加载收藏夹数据
+   * Load favorites data from local storage
    */
   loadFavorites(): FavoriteItem[] {
     try {
@@ -30,7 +30,7 @@ export class FavoritesService {
   }
 
   /**
-   * 保存收藏夹数据到本地存储
+   * Save favorites data to local storage
    */
   saveFavorites(favorites: FavoriteItem[]): void {
     try {
@@ -41,7 +41,7 @@ export class FavoritesService {
   }
 
   /**
-   * 添加新的收藏项
+   * Add a new favorite item
    */
   addFavorite(
     favorite: Omit<FavoriteItem, "id" | "createdAt">,
@@ -63,14 +63,14 @@ export class FavoritesService {
   }
 
   /**
-   * 删除收藏项
+   * Remove a favorite item
    */
   removeFavorite(id: string, currentFavorites: FavoriteItem[]): FavoriteItem[] {
     return currentFavorites.filter((fav) => fav.id !== id);
   }
 
   /**
-   * 更新收藏项
+   * Update a favorite item
    */
   updateFavorite(
     id: string,
@@ -83,14 +83,14 @@ export class FavoritesService {
   }
 
   /**
-   * 获取指定聊天的收藏项
+   * Get favorite items for a specific chat
    */
   getChatFavorites(chatId: string, favorites: FavoriteItem[]): FavoriteItem[] {
     return favorites.filter((fav) => fav.chatId === chatId);
   }
 
   /**
-   * 生成收藏夹总结内容
+   * Generate summary content for favorites
    */
   generateSummaryContent(favorites: FavoriteItem[]): string {
     if (favorites.length === 0) return "";
@@ -99,7 +99,7 @@ export class FavoritesService {
 
     favorites.forEach((fav, index) => {
       // Add content from favorite
-      summaryContent += `### ${fav.role === "user" ? "用户" : "助手"} ${
+      summaryContent += `### ${fav.role === "user" ? "User" : "Assistant"} ${
         index + 1
       }:\n\n`;
       summaryContent += fav.content;
@@ -107,19 +107,19 @@ export class FavoritesService {
 
       // Add note if it exists
       if (fav.note) {
-        summaryContent += `> 笔记: ${fav.note}\n\n`;
+        summaryContent += `> Note: ${fav.note}\n\n`;
       }
     });
 
     // Add specific summary request
     summaryContent +=
-      "请根据以上内容提供一个全面的总结，包括主要观点和重要信息。";
+      "Please provide a comprehensive summary based on the above content, including key points and important information.";
 
     return summaryContent;
   }
 
   /**
-   * 检查收藏项是否存在
+   * Check if a favorite item exists
    */
   favoriteExists(
     chatId: string,
@@ -132,7 +132,7 @@ export class FavoritesService {
   }
 
   /**
-   * 按创建时间排序收藏项
+   * Sort favorite items by creation time
    */
   sortFavoritesByDate(
     favorites: FavoriteItem[],
@@ -144,7 +144,7 @@ export class FavoritesService {
   }
 
   /**
-   * 搜索收藏项
+   * Search favorite items
    */
   searchFavorites(query: string, favorites: FavoriteItem[]): FavoriteItem[] {
     if (!query.trim()) return favorites;
@@ -158,7 +158,7 @@ export class FavoritesService {
   }
 
   /**
-   * 获取收藏项统计信息
+   * Get statistics for favorite items
    */
   getFavoritesStats(favorites: FavoriteItem[]): {
     total: number;

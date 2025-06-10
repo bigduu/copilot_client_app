@@ -53,7 +53,7 @@ export const ChatSidebar: React.FC<{
   const footerRef = useRef<HTMLDivElement>(null);
   const screens = useBreakpoint();
 
-  // 动态计算底部按钮区高度
+  // Dynamically calculate footer button area height
   useEffect(() => {
     function updateFooterHeight() {
       if (footerRef.current) {
@@ -65,10 +65,10 @@ export const ChatSidebar: React.FC<{
     return () => window.removeEventListener("resize", updateFooterHeight);
   }, []);
 
-  // 响应式折叠逻辑
+  // Responsive collapse logic
   useEffect(() => {
     if (screens.xs === false && screens.sm === false) {
-      // 小屏幕自动折叠
+      // Auto collapse on small screens
       setCollapsed(true);
     }
   }, [screens]);
@@ -102,7 +102,7 @@ export const ChatSidebar: React.FC<{
     updateChat(chatId, { title: newTitle });
   };
 
-  // 响应式宽度计算
+  // Responsive width calculation
   const getSiderWidth = () => {
     if (screens.xxl) return 300;
     if (screens.xl) return 280;
@@ -128,7 +128,7 @@ export const ChatSidebar: React.FC<{
         overflow: "hidden",
       }}
     >
-      {/* 折叠/展开按钮 */}
+      {/* Collapse/expand button */}
       <Flex
         justify={collapsed ? "center" : "flex-end"}
         style={{
@@ -147,7 +147,7 @@ export const ChatSidebar: React.FC<{
         />
       </Flex>
 
-      {/* 聊天列表区域 */}
+      {/* Chat list area */}
       <Flex
         vertical
         style={{
@@ -291,7 +291,7 @@ export const ChatSidebar: React.FC<{
         )}
       </Flex>
 
-      {/* 底部操作区 */}
+      {/* Bottom action area */}
       <Flex
         ref={footerRef}
         vertical

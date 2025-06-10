@@ -31,7 +31,7 @@ mermaid.initialize({
   securityLevel: "loose",
 });
 
-// 缓存已渲染的图表
+// Cache for rendered charts
 const mermaidCache = new Map<string, { svg: string; height: number }>();
 
 // Mermaid Component
@@ -43,7 +43,7 @@ interface MermaidProps {
 const MermaidChart: React.FC<MermaidProps> = React.memo(
   ({ chart, id: _id }) => {
     const { token } = useToken();
-    // 初始化时检查缓存
+    // Check cache during initialization
     const cacheKey = chart.trim();
     const initialCached = mermaidCache.get(cacheKey);
 
@@ -56,18 +56,18 @@ const MermaidChart: React.FC<MermaidProps> = React.memo(
       svg: initialCached?.svg || "",
       height: initialCached?.height || 200,
       error: "",
-      isLoading: !initialCached, // 如果有缓存就不需要加载
+      isLoading: !initialCached, // No loading needed if cached
     });
 
     const containerRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
-      // 如果有缓存，直接使用
+      // Use cache directly if available
       if (initialCached) {
         return;
       }
 
-      // 如果当前状态不是 loading，说明已经渲染过了
+      // If current state is not loading, it means already rendered
       if (!renderState.isLoading) {
         return;
       }
@@ -76,21 +76,21 @@ const MermaidChart: React.FC<MermaidProps> = React.memo(
 
       const renderChart = async () => {
         try {
-          // 使用唯一的 ID 避免冲突
+          // Use unique ID to avoid conflicts
           const uniqueId = `mermaid-${Math.random().toString(36).substr(2, 9)}`;
           const { svg: renderedSvg } = await mermaid.render(uniqueId, chart);
 
           if (isMounted) {
-            // 创建临时元素来测量高度
+            // Create temporary element to measure height
             const tempDiv = document.createElement("div");
             tempDiv.style.position = "absolute";
             tempDiv.style.visibility = "hidden";
-            tempDiv.style.width = "800px"; // 假设最大宽度
+            tempDiv.style.width = "800px"; // Assume maximum width
             tempDiv.innerHTML = renderedSvg;
             document.body.appendChild(tempDiv);
 
             const svgElement = tempDiv.querySelector("svg");
-            let finalHeight = 200; // 默认高度
+            let finalHeight = 200; // Default height
 
             if (svgElement) {
               finalHeight = svgElement.getBoundingClientRect().height + 32;
@@ -98,7 +98,7 @@ const MermaidChart: React.FC<MermaidProps> = React.memo(
 
             document.body.removeChild(tempDiv);
 
-            // 缓存结果
+            // Cache the result
             mermaidCache.set(chart.trim(), {
               svg: renderedSvg,
               height: finalHeight,
@@ -165,12 +165,12 @@ const MermaidChart: React.FC<MermaidProps> = React.memo(
           borderRadius: token.borderRadiusSM,
           border: `1px solid ${token.colorBorder}`,
           overflow: "hidden",
-          height: `${height}px`, // 使用固定高度
+          height: `${height}px`, // Use fixed height
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
           position: "relative",
-          // 优化性能
+          // Performance optimization
           willChange: "auto",
           contain: "layout style paint",
         }}
@@ -230,7 +230,7 @@ const MessageCard: React.FC<MessageCardProps> = ({
   const [selectedText, setSelectedText] = useState<string>("");
   const [isHovering, setIsHovering] = useState<boolean>(false);
 
-  // 响应式计算
+  // Responsive calculation
   const getCardMaxWidth = () => {
     if (screens.xs) return "100%";
     if (screens.sm) return "95%";
@@ -241,7 +241,7 @@ const MessageCard: React.FC<MessageCardProps> = ({
     return screens.xs ? "small" : "small";
   };
 
-  // 添加整个消息到收藏夹
+  // Add entire message to favorites
   const addMessageToFavorites = () => {
     if (currentChatId) {
       if (selectedText) {
@@ -257,7 +257,7 @@ const MessageCard: React.FC<MessageCardProps> = ({
     }
   };
 
-  // 添加选中内容到收藏夹
+  // Add selected content to favorites
   const addSelectedToFavorites = () => {
     if (currentChatId && selectedText) {
       addFavorite({
@@ -270,7 +270,7 @@ const MessageCard: React.FC<MessageCardProps> = ({
     }
   };
 
-  // 监听选中内容
+  // Listen for selected content
   const handleMouseUp = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
@@ -288,7 +288,7 @@ const MessageCard: React.FC<MessageCardProps> = ({
     }
   };
 
-  // 复制文本到剪贴板
+  // Copy text to clipboard
   const copyToClipboard = async (text: string) => {
     try {
       await navigator.clipboard.writeText(text);
@@ -297,12 +297,12 @@ const MessageCard: React.FC<MessageCardProps> = ({
     }
   };
 
-  // 创建引用格式
+  // Create reference format
   const createReference = (text: string) => {
     return `> ${text.replace(/\n/g, "\n> ")}`;
   };
 
-  // 引用消息
+  // Reference message
   const referenceMessage = () => {
     if (selectedText) {
       const referenceText = createReference(selectedText);
@@ -319,7 +319,7 @@ const MessageCard: React.FC<MessageCardProps> = ({
     }
   };
 
-  // 上下文菜单项
+  // Context menu items
   const contextMenuItems = [
     {
       key: "copy",
