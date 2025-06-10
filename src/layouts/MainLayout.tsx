@@ -42,7 +42,7 @@ export const MainLayout: React.FC<{
         // Ensure the new chat is selected (addChat should already do this)
         selectChat(chatId);
 
-        // 标记需要自动触发 AI 回复
+        // Mark that AI reply needs to be triggered automatically
         pendingAIRef.current = true;
       }
     );
@@ -53,7 +53,7 @@ export const MainLayout: React.FC<{
   }, [addChat, selectChat]);
 
   useEffect(() => {
-    // 只有在 pendingAIRef 标记为 true，且当前 chat 只有一条 user 消息时才触发
+    // Only trigger when pendingAIRef is marked as true and current chat has only one user message
     if (
       pendingAIRef.current &&
       currentMessages.length === 1 &&

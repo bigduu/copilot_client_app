@@ -26,7 +26,7 @@ const SystemPromptModal: React.FC<SystemPromptModalProps> = ({
 
   useEffect(() => {
     if (open) {
-      // 预选当前chat的systemPrompt对应的preset id（如有）
+      // Pre-select the preset id corresponding to current chat's systemPrompt (if any)
       if (currentChat?.systemPrompt) {
         const found = systemPromptPresets.find(
           (p) => p.content === currentChat.systemPrompt

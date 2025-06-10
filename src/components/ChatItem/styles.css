@@ -1,15 +1,15 @@
-/* ChatItem组件样式 - 重构后版本 */
-/* 只保留必要的悬停效果样式，其他样式已迁移到theme.ts */
+/* ChatItem component styles - Refactored version */
+/* Only retains necessary hover effect styles, other styles have been migrated to theme.ts */
 
 .chat-item {
-  /* 基础样式已通过theme.ts和内联样式处理 */
+  /* Base styles are handled through theme.ts and inline styles */
 }
 
 .chat-item:hover {
   background-color: var(--ant-color-bg-elevated) !important;
 }
 
-/* 按钮悬停效果 - 保持原有的渐显动画 */
+/* Button hover effects - Maintains original fade-in animation */
 .chat-item .ant-btn {
   opacity: 0;
   transition: opacity 0.2s ease;
@@ -19,21 +19,21 @@
   opacity: 1;
 }
 
-/* 置顶按钮始终显示 */
+/* Pinned button always visible */
 .chat-item .ant-btn:has(.anticon-pushpin-filled) {
   opacity: 1 !important;
 }
 
-/* 选中状态的特殊处理 - 通过CSS变量适配主题 */
+/* Selected state special handling - Adapts to theme through CSS variables */
 .chat-item[data-selected="true"] {
   background-color: var(--ant-color-primary-bg) !important;
 }
 
-/* 响应式调整 */
+/* Responsive adjustments */
 @media (max-width: 768px) {
   .chat-item .ant-btn {
-    opacity: 1; /* 移动端直接显示所有按钮 */
+    opacity: 1; /* Show all buttons directly on mobile */
   }
 }
 
-/* 深色主题适配 - 通过CSS变量自动处理，无需额外样式 */
+/* Dark theme adaptation - Automatically handled through CSS variables, no additional styles needed */

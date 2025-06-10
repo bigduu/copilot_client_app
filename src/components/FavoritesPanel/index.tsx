@@ -80,7 +80,7 @@ export const FavoritesPanel: React.FC = () => {
     }
   });
 
-  // 响应式宽度计算
+  // Responsive width calculation
   const getSiderWidth = () => {
     if (screens.xs) return 300;
     if (screens.sm) return 350;

@@ -141,17 +141,17 @@ export const useMessages = (
       try {
         console.log("Processing tool call:", toolCall);
 
-        // 处理更新回调
+        // Handle update callbacks
         const onUpdate = (update: any) => {
           console.log("Tool processing update:", update.content);
-          // 这里可以添加UI更新逻辑，比如显示处理步骤
+          // UI update logic can be added here, such as displaying processing steps
         };
 
-        // 检查工具类型
+        // Check tool type
         const toolTypeInfo = await toolProcessor.getToolTypeInfo(toolCall.tool_name);
 
         if (toolTypeInfo === "RegexParameterExtraction") {
-          // 对于regex工具：执行工具获取结果，然后模拟用户发送消息
+          // For regex tools: execute tool to get results, then simulate user message sending
           const result = await toolProcessor.executeToolAndGetResult(toolCall, onUpdate);
 
           if (!result.success) {
@@ -163,28 +163,28 @@ export const useMessages = (
             return;
           }
 
-          // 构建AI响应消息
+          // Build AI response message
           const aiMessage = toolProcessor.buildAIResponseMessage(
             result.toolInfo,
             toolCall,
             result.toolResult
           );
 
-          // 模拟用户发送消息，复用chat流程（不在UI中显示工具执行结果）
+          // Simulate user message sending, reuse chat flow (don't display tool execution results in UI)
           console.log("Simulating user message for AI response:", aiMessage);
 
-          // 创建包含AI响应请求的消息（不添加到UI消息历史中）
+          // Create message containing AI response request (don't add to UI message history)
           const simulatedMessages = [...currentMessages, {
-            role: "user",
+            role: "user" as const,
             content: aiMessage,
             id: crypto.randomUUID(),
           }];
 
-          // 直接发送AI响应请求（复用现有流程），不更新UI消息历史
+          // Send AI response request directly (reuse existing flow), don't update UI message history
           await sendDirectLLMRequest(simulatedMessages);
 
         } else {
-          // 对于AI参数解析工具，使用原有的非流式处理
+          // For AI parameter parsing tools, use original non-streaming processing
           const sendLLMRequest = async (messages: Message[]): Promise<string> => {
             return new Promise<string>((resolve, reject) => {
               const tempChannel = new Channel<string>();

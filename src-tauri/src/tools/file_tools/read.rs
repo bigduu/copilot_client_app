@@ -3,7 +3,7 @@ use anyhow::{Context, Result};
 use async_trait::async_trait;
 use tokio::fs as tokio_fs;
 
-// 文件读取工具（支持部分读取）
+// File reading tool (supports partial reading)
 #[derive(Debug)]
 pub struct ReadFileTool;
 

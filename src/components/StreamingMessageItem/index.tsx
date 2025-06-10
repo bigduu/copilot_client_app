@@ -398,14 +398,14 @@ const StreamingMessageItem: React.FC<StreamingMessageItemProps> = ({
           {content || " "}
         </ReactMarkdown>
 
-        {/* 在最后一行添加闪烁光标，只有在流式消息未完成时显示 */}
+        {/* Add blinking cursor at the end, only show when streaming message is not complete */}
         {!isComplete && content && (
           <span
             className="blinking-cursor"
             style={{
               display: "inline-block",
-              marginTop: "-1.2em", // 上移到最后一行文本处
-              marginLeft: "0.2em", // 添加一点间距
+              marginTop: "-1.2em", // Move up to the last line of text
+              marginLeft: "0.2em", // Add some spacing
               color: token.colorText,
             }}
           />

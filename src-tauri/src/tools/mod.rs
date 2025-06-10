@@ -13,12 +13,12 @@ pub trait Tool: Debug + Send + Sync {
     fn parameters(&self) -> Vec<Parameter>;
     fn required_approval(&self) -> bool;
     fn tool_type(&self) -> ToolType;
-    /// 对于 RegexParameterExtraction 类型的工具，返回参数提取的正则表达式
+    /// For RegexParameterExtraction type tools, return the regex for parameter extraction
     fn parameter_regex(&self) -> Option<String> {
         None
     }
-    /// 返回工具特定的自定义提示内容，会追加到标准格式后面
-    /// 用于提供工具特定的格式要求或处理指导
+    /// Return tool-specific custom prompt content, which will be appended after the standard format
+    /// Used to provide tool-specific format requirements or processing guidance
     fn custom_prompt(&self) -> Option<String> {
         None
     }
@@ -35,9 +35,9 @@ pub struct Parameter {
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum ToolType {
-    /// 需要AI分析参数的工具
+    /// Tools that require AI parameter analysis
     AIParameterParsing,
-    /// 使用正则表达式直接提取参数的工具
+    /// Tools that use regex for direct parameter extraction
     RegexParameterExtraction,
 }
 

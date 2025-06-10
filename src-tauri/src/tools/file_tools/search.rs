@@ -4,7 +4,7 @@ use async_trait::async_trait;
 use std::fs;
 use walkdir::WalkDir;
 
-// 文件搜索工具
+// File search tool
 #[derive(Debug)]
 pub struct SearchFilesTool;
 

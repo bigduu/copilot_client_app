@@ -8,8 +8,8 @@ const SYSTEM_PROMPT_KEY = "system_prompt";
 const FALLBACK_MODEL_IN_CHATS = "gpt-4o";
 
 /**
- * ChatService 处理聊天相关的核心业务逻辑
- * 包括聊天的增删改查、消息管理、持久化等
+ * ChatService handles core business logic for chat functionality
+ * Including CRUD operations for chats, message management, and data persistence
  */
 export class ChatService {
   private static instance: ChatService;
@@ -22,7 +22,7 @@ export class ChatService {
   }
 
   /**
-   * 从本地存储加载聊天数据
+   * Load chat data from local storage
    */
   loadChats(): ChatItem[] {
     try {
@@ -39,7 +39,7 @@ export class ChatService {
   }
 
   /**
-   * 保存聊天数据到本地存储
+   * Save chat data to local storage
    */
   saveChats(chats: ChatItem[]): void {
     try {
@@ -51,7 +51,7 @@ export class ChatService {
   }
 
   /**
-   * 创建新聊天
+   * Create a new chat
    */
   createChat(firstUserMessageContent?: string, defaultModel?: string): ChatItem {
     const newChatId = uuidv4();
@@ -85,7 +85,7 @@ export class ChatService {
   }
 
   /**
-   * 删除单个聊天
+   * Delete a single chat
    */
   deleteChat(chatId: string, chats: ChatItem[]): {
     updatedChats: ChatItem[];
@@ -99,28 +99,28 @@ export class ChatService {
   }
 
   /**
-   * 批量删除聊天
+   * Delete multiple chats in batch
    */
   deleteChats(chatIds: string[], chats: ChatItem[]): ChatItem[] {
     return chats.filter((chat) => !chatIds.includes(chat.id));
   }
 
   /**
-   * 删除所有聊天（保留固定的）
+   * Delete all chats (preserve pinned ones)
    */
   deleteAllChats(chats: ChatItem[]): ChatItem[] {
     return chats.filter((chat) => chat.pinned);
   }
 
   /**
-   * 删除空聊天（未固定的）
+   * Delete empty chats (unpinned ones)
    */
   deleteEmptyChats(chats: ChatItem[]): ChatItem[] {
     return chats.filter((chat) => chat.pinned || chat.messages.length > 0);
   }
 
   /**
-   * 固定聊天
+   * Pin a chat
    */
   pinChat(chatId: string, chats: ChatItem[]): ChatItem[] {
     return chats.map((chat) =>
@@ -129,7 +129,7 @@ export class ChatService {
   }
 
   /**
-   * 取消固定聊天
+   * Unpin a chat
    */
   unpinChat(chatId: string, chats: ChatItem[]): ChatItem[] {
     return chats.map((chat) =>
@@ -138,7 +138,7 @@ export class ChatService {
   }
 
   /**
-   * 更新聊天消息
+   * Update chat messages
    */
   updateChatMessages(
     chatId: string,
@@ -165,7 +165,7 @@ export class ChatService {
   }
 
   /**
-   * 更新聊天的系统提示
+   * Update chat's system prompt
    */
   updateChatSystemPrompt(
     chatId: string,
@@ -178,7 +178,7 @@ export class ChatService {
   }
 
   /**
-   * 更新聊天的模型
+   * Update chat's model
    */
   updateChatModel(chatId: string, model: string, chats: ChatItem[]): ChatItem[] {
     return chats.map((chat) =>
@@ -187,7 +187,7 @@ export class ChatService {
   }
 
   /**
-   * 更新聊天信息
+   * Update chat information
    */
   updateChat(
     chatId: string,
@@ -200,7 +200,7 @@ export class ChatService {
   }
 
   /**
-   * 获取当前聊天
+   * Get current chat
    */
   getCurrentChat(currentChatId: string | null, chats: ChatItem[]): ChatItem | null {
     if (!currentChatId) return null;
@@ -208,7 +208,7 @@ export class ChatService {
   }
 
   /**
-   * 获取当前聊天的消息
+   * Get messages of current chat
    */
   getCurrentMessages(currentChatId: string | null, chats: ChatItem[]): Message[] {
     const currentChat = this.getCurrentChat(currentChatId, chats);
@@ -216,7 +216,7 @@ export class ChatService {
   }
 
   /**
-   * 选择下一个聊天（当当前聊天被删除时）
+   * Select next chat (when current chat is deleted)
    */
   selectNextChat(chats: ChatItem[]): string | null {
     if (chats.length === 0) return null;
@@ -225,7 +225,7 @@ export class ChatService {
   }
 
   /**
-   * 迁移旧版本的聊天数据
+   * Migrate legacy chat data
    */
   private migrateExistingChats(chats: ChatItem[]): ChatItem[] {
     return chats.map((chat) => {

@@ -2,8 +2,8 @@ import { useState, useCallback, useEffect, useRef } from "react";
 import { useChat } from "../contexts/ChatContext";
 
 /**
- * useChatInput - 管理聊天输入相关的状态和逻辑
- * 从InputContainer和MessageInput中分离出来的统一输入管理
+ * useChatInput - Manages chat input related state and logic
+ * Unified input management separated from InputContainer and MessageInput
  */
 export function useChatInput() {
   const [content, setContent] = useState("");
@@ -14,10 +14,10 @@ export function useChatInput() {
   const { currentChatId, sendMessage, initiateAIResponse } = useChat();
   const prevChatIdRef = useRef<string | null>(null);
 
-  // 获取当前聊天的引用文本
+  // Get the reference text for the current chat
   const referenceText = currentChatId ? referenceMap[currentChatId] : null;
 
-  // 清除指定聊天的引用文本
+  // Clear the reference text for a specific chat
   const clearReferenceText = useCallback((chatId: string) => {
     if (!chatId) return;
 
@@ -28,7 +28,7 @@ export function useChatInput() {
     });
   }, []);
 
-  // 设置引用文本
+  // Set reference text
   const setReferenceText = useCallback((chatId: string, text: string | null) => {
     setReferenceMap((prev) => ({
       ...prev,
@@ -36,7 +36,7 @@ export function useChatInput() {
     }));
   }, []);
 
-  // 监听引用文本事件
+  // Listen for reference text events
   useEffect(() => {
     const handleReferenceText = (e: Event) => {
       const customEvent = e as CustomEvent<{ text: string; chatId?: string }>;
@@ -53,7 +53,7 @@ export function useChatInput() {
     };
   }, [currentChatId, setReferenceText]);
 
-  // 切换聊天时清除引用文本
+  // Clear reference text when switching chats
   useEffect(() => {
     if (prevChatIdRef.current && prevChatIdRef.current !== currentChatId) {
       clearReferenceText(prevChatIdRef.current);
@@ -61,14 +61,14 @@ export function useChatInput() {
     prevChatIdRef.current = currentChatId;
   }, [currentChatId, clearReferenceText]);
 
-  // 处理消息提交
+  // Handle message submission
   const handleSubmit = useCallback(async (inputContent: string) => {
     const trimmedContent = inputContent.trim();
     if (!trimmedContent && !referenceText) return;
 
     let messageToSend = trimmedContent;
 
-    // 添加引用文本
+    // Add reference text
     if (referenceText) {
       messageToSend = trimmedContent
         ? `${referenceText}\n\n${trimmedContent}`
@@ -78,7 +78,7 @@ export function useChatInput() {
     try {
       await sendMessage(messageToSend);
       
-      // 清除输入内容和引用文本
+      // Clear input content and reference text
       setContent("");
       if (currentChatId) {
         clearReferenceText(currentChatId);
@@ -89,7 +89,7 @@ export function useChatInput() {
     }
   }, [referenceText, sendMessage, currentChatId, clearReferenceText]);
 
-  // 处理AI重试
+  // Handle AI retry
   const handleRetry = useCallback(async () => {
     try {
       await initiateAIResponse();
@@ -99,7 +99,7 @@ export function useChatInput() {
     }
   }, [initiateAIResponse]);
 
-  // 关闭引用预览
+  // Close reference preview
   const handleCloseReferencePreview = useCallback(() => {
     if (currentChatId) {
       clearReferenceText(currentChatId);
@@ -107,12 +107,12 @@ export function useChatInput() {
   }, [currentChatId, clearReferenceText]);
 
   return {
-    // 状态
+    // State
     content,
     setContent,
     referenceText,
     
-    // 方法
+    // Methods
     handleSubmit,
     handleRetry,
     handleCloseReferencePreview,

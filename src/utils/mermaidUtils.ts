@@ -1,25 +1,25 @@
 /**
- * Mermaid 相关的工具函数
+ * Mermaid related utility functions
  */
 
 const MERMAID_ENHANCEMENT_KEY = "mermaid_enhancement_enabled";
 
 /**
- * 检查 Mermaid 增强功能是否启用
+ * Check if Mermaid enhancement feature is enabled
  */
 export const isMermaidEnhancementEnabled = (): boolean => {
   return localStorage.getItem(MERMAID_ENHANCEMENT_KEY) !== "false";
 };
 
 /**
- * 启用/禁用 Mermaid 增强功能
+ * Enable/disable Mermaid enhancement feature
  */
 export const setMermaidEnhancementEnabled = (enabled: boolean): void => {
   localStorage.setItem(MERMAID_ENHANCEMENT_KEY, enabled.toString());
 };
 
 /**
- * 获取 Mermaid 增强提示词
+ * Get Mermaid enhancement prompt
  */
 export const getMermaidEnhancementPrompt = (): string => {
   return `

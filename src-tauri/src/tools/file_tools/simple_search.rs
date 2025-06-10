@@ -4,7 +4,7 @@ use async_trait::async_trait;
 use std::fs;
 use std::path::Path;
 
-// 简单搜索工具 - 使用正则提取参数
+// Simple search tool - uses regex for parameter extraction
 #[derive(Debug)]
 pub struct SimpleSearchTool;
 
@@ -36,7 +36,7 @@ impl Tool for SimpleSearchTool {
     }
 
     fn parameter_regex(&self) -> Option<String> {
-        // 匹配 /search 后面的所有内容作为查询参数
+        // Match all content after /search as query parameter
         Some(r"^/search\s+(.+)$".to_string())
     }
 
@@ -68,7 +68,7 @@ Keep your response concise and user-friendly."#
             return Err(anyhow::anyhow!("Query parameter is required"));
         }
 
-        // 简单的文件搜索实现
+        // Simple file search implementation
         let current_dir =
             std::env::current_dir().with_context(|| "Failed to get current directory")?;
 
@@ -81,7 +81,7 @@ Keep your response concise and user-friendly."#
             let result_count = results.len();
             let result_text = results
                 .into_iter()
-                .take(20) // 限制结果数量
+                .take(20) // Limit result count
                 .collect::<Vec<_>>()
                 .join("\n");
             Ok(format!(
@@ -99,12 +99,12 @@ fn search_in_directory(
     results: &mut Vec<String>,
     depth: usize,
 ) -> Result<()> {
-    // 限制搜索深度
+    // Limit search depth
     if depth > 3 {
         return Ok(());
     }
 
-    // 限制结果数量
+    // Limit result count
     if results.len() >= 20 {
         return Ok(());
     }
@@ -117,7 +117,7 @@ fn search_in_directory(
         let path = entry.path();
         let file_name = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
 
-        // 跳过隐藏文件和常见的忽略目录
+        // Skip hidden files and common ignored directories
         if file_name.starts_with('.')
             || file_name == "node_modules"
             || file_name == "target"
@@ -126,12 +126,12 @@ fn search_in_directory(
             continue;
         }
 
-        // 检查文件名是否匹配查询
+        // Check if filename matches query
         if file_name.to_lowercase().contains(&query.to_lowercase()) {
             results.push(path.display().to_string());
         }
 
-        // 如果是目录，递归搜索
+        // If it's a directory, search recursively
         if path.is_dir() {
             search_in_directory(&path, query, results, depth + 1)?;
         }

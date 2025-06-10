@@ -8,7 +8,7 @@ export const MCPServerManagementComponent = () => {
   const [statuses, setStatuses] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
 
-  // 获取所有 MCP server 配置
+  // Fetch all MCP server configurations
   const fetchServers = async () => {
     setLoading(true);
     try {
@@ -20,7 +20,7 @@ export const MCPServerManagementComponent = () => {
     setLoading(false);
   };
 
-  // 获取所有 server 状态
+  // Fetch all server statuses
   const fetchStatuses = async () => {
     if (!Object.keys(servers || {}).length) return;
     const statusMap: Record<string, string> = {};

@@ -63,7 +63,7 @@ export const ChatItem: React.FC<ChatItemProps> = ({
     setIsEditing(false);
   };
 
-  // 动态样式计算
+  // Dynamic style calculation
   const itemStyle: React.CSSProperties = {
     padding: theme.components.chatItem.padding,
     borderRadius: theme.components.chatItem.borderRadius,
@@ -94,10 +94,10 @@ export const ChatItem: React.FC<ChatItemProps> = ({
     marginRight: theme.components.chatItem.editInput.marginRight,
   };
 
-  // 构建List.Item的actions
+  // Build List.Item actions
   const actions = [
-    // Pin/Unpin按钮
-    <Tooltip key="pin" title={chat.pinned ? "取消置顶" : "置顶"}>
+    // Pin/Unpin button
+    <Tooltip key="pin" title={chat.pinned ? "Unpin" : "Pin"}>
       <Button
         type="text"
         size="small"
@@ -113,15 +113,15 @@ export const ChatItem: React.FC<ChatItemProps> = ({
           chat.pinned ? onUnpin(chat.id) : onPin(chat.id);
         }}
         style={{
-          opacity: chat.pinned ? 1 : undefined, // 置顶状态下始终显示
+          opacity: chat.pinned ? 1 : undefined, // Always show when pinned
         }}
       />
     </Tooltip>,
 
-    // 编辑相关按钮
+    // Edit related buttons
     ...(isEditing
       ? [
-          <Tooltip key="save" title="保存">
+          <Tooltip key="save" title="Save">
             <Button
               type="text"
               size="small"
@@ -129,7 +129,7 @@ export const ChatItem: React.FC<ChatItemProps> = ({
               onClick={handleSave}
             />
           </Tooltip>,
-          <Tooltip key="cancel" title="取消">
+          <Tooltip key="cancel" title="Cancel">
             <Button
               type="text"
               size="small"
@@ -139,7 +139,7 @@ export const ChatItem: React.FC<ChatItemProps> = ({
           </Tooltip>,
         ]
       : [
-          <Tooltip key="edit" title="编辑">
+          <Tooltip key="edit" title="Edit">
             <Button
               type="text"
               size="small"
@@ -149,8 +149,8 @@ export const ChatItem: React.FC<ChatItemProps> = ({
           </Tooltip>,
         ]),
 
-    // 删除按钮
-    <Tooltip key="delete" title="删除">
+    // Delete button
+    <Tooltip key="delete" title="Delete">
       <Button
         type="text"
         size="small"
@@ -166,7 +166,7 @@ export const ChatItem: React.FC<ChatItemProps> = ({
       style={itemStyle}
       onClick={() => !isEditing && onSelect(chat.id)}
       actions={actions}
-      className="chat-item" // 保持类名用于CSS悬停效果
+      className="chat-item" // Keep class name for CSS hover effects
     >
       <List.Item.Meta
         avatar={

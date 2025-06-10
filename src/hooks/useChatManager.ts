@@ -7,19 +7,19 @@ import { createExportFavorites } from "../contexts/newExportFunction";
 import { ChatItem, FavoriteItem, SystemPromptPresetList } from "../types/chat";
 
 /**
- * useChatManager - 整合所有聊天相关功能的主 Hook
- * 结合 Service 层的业务逻辑和 React 的状态管理
+ * useChatManager - Main Hook that integrates all chat-related functionality
+ * Combines Service layer business logic with React state management
  */
 export function useChatManager() {
-  // 服务层实例
+  // Service layer instances
   const chatService = useMemo(() => ChatService.getInstance(), []);
   const favoritesService = useMemo(() => FavoritesService.getInstance(), []);
   const systemPromptService = useMemo(() => SystemPromptService.getInstance(), []);
 
-  // 原有 hooks 的集成
+  // Integration of existing hooks
   const { selectedModel } = useModels();
   
-  // 聊天相关状态和功能
+  // Chat-related state and functionality
   const {
     chats,
     currentChatId,
@@ -31,7 +31,7 @@ export function useChatManager() {
     setChats,
   } = useChats(selectedModel);
 
-  // 消息相关状态和功能
+  // Message-related state and functionality
   const {
     isStreaming,
     setIsStreaming,
@@ -41,12 +41,12 @@ export function useChatManager() {
     initiateAIResponse,
   } = useMessages(currentChatId, updateChatMessages, currentMessages, currentChat);
 
-  // ====== 收藏夹状态管理 ======
+  // ====== Favorites State Management ======
   const [favorites, setFavorites] = useState<FavoriteItem[]>(() => {
     return favoritesService.loadFavorites();
   });
 
-  // ====== 系统提示预设状态管理 ======
+  // ====== System Prompt Presets State Management ======
   const [systemPromptPresets, setSystemPromptPresets] = useState<SystemPromptPresetList>(() => {
     return systemPromptService.loadSystemPromptPresets();
   });
@@ -55,24 +55,24 @@ export function useChatManager() {
     return systemPromptService.getSelectedSystemPromptPresetId();
   });
 
-  // ====== 聊天操作方法（Service + React 集成）======
+  // ====== Chat Operation Methods (Service + React Integration) ======
   
   const addChat = useCallback((firstUserMessageContent?: string): string => {
-    // 使用 Service 创建聊天数据
+    // Use Service to create chat data
     const newChat = chatService.createChat(firstUserMessageContent, selectedModel);
     
-    // 更新标题数字
+    // Update title number
     const chatNumber = chats.length + 1;
     if (!firstUserMessageContent) {
       newChat.title = `Chat ${chatNumber}`;
     }
     
-    // 更新 React 状态
+    // Update React state
     const updatedChats = [newChat, ...chats];
     setChats(updatedChats);
     chatService.saveChats(updatedChats);
     
-    // 选择新创建的聊天
+    // Select the newly created chat
     selectChat(newChat.id);
     
     return newChat.id;
@@ -108,7 +108,7 @@ export function useChatManager() {
     setChats(updatedChats);
     chatService.saveChats(updatedChats);
     
-    // 检查当前聊天是否被删除
+    // Check if current chat was deleted
     if (currentChatId && !updatedChats.find(c => c.id === currentChatId)) {
       const nextChatId = chatService.selectNextChat(updatedChats);
       selectChat(nextChatId);
@@ -147,7 +147,7 @@ export function useChatManager() {
     chatService.saveChats(updatedChats);
   }, [chatService, currentChatId, chats, setChats]);
 
-  // ====== 收藏夹操作方法 ======
+  // ====== Favorites Operation Methods ======
   
   const addFavorite = useCallback((favorite: Omit<FavoriteItem, "id" | "createdAt">): string => {
     const result = favoritesService.addFavorite(favorite, favorites);
@@ -176,7 +176,7 @@ export function useChatManager() {
     return favoritesService.getChatFavorites(currentChatId, favorites);
   }, [favoritesService, currentChatId, favorites]);
 
-  // 导出收藏夹功能
+  // Export favorites functionality
   const exportFavorites = useMemo(() => 
     createExportFavorites({
       currentChatId,
@@ -184,7 +184,7 @@ export function useChatManager() {
     }), [currentChatId, getCurrentChatFavorites]
   );
 
-  // 总结收藏夹
+  // Summarize favorites
   const summarizeFavorites = useCallback(async () => {
     if (!currentChatId) return;
 
@@ -195,11 +195,11 @@ export function useChatManager() {
     
     console.log("Creating new chat for summarization with content:", summaryContent.substring(0, 100) + "...");
 
-    // 创建新聊天并选择
+    // Create new chat and select it
     const newChatId = addChat(summaryContent);
     selectChat(newChatId);
 
-    // 延迟触发 AI 回应
+    // Delay trigger AI response
     setTimeout(() => {
       try {
         initiateAIResponse();
@@ -209,7 +209,7 @@ export function useChatManager() {
     }, 300);
   }, [currentChatId, getCurrentChatFavorites, favoritesService, addChat, selectChat, initiateAIResponse]);
 
-  // ====== 系统提示操作方法 ======
+  // ====== System Prompt Operation Methods ======
   
   const updateSystemPrompt = useCallback((prompt: string) => {
     systemPromptService.updateGlobalSystemPrompt(prompt);
@@ -247,7 +247,7 @@ export function useChatManager() {
     systemPromptService.setSelectedSystemPromptPresetId(id);
   }, [systemPromptService]);
 
-  // 获取当前系统提示内容
+  // Get current system prompt content
   const systemPrompt = useMemo(() => {
     return systemPromptService.getCurrentSystemPromptContent(
       systemPromptPresets,
@@ -255,31 +255,31 @@ export function useChatManager() {
     );
   }, [systemPromptService, systemPromptPresets, selectedSystemPromptPresetId]);
 
-  // 导航到消息
+  // Navigate to message
   const navigateToMessage = useCallback((messageId?: string) => {
     if (!currentChat || !messageId) return;
 
-    // 发送自定义事件给 ChatView 处理滚动
+    // Send custom event to ChatView for scroll handling
     const event = new CustomEvent("navigate-to-message", {
       detail: { messageId },
     });
     window.dispatchEvent(event);
   }, [currentChat]);
 
-  // 返回统一的接口
+  // Return unified interface
   return {
-    // 聊天状态
+    // Chat state
     chats,
     currentChatId,
     currentChat,
     currentMessages,
     
-    // 流状态
+    // Streaming state
     isStreaming,
     setIsStreaming,
     activeChannel,
     
-    // 聊天操作
+    // Chat operations
     addChat,
     selectChat,
     deleteChat,
@@ -291,12 +291,12 @@ export function useChatManager() {
     unpinChat,
     updateChat,
     
-    // 消息操作
+    // Message operations
     sendMessage: originalSendMessage,
     addAssistantMessage,
     initiateAIResponse,
     
-    // 系统提示
+    // System prompt
     systemPrompt,
     updateSystemPrompt,
     updateCurrentChatSystemPrompt,
@@ -309,7 +309,7 @@ export function useChatManager() {
     selectSystemPromptPreset,
     selectedSystemPromptPresetId,
     
-    // 收藏夹
+    // Favorites
     favorites,
     addFavorite,
     removeFavorite,

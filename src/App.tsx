@@ -15,7 +15,7 @@ function App() {
     document.body.setAttribute("data-theme", themeMode);
   }, [themeMode]);
 
-  // 控制设置弹窗的显示（可根据实际项目已有逻辑调整）
+  // Control the display of settings modal (can be adjusted according to actual project logic)
   const [settingsOpen, setSettingsOpen] = useState(false);
 
   return (

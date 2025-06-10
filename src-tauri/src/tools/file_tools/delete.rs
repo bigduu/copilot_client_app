@@ -3,7 +3,7 @@ use anyhow::{Context, Result};
 use async_trait::async_trait;
 use tokio::fs as tokio_fs;
 
-// 文件删除工具
+// File deletion tool
 #[derive(Debug)]
 pub struct DeleteFileTool;
 

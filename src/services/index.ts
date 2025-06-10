@@ -10,7 +10,7 @@ export { SystemPromptService } from './SystemPromptService';
 export { ToolService } from './ToolService';
 export { ToolCallProcessor } from './ToolCallProcessor';
 
-// 创建服务实例的便捷函数
+// Convenient function for creating service instances
 export const createServices = () => ({
   chat: ChatService.getInstance(),
   favorites: FavoritesService.getInstance(),
@@ -19,5 +19,5 @@ export const createServices = () => ({
   toolCallProcessor: ToolCallProcessor.getInstance(),
 });
 
-// 单例访问
+// Singleton access
 export const services = createServices();

@@ -6,8 +6,8 @@ const SYSTEM_PROMPT_PRESETS_KEY = "system_prompt_presets";
 const SYSTEM_PROMPT_SELECTED_ID_KEY = "system_prompt_selected_id";
 
 /**
- * SystemPromptService 处理系统提示相关的核心业务逻辑
- * 包括系统提示预设的增删改查、持久化等
+ * SystemPromptService handles core business logic for system prompts
+ * Including CRUD operations and persistence for system prompt presets
  */
 export class SystemPromptService {
   private static instance: SystemPromptService;
@@ -20,7 +20,7 @@ export class SystemPromptService {
   }
 
   /**
-   * 获取全局系统提示
+   * Get global system prompt
    */
   getGlobalSystemPrompt(): string {
     try {
@@ -32,7 +32,7 @@ export class SystemPromptService {
   }
 
   /**
-   * 更新全局系统提示
+   * Update global system prompt
    */
   updateGlobalSystemPrompt(prompt: string): void {
     try {
@@ -45,7 +45,7 @@ export class SystemPromptService {
   }
 
   /**
-   * 加载系统提示预设列表
+   * Load system prompt preset list
    */
   loadSystemPromptPresets(): SystemPromptPresetList {
     try {
@@ -55,18 +55,18 @@ export class SystemPromptService {
       console.error("Error loading system prompt presets:", error);
     }
     
-    // 如果没有，初始化一个默认
+    // If none exists, initialize with default
     return [
       {
         id: "default",
-        name: "默认助手",
+        name: "Default Assistant",
         content: DEFAULT_MESSAGE,
       },
     ];
   }
 
   /**
-   * 保存系统提示预设列表
+   * Save system prompt preset list
    */
   saveSystemPromptPresets(presets: SystemPromptPresetList): void {
     try {
@@ -77,7 +77,7 @@ export class SystemPromptService {
   }
 
   /**
-   * 获取当前选中的预设ID
+   * Get currently selected preset ID
    */
   getSelectedSystemPromptPresetId(): string {
     try {
@@ -89,7 +89,7 @@ export class SystemPromptService {
   }
 
   /**
-   * 设置当前选中的预设ID
+   * Set currently selected preset ID
    */
   setSelectedSystemPromptPresetId(id: string): void {
     try {
@@ -100,7 +100,7 @@ export class SystemPromptService {
   }
 
   /**
-   * 添加系统提示预设
+   * Add system prompt preset
    */
   addSystemPromptPreset(
     preset: Omit<SystemPromptPreset, "id">,
@@ -112,7 +112,7 @@ export class SystemPromptService {
   }
 
   /**
-   * 更新系统提示预设
+   * Update system prompt preset
    */
   updateSystemPromptPreset(
     id: string,
@@ -125,7 +125,7 @@ export class SystemPromptService {
   }
 
   /**
-   * 删除系统提示预设
+   * Delete system prompt preset
    */
   deleteSystemPromptPreset(
     id: string,
@@ -138,7 +138,7 @@ export class SystemPromptService {
     const newPresets = currentPresets.filter((p) => p.id !== id);
     let newSelectedId = selectedPresetId;
     
-    // 如果删除的是当前选中的预设，重置为default
+    // If deleting the currently selected preset, reset to default
     if (selectedPresetId === id) {
       newSelectedId = "default";
     }
@@ -147,7 +147,7 @@ export class SystemPromptService {
   }
 
   /**
-   * 根据选中的预设ID获取当前系统提示内容
+   * Get current system prompt content based on selected preset ID
    */
   getCurrentSystemPromptContent(
     presets: SystemPromptPresetList,
@@ -161,7 +161,7 @@ export class SystemPromptService {
   }
 
   /**
-   * 根据ID查找预设
+   * Find preset by ID
    */
   findPresetById(
     id: string,
@@ -171,7 +171,7 @@ export class SystemPromptService {
   }
 
   /**
-   * 检查预设名称是否已存在
+   * Check if preset name already exists
    */
   presetNameExists(
     name: string,
@@ -184,7 +184,7 @@ export class SystemPromptService {
   }
 
   /**
-   * 验证预设数据
+   * Validate preset data
    */
   validatePreset(preset: Omit<SystemPromptPreset, "id">): {
     isValid: boolean;
@@ -193,15 +193,15 @@ export class SystemPromptService {
     const errors: string[] = [];
     
     if (!preset.name || preset.name.trim().length === 0) {
-      errors.push("预设名称不能为空");
+      errors.push("Preset name cannot be empty");
     }
     
     if (!preset.content || preset.content.trim().length === 0) {
-      errors.push("预设内容不能为空");
+      errors.push("Preset content cannot be empty");
     }
     
     if (preset.name && preset.name.length > 50) {
-      errors.push("预设名称不能超过50个字符");
+      errors.push("Preset name cannot exceed 50 characters");
     }
     
     return {
@@ -211,19 +211,19 @@ export class SystemPromptService {
   }
 
   /**
-   * 导出预设到JSON格式
+   * Export presets to JSON format
    */
   exportPresetsToJson(presets: SystemPromptPresetList): string {
     try {
       return JSON.stringify(presets, null, 2);
     } catch (error) {
       console.error("Error exporting presets to JSON:", error);
-      throw new Error("导出预设失败");
+      throw new Error("Failed to export presets");
     }
   }
 
   /**
-   * 从JSON格式导入预设
+   * Import presets from JSON format
    */
   importPresetsFromJson(
     jsonString: string,
@@ -236,19 +236,19 @@ export class SystemPromptService {
     try {
       const importedPresets = JSON.parse(jsonString) as SystemPromptPresetList;
       
-      // 验证导入的数据格式
+      // Validate imported data format
       if (!Array.isArray(importedPresets)) {
-        return { success: false, error: "导入的数据格式不正确" };
+        return { success: false, error: "Imported data format is incorrect" };
       }
       
-      // 验证每个预设的格式
+      // Validate format of each preset
       for (const preset of importedPresets) {
         if (!preset.id || !preset.name || !preset.content) {
-          return { success: false, error: "导入的预设数据格式不完整" };
+          return { success: false, error: "Imported preset data format is incomplete" };
         }
       }
       
-      // 合并预设，避免ID冲突
+      // Merge presets, avoiding ID conflicts
       const mergedPresets = [...currentPresets];
       const existingIds = new Set(currentPresets.map(p => p.id));
       
@@ -256,11 +256,11 @@ export class SystemPromptService {
         if (!existingIds.has(preset.id)) {
           mergedPresets.push(preset);
         } else {
-          // 如果ID冲突，生成新ID
+          // If ID conflicts, generate new ID
           mergedPresets.push({
             ...preset,
             id: crypto.randomUUID(),
-            name: `${preset.name} (导入)`,
+            name: `${preset.name} (Imported)`,
           });
         }
       });
@@ -268,7 +268,7 @@ export class SystemPromptService {
       return { success: true, newPresets: mergedPresets };
     } catch (error) {
       console.error("Error importing presets from JSON:", error);
-      return { success: false, error: "JSON格式不正确" };
+      return { success: false, error: "Incorrect JSON format" };
     }
   }
 }
