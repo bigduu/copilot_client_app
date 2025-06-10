@@ -1,5 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { Message } from "../types/chat";
+import { SystemPromptService } from "./SystemPromptService";
 
 export interface ToolCallRequest {
   tool_name: string;
@@ -32,12 +33,22 @@ export interface ParameterInfo {
   type: string;
 }
 
+export interface ValidationResult {
+  isValid: boolean;
+  errorMessage?: string;
+}
+
 /**
  * ToolService handles business logic for tool invocations
  * Including tool call parsing, parameter processing, tool execution, etc.
  */
 export class ToolService {
   private static instance: ToolService;
+  private systemPromptService: SystemPromptService;
+
+  constructor() {
+    this.systemPromptService = SystemPromptService.getInstance();
+  }
 
   static getInstance(): ToolService {
     if (!ToolService.instance) {
@@ -312,5 +323,145 @@ ${result}
       console.error("Failed to get tool info:", error);
       return null;
     }
+  }
+
+  /**
+   * 检查工具调用权限
+   */
+  async checkToolPermission(
+    toolName: string,
+    systemPromptId: string
+  ): Promise<boolean> {
+    if (!systemPromptId) {
+      return true; // 没有系统提示时允许所有工具
+    }
+
+    try {
+      const preset = await this.systemPromptService.findPresetById(systemPromptId);
+      
+      if (!preset || preset.mode !== 'tool_specific') {
+        return true; // 通用模式允许所有工具
+      }
+      
+      return preset.allowedTools?.includes(toolName) || false;
+    } catch (error) {
+      console.error("Failed to check tool permission:", error);
+      return true; // 出错时默认允许
+    }
+  }
+
+  /**
+   * 自动添加工具前缀
+   */
+  async autoAddToolPrefix(
+    message: string,
+    systemPromptId: string
+  ): Promise<string> {
+    if (!systemPromptId || !message.trim()) {
+      return message;
+    }
+
+    try {
+      const preset = await this.systemPromptService.findPresetById(systemPromptId);
+      
+      if (preset?.mode === 'tool_specific' && preset.autoToolPrefix) {
+        // 检查消息是否已经包含工具前缀
+        if (!message.startsWith('/')) {
+          return `${preset.autoToolPrefix} ${message}`;
+        }
+      }
+      return message;
+    } catch (error) {
+      console.error("Failed to auto add tool prefix:", error);
+      return message;
+    }
+  }
+
+  /**
+   * 验证工具调用合规性
+   */
+  async validateToolCall(
+    toolCall: ToolCallRequest,
+    systemPromptId: string
+  ): Promise<ValidationResult> {
+    const isAllowed = await this.checkToolPermission(
+      toolCall.tool_name,
+      systemPromptId
+    );
+    
+    return {
+      isValid: isAllowed,
+      errorMessage: isAllowed ? undefined : `当前模式不允许使用工具 "${toolCall.tool_name}"`
+    };
+  }
+
+  /**
+   * 验证普通对话权限
+   */
+  async validateConversation(
+    content: string,
+    systemPromptId: string
+  ): Promise<ValidationResult> {
+    if (!systemPromptId) {
+      return { isValid: true };
+    }
+
+    try {
+      const preset = await this.systemPromptService.findPresetById(systemPromptId);
+      
+      if (preset?.restrictConversation) {
+        // 检查是否为工具调用
+        const isToolCall = this.parseToolCallFormat(content) !== null;
+        if (!isToolCall) {
+          return {
+            isValid: false,
+            errorMessage: "当前模式仅支持工具调用，不支持普通对话"
+          };
+        }
+      }
+      
+      return { isValid: true };
+    } catch (error) {
+      console.error("Failed to validate conversation:", error);
+      return { isValid: true }; // 出错时默认允许
+    }
+  }
+
+  /**
+   * 处理消息并应用自动前缀和权限验证
+   */
+  async processMessage(
+    content: string,
+    systemPromptId: string
+  ): Promise<{
+    processedContent: string;
+    validation: ValidationResult;
+  }> {
+    // 1. 自动添加工具前缀（如果是工具专用模式）
+    const processedContent = await this.autoAddToolPrefix(content, systemPromptId);
+    
+    // 2. 验证普通对话权限
+    const conversationValidation = await this.validateConversation(content, systemPromptId);
+    if (!conversationValidation.isValid) {
+      return {
+        processedContent,
+        validation: conversationValidation
+      };
+    }
+    
+    // 3. 检查工具调用权限（如果是工具调用）
+    const toolCall = this.parseToolCallFormat(processedContent);
+    if (toolCall) {
+      const toolValidation = await this.validateToolCall(toolCall, systemPromptId);
+      return {
+        processedContent,
+        validation: toolValidation
+      };
+    }
+    
+    return {
+      processedContent,
+      validation: { isValid: true }
+    };
   }
 }

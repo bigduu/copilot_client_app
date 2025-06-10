@@ -1,5 +1,5 @@
 import React, { useRef } from "react";
-import { Input, Button, Space, theme } from "antd";
+import { Input, Button, Space, theme, message } from "antd";
 import { SendOutlined, SyncOutlined } from "@ant-design/icons";
 
 interface MessageInputProps {
@@ -13,6 +13,10 @@ interface MessageInputProps {
   disabled?: boolean;
   showRetryButton?: boolean;
   hasMessages?: boolean;
+  validateMessage?: (message: string) => {
+    isValid: boolean;
+    errorMessage?: string;
+  };
 }
 
 export const MessageInput: React.FC<MessageInputProps> = ({
@@ -26,6 +30,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
   disabled = false,
   showRetryButton = true,
   hasMessages = false,
+  validateMessage,
 }) => {
   const textAreaRef = useRef<HTMLTextAreaElement>(null);
   const { token } = theme.useToken();
@@ -40,6 +45,17 @@ export const MessageInput: React.FC<MessageInputProps> = ({
   const handleSubmit = () => {
     const trimmedContent = value.trim();
     if (!trimmedContent || isStreaming || disabled) return;
+
+    // 如果提供了验证函数，先进行验证
+    if (validateMessage) {
+      const validation = validateMessage(trimmedContent);
+
+      if (!validation.isValid) {
+        // 显示错误提示
+        message.error(validation.errorMessage || "消息格式不正确");
+        return;
+      }
+    }
 
     onSubmit(trimmedContent);
   };

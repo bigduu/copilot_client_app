@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tauri::State;
 
-use crate::tools::{Parameter, ToolManager};
+use crate::tools::{Parameter, ToolCategory, ToolConfig, ToolManager};
 
 #[derive(Serialize)]
 pub struct ParameterInfo {
@@ -98,4 +98,216 @@ pub fn get_tools_documentation() -> Result<String, String> {
     with files, and the AI will use the appropriate tools to help you.
     "#
     .to_string())
+}
+
+// ===== 新的工具配置管理 API =====
+
+#[tauri::command]
+pub fn get_available_tool_configs(
+    tool_manager: State<'_, Arc<ToolManager>>,
+) -> Result<Vec<ToolConfig>, String> {
+    let config_manager = tool_manager.get_config_manager();
+    let config_manager = config_manager
+        .read()
+        .map_err(|e| format!("Failed to read config: {}", e))?;
+    Ok(config_manager.get_available_tools())
+}
+
+#[tauri::command]
+pub fn get_tool_config_by_name(
+    tool_name: String,
+    tool_manager: State<'_, Arc<ToolManager>>,
+) -> Result<Option<ToolConfig>, String> {
+    let config_manager = tool_manager.get_config_manager();
+    let config_manager = config_manager
+        .read()
+        .map_err(|e| format!("Failed to read config: {}", e))?;
+    Ok(config_manager.get_tool_config(&tool_name).cloned())
+}
+
+#[tauri::command]
+pub async fn update_tool_config_by_name(
+    tool_name: String,
+    config: ToolConfig,
+    tool_manager: State<'_, Arc<ToolManager>>,
+) -> Result<(), String> {
+    let config_manager = tool_manager.get_config_manager();
+    let mut config_manager = config_manager
+        .write()
+        .map_err(|e| format!("Failed to write config: {}", e))?;
+    config_manager
+        .update_tool_config(&tool_name, config)
+        .map_err(|e| format!("Failed to update config: {}", e))
+}
+
+// ===== 新的 Category 管理 API =====
+
+#[tauri::command]
+pub fn get_tool_categories(
+    tool_manager: State<'_, Arc<ToolManager>>,
+) -> Result<Vec<ToolCategory>, String> {
+    let config_manager = tool_manager.get_config_manager();
+    let config_manager = config_manager
+        .read()
+        .map_err(|e| format!("Failed to read config: {}", e))?;
+    Ok(config_manager.get_categories().clone())
+}
+
+#[tauri::command]
+pub fn get_category_tools(
+    category_id: String,
+    tool_manager: State<'_, Arc<ToolManager>>,
+) -> Result<Vec<ToolConfig>, String> {
+    let config_manager = tool_manager.get_config_manager();
+    let config_manager = config_manager
+        .read()
+        .map_err(|e| format!("Failed to read config: {}", e))?;
+    config_manager.get_category_tools(&category_id)
+}
+
+#[tauri::command]
+pub async fn update_category_config(
+    category_id: String,
+    category: ToolCategory,
+    tool_manager: State<'_, Arc<ToolManager>>,
+) -> Result<(), String> {
+    let config_manager = tool_manager.get_config_manager();
+    let mut config_manager = config_manager
+        .write()
+        .map_err(|e| format!("Failed to write config: {}", e))?;
+    config_manager
+        .update_category_config(&category_id, category)
+        .map_err(|e| format!("Failed to update category config: {}", e))
+}
+
+#[tauri::command]
+pub async fn register_tool_to_category(
+    tool_name: String,
+    category_id: String,
+    tool_manager: State<'_, Arc<ToolManager>>,
+) -> Result<(), String> {
+    let config_manager = tool_manager.get_config_manager();
+    let mut config_manager = config_manager
+        .write()
+        .map_err(|e| format!("Failed to write config: {}", e))?;
+    config_manager
+        .register_tool_to_category(&tool_name, &category_id)
+        .map_err(|e| format!("Failed to register tool to category: {}", e))
+}
+
+// ===== 获取工具类别信息的 API =====
+
+#[tauri::command]
+pub fn get_tool_category_info(
+    category_id: String,
+    tool_manager: State<'_, Arc<ToolManager>>,
+) -> Result<Option<ToolCategory>, String> {
+    let config_manager = tool_manager.get_config_manager();
+    let config_manager = config_manager
+        .read()
+        .map_err(|e| format!("Failed to read config: {}", e))?;
+    
+    // 查找指定的工具类别
+    let categories = config_manager.get_categories();
+    let category = categories.iter().find(|cat| cat.id == category_id);
+    
+    Ok(category.cloned())
+}
+
+// ===== 向后兼容的 API =====
+
+#[tauri::command]
+pub fn get_tool_categories_list(
+    tool_manager: State<'_, Arc<ToolManager>>,
+) -> Result<Vec<ToolCategory>, String> {
+    let config_manager = tool_manager.get_config_manager();
+    let config_manager = config_manager
+        .read()
+        .map_err(|e| format!("Failed to read config: {}", e))?;
+    Ok(config_manager.get_categories().clone())
+}
+
+#[tauri::command]
+pub fn get_tools_by_category(
+    category: ToolCategory,
+    tool_manager: State<'_, Arc<ToolManager>>,
+) -> Result<Vec<ToolConfig>, String> {
+    let config_manager = tool_manager.get_config_manager();
+    let config_manager = config_manager
+        .read()
+        .map_err(|e| format!("Failed to read config: {}", e))?;
+    Ok(config_manager.get_tools_by_category(&category.id))
+}
+
+#[tauri::command]
+pub fn is_tool_enabled_check(
+    tool_name: String,
+    tool_manager: State<'_, Arc<ToolManager>>,
+) -> Result<bool, String> {
+    let config_manager = tool_manager.get_config_manager();
+    let config_manager = config_manager
+        .read()
+        .map_err(|e| format!("Failed to read config: {}", e))?;
+    Ok(config_manager.is_tool_enabled(&tool_name))
+}
+
+#[tauri::command]
+pub fn tool_requires_approval_check(
+    tool_name: String,
+    tool_manager: State<'_, Arc<ToolManager>>,
+) -> Result<bool, String> {
+    let config_manager = tool_manager.get_config_manager();
+    let config_manager = config_manager
+        .read()
+        .map_err(|e| format!("Failed to read config: {}", e))?;
+    Ok(config_manager.requires_approval(&tool_name))
+}
+
+#[tauri::command]
+pub fn get_tool_permissions(
+    tool_name: String,
+    tool_manager: State<'_, Arc<ToolManager>>,
+) -> Result<Vec<String>, String> {
+    let config_manager = tool_manager.get_config_manager();
+    let config_manager = config_manager
+        .read()
+        .map_err(|e| format!("Failed to read config: {}", e))?;
+    Ok(config_manager.get_tool_permissions(&tool_name))
+}
+
+#[tauri::command]
+pub async fn reset_tool_configs_to_defaults(
+    tool_manager: State<'_, Arc<ToolManager>>,
+) -> Result<(), String> {
+    let config_manager = tool_manager.get_config_manager();
+    let mut config_manager = config_manager
+        .write()
+        .map_err(|e| format!("Failed to write config: {}", e))?;
+    config_manager.reset_to_defaults();
+    Ok(())
+}
+
+#[tauri::command]
+pub fn export_tool_configs(tool_manager: State<'_, Arc<ToolManager>>) -> Result<String, String> {
+    let config_manager = tool_manager.get_config_manager();
+    let config_manager = config_manager
+        .read()
+        .map_err(|e| format!("Failed to read config: {}", e))?;
+    config_manager
+        .export_configs()
+        .map_err(|e| format!("Failed to export configs: {}", e))
+}
+
+#[tauri::command]
+pub async fn import_tool_configs(
+    json_content: String,
+    tool_manager: State<'_, Arc<ToolManager>>,
+) -> Result<(), String> {
+    let config_manager = tool_manager.get_config_manager();
+    let mut config_manager = config_manager
+        .write()
+        .map_err(|e| format!("Failed to write config: {}", e))?;
+    config_manager
+        .import_configs(&json_content)
+        .map_err(|e| format!("Failed to import configs: {}", e))
 }

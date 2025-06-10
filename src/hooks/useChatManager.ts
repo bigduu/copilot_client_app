@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo } from "react";
+import { useState, useCallback, useMemo, useEffect } from "react";
 import { ChatService, FavoritesService, SystemPromptService } from "../services";
 import { useChats } from "./useChats";
 import { useMessages } from "./useMessages";
@@ -47,9 +47,23 @@ export function useChatManager() {
   });
 
   // ====== System Prompt Presets State Management ======
-  const [systemPromptPresets, setSystemPromptPresets] = useState<SystemPromptPresetList>(() => {
-    return systemPromptService.loadSystemPromptPresets();
-  });
+  const [systemPromptPresets, setSystemPromptPresets] = useState<SystemPromptPresetList>([]);
+
+  // 异步加载工具模板
+  const loadSystemPromptPresets = useCallback(async () => {
+    try {
+      const presets = await systemPromptService.getSystemPromptPresets();
+      setSystemPromptPresets(presets);
+    } catch (error) {
+      console.error("Failed to load system prompt presets:", error);
+      setSystemPromptPresets([]);
+    }
+  }, [systemPromptService]);
+
+  // 组件初始化时加载预设
+  useEffect(() => {
+    loadSystemPromptPresets();
+  }, [loadSystemPromptPresets]);
 
   const [selectedSystemPromptPresetId, setSelectedSystemPromptPresetId] = useState<string>(() => {
     return systemPromptService.getSelectedSystemPromptPresetId();
@@ -57,25 +71,50 @@ export function useChatManager() {
 
   // ====== Chat Operation Methods (Service + React Integration) ======
   
-  const addChat = useCallback((firstUserMessageContent?: string): string => {
-    // Use Service to create chat data
-    const newChat = chatService.createChat(firstUserMessageContent, selectedModel);
-    
-    // Update title number
-    const chatNumber = chats.length + 1;
-    if (!firstUserMessageContent) {
-      newChat.title = `Chat ${chatNumber}`;
+  const addChat = useCallback((
+    firstUserMessageContent?: string,
+    options?: {
+      systemPromptId?: string;
+      toolCategory?: string;
+      systemPrompt?: string;
     }
-    
-    // Update React state
-    const updatedChats = [newChat, ...chats];
-    setChats(updatedChats);
-    chatService.saveChats(updatedChats);
-    
-    // Select the newly created chat
-    selectChat(newChat.id);
-    
-    return newChat.id;
+  ): string => {
+    try {
+      // Use Service to create chat data
+      const newChat = chatService.createChat(firstUserMessageContent, selectedModel);
+      
+      // Update title number
+      const chatNumber = chats.length + 1;
+      if (!firstUserMessageContent) {
+        newChat.title = `Chat ${chatNumber}`;
+      }
+      
+      // Apply optional settings for system prompt integration
+      if (options) {
+        if (options.systemPromptId) {
+          newChat.systemPromptId = options.systemPromptId;
+        }
+        if (options.toolCategory) {
+          newChat.toolCategory = options.toolCategory;
+        }
+        if (options.systemPrompt) {
+          newChat.systemPrompt = options.systemPrompt;
+        }
+      }
+      
+      // Update React state
+      const updatedChats = [newChat, ...chats];
+      setChats(updatedChats);
+      chatService.saveChats(updatedChats);
+      
+      // Select the newly created chat
+      selectChat(newChat.id);
+      
+      return newChat.id;
+    } catch (error) {
+      console.error("创建聊天失败:", error);
+      throw new Error("创建聊天失败，请重试");
+    }
   }, [chatService, selectedModel, chats, setChats, selectChat]);
 
   const deleteChat = useCallback((chatId: string) => {
@@ -215,45 +254,46 @@ export function useChatManager() {
     systemPromptService.updateGlobalSystemPrompt(prompt);
   }, [systemPromptService]);
 
+  // 注意：预设管理功能已移除，现在完全由后端配置管理
   const addSystemPromptPreset = useCallback((preset: Omit<any, "id">) => {
-    const newPresets = systemPromptService.addSystemPromptPreset(preset, systemPromptPresets);
-    setSystemPromptPresets(newPresets);
-    systemPromptService.saveSystemPromptPresets(newPresets);
-  }, [systemPromptService, systemPromptPresets]);
+    console.warn("预设管理已移除，请通过 Rust 后端配置文件管理预设");
+    throw new Error("预设管理已移除，请通过后端配置管理");
+  }, []);
 
   const updateSystemPromptPreset = useCallback((
     id: string,
     preset: Omit<any, "id">
   ) => {
-    const newPresets = systemPromptService.updateSystemPromptPreset(id, preset, systemPromptPresets);
-    setSystemPromptPresets(newPresets);
-    systemPromptService.saveSystemPromptPresets(newPresets);
-  }, [systemPromptService, systemPromptPresets]);
+    console.warn("预设管理已移除，请通过 Rust 后端配置文件管理预设");
+    throw new Error("预设管理已移除，请通过后端配置管理");
+  }, []);
 
   const deleteSystemPromptPreset = useCallback((id: string) => {
-    const result = systemPromptService.deleteSystemPromptPreset(
-      id, 
-      systemPromptPresets, 
-      selectedSystemPromptPresetId
-    );
-    setSystemPromptPresets(result.newPresets);
-    setSelectedSystemPromptPresetId(result.newSelectedId);
-    systemPromptService.saveSystemPromptPresets(result.newPresets);
-    systemPromptService.setSelectedSystemPromptPresetId(result.newSelectedId);
-  }, [systemPromptService, systemPromptPresets, selectedSystemPromptPresetId]);
+    console.warn("预设管理已移除，请通过 Rust 后端配置文件管理预设");
+    throw new Error("预设管理已移除，请通过后端配置管理");
+  }, []);
 
   const selectSystemPromptPreset = useCallback((id: string) => {
-    setSelectedSystemPromptPresetId(id);
-    systemPromptService.setSelectedSystemPromptPresetId(id);
+    try {
+      const preset = systemPromptService.findPresetById(id);
+      if (!preset) {
+        throw new Error("找不到指定的系统提示词预设");
+      }
+      
+      setSelectedSystemPromptPresetId(id);
+      systemPromptService.setSelectedSystemPromptPresetId(id);
+    } catch (error) {
+      console.error("选择系统提示词预设失败:", error);
+      throw error;
+    }
   }, [systemPromptService]);
 
   // Get current system prompt content
   const systemPrompt = useMemo(() => {
     return systemPromptService.getCurrentSystemPromptContent(
-      systemPromptPresets,
       selectedSystemPromptPresetId
     );
-  }, [systemPromptService, systemPromptPresets, selectedSystemPromptPresetId]);
+  }, [systemPromptService, selectedSystemPromptPresetId]);
 
   // Navigate to message
   const navigateToMessage = useCallback((messageId?: string) => {

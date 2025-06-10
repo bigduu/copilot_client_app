@@ -4,7 +4,7 @@ use crate::command::chat::{execute_prompt, get_models};
 use crate::command::copy::copy_to_clipboard;
 use crate::copilot::{Config, CopilotClient};
 use crate::mcp::client::init_all_clients;
-use crate::tools::create_tool_manager;
+use crate::tools::create_tool_manager_with_config_dir;
 use command::mcp::{get_mcp_client_status, get_mcp_servers, set_mcp_servers};
 use log::LevelFilter;
 use tauri::{App, Manager, Runtime};
@@ -17,11 +17,11 @@ pub mod tools;
 fn setup<R: Runtime>(app: &mut App<R>) -> std::result::Result<(), Box<dyn std::error::Error>> {
     let handle = app.handle();
     let app_data_dir = handle.path().app_data_dir().unwrap();
-    let client = CopilotClient::new(Config::new(), app_data_dir);
+    let client = CopilotClient::new(Config::new(), app_data_dir.clone());
     app.manage(client.clone());
 
-    // Create tool manager and initialize tools
-    let tool_manager = Arc::new(create_tool_manager());
+    // Create tool manager and initialize tools with proper config directory
+    let tool_manager = Arc::new(create_tool_manager_with_config_dir(app_data_dir));
 
     // Register tool manager with Tauri state management
     app.manage(tool_manager.clone());
@@ -56,6 +56,24 @@ pub fn run() {
             command::tools::get_tools_documentation,
             command::tools::get_tools_for_ui,
             command::tools::execute_tool,
+            // 新的工具配置管理命令
+            command::tools::get_available_tool_configs,
+            command::tools::get_tool_config_by_name,
+            command::tools::update_tool_config_by_name,
+            command::tools::get_tool_categories_list,
+            command::tools::get_tools_by_category,
+            command::tools::is_tool_enabled_check,
+            command::tools::tool_requires_approval_check,
+            command::tools::get_tool_permissions,
+            command::tools::reset_tool_configs_to_defaults,
+            command::tools::export_tool_configs,
+            command::tools::import_tool_configs,
+            // 新的 Category 管理 API
+            command::tools::get_tool_categories,
+            command::tools::get_category_tools,
+            command::tools::update_category_config,
+            command::tools::register_tool_to_category,
+            command::tools::get_tool_category_info,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
