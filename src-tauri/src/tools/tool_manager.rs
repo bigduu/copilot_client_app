@@ -2,8 +2,9 @@
 //!
 //! 基于建造者模式的轻量级工具管理器实现
 
+use crate::tools::categories::get_category_id_for_tool;
 use crate::tools::config_manager::ToolConfigManager;
-use crate::tools::tool_category::ToolCategory;
+
 use crate::tools::types::ToolConfig;
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -18,7 +19,8 @@ pub struct ToolManager {
 impl ToolManager {
     /// 创建新的工具管理器
     pub fn new(tools: HashMap<String, std::sync::Arc<dyn crate::tools::Tool>>) -> Self {
-        let config_manager = std::sync::Arc::new(std::sync::RwLock::new(ToolConfigManager::default()));
+        let config_manager =
+            std::sync::Arc::new(std::sync::RwLock::new(ToolConfigManager::default()));
         Self {
             tools,
             config_manager,
@@ -59,14 +61,16 @@ impl ToolManager {
                 name: tool.name(),
                 display_name: tool.name(),
                 description: tool.description(),
-                category_id: ToolCategory::get_category_id_for_tool(&tool.name()),
+                category_id: get_category_id_for_tool(&tool.name()),
                 enabled: true,
                 requires_approval: tool.required_approval(),
                 auto_prefix: Some(format!("/{}", tool.name())),
                 permissions: vec![],
                 tool_type: match tool.tool_type() {
                     crate::tools::ToolType::AIParameterParsing => "AIParameterParsing".to_string(),
-                    crate::tools::ToolType::RegexParameterExtraction => "RegexParameterExtraction".to_string(),
+                    crate::tools::ToolType::RegexParameterExtraction => {
+                        "RegexParameterExtraction".to_string()
+                    }
                 },
                 parameter_regex: tool.parameter_regex(),
                 custom_prompt: tool.custom_prompt(),
@@ -159,7 +163,9 @@ impl ToolManager {
                     config.tool_type.clone()
                 } else {
                     match tool.tool_type() {
-                        crate::tools::ToolType::AIParameterParsing => "AIParameterParsing".to_string(),
+                        crate::tools::ToolType::AIParameterParsing => {
+                            "AIParameterParsing".to_string()
+                        }
                         crate::tools::ToolType::RegexParameterExtraction => {
                             "RegexParameterExtraction".to_string()
                         }
@@ -265,7 +271,7 @@ pub fn create_basic_tool_manager() -> ToolManager {
 /// 确保工具创建的一致性和可维护性
 fn create_tool_instances() -> HashMap<String, Arc<dyn crate::tools::Tool>> {
     use crate::tools::file_tools::*;
-    
+
     let mut tools: HashMap<String, Arc<dyn crate::tools::Tool>> = HashMap::new();
 
     // 注册文件操作工具
@@ -323,10 +329,12 @@ impl ToolManagerFactory {
     /// 创建自定义工具管理器
     pub fn create_custom<F>(configure: F) -> ToolManager
     where
-        F: FnOnce(crate::tools::categories::ToolManagerBuilder) -> crate::tools::categories::ToolManagerBuilder,
+        F: FnOnce(
+            crate::tools::categories::ToolManagerBuilder,
+        ) -> crate::tools::categories::ToolManagerBuilder,
     {
         use crate::tools::categories::ToolManagerBuilder;
-        
+
         let builder = ToolManagerBuilder::new();
         let builder = configure(builder);
         let (categories, tool_configs) = builder.build_with_categories();

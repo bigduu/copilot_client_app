@@ -92,7 +92,7 @@ mod tests {
     fn test_builder_pattern_workflow() {
         // 测试完整的建造者模式工作流
         let builder = ToolManagerBuilder::new();
-        
+
         // 注册多个类别
         let builder = builder
             .register_category(FileOperationsCategory::new())
@@ -105,15 +105,13 @@ mod tests {
 
         // 测试构建过程
         let (categories, tool_configs) = builder.build_with_categories();
-        
+
         assert_eq!(categories.len(), 3);
         assert!(!tool_configs.is_empty());
-        
+
         // 验证类别结构
-        let category_names: Vec<String> = categories.iter()
-            .map(|c| c.id.clone())
-            .collect();
-            
+        let category_names: Vec<String> = categories.iter().map(|c| c.id.clone()).collect();
+
         assert!(category_names.contains(&"file_operations".to_string()));
         assert!(category_names.contains(&"command_execution".to_string()));
         assert!(category_names.contains(&"general_assistant".to_string()));
@@ -122,11 +120,10 @@ mod tests {
     #[test]
     fn test_category_customization() {
         // 测试类别自定义功能
-        let custom_category = FileOperationsCategory::new()
-            .with_enabled(false);
+        let custom_category = FileOperationsCategory::new().with_enabled(false);
 
         let built_category = custom_category.build_category();
-        
+
         assert!(!built_category.enabled);
     }
 
@@ -140,7 +137,7 @@ mod tests {
             .get_enabled_categories();
 
         assert_eq!(result.len(), 3);
-        
+
         // 测试所有类别都是启用的
         for category in result {
             assert!(category.enabled);
@@ -151,10 +148,10 @@ mod tests {
     fn test_empty_builder() {
         // 测试空建造者
         let builder = ToolManagerBuilder::new();
-        
+
         assert_eq!(builder.get_all_categories().len(), 0);
         assert_eq!(builder.get_enabled_categories().len(), 0);
-        
+
         let tools = builder.build();
         assert!(tools.is_empty());
     }
@@ -162,8 +159,7 @@ mod tests {
     #[test]
     fn test_partial_category_registration() {
         // 测试部分类别注册
-        let builder = ToolManagerBuilder::new()
-            .register_category(FileOperationsCategory::new());
+        let builder = ToolManagerBuilder::new().register_category(FileOperationsCategory::new());
 
         assert_eq!(builder.get_all_categories().len(), 1);
         assert_eq!(builder.get_enabled_categories().len(), 1);
@@ -204,19 +200,22 @@ mod tests {
             .register_category(GeneralAssistantCategory::new());
 
         let (categories, _) = builder.build_with_categories();
-        
+
         // 找到各个类别并验证其严格模式设置
-        let file_ops_category = categories.iter()
+        let file_ops_category = categories
+            .iter()
             .find(|c| c.id == "file_operations")
             .expect("应该找到文件操作类别");
         assert!(!file_ops_category.strict_tools_mode);
 
-        let cmd_exec_category = categories.iter()
+        let cmd_exec_category = categories
+            .iter()
             .find(|c| c.id == "command_execution")
             .expect("应该找到命令执行类别");
         assert!(cmd_exec_category.strict_tools_mode);
 
-        let general_category = categories.iter()
+        let general_category = categories
+            .iter()
             .find(|c| c.id == "general_assistant")
             .expect("应该找到通用助手类别");
         assert!(!general_category.strict_tools_mode);
@@ -225,9 +224,9 @@ mod tests {
     #[test]
     fn test_new_tool_category_with_strict_tools_mode() {
         // 测试 NewToolCategory 的 with_strict_tools_mode 方法
-        use crate::tools::types::NewToolCategory;
+        use crate::tools::types::ToolCategory;
 
-        let category = NewToolCategory::new(
+        let category = ToolCategory::new(
             "test".to_string(),
             "测试".to_string(),
             "测试类别".to_string(),
@@ -242,7 +241,7 @@ mod tests {
         assert!(strict_category.strict_tools_mode);
 
         // 测试链式调用
-        let chained_category = NewToolCategory::new(
+        let chained_category = ToolCategory::new(
             "test2".to_string(),
             "测试2".to_string(),
             "测试类别2".to_string(),

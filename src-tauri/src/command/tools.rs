@@ -46,7 +46,40 @@ pub fn get_available_tools(
 #[tauri::command]
 pub fn get_tools_for_ui(
     tool_manager: State<'_, Arc<ToolManager>>,
+    category_id: Option<String>,
 ) -> Result<Vec<ToolUIInfo>, String> {
+    let config_manager = tool_manager.get_config_manager();
+    let config_manager = config_manager
+        .read()
+        .map_err(|e| format!("Failed to read config: {}", e))?;
+
+    // 如果指定了类别ID，检查是否为严格模式
+    if let Some(category_id) = category_id {
+        let categories = config_manager.get_categories();
+
+        if let Some(category) = categories.iter().find(|cat| cat.id == category_id) {
+            if category.strict_tools_mode {
+                // 严格模式：只返回该类别允许的工具
+                let category_tools = config_manager.get_tools_by_category(&category_id);
+
+                let allowed_tool_names: std::collections::HashSet<String> = category_tools
+                    .iter()
+                    .map(|tool| tool.name.clone())
+                    .collect();
+
+                let all_tools = tool_manager.list_tools_for_ui();
+
+                let filtered_tools: Vec<ToolUIInfo> = all_tools
+                    .into_iter()
+                    .filter(|tool| allowed_tool_names.contains(&tool.name))
+                    .collect();
+
+                return Ok(filtered_tools);
+            }
+        }
+    }
+
+    // 非严格模式或未指定类别：返回所有工具
     let tools = tool_manager.list_tools_for_ui();
     Ok(tools)
 }
@@ -206,11 +239,11 @@ pub fn get_tool_category_info(
     let config_manager = config_manager
         .read()
         .map_err(|e| format!("Failed to read config: {}", e))?;
-    
+
     // 查找指定的工具类别
     let categories = config_manager.get_categories();
     let category = categories.iter().find(|cat| cat.id == category_id);
-    
+
     Ok(category.cloned())
 }
 

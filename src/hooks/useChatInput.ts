@@ -12,13 +12,13 @@ export function useChatInput() {
   const [referenceMap, setReferenceMap] = useState<{
     [chatId: string]: string | null;
   }>({});
-  
+
   const {
     currentChatId,
     sendMessage,
     initiateAIResponse,
     currentChat,
-    selectedSystemPromptPresetId
+    selectedSystemPromptPresetId,
   } = useChat();
   const prevChatIdRef = useRef<string | null>(null);
   const toolService = ToolService.getInstance();
@@ -38,12 +38,15 @@ export function useChatInput() {
   }, []);
 
   // Set reference text
-  const setReferenceText = useCallback((chatId: string, text: string | null) => {
-    setReferenceMap((prev) => ({
-      ...prev,
-      [chatId]: text,
-    }));
-  }, []);
+  const setReferenceText = useCallback(
+    (chatId: string, text: string | null) => {
+      setReferenceMap((prev) => ({
+        ...prev,
+        [chatId]: text,
+      }));
+    },
+    []
+  );
 
   // Listen for reference text events
   useEffect(() => {
@@ -71,54 +74,61 @@ export function useChatInput() {
   }, [currentChatId, clearReferenceText]);
 
   // Handle message submission
-  const handleSubmit = useCallback(async (inputContent: string) => {
-    const trimmedContent = inputContent.trim();
-    if (!trimmedContent && !referenceText) return;
+  const handleSubmit = useCallback(
+    async (inputContent: string) => {
+      const trimmedContent = inputContent.trim();
+      if (!trimmedContent && !referenceText) return;
 
-    let messageToSend = trimmedContent;
+      let messageToSend = trimmedContent;
 
-    // Add reference text
-    if (referenceText) {
-      messageToSend = trimmedContent
-        ? `${referenceText}\n\n${trimmedContent}`
-        : referenceText;
-    }
-
-    // 获取当前聊天的系统提示 ID
-    const systemPromptId = currentChat?.systemPromptId || selectedSystemPromptPresetId;
-
-    try {
-      // 使用 ToolService 处理消息：应用自动前缀和权限验证
-      const processResult = await toolService.processMessage(messageToSend, systemPromptId);
-      
-      // 检查验证结果
-      if (!processResult.validation.isValid) {
-        // 显示权限错误提示
-        message.error(processResult.validation.errorMessage);
-        return;
+      // Add reference text
+      if (referenceText) {
+        messageToSend = trimmedContent
+          ? `${referenceText}\n\n${trimmedContent}`
+          : referenceText;
       }
 
-      // 使用处理后的内容发送消息
-      await sendMessage(processResult.processedContent);
-      
-      // Clear input content and reference text
-      setContent("");
-      if (currentChatId) {
-        clearReferenceText(currentChatId);
+      // Get current chat's system prompt ID
+      const systemPromptId =
+        currentChat?.systemPromptId || selectedSystemPromptPresetId;
+
+      try {
+        // Use ToolService to process message: apply auto prefix and permission validation
+        const processResult = await toolService.processMessage(
+          messageToSend,
+          systemPromptId
+        );
+
+        // Check validation result
+        if (!processResult.validation.isValid) {
+          // Show permission error message
+          message.error(processResult.validation.errorMessage);
+          return;
+        }
+
+        // Send message using processed content
+        await sendMessage(processResult.processedContent);
+
+        // Clear input content and reference text
+        setContent("");
+        if (currentChatId) {
+          clearReferenceText(currentChatId);
+        }
+      } catch (error) {
+        console.error("Error sending message:", error);
+        throw error;
       }
-    } catch (error) {
-      console.error("Error sending message:", error);
-      throw error;
-    }
-  }, [
-    referenceText,
-    sendMessage,
-    currentChatId,
-    clearReferenceText,
-    toolService,
-    currentChat?.systemPromptId,
-    selectedSystemPromptPresetId
-  ]);
+    },
+    [
+      referenceText,
+      sendMessage,
+      currentChatId,
+      clearReferenceText,
+      toolService,
+      currentChat?.systemPromptId,
+      selectedSystemPromptPresetId,
+    ]
+  );
 
   // Handle AI retry
   const handleRetry = useCallback(async () => {
@@ -142,7 +152,7 @@ export function useChatInput() {
     content,
     setContent,
     referenceText,
-    
+
     // Methods
     handleSubmit,
     handleRetry,

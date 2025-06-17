@@ -14,18 +14,14 @@ import {
 import {
   ToolOutlined,
   FileTextOutlined,
-  FolderOpenOutlined,
-  DeleteOutlined,
-  CodeOutlined,
-  SearchOutlined,
   PlayCircleOutlined,
 } from "@ant-design/icons";
 import {
   SystemPromptPreset,
   SystemPromptPresetList,
-  ToolCategory,
+  TOOL_CATEGORIES,
 } from "../../types/chat";
-import { SystemPromptService } from "../../services/SystemPromptService";
+// SystemPromptService has been removed, now using backend configuration
 
 const { Text, Title } = Typography;
 const { Panel } = Collapse;
@@ -40,65 +36,41 @@ interface SystemPromptSelectorProps {
   showCancelButton?: boolean;
 }
 
-// 类别图标映射
+// Category icon mapping
 const getCategoryIcon = (category: string) => {
   switch (category) {
-    case ToolCategory.FILE_READER:
+    case TOOL_CATEGORIES.FILE_READER:
       return <FileTextOutlined />;
-    case ToolCategory.FILE_CREATOR:
-      return <FolderOpenOutlined />;
-    case ToolCategory.FILE_DELETER:
-      return <DeleteOutlined />;
-    case ToolCategory.FILE_UPDATER:
-      return <CodeOutlined />;
-    case ToolCategory.FILE_SEARCHER:
-      return <SearchOutlined />;
-    case ToolCategory.COMMAND_EXECUTOR:
+    case TOOL_CATEGORIES.COMMAND_EXECUTOR:
       return <PlayCircleOutlined />;
-    case ToolCategory.GENERAL:
+    case TOOL_CATEGORIES.GENERAL:
     default:
       return <ToolOutlined />;
   }
 };
 
-// 类别显示名称映射
-const getCategoryDisplayName = (category: string) => {
+// Category display name mapping
+const getCategoryDisplayName = (category: string): string => {
   switch (category) {
-    case ToolCategory.GENERAL:
-      return "通用助手";
-    case ToolCategory.FILE_READER:
-      return "文件读取";
-    case ToolCategory.FILE_CREATOR:
-      return "文件创建";
-    case ToolCategory.FILE_DELETER:
-      return "文件删除";
-    case ToolCategory.FILE_UPDATER:
-      return "文件更新";
-    case ToolCategory.FILE_SEARCHER:
-      return "文件搜索";
-    case ToolCategory.COMMAND_EXECUTOR:
-      return "命令执行";
+    case TOOL_CATEGORIES.GENERAL:
+      return "General Assistant";
+    case TOOL_CATEGORIES.FILE_READER:
+      return "File Operations";
+    case TOOL_CATEGORIES.COMMAND_EXECUTOR:
+      return "Command Execution";
     default:
-      return category;
+      return "General Assistant";
   }
 };
 
-// 类别标签颜色映射
+// Category tag color mapping
 const getCategoryTagColor = (category: string) => {
   switch (category) {
-    case ToolCategory.GENERAL:
+    case TOOL_CATEGORIES.GENERAL:
       return "blue";
-    case ToolCategory.FILE_READER:
+    case TOOL_CATEGORIES.FILE_READER:
       return "green";
-    case ToolCategory.FILE_CREATOR:
-      return "orange";
-    case ToolCategory.FILE_DELETER:
-      return "red";
-    case ToolCategory.FILE_UPDATER:
-      return "purple";
-    case ToolCategory.FILE_SEARCHER:
-      return "cyan";
-    case ToolCategory.COMMAND_EXECUTOR:
+    case TOOL_CATEGORIES.COMMAND_EXECUTOR:
       return "magenta";
     default:
       return "default";
@@ -110,22 +82,19 @@ const SystemPromptSelector: React.FC<SystemPromptSelectorProps> = ({
   onClose,
   onSelect,
   presets,
-  title = "选择AI能力模式",
+  title = "Select AI Capability Mode",
   showCancelButton = true,
 }) => {
   const { token } = useToken();
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const systemPromptService = useMemo(
-    () => SystemPromptService.getInstance(),
-    []
-  );
+  // Remove unused systemPromptService
 
-  // 按类别分组预设
+  // Group presets by category
   const groupedPresets = useMemo(() => {
     const groups: Record<string, SystemPromptPreset[]> = {};
 
     presets.forEach((preset) => {
-      const category = preset.category || ToolCategory.GENERAL;
+      const category = preset.category || TOOL_CATEGORIES.GENERAL;
       if (!groups[category]) {
         groups[category] = [];
       }
@@ -135,12 +104,12 @@ const SystemPromptSelector: React.FC<SystemPromptSelectorProps> = ({
     return groups;
   }, [presets]);
 
-  // 获取类别列表，通用类别排在前面
+  // Get category list, general category comes first
   const categoryOrder = useMemo(() => {
     const categories = Object.keys(groupedPresets);
     return categories.sort((a, b) => {
-      if (a === ToolCategory.GENERAL) return -1;
-      if (b === ToolCategory.GENERAL) return 1;
+      if (a === TOOL_CATEGORIES.GENERAL) return -1;
+      if (b === TOOL_CATEGORIES.GENERAL) return 1;
       return a.localeCompare(b);
     });
   }, [groupedPresets]);
@@ -156,7 +125,7 @@ const SystemPromptSelector: React.FC<SystemPromptSelectorProps> = ({
     onClose();
   };
 
-  // 渲染预设项
+  // Render preset item
   const renderPresetItem = (preset: SystemPromptPreset) => (
     <List.Item
       key={preset.id}
@@ -189,12 +158,12 @@ const SystemPromptSelector: React.FC<SystemPromptSelectorProps> = ({
               color={getCategoryTagColor(preset.category)}
               icon={getCategoryIcon(preset.category)}
             >
-              专用模式
+              Specialized Mode
             </Tag>
           )}
         </Space>
 
-        {/* 能力描述 - 重点突出 */}
+        {/* Capability description - highlighted */}
         <Text
           style={{
             fontSize: token.fontSize,
@@ -205,10 +174,11 @@ const SystemPromptSelector: React.FC<SystemPromptSelectorProps> = ({
             marginBottom: token.marginXS,
           }}
         >
-          {preset.description || "通用AI助手，支持多种对话和分析任务"}
+          {preset.description ||
+            "General AI assistant supporting various conversation and analysis tasks"}
         </Text>
 
-        {/* 工具专用模式的功能特性说明 */}
+        {/* Tool-specific mode feature descriptions */}
         {preset.mode === "tool_specific" && (
           <Space
             direction="vertical"
@@ -217,7 +187,7 @@ const SystemPromptSelector: React.FC<SystemPromptSelectorProps> = ({
           >
             {preset.autoToolPrefix && (
               <Space size="small">
-                <Tag color="processing">自动前缀</Tag>
+                <Tag color="processing">Auto-prefix</Tag>
                 <Text code style={{ fontSize: token.fontSizeSM }}>
                   {preset.autoToolPrefix}
                 </Text>
@@ -226,19 +196,19 @@ const SystemPromptSelector: React.FC<SystemPromptSelectorProps> = ({
 
             {preset.allowedTools && preset.allowedTools.length > 0 && (
               <Space size="small" wrap>
-                <Tag color="success">支持工具</Tag>
+                <Tag color="success">Supported Tools</Tag>
                 <Text type="secondary" style={{ fontSize: token.fontSizeSM }}>
                   {preset.allowedTools.slice(0, 3).join(", ")}
-                  {preset.allowedTools.length > 3 && "等..."}
+                  {preset.allowedTools.length > 3 && " etc..."}
                 </Text>
               </Space>
             )}
 
             {preset.restrictConversation && (
               <Space size="small">
-                <Tag color="orange">专注模式</Tag>
+                <Tag color="orange">Focus Mode</Tag>
                 <Text type="warning" style={{ fontSize: token.fontSizeSM }}>
-                  优化专业任务执行效率
+                  Optimized for professional task execution efficiency
                 </Text>
               </Space>
             )}
@@ -261,7 +231,7 @@ const SystemPromptSelector: React.FC<SystemPromptSelectorProps> = ({
       width={700}
       footer={
         <Space>
-          {showCancelButton && <Button onClick={handleCancel}>取消</Button>}
+          {showCancelButton && <Button onClick={handleCancel}>Cancel</Button>}
           <Button
             type="primary"
             disabled={!selectedId}
@@ -272,7 +242,7 @@ const SystemPromptSelector: React.FC<SystemPromptSelectorProps> = ({
               }
             }}
           >
-            创建新聊天
+            Create New Chat
           </Button>
         </Space>
       }
@@ -284,16 +254,18 @@ const SystemPromptSelector: React.FC<SystemPromptSelectorProps> = ({
         },
       }}
     >
-      {/* 帮助说明 */}
+      {/* Help description */}
       <div style={{ marginBottom: token.marginMD }}>
         <Text type="secondary" style={{ fontSize: token.fontSizeSM }}>
-          选择适合您任务的AI能力模式。专用模式针对特定工具和任务进行了优化，提供更精确的支持。
+          Select the AI capability mode that suits your task. Specialized modes
+          are optimized for specific tools and tasks, providing more precise
+          support.
         </Text>
       </div>
 
       {presets.length === 0 ? (
         <Empty
-          description="暂无可用的AI能力模式"
+          description="No available AI capability modes"
           style={{ margin: token.marginLG }}
         />
       ) : (
@@ -312,7 +284,7 @@ const SystemPromptSelector: React.FC<SystemPromptSelectorProps> = ({
                     {getCategoryDisplayName(category)}
                   </Title>
                   <Text type="secondary">
-                    ({groupedPresets[category].length} 个)
+                    ({groupedPresets[category].length} items)
                   </Text>
                 </Space>
               }

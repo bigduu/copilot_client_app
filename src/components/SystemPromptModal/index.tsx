@@ -8,7 +8,6 @@ import {
   Typography,
   Space,
   Tag,
-  Divider,
   Alert,
   Button,
   Tooltip,
@@ -17,17 +16,11 @@ import {
   InfoCircleOutlined,
   ToolOutlined,
   FileTextOutlined,
-  FolderOpenOutlined,
-  DeleteOutlined,
-  CodeOutlined,
-  SearchOutlined,
   PlayCircleOutlined,
   WarningOutlined,
 } from "@ant-design/icons";
 import { useChat } from "../../contexts/ChatContext";
-import { ToolCategory } from "../../types/chat";
-import { ToolCategoryInfo } from "../../types/toolCategory";
-import { invoke } from "@tauri-apps/api/core";
+import { TOOL_CATEGORIES } from "../../types/chat";
 
 const { Text } = Typography;
 const { useToken } = theme;
@@ -37,79 +30,27 @@ interface SystemPromptModalProps {
   onClose: () => void;
 }
 
-// 图标组件映射
-const getIconComponent = (iconName: string) => {
-  switch (iconName) {
-    case "FileTextOutlined":
+// Category icon mapping
+const getCategoryIcon = (category: string) => {
+  switch (category) {
+    case TOOL_CATEGORIES.FILE_READER:
       return <FileTextOutlined />;
-    case "FolderOpenOutlined":
-      return <FolderOpenOutlined />;
-    case "DeleteOutlined":
-      return <DeleteOutlined />;
-    case "CodeOutlined":
-      return <CodeOutlined />;
-    case "SearchOutlined":
-      return <SearchOutlined />;
-    case "PlayCircleOutlined":
+    case TOOL_CATEGORIES.COMMAND_EXECUTOR:
       return <PlayCircleOutlined />;
-    case "ToolOutlined":
+    case TOOL_CATEGORIES.GENERAL:
     default:
       return <ToolOutlined />;
   }
 };
 
-// 从类别信息获取图标，支持向后兼容
-const getCategoryIcon = (category: string, categoryInfo?: ToolCategoryInfo) => {
-  // 优先使用后端提供的图标数据
-  if (categoryInfo?.icon) {
-    return getIconComponent(categoryInfo.icon);
-  }
-
-  // 向后兼容的映射逻辑
+// Category tag color mapping
+const getCategoryTagColor = (category: string) => {
   switch (category) {
-    case ToolCategory.FILE_READER:
-      return <FileTextOutlined />;
-    case ToolCategory.FILE_CREATOR:
-      return <FolderOpenOutlined />;
-    case ToolCategory.FILE_DELETER:
-      return <DeleteOutlined />;
-    case ToolCategory.FILE_UPDATER:
-      return <CodeOutlined />;
-    case ToolCategory.FILE_SEARCHER:
-      return <SearchOutlined />;
-    case ToolCategory.COMMAND_EXECUTOR:
-      return <PlayCircleOutlined />;
-    case ToolCategory.GENERAL:
-    default:
-      return <ToolOutlined />;
-  }
-};
-
-// 从类别信息获取颜色，支持向后兼容
-const getCategoryTagColor = (
-  category: string,
-  categoryInfo?: ToolCategoryInfo
-) => {
-  // 优先使用后端提供的颜色数据
-  if (categoryInfo?.color) {
-    return categoryInfo.color;
-  }
-
-  // 向后兼容的映射逻辑
-  switch (category) {
-    case ToolCategory.GENERAL:
+    case TOOL_CATEGORIES.GENERAL:
       return "blue";
-    case ToolCategory.FILE_READER:
+    case TOOL_CATEGORIES.FILE_READER:
       return "green";
-    case ToolCategory.FILE_CREATOR:
-      return "orange";
-    case ToolCategory.FILE_DELETER:
-      return "red";
-    case ToolCategory.FILE_UPDATER:
-      return "purple";
-    case ToolCategory.FILE_SEARCHER:
-      return "cyan";
-    case ToolCategory.COMMAND_EXECUTOR:
+    case TOOL_CATEGORIES.COMMAND_EXECUTOR:
       return "magenta";
     default:
       return "default";
@@ -129,9 +70,7 @@ const SystemPromptModal: React.FC<SystemPromptModalProps> = ({
   } = useChat();
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [messageApi, contextHolder] = message.useMessage();
-  const [categoryInfoMap, setCategoryInfoMap] = useState<
-    Map<string, ToolCategoryInfo>
-  >(new Map());
+  // Remove unused categoryInfoMap state
 
   useEffect(() => {
     if (open) {
@@ -149,44 +88,7 @@ const SystemPromptModal: React.FC<SystemPromptModalProps> = ({
     }
   }, [open, currentChat, systemPromptPresets]);
 
-  // 获取所有工具类别的信息
-  useEffect(() => {
-    const fetchCategoryInfo = async () => {
-      const infoMap = new Map<string, ToolCategoryInfo>();
-
-      // 收集所有需要的类别ID
-      const categoryIds = new Set<string>();
-      systemPromptPresets.forEach((preset) => {
-        if (preset.mode === "tool_specific" && preset.category) {
-          categoryIds.add(preset.category);
-        }
-      });
-
-      // 批量获取类别信息
-      for (const categoryId of categoryIds) {
-        try {
-          const categoryInfo = await invoke<ToolCategoryInfo>(
-            "get_tool_category_info",
-            {
-              categoryId,
-            }
-          );
-          infoMap.set(categoryId, categoryInfo);
-        } catch (error) {
-          console.warn(
-            `Failed to fetch category info for ${categoryId}:`,
-            error
-          );
-        }
-      }
-
-      setCategoryInfoMap(infoMap);
-    };
-
-    if (open && systemPromptPresets.length > 0) {
-      fetchCategoryInfo();
-    }
-  }, [open, systemPromptPresets]);
+  // Remove unused category information retrieval logic
 
   const handleSelect = (id: string) => {
     try {
@@ -194,12 +96,12 @@ const SystemPromptModal: React.FC<SystemPromptModalProps> = ({
       const preset = systemPromptPresets.find((p) => p.id === id);
       if (preset && currentChatId) {
         updateCurrentChatSystemPrompt(preset.content);
-        messageApi.success("能力模式已应用到当前聊天");
+        messageApi.success("Capability mode has been applied to current chat");
       }
       onClose();
     } catch (error) {
-      console.error("应用系统提示词失败:", error);
-      messageApi.error("应用失败，请重试");
+      console.error("Failed to apply system prompt:", error);
+      messageApi.error("Application failed, please try again");
     }
   };
 
@@ -231,7 +133,7 @@ const SystemPromptModal: React.FC<SystemPromptModalProps> = ({
         onClick={() => setSelectedId(item.id)}
       >
         <Space direction="vertical" style={{ width: "100%" }}>
-          {/* 标题和标签行 */}
+          {/* Title and tag row */}
           <Space
             align="center"
             style={{ width: "100%", justifyContent: "space-between" }}
@@ -246,25 +148,19 @@ const SystemPromptModal: React.FC<SystemPromptModalProps> = ({
               </Text>
               {isToolSpecific && (
                 <Tag
-                  color={getCategoryTagColor(
-                    item.category,
-                    categoryInfoMap.get(item.category)
-                  )}
-                  icon={getCategoryIcon(
-                    item.category,
-                    categoryInfoMap.get(item.category)
-                  )}
+                  color={getCategoryTagColor(item.category)}
+                  icon={getCategoryIcon(item.category)}
                 >
-                  专用模式
+                  Specialized Mode
                 </Tag>
               )}
             </Space>
-            <Tooltip title="查看详细信息">
+            <Tooltip title="View Details">
               <InfoCircleOutlined style={{ color: token.colorTextTertiary }} />
             </Tooltip>
           </Space>
 
-          {/* 能力描述 - 重点突出 */}
+          {/* Capability description - highlighted */}
           <div style={{ marginLeft: token.marginLG }}>
             <Text
               style={{
@@ -275,15 +171,15 @@ const SystemPromptModal: React.FC<SystemPromptModalProps> = ({
                 marginBottom: token.marginXS,
               }}
             >
-              {item.description || "通用AI助手能力"}
+              {item.description || "General AI assistant capabilities"}
             </Text>
 
-            {/* 工具专用模式的功能特性说明 */}
+            {/* Tool-specific mode feature descriptions */}
             {isToolSpecific && (
               <Space direction="vertical" style={{ width: "100%" }}>
                 {item.autoToolPrefix && (
                   <Space>
-                    <Tag color="processing">自动前缀</Tag>
+                    <Tag color="processing">Auto-prefix</Tag>
                     <Text code style={{ fontSize: token.fontSizeSM }}>
                       {item.autoToolPrefix}
                     </Text>
@@ -292,13 +188,13 @@ const SystemPromptModal: React.FC<SystemPromptModalProps> = ({
 
                 {item.allowedTools && item.allowedTools.length > 0 && (
                   <Space wrap>
-                    <Tag color="success">支持工具</Tag>
+                    <Tag color="success">Supported Tools</Tag>
                     <Text
                       type="secondary"
                       style={{ fontSize: token.fontSizeSM }}
                     >
                       {item.allowedTools.slice(0, 3).join(", ")}
-                      {item.allowedTools.length > 3 && "等..."}
+                      {item.allowedTools.length > 3 && " etc..."}
                     </Text>
                   </Space>
                 )}
@@ -306,10 +202,10 @@ const SystemPromptModal: React.FC<SystemPromptModalProps> = ({
                 {item.restrictConversation && (
                   <Space>
                     <Tag color="warning" icon={<WarningOutlined />}>
-                      专注工具调用
+                      Focus on Tool Calls
                     </Tag>
                     <Text type="warning" style={{ fontSize: token.fontSizeSM }}>
-                      优化专业任务执行效率
+                      Optimized for professional task execution efficiency
                     </Text>
                   </Space>
                 )}
@@ -328,7 +224,7 @@ const SystemPromptModal: React.FC<SystemPromptModalProps> = ({
         title={
           <Space>
             <ToolOutlined />
-            选择AI能力模式
+            Select AI Capability Mode
           </Space>
         }
         open={open}
@@ -336,13 +232,13 @@ const SystemPromptModal: React.FC<SystemPromptModalProps> = ({
         width={600}
         footer={
           <Space>
-            <Button onClick={handleCancel}>取消</Button>
+            <Button onClick={handleCancel}>Cancel</Button>
             <Button
               type="primary"
               disabled={!selectedId}
               onClick={() => selectedId && handleSelect(selectedId)}
             >
-              应用选择
+              Apply Selection
             </Button>
           </Space>
         }
@@ -354,10 +250,10 @@ const SystemPromptModal: React.FC<SystemPromptModalProps> = ({
           },
         }}
       >
-        {/* 帮助说明 */}
+        {/* Help description */}
         <Alert
-          message="选择适合的AI能力模式"
-          description="每种模式都针对特定任务进行了优化，专用模式提供更精确的工具支持和任务聚焦。"
+          message="Select the appropriate AI capability mode"
+          description="Each mode is optimized for specific tasks. Specialized modes provide more precise tool support and task focus."
           type="info"
           showIcon
           style={{ marginBottom: token.marginMD }}
@@ -366,7 +262,7 @@ const SystemPromptModal: React.FC<SystemPromptModalProps> = ({
 
         {systemPromptPresets.length === 0 ? (
           <div style={{ textAlign: "center", padding: token.paddingLG }}>
-            <Text type="secondary">暂无可用的能力模式</Text>
+            <Text type="secondary">No available capability modes</Text>
           </div>
         ) : (
           <List

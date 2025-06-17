@@ -46,13 +46,13 @@ export const MessageInput: React.FC<MessageInputProps> = ({
     const trimmedContent = value.trim();
     if (!trimmedContent || isStreaming || disabled) return;
 
-    // 如果提供了验证函数，先进行验证
+    // If validation function is provided, validate first
     if (validateMessage) {
       const validation = validateMessage(trimmedContent);
 
       if (!validation.isValid) {
-        // 显示错误提示
-        message.error(validation.errorMessage || "消息格式不正确");
+        // Show error message
+        message.error(validation.errorMessage || "Message format is incorrect");
         return;
       }
     }

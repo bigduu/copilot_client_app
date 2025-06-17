@@ -61,9 +61,9 @@ export class ToolService {
    * Parse tool call format (e.g., "/create_file Create a test file")
    */
   parseToolCallFormat(content: string): ToolCallRequest | null {
-    if (content.startsWith('/')) {
+    if (content.startsWith("/")) {
       // Handle case where user just typed tool name without description
-      const spacePos = content.indexOf(' ');
+      const spacePos = content.indexOf(" ");
       if (spacePos !== -1) {
         const tool_name = content.slice(1, spacePos);
         const user_description = content.slice(spacePos + 1);
@@ -106,8 +106,11 @@ export class ToolService {
     sendLLMRequest: (messages: Message[]) => Promise<string>
   ): Promise<ParameterValue[]> {
     // Build system prompt for parameter parsing
-    const systemPrompt = this.buildParameterParsingPrompt(tool, toolCall.user_description);
-    
+    const systemPrompt = this.buildParameterParsingPrompt(
+      tool,
+      toolCall.user_description
+    );
+
     const messages: Message[] = [
       {
         role: "system",
@@ -116,14 +119,18 @@ export class ToolService {
       {
         role: "user",
         content: toolCall.user_description,
-      }
+      },
     ];
 
     // Call LLM to parse parameters
     const aiResponse = await sendLLMRequest(messages);
-    
+
     // Parse parameters returned by AI
-    return this.parseAIParameterResponse(aiResponse, tool, toolCall.user_description);
+    return this.parseAIParameterResponse(
+      aiResponse,
+      tool,
+      toolCall.user_description
+    );
   }
 
   /**
@@ -141,10 +148,18 @@ export class ToolService {
   /**
    * Build system prompt for parameter parsing
    */
-  private buildParameterParsingPrompt(tool: ToolUIInfo, userDescription: string): string {
+  private buildParameterParsingPrompt(
+    tool: ToolUIInfo,
+    userDescription: string
+  ): string {
     const parametersDesc = tool.parameters
-      .map(p => `- ${p.name}: ${p.description} (${p.required ? 'required' : 'optional'})`)
-      .join('\n');
+      .map(
+        (p) =>
+          `- ${p.name}: ${p.description} (${
+            p.required ? "required" : "optional"
+          })`
+      )
+      .join("\n");
 
     return `You are a parameter parser for tool execution. Based on the user's description, extract the required parameters for the tool and return ONLY the parameter values in the exact format needed.
 
@@ -171,7 +186,7 @@ Respond with only the parameter value(s), no explanation:`;
     userDescription: string
   ): ParameterValue[] {
     const trimmedResponse = aiResponse.trim();
-    
+
     if (!trimmedResponse) {
       throw new Error("AI returned empty parameters");
     }
@@ -230,63 +245,67 @@ Respond with only the parameter value(s), no explanation:`;
   /**
    * Format tool execution result
    */
-  formatToolResult(toolName: string, parameters: ParameterValue[], result: string): string {
-    const paramStr = parameters
-      .map(p => `${p.name}: ${p.value}`)
-      .join(', ');
+  formatToolResult(
+    toolName: string,
+    parameters: ParameterValue[],
+    result: string
+  ): string {
+    const paramStr = parameters.map((p) => `${p.name}: ${p.value}`).join(", ");
 
     // Select appropriate code block language based on tool type
-    let codeLanguage = 'text';
+    let codeLanguage = "text";
     switch (toolName) {
-      case 'execute_command':
-        codeLanguage = 'bash';
+      case "execute_command":
+        codeLanguage = "bash";
         break;
-      case 'create_file':
-      case 'read_file':
+      case "create_file":
+      case "read_file":
         // Try to infer language from file extension
-        const fileParam = parameters.find(p => p.name === 'path' || p.name === 'file_path');
+        const fileParam = parameters.find(
+          (p) => p.name === "path" || p.name === "file_path"
+        );
         if (fileParam) {
-          const ext = fileParam.value.split('.').pop()?.toLowerCase();
+          const ext = fileParam.value.split(".").pop()?.toLowerCase();
           switch (ext) {
-            case 'js':
-            case 'jsx':
-              codeLanguage = 'javascript';
+            case "js":
+            case "jsx":
+              codeLanguage = "javascript";
               break;
-            case 'ts':
-            case 'tsx':
-              codeLanguage = 'typescript';
+            case "ts":
+            case "tsx":
+              codeLanguage = "typescript";
               break;
-            case 'py':
-              codeLanguage = 'python';
+            case "py":
+              codeLanguage = "python";
               break;
-            case 'rs':
-              codeLanguage = 'rust';
+            case "rs":
+              codeLanguage = "rust";
               break;
-            case 'json':
-              codeLanguage = 'json';
+            case "json":
+              codeLanguage = "json";
               break;
-            case 'md':
-              codeLanguage = 'markdown';
+            case "md":
+              codeLanguage = "markdown";
               break;
-            case 'html':
-              codeLanguage = 'html';
+            case "html":
+              codeLanguage = "html";
               break;
-            case 'css':
-              codeLanguage = 'css';
+            case "css":
+              codeLanguage = "css";
               break;
-            case 'sh':
-              codeLanguage = 'bash';
+            case "sh":
+              codeLanguage = "bash";
               break;
             default:
-              codeLanguage = 'text';
+              codeLanguage = "text";
           }
         }
         break;
-      case 'list_files':
-        codeLanguage = 'bash';
+      case "list_files":
+        codeLanguage = "bash";
         break;
       default:
-        codeLanguage = 'text';
+        codeLanguage = "text";
     }
 
     return `**Tool: ${toolName}**
@@ -305,7 +324,7 @@ ${result}
   async toolExists(toolName: string): Promise<boolean> {
     try {
       const tools = await this.getAvailableTools();
-      return tools.some(tool => tool.name === toolName);
+      return tools.some((tool) => tool.name === toolName);
     } catch (error) {
       console.error("Failed to check tool existence:", error);
       return false;
@@ -318,7 +337,7 @@ ${result}
   async getToolInfo(toolName: string): Promise<ToolUIInfo | null> {
     try {
       const tools = await this.getAvailableTools();
-      return tools.find(tool => tool.name === toolName) || null;
+      return tools.find((tool) => tool.name === toolName) || null;
     } catch (error) {
       console.error("Failed to get tool info:", error);
       return null;
@@ -326,32 +345,34 @@ ${result}
   }
 
   /**
-   * 检查工具调用权限
+   * Check tool call permissions
    */
   async checkToolPermission(
     toolName: string,
     systemPromptId: string
   ): Promise<boolean> {
     if (!systemPromptId) {
-      return true; // 没有系统提示时允许所有工具
+      return true; // Allow all tools when no system prompt
     }
 
     try {
-      const preset = await this.systemPromptService.findPresetById(systemPromptId);
-      
-      if (!preset || preset.mode !== 'tool_specific') {
-        return true; // 通用模式允许所有工具
+      const preset = await this.systemPromptService.findPresetById(
+        systemPromptId
+      );
+
+      if (!preset || preset.mode !== "tool_specific") {
+        return true; // General mode allows all tools
       }
-      
+
       return preset.allowedTools?.includes(toolName) || false;
     } catch (error) {
       console.error("Failed to check tool permission:", error);
-      return true; // 出错时默认允许
+      return true; // Default allow on error
     }
   }
 
   /**
-   * 自动添加工具前缀
+   * Auto add tool prefix
    */
   async autoAddToolPrefix(
     message: string,
@@ -362,11 +383,13 @@ ${result}
     }
 
     try {
-      const preset = await this.systemPromptService.findPresetById(systemPromptId);
-      
-      if (preset?.mode === 'tool_specific' && preset.autoToolPrefix) {
-        // 检查消息是否已经包含工具前缀
-        if (!message.startsWith('/')) {
+      const preset = await this.systemPromptService.findPresetById(
+        systemPromptId
+      );
+
+      if (preset?.mode === "tool_specific" && preset.autoToolPrefix) {
+        // Check if message already contains tool prefix
+        if (!message.startsWith("/")) {
           return `${preset.autoToolPrefix} ${message}`;
         }
       }
@@ -378,7 +401,7 @@ ${result}
   }
 
   /**
-   * 验证工具调用合规性
+   * Validate tool call compliance
    */
   async validateToolCall(
     toolCall: ToolCallRequest,
@@ -388,15 +411,17 @@ ${result}
       toolCall.tool_name,
       systemPromptId
     );
-    
+
     return {
       isValid: isAllowed,
-      errorMessage: isAllowed ? undefined : `当前模式不允许使用工具 "${toolCall.tool_name}"`
+      errorMessage: isAllowed
+        ? undefined
+        : `Current mode does not allow using tool "${toolCall.tool_name}"`,
     };
   }
 
   /**
-   * 验证普通对话权限
+   * Validate normal conversation permissions
    */
   async validateConversation(
     content: string,
@@ -407,28 +432,31 @@ ${result}
     }
 
     try {
-      const preset = await this.systemPromptService.findPresetById(systemPromptId);
-      
+      const preset = await this.systemPromptService.findPresetById(
+        systemPromptId
+      );
+
       if (preset?.restrictConversation) {
-        // 检查是否为工具调用
+        // Check if it's a tool call
         const isToolCall = this.parseToolCallFormat(content) !== null;
         if (!isToolCall) {
           return {
             isValid: false,
-            errorMessage: "当前模式仅支持工具调用，不支持普通对话"
+            errorMessage:
+              "Current mode only supports tool calls, normal conversation is not supported",
           };
         }
       }
-      
+
       return { isValid: true };
     } catch (error) {
       console.error("Failed to validate conversation:", error);
-      return { isValid: true }; // 出错时默认允许
+      return { isValid: true }; // Default allow on error
     }
   }
 
   /**
-   * 处理消息并应用自动前缀和权限验证
+   * Process message and apply auto prefix and permission validation
    */
   async processMessage(
     content: string,
@@ -437,31 +465,40 @@ ${result}
     processedContent: string;
     validation: ValidationResult;
   }> {
-    // 1. 自动添加工具前缀（如果是工具专用模式）
-    const processedContent = await this.autoAddToolPrefix(content, systemPromptId);
-    
-    // 2. 验证普通对话权限
-    const conversationValidation = await this.validateConversation(content, systemPromptId);
+    // 1. Auto add tool prefix (if in tool-specific mode)
+    const processedContent = await this.autoAddToolPrefix(
+      content,
+      systemPromptId
+    );
+
+    // 2. Validate normal conversation permissions
+    const conversationValidation = await this.validateConversation(
+      content,
+      systemPromptId
+    );
     if (!conversationValidation.isValid) {
       return {
         processedContent,
-        validation: conversationValidation
+        validation: conversationValidation,
       };
     }
-    
-    // 3. 检查工具调用权限（如果是工具调用）
+
+    // 3. Check tool call permissions (if it's a tool call)
     const toolCall = this.parseToolCallFormat(processedContent);
     if (toolCall) {
-      const toolValidation = await this.validateToolCall(toolCall, systemPromptId);
+      const toolValidation = await this.validateToolCall(
+        toolCall,
+        systemPromptId
+      );
       return {
         processedContent,
-        validation: toolValidation
+        validation: toolValidation,
       };
     }
-    
+
     return {
       processedContent,
-      validation: { isValid: true }
+      validation: { isValid: true },
     };
   }
 }

@@ -23,7 +23,8 @@ interface ToolSelectorProps {
   onCancel: () => void;
   searchText: string;
   onAutoComplete?: (toolName: string) => void;
-  allowedTools?: string[]; // 允许的工具列表，如果为空则显示所有工具
+  allowedTools?: string[]; // List of allowed tools, if empty shows all tools
+  categoryId?: string; // Current tool category ID, used for strict mode filtering
 }
 
 const ToolSelector: React.FC<ToolSelectorProps> = ({
@@ -33,6 +34,7 @@ const ToolSelector: React.FC<ToolSelectorProps> = ({
   searchText,
   onAutoComplete,
   allowedTools,
+  categoryId,
 }) => {
   const [tools, setTools] = useState<ToolUIInfo[]>([]);
   const [filteredTools, setFilteredTools] = useState<ToolUIInfo[]>([]);
@@ -42,7 +44,7 @@ const ToolSelector: React.FC<ToolSelectorProps> = ({
   // Fetch tools when component becomes visible
   useEffect(() => {
     if (visible) {
-      invoke<ToolUIInfo[]>("get_tools_for_ui")
+      invoke<ToolUIInfo[]>("get_tools_for_ui", { categoryId })
         .then((toolsList) => {
           setTools(toolsList);
           setSelectedIndex(0);
@@ -51,7 +53,7 @@ const ToolSelector: React.FC<ToolSelectorProps> = ({
           console.error("Failed to fetch tools:", error);
         });
     }
-  }, [visible]);
+  }, [visible, categoryId]);
 
   // Filter tools based on search text and allowed tools
   useEffect(() => {

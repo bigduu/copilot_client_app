@@ -20,37 +20,46 @@ mod tests {
         // 测试获取配置管理器
         let config_manager = tool_manager.get_config_manager();
         let config_guard = config_manager.read().expect("应能读取配置管理器");
-        
+
         // 验证类别和工具配置
         let categories = config_guard.get_categories();
         assert!(!categories.is_empty(), "类别列表应该不为空");
-        
+
         let available_tools = config_guard.get_available_tools();
         assert!(!available_tools.is_empty(), "可用工具列表应该不为空");
 
         // 测试类别ID是否正确
-        let category_ids: Vec<String> = categories.iter()
-            .map(|c| c.id.clone())
-            .collect();
-        
-        assert!(category_ids.contains(&"file_operations".to_string()),
-                "应包含文件操作类别");
-        assert!(category_ids.contains(&"command_execution".to_string()),
-                "应包含命令执行类别");
-        assert!(category_ids.contains(&"general_assistant".to_string()),
-                "应包含通用助手类别");
-        
+        let category_ids: Vec<String> = categories.iter().map(|c| c.id.clone()).collect();
+
+        assert!(
+            category_ids.contains(&"file_operations".to_string()),
+            "应包含文件操作类别"
+        );
+        assert!(
+            category_ids.contains(&"command_execution".to_string()),
+            "应包含命令执行类别"
+        );
+        assert!(
+            category_ids.contains(&"general_assistant".to_string()),
+            "应包含通用助手类别"
+        );
+
         // 同时测试显示名称是否正确
-        let category_names: Vec<String> = categories.iter()
-            .map(|c| c.name.clone())
-            .collect();
-        
-        assert!(category_names.contains(&"文件操作".to_string()),
-                "应包含文件操作显示名称");
-        assert!(category_names.contains(&"命令执行".to_string()),
-                "应包含命令执行显示名称");
-        assert!(category_names.contains(&"通用助手".to_string()),
-                "应包含通用助手显示名称");
+        let category_display_names: Vec<String> =
+            categories.iter().map(|c| c.display_name.clone()).collect();
+
+        assert!(
+            category_display_names.contains(&"文件操作".to_string()),
+            "应包含文件操作显示名称"
+        );
+        assert!(
+            category_display_names.contains(&"命令执行".to_string()),
+            "应包含命令执行显示名称"
+        );
+        assert!(
+            category_display_names.contains(&"通用助手".to_string()),
+            "应包含通用助手显示名称"
+        );
     }
 
     /// 测试工具获取和执行兼容性
@@ -60,12 +69,10 @@ mod tests {
 
         // 测试工具名称列表
         let tools_for_ui = tool_manager.list_tools_for_ui();
-        let tool_names: Vec<String> = tools_for_ui.iter()
-            .map(|t| t.name.clone())
-            .collect();
-        
+        let tool_names: Vec<String> = tools_for_ui.iter().map(|t| t.name.clone()).collect();
+
         println!("📋 可用工具: {:?}", tool_names);
-        
+
         // 验证至少有一些工具可用
         assert!(!tool_names.is_empty(), "应该有可用的工具");
 
@@ -88,10 +95,10 @@ mod tests {
         {
             let config_guard = config_manager.read().expect("应能读取配置");
             let categories = config_guard.get_categories();
-            
+
             for category in categories {
                 println!("📁 类别: {} - {}", category.name, category.description);
-                
+
                 // 测试获取类别工具
                 if let Ok(tools) = config_guard.get_category_tools(&category.name) {
                     println!("  🔧 工具数量: {}", tools.len());
@@ -108,7 +115,7 @@ mod tests {
     }
 
     /// 测试 Tauri 命令兼容的数据结构
-    #[test] 
+    #[test]
     fn test_tauri_command_data_structures() {
         let tool_manager = create_default_tool_manager();
 
@@ -119,7 +126,7 @@ mod tests {
             assert!(!tool.name.is_empty(), "工具名称不应为空");
             assert!(!tool.description.is_empty(), "工具描述不应为空");
             assert!(!tool.tool_type.is_empty(), "工具类型不应为空");
-            
+
             // 验证参数结构
             for param in &tool.parameters {
                 assert!(!param.name.is_empty(), "参数名称不应为空");
@@ -131,7 +138,7 @@ mod tests {
         let config_manager = tool_manager.get_config_manager();
         let config_guard = config_manager.read().expect("应能读取配置");
         let tool_configs = config_guard.get_available_tools();
-        
+
         for config in &tool_configs {
             assert!(!config.name.is_empty(), "配置名称不应为空");
             assert!(!config.display_name.is_empty(), "显示名称不应为空");
@@ -151,10 +158,10 @@ mod tests {
         let tools_list = tool_manager.list_tools();
         assert!(!tools_list.is_empty(), "工具列表API应正常工作");
 
-        // 测试工具获取 API  
+        // 测试工具获取 API
         let tools_for_ui = tool_manager.list_tools_for_ui();
         let available_tool_count = tools_for_ui.len();
-        
+
         for tool_info in &tools_for_ui {
             if let Some(_tool) = tool_manager.get_tool(&tool_info.name) {
                 // 工具获取成功
@@ -162,7 +169,10 @@ mod tests {
             }
         }
 
-        println!("✅ 向后兼容性测试通过 - {} 个工具可用", available_tool_count);
+        println!(
+            "✅ 向后兼容性测试通过 - {} 个工具可用",
+            available_tool_count
+        );
     }
 
     /// 性能基准测试 - 验证新架构不会显著影响性能
@@ -174,23 +184,29 @@ mod tests {
         let start = Instant::now();
         let _tool_manager = create_default_tool_manager();
         let creation_time = start.elapsed();
-        
+
         println!("🚀 ToolManager 创建时间: {:?}", creation_time);
-        
+
         // 确保创建时间合理（小于100ms）
-        assert!(creation_time.as_millis() < 100, 
-                "ToolManager 创建时间应小于100ms，实际: {:?}", creation_time);
+        assert!(
+            creation_time.as_millis() < 100,
+            "ToolManager 创建时间应小于100ms，实际: {:?}",
+            creation_time
+        );
 
         // 测试工具列表获取性能
         let tool_manager = create_default_tool_manager();
         let start = Instant::now();
         let _tools = tool_manager.list_tools_for_ui();
         let list_time = start.elapsed();
-        
+
         println!("📋 工具列表获取时间: {:?}", list_time);
-        
+
         // 确保列表获取时间合理（小于10ms）
-        assert!(list_time.as_millis() < 10,
-                "工具列表获取时间应小于10ms，实际: {:?}", list_time);
+        assert!(
+            list_time.as_millis() < 10,
+            "工具列表获取时间应小于10ms，实际: {:?}",
+            list_time
+        );
     }
 }

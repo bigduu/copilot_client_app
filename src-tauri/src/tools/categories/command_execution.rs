@@ -3,7 +3,7 @@
 //! 包含系统命令执行相关的工具
 
 use super::CategoryBuilder;
-use crate::tools::types::{NewToolCategory, ToolConfig};
+use crate::tools::types::{ToolCategory, ToolConfig};
 
 /// 命令执行类别建造者
 pub struct CommandExecutionCategory {
@@ -30,8 +30,9 @@ impl Default for CommandExecutionCategory {
 }
 
 impl CategoryBuilder for CommandExecutionCategory {
-    fn build_category(&self) -> NewToolCategory {
-        NewToolCategory {
+    fn build_category(&self) -> ToolCategory {
+        ToolCategory {
+            id: "command_execution".to_string(),
             name: "command_execution".to_string(),
             display_name: "命令执行".to_string(),
             description: "安全执行系统命令和脚本，需要严格的权限控制".to_string(),
