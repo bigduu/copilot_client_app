@@ -3,7 +3,6 @@ import { useState, useCallback, useEffect } from "react";
 import { v4 as uuidv4 } from "uuid";
 import { ChatItem, Message } from "../types/chat";
 import { generateChatTitle } from "../utils/chatUtils";
-import { DEFAULT_MESSAGE } from "../constants";
 
 const STORAGE_KEY = "copilot_chats";
 const SYSTEM_PROMPT_KEY = "system_prompt";
@@ -27,8 +26,6 @@ interface UseChatsReturn {
   updateChatSystemPrompt: (chatId: string, systemPrompt: string) => void;
 }
 
-const FALLBACK_MODEL_IN_CHATS = "gpt-4o"; // Consistent fallback
-
 export const useChats = (defaultModel?: string): UseChatsReturn => {
   const [chats, setChats] = useState<ChatItem[]>([]);
   const [currentChatId, setCurrentChatId] = useState<string | null>(null);
@@ -44,7 +41,7 @@ export const useChats = (defaultModel?: string): UseChatsReturn => {
         systemPrompt:
           systemMessage?.content ||
           localStorage.getItem(SYSTEM_PROMPT_KEY) ||
-          DEFAULT_MESSAGE,
+          (() => { throw new Error("系统提示词未配置，无法迁移现有聊天。请配置系统提示词后重试。"); })(),
       };
     });
   }, []);
@@ -87,8 +84,14 @@ export const useChats = (defaultModel?: string): UseChatsReturn => {
       const newChatId = uuidv4();
       const chatNumber = chats.length + 1;
       const currentSystemPrompt =
-        localStorage.getItem(SYSTEM_PROMPT_KEY) || DEFAULT_MESSAGE;
-      const newChatModel = defaultModel || FALLBACK_MODEL_IN_CHATS;
+        localStorage.getItem(SYSTEM_PROMPT_KEY);
+      if (!currentSystemPrompt) {
+        throw new Error("系统提示词未配置，无法创建新聊天");
+      }
+      const newChatModel = defaultModel;
+      if (!newChatModel) {
+        throw new Error("模型未配置，无法创建新聊天");
+      }
 
       let initialMessages: ChatItem["messages"] = [];
       if (firstUserMessageContent) {

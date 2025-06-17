@@ -5,6 +5,39 @@
 use crate::tools::categories::get_category_id_for_tool;
 use serde::{Deserialize, Serialize};
 
+/// 类别类型枚举
+/// 用于标识不同类别的功能性质，前端可据此显示不同的图标、样式或功能
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub enum CategoryType {
+    /// 文件操作类别
+    FileOperations,
+    /// 命令执行类别
+    CommandExecution,
+    /// 通用助手类别
+    GeneralAssistant,
+}
+
+impl CategoryType {
+    /// 获取类别类型的字符串表示
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            CategoryType::FileOperations => "file_operations",
+            CategoryType::CommandExecution => "command_execution",
+            CategoryType::GeneralAssistant => "general_assistant",
+        }
+    }
+
+    /// 从字符串创建类别类型
+    pub fn from_str(s: &str) -> Option<Self> {
+        match s {
+            "file_operations" => Some(CategoryType::FileOperations),
+            "command_execution" => Some(CategoryType::CommandExecution),
+            "general_assistant" => Some(CategoryType::GeneralAssistant),
+            _ => None,
+        }
+    }
+}
+
 /// 工具配置结构
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ToolConfig {
@@ -80,11 +113,20 @@ pub struct ToolCategory {
     pub enabled: bool,        // 是否启用
     #[serde(default)]
     pub strict_tools_mode: bool, // 严格工具模式
+    #[serde(default)]
+    pub system_prompt: String, // 系统提示词
+    pub category_type: CategoryType, // 类别类型
 }
 
 impl ToolCategory {
     /// 创建新的工具类别
-    pub fn new(name: String, display_name: String, description: String, icon: String) -> Self {
+    pub fn new(
+        name: String,
+        display_name: String,
+        description: String,
+        icon: String,
+        category_type: CategoryType,
+    ) -> Self {
         Self {
             id: name.clone(), // id与name相同
             name,
@@ -93,6 +135,8 @@ impl ToolCategory {
             icon,
             enabled: true,
             strict_tools_mode: false,
+            system_prompt: String::new(),
+            category_type,
         }
     }
 
@@ -105,6 +149,12 @@ impl ToolCategory {
     /// 设置严格工具模式
     pub fn with_strict_tools_mode(mut self, strict_tools_mode: bool) -> Self {
         self.strict_tools_mode = strict_tools_mode;
+        self
+    }
+
+    /// 设置系统提示词
+    pub fn with_system_prompt(mut self, system_prompt: String) -> Self {
+        self.system_prompt = system_prompt;
         self
     }
 }

@@ -1,14 +1,6 @@
-export const DEFAULT_MESSAGE = `# Hello! I'm your AI Assistant 👋
+// 严格模式：移除所有硬编码默认值
+// 所有配置信息必须从后端API获取
+// 如果后端未提供配置，应用程序会抛出明确错误指导用户配置
 
-I'm here to help you with:
-
-* Writing and reviewing code
-* Answering questions
-* Solving problems
-* Explaining concepts
-* And much more!
-
-I'll respond using markdown formatting to make information clear and well-structured. Feel free to ask me anything!
-
----
-Let's get started - what can I help you with today?`; 
+// 注意：此文件现在为空，因为我们实现了"前端零硬编码"架构
+// 如果需要常量，应该从后端API动态获取

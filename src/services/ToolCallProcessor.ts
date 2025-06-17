@@ -279,7 +279,7 @@ ${toolResult}`;
             aiError
           );
           // Fallback to formatted result
-          const formattedResult = this.toolService.formatToolResult(
+          const formattedResult = await this.toolService.formatToolResult(
             toolCall.tool_name,
             parameters,
             result
@@ -294,7 +294,7 @@ ${toolResult}`;
         }
       } else {
         // For AI parameter parsing tools, directly format result (no AI summary needed)
-        const formattedResult = this.toolService.formatToolResult(
+        const formattedResult = await this.toolService.formatToolResult(
           toolCall.tool_name,
           parameters,
           result

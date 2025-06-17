@@ -1,13 +1,11 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Card, Space, Typography, theme } from "antd";
 import ReactMarkdown from "react-markdown";
 import { useChat } from "../../contexts/ChatContext";
-import { DEFAULT_MESSAGE } from "../../constants";
+import { SystemPromptService } from "../../services/SystemPromptService";
 
 const { Text } = Typography;
 const { useToken } = theme;
-
-// Default message to use as fallback
 
 interface SystemMessageProps {
   isExpandedView?: boolean;
@@ -23,19 +21,82 @@ const SystemMessage: React.FC<SystemMessageProps> = ({
   // console.log("SystemMessage component rendering");
   const { token } = useToken();
 
-  // Get the system prompt from the current chat context
+  // Get the current chat context
   const { currentChat, systemPrompt } = useChat();
 
-  // Use the current chat's system prompt if available, otherwise fall back to global
+  // State for category description
+  const [categoryDescription, setCategoryDescription] = useState<string>("");
+
+  // Get system prompt service
+  const systemPromptService = React.useMemo(
+    () => SystemPromptService.getInstance(),
+    []
+  );
+
+  // Effect to load category description
+  useEffect(() => {
+    const loadCategoryDescription = async () => {
+      try {
+        // If chat has a systemPromptId, get the preset description
+        if (currentChat?.systemPromptId) {
+          const preset = await systemPromptService.findPresetById(
+            currentChat.systemPromptId
+          );
+          if (preset?.description) {
+            setCategoryDescription(preset.description);
+            return;
+          }
+        }
+
+        // If chat has toolCategory, get categories and find description
+        if (currentChat?.toolCategory) {
+          const presets = await systemPromptService.getSystemPromptPresets();
+          const matchingPreset = presets.find(
+            (preset) => preset.category === currentChat.toolCategory
+          );
+          if (matchingPreset?.description) {
+            setCategoryDescription(matchingPreset.description);
+            return;
+          }
+        }
+
+        // 无法获取类别描述时抛出错误
+        throw new Error("无法获取类别描述，前端不提供默认值");
+      } catch (error) {
+        console.error("Failed to load category description:", error);
+        throw new Error("加载类别描述失败，前端不提供默认值");
+      }
+    };
+
+    loadCategoryDescription();
+  }, [
+    currentChat?.systemPromptId,
+    currentChat?.toolCategory,
+    systemPromptService,
+  ]);
+
+  // Content to display: prioritize category description, then fallback
   const promptToDisplay = React.useMemo(() => {
-    const content =
-      currentChat?.systemPrompt || systemPrompt || DEFAULT_MESSAGE;
-    // Ensure content is string type
-    if (typeof content === "string") {
-      return content.trim() || DEFAULT_MESSAGE;
+    if (categoryDescription) {
+      return categoryDescription;
     }
-    return DEFAULT_MESSAGE;
-  }, [currentChat?.systemPrompt, systemPrompt]);
+
+    // 获取系统提示词，不提供默认值
+    const content = currentChat?.systemPrompt || systemPrompt;
+
+    if (!content) {
+      throw new Error("系统提示词未配置");
+    }
+
+    if (typeof content === "string") {
+      const trimmedContent = content.trim();
+      if (!trimmedContent) {
+        throw new Error("系统提示词为空");
+      }
+      return trimmedContent;
+    }
+    throw new Error("系统提示词格式错误");
+  }, [categoryDescription, currentChat?.systemPrompt, systemPrompt]);
 
   // Local state for expand/collapse
   const [uncontrolledExpanded, setUncontrolledExpanded] =

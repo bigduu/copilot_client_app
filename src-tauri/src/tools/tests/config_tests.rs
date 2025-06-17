@@ -5,7 +5,7 @@
 #[cfg(test)]
 mod tests {
     use crate::tools::config_manager::{ConfigManagerBuilder, ToolConfigManager};
-    use crate::tools::types::{ToolCategory, ToolConfig};
+    use crate::tools::tool_types::{CategoryType, ToolCategory, ToolConfig};
 
     #[test]
     fn test_config_manager_creation() {
@@ -56,6 +56,8 @@ mod tests {
             icon: "🧪".to_string(),
             enabled: true,
             strict_tools_mode: false,
+            system_prompt: "测试类别的系统提示词".to_string(),
+            category_type: CategoryType::GeneralAssistant,
         };
 
         config_manager.set_custom_categories(vec![category.clone()]);
@@ -112,6 +114,8 @@ mod tests {
             icon: "🔧".to_string(),
             enabled: true,
             strict_tools_mode: false,
+            system_prompt: "可切换类别的系统提示词".to_string(),
+            category_type: CategoryType::GeneralAssistant,
         };
 
         config_manager.set_custom_categories(vec![category]);
@@ -261,6 +265,8 @@ mod tests {
             icon: "🔧".to_string(),
             enabled: true,
             strict_tools_mode: false,
+            system_prompt: "建造者类别的系统提示词".to_string(),
+            category_type: CategoryType::GeneralAssistant,
         };
 
         let config_manager = ConfigManagerBuilder::new()
@@ -328,6 +334,8 @@ mod tests {
             icon: "🔧".to_string(),
             enabled: true,
             strict_tools_mode: false,
+            system_prompt: "显示类别的系统提示词".to_string(),
+            category_type: CategoryType::GeneralAssistant,
         };
 
         config_manager.register_tool_config(tool_config);

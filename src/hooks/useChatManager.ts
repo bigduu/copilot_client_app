@@ -379,10 +379,22 @@ export function useChatManager() {
   );
 
   // Get current system prompt content
-  const systemPrompt = useMemo(() => {
-    return systemPromptService.getCurrentSystemPromptContent(
-      selectedSystemPromptPresetId
-    );
+  const [systemPrompt, setSystemPrompt] = useState<string>("");
+
+  useEffect(() => {
+    const loadSystemPrompt = async () => {
+      try {
+        const content = await systemPromptService.getCurrentSystemPromptContent(
+          selectedSystemPromptPresetId
+        );
+        setSystemPrompt(content);
+      } catch (error) {
+        console.error("Failed to load system prompt:", error);
+        setSystemPrompt(systemPromptService.getGlobalSystemPrompt());
+      }
+    };
+
+    loadSystemPrompt();
   }, [systemPromptService, selectedSystemPromptPresetId]);
 
   // Navigate to message

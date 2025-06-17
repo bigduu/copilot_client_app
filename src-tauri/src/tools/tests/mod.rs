@@ -3,6 +3,7 @@
 //! 包含所有工具系统相关的测试
 
 // 测试模块
+pub mod api_interface_tests;
 pub mod builder_tests;
 pub mod config_tests;
 pub mod integration_tests;

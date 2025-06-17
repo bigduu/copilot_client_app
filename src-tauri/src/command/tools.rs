@@ -48,19 +48,12 @@ pub fn get_tools_for_ui(
     tool_manager: State<'_, Arc<ToolManager>>,
     category_id: Option<String>,
 ) -> Result<Vec<ToolUIInfo>, String> {
-    let config_manager = tool_manager.get_config_manager();
-    let config_manager = config_manager
-        .read()
-        .map_err(|e| format!("Failed to read config: {}", e))?;
-
     // 如果指定了类别ID，检查是否为严格模式
     if let Some(category_id) = category_id {
-        let categories = config_manager.get_categories();
-
-        if let Some(category) = categories.iter().find(|cat| cat.id == category_id) {
+        if let Some(category) = tool_manager.get_category_by_id(&category_id) {
             if category.strict_tools_mode {
                 // 严格模式：只返回该类别允许的工具
-                let category_tools = config_manager.get_tools_by_category(&category_id);
+                let category_tools = tool_manager.get_category_tools(&category_id);
 
                 let allowed_tool_names: std::collections::HashSet<String> = category_tools
                     .iter()
@@ -179,11 +172,13 @@ pub async fn update_tool_config_by_name(
 pub fn get_tool_categories(
     tool_manager: State<'_, Arc<ToolManager>>,
 ) -> Result<Vec<ToolCategory>, String> {
-    let config_manager = tool_manager.get_config_manager();
-    let config_manager = config_manager
-        .read()
-        .map_err(|e| format!("Failed to read config: {}", e))?;
-    Ok(config_manager.get_categories().clone())
+    // 使用新架构获取所有类别信息（包括按优先级排序）
+    let category_infos = tool_manager.get_all_category_info();
+    let categories = category_infos
+        .into_iter()
+        .map(|info| info.category)
+        .collect();
+    Ok(categories)
 }
 
 #[tauri::command]
@@ -191,11 +186,9 @@ pub fn get_category_tools(
     category_id: String,
     tool_manager: State<'_, Arc<ToolManager>>,
 ) -> Result<Vec<ToolConfig>, String> {
-    let config_manager = tool_manager.get_config_manager();
-    let config_manager = config_manager
-        .read()
-        .map_err(|e| format!("Failed to read config: {}", e))?;
-    config_manager.get_category_tools(&category_id)
+    // 使用新架构直接获取类别工具
+    let tools = tool_manager.get_category_tools(&category_id);
+    Ok(tools)
 }
 
 #[tauri::command]
@@ -235,16 +228,9 @@ pub fn get_tool_category_info(
     category_id: String,
     tool_manager: State<'_, Arc<ToolManager>>,
 ) -> Result<Option<ToolCategory>, String> {
-    let config_manager = tool_manager.get_config_manager();
-    let config_manager = config_manager
-        .read()
-        .map_err(|e| format!("Failed to read config: {}", e))?;
-
-    // 查找指定的工具类别
-    let categories = config_manager.get_categories();
-    let category = categories.iter().find(|cat| cat.id == category_id);
-
-    Ok(category.cloned())
+    // 使用新架构根据ID获取类别信息
+    let category = tool_manager.get_category_by_id(&category_id);
+    Ok(category)
 }
 
 // ===== 向后兼容的 API =====
@@ -253,23 +239,19 @@ pub fn get_tool_category_info(
 pub fn get_tool_categories_list(
     tool_manager: State<'_, Arc<ToolManager>>,
 ) -> Result<Vec<ToolCategory>, String> {
-    let config_manager = tool_manager.get_config_manager();
-    let config_manager = config_manager
-        .read()
-        .map_err(|e| format!("Failed to read config: {}", e))?;
-    Ok(config_manager.get_categories().clone())
+    // 使用新架构直接获取启用的类别，包含 system_prompt 字段
+    let categories = tool_manager.get_enabled_categories();
+    Ok(categories)
 }
 
 #[tauri::command]
 pub fn get_tools_by_category(
-    category: ToolCategory,
+    category_id: String,
     tool_manager: State<'_, Arc<ToolManager>>,
 ) -> Result<Vec<ToolConfig>, String> {
-    let config_manager = tool_manager.get_config_manager();
-    let config_manager = config_manager
-        .read()
-        .map_err(|e| format!("Failed to read config: {}", e))?;
-    Ok(config_manager.get_tools_by_category(&category.id))
+    // 使用新架构直接获取指定类别的工具配置
+    let tools = tool_manager.get_category_tools(&category_id);
+    Ok(tools)
 }
 
 #[tauri::command]
@@ -277,11 +259,8 @@ pub fn is_tool_enabled_check(
     tool_name: String,
     tool_manager: State<'_, Arc<ToolManager>>,
 ) -> Result<bool, String> {
-    let config_manager = tool_manager.get_config_manager();
-    let config_manager = config_manager
-        .read()
-        .map_err(|e| format!("Failed to read config: {}", e))?;
-    Ok(config_manager.is_tool_enabled(&tool_name))
+    // 使用新架构检查工具是否可用（即存在且启用）
+    Ok(tool_manager.is_tool_available(&tool_name))
 }
 
 #[tauri::command]
@@ -343,4 +322,49 @@ pub async fn import_tool_configs(
     config_manager
         .import_configs(&json_content)
         .map_err(|e| format!("Failed to import configs: {}", e))
+}
+
+// ===== 新架构优化的 API =====
+
+/// 获取启用类别的详细信息，包含 system_prompt 和优先级排序
+#[tauri::command]
+pub fn get_enabled_categories_with_priority(
+    tool_manager: State<'_, Arc<ToolManager>>,
+) -> Result<Vec<ToolCategory>, String> {
+    // 获取启用的类别，已按优先级排序
+    let categories = tool_manager.get_enabled_categories();
+    Ok(categories)
+}
+
+/// 获取工具管理器统计信息
+#[tauri::command]
+pub fn get_tool_manager_stats(
+    tool_manager: State<'_, Arc<ToolManager>>,
+) -> Result<serde_json::Value, String> {
+    let stats = serde_json::json!({
+        "total_categories": tool_manager.category_count(),
+        "enabled_categories": tool_manager.enabled_category_count(),
+        "total_tools": tool_manager.tool_count(),
+    });
+    Ok(stats)
+}
+
+/// 检查类别是否启用
+#[tauri::command]
+pub fn is_category_enabled(
+    category_id: String,
+    tool_manager: State<'_, Arc<ToolManager>>,
+) -> Result<bool, String> {
+    let category = tool_manager.get_category_by_id(&category_id);
+    Ok(category.is_some_and(|cat| cat.enabled))
+}
+
+/// 获取类别的 system_prompt
+#[tauri::command]
+pub fn get_category_system_prompt(
+    category_id: String,
+    tool_manager: State<'_, Arc<ToolManager>>,
+) -> Result<Option<String>, String> {
+    let category = tool_manager.get_category_by_id(&category_id);
+    Ok(category.map(|cat| cat.system_prompt))
 }

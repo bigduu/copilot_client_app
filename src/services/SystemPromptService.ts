@@ -1,9 +1,7 @@
 import {
   SystemPromptPreset,
   SystemPromptPresetList,
-  TOOL_CATEGORIES,
 } from "../types/chat";
-import { DEFAULT_MESSAGE } from "../constants";
 import { invoke } from "@tauri-apps/api/core";
 
 const SYSTEM_PROMPT_KEY = "system_prompt";
@@ -30,10 +28,14 @@ export class SystemPromptService {
    */
   getGlobalSystemPrompt(): string {
     try {
-      return localStorage.getItem(SYSTEM_PROMPT_KEY) || DEFAULT_MESSAGE;
+      const storedPrompt = localStorage.getItem(SYSTEM_PROMPT_KEY);
+      if (!storedPrompt) {
+        throw new Error("系统提示词未配置，请先配置系统提示词");
+      }
+      return storedPrompt;
     } catch (error) {
       console.error("Error loading global system prompt:", error);
-      return DEFAULT_MESSAGE;
+      throw new Error("系统提示词未配置，请先配置系统提示词");
     }
   }
 
@@ -42,8 +44,10 @@ export class SystemPromptService {
    */
   updateGlobalSystemPrompt(prompt: string): void {
     try {
-      const promptToSave = prompt && prompt.trim() ? prompt : DEFAULT_MESSAGE;
-      localStorage.setItem(SYSTEM_PROMPT_KEY, promptToSave);
+      if (!prompt || !prompt.trim()) {
+        throw new Error("系统提示词不能为空");
+      }
+      localStorage.setItem(SYSTEM_PROMPT_KEY, prompt.trim());
       console.log("Global system prompt updated successfully");
     } catch (error) {
       console.error("Error saving system prompt:", error);
@@ -55,13 +59,14 @@ export class SystemPromptService {
    */
   getSelectedSystemPromptPresetId(): string {
     try {
-      return (
-        localStorage.getItem(SYSTEM_PROMPT_SELECTED_ID_KEY) ||
-        "general-assistant"
-      );
+      const id = localStorage.getItem(SYSTEM_PROMPT_SELECTED_ID_KEY);
+      if (!id) {
+        throw new Error("未设置系统提示预设ID，必须先从后端配置");
+      }
+      return id;
     } catch (error) {
       console.error("Error loading selected system prompt preset ID:", error);
-      return "general-assistant";
+      throw new Error("系统提示预设ID配置缺失，前端不提供默认值");
     }
   }
 
@@ -85,15 +90,12 @@ export class SystemPromptService {
       const categories = await invoke<any[]>("get_tool_categories");
 
       const presets: SystemPromptPresetList = categories.map((category) => {
-        // Map backend category ID to frontend enum
-        const frontendCategory = this.mapBackendCategoryToFrontend(category.id);
-
         return {
           id: category.id,
           name: category.name,
           content: category.system_prompt,
           description: category.description,
-          category: frontendCategory,
+          category: category.id, // 直接使用后端的类别 ID，不再进行映射
           mode: category.restrict_conversation ? "tool_specific" : "general",
           autoToolPrefix: category.auto_prefix,
           allowedTools: category.tools || [],
@@ -104,77 +106,15 @@ export class SystemPromptService {
       return presets;
     } catch (error) {
       console.error("Failed to get categories from backend:", error);
-      // Fallback to default presets
-      return this.getDefaultPresets();
+      throw new Error("无法从后端获取系统提示预设配置，前端不提供默认配置");
     }
   }
 
   /**
-   * Get default presets (fallback solution)
+   * 已删除默认预设配置 - 前端完全依赖后端提供配置
+   * 不再提供任何硬编码的默认值
    */
-  private getDefaultPresets(): SystemPromptPresetList {
-    return [
-      {
-        id: "general_assistant",
-        name: "General Assistant",
-        content:
-          "You are a general AI assistant. You can engage in natural conversation, answer various questions, use appropriate tools as needed, and provide comprehensive help and advice.",
-        description:
-          "Provides general conversation and assistance functions without restricting specific tool usage",
-        category: TOOL_CATEGORIES.GENERAL,
-        mode: "general",
-      },
-      {
-        id: "file_operations",
-        name: "File Operations Assistant",
-        content:
-          "You are a professional file operations assistant. Your task is to help users with file reading, creation, updating, deletion, and search operations.",
-        description:
-          "Specialized for various file operations including reading, creating, updating, deleting, and searching",
-        category: TOOL_CATEGORIES.FILE_READER,
-        mode: "tool_specific",
-        autoToolPrefix: "Please help me with file operations:",
-        allowedTools: [
-          "read_file",
-          "create_file",
-          "update_file",
-          "delete_file",
-          "search_files",
-          "simple_search",
-          "append_file",
-        ],
-        restrictConversation: true,
-      },
-      {
-        id: "command_execution",
-        name: "Command Execution Assistant",
-        content:
-          "You are a professional command execution assistant. Your task is to help users execute system commands and scripts.",
-        description: "Specialized for executing system commands and scripts",
-        category: TOOL_CATEGORIES.COMMAND_EXECUTOR,
-        mode: "tool_specific",
-        autoToolPrefix: "Please help me execute commands:",
-        allowedTools: ["execute_command"],
-        restrictConversation: true,
-      },
-    ];
-  }
 
-  /**
-   * Map backend category ID to frontend constants
-   */
-  private mapBackendCategoryToFrontend(backendId: string): string {
-    switch (backendId) {
-      case "file_operations":
-        return TOOL_CATEGORIES.FILE_READER;
-      case "command_execution":
-        return TOOL_CATEGORIES.COMMAND_EXECUTOR;
-      case "general_assistant":
-        return TOOL_CATEGORIES.GENERAL;
-      default:
-        return TOOL_CATEGORIES.GENERAL;
-    }
-  }
 
   /**
    * Find preset by preset ID

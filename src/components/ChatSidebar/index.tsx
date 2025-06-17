@@ -22,13 +22,13 @@ import {
 import { useChat } from "../../contexts/ChatContext";
 import {
   groupChatsByToolCategory,
-  getCategoryDisplayInfo,
-  sortGroupedChatsByWeight,
+  getCategoryDisplayInfoAsync,
 } from "../../utils/chatUtils";
 import { SystemSettingsModal } from "../SystemSettingsModal";
-import { ChatItem } from "../ChatItem";
+import { ChatItem as ChatItemComponent } from "../ChatItem";
+import { ChatItem } from "../../types/chat";
 import SystemPromptSelector from "../SystemPromptSelector";
-import { SystemPromptPreset, TOOL_CATEGORIES } from "../../types/chat";
+import { SystemPromptPreset } from "../../types/chat";
 
 const { Sider } = Layout;
 const { Text } = Typography;
@@ -58,8 +58,88 @@ export const ChatSidebar: React.FC<{
   const [isSelectMode, setIsSelectMode] = useState(false);
   const [selectedChatIds, setSelectedChatIds] = useState<string[]>([]);
   const [footerHeight, setFooterHeight] = useState(0);
+  // 添加类别信息缓存和loading状态
+  const [categoryInfoCache, setCategoryInfoCache] = useState<
+    Record<string, any>
+  >({});
+  const [loadingCategories, setLoadingCategories] = useState<Set<string>>(
+    new Set()
+  );
   const footerRef = useRef<HTMLDivElement>(null);
   const screens = useBreakpoint();
+
+  // 异步获取类别信息的辅助函数
+  const getCategoryInfo = async (category: string) => {
+    // 如果已经在缓存中，直接返回
+    if (categoryInfoCache[category]) {
+      return categoryInfoCache[category];
+    }
+
+    // 如果正在加载，返回默认值
+    if (loadingCategories.has(category)) {
+      return {
+        name: category,
+        icon: "🔧",
+        description: "Loading...",
+        color: "#666666",
+      };
+    }
+
+    try {
+      // 标记为加载中
+      setLoadingCategories((prev) => new Set(prev).add(category));
+
+      // 获取类别信息
+      const categoryInfo = await getCategoryDisplayInfoAsync(category);
+
+      // 存储到缓存
+      setCategoryInfoCache((prev) => ({
+        ...prev,
+        [category]: categoryInfo,
+      }));
+
+      return categoryInfo;
+    } catch (error) {
+      console.error(`获取类别 ${category} 信息失败:`, error);
+      // 返回默认信息
+      const defaultInfo = {
+        name: category,
+        icon: "❌",
+        description: "Failed to load category info",
+        color: "#ff4d4f",
+      };
+
+      // 即使失败也要存储默认信息到缓存
+      setCategoryInfoCache((prev) => ({
+        ...prev,
+        [category]: defaultInfo,
+      }));
+
+      return defaultInfo;
+    } finally {
+      // 移除加载标记
+      setLoadingCategories((prev) => {
+        const newSet = new Set(prev);
+        newSet.delete(category);
+        return newSet;
+      });
+    }
+  };
+
+  // 简单的分组排序函数（避免使用硬编码的权重）
+  const sortGroupedChats = (
+    grouped: Record<string, ChatItem[]>
+  ): Record<string, ChatItem[]> => {
+    // 将 Pinned 放在最前面，其他按字母顺序排序
+    const sortedEntries = Object.entries(grouped).sort(
+      ([categoryA], [categoryB]) => {
+        if (categoryA === "Pinned") return -1;
+        if (categoryB === "Pinned") return 1;
+        return categoryA.localeCompare(categoryB);
+      }
+    );
+    return Object.fromEntries(sortedEntries);
+  };
 
   // Dynamically calculate footer button area height
   useEffect(() => {
@@ -82,9 +162,27 @@ export const ChatSidebar: React.FC<{
   }, [screens]);
 
   // Group chats by tool category
-  const groupedChats = sortGroupedChatsByWeight(
-    groupChatsByToolCategory(chats)
-  );
+  const groupedChats = sortGroupedChats(groupChatsByToolCategory(chats));
+
+  // 预加载所有类别信息
+  useEffect(() => {
+    const loadCategoryInfo = async () => {
+      const categories = Object.keys(groupedChats);
+      for (const category of categories) {
+        if (!categoryInfoCache[category] && !loadingCategories.has(category)) {
+          try {
+            await getCategoryInfo(category);
+          } catch (error) {
+            console.error(`预加载类别 ${category} 信息失败:`, error);
+          }
+        }
+      }
+    };
+
+    if (Object.keys(groupedChats).length > 0) {
+      loadCategoryInfo();
+    }
+  }, [chats]); // 监听 chats 变化而不是 groupedChats
 
   const handleDelete = (chatId: string) => {
     Modal.confirm({
@@ -236,7 +334,12 @@ export const ChatSidebar: React.FC<{
           <Space direction="vertical" size="small" style={{ width: "100%" }}>
             {Object.entries(groupedChats).map(
               ([category, chatsInGroup], idx) => {
-                const categoryInfo = getCategoryDisplayInfo(category);
+                const categoryInfo = categoryInfoCache[category] || {
+                  name: category,
+                  icon: "🔧",
+                  description: "Loading...",
+                  color: "#666666",
+                };
                 return (
                   <div key={category}>
                     {idx > 0 && (
@@ -263,8 +366,8 @@ export const ChatSidebar: React.FC<{
                       itemLayout="horizontal"
                       dataSource={chatsInGroup}
                       split={false}
-                      renderItem={(chat) => (
-                        <ChatItem
+                      renderItem={(chat: ChatItem) => (
+                        <ChatItemComponent
                           key={chat.id}
                           chat={chat}
                           isSelected={chat.id === currentChatId}
@@ -294,10 +397,14 @@ export const ChatSidebar: React.FC<{
           <Space direction="vertical" size="small" style={{ width: "100%" }}>
             {Object.values(groupedChats)
               .flat()
-              .map((chat) => {
-                const categoryInfo = getCategoryDisplayInfo(
-                  chat.toolCategory || TOOL_CATEGORIES.GENERAL
-                );
+              .map((chat: ChatItem) => {
+                const category = chat.toolCategory || "unknown";
+                const categoryInfo = categoryInfoCache[category] || {
+                  name: category,
+                  icon: "🔧",
+                  description: "Loading...",
+                  color: "#666666",
+                };
                 return (
                   <Tooltip
                     key={chat.id}
