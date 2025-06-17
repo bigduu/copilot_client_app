@@ -91,7 +91,7 @@ export class ToolCategoryService {
    * Get strict mode input placeholder
    */
   getStrictModePlaceholder(categoryInfo: ToolCategoryInfo): string {
-    const categoryName = categoryInfo.name || "当前类别";
-    return `${categoryName} - 严格模式：请输入工具调用 (格式: /工具名 参数)`;
+    const categoryName = categoryInfo.name || "Current Category";
+    return `${categoryName} - Strict Mode: Please input tool call (format: /tool_name parameters)`;
   }
 }
