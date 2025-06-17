@@ -27,9 +27,15 @@ const SystemMessage: React.FC<SystemMessageProps> = ({
   const { currentChat, systemPrompt } = useChat();
 
   // Use the current chat's system prompt if available, otherwise fall back to global
-  const promptToDisplay =
-    (currentChat?.systemPrompt || systemPrompt || DEFAULT_MESSAGE).trim() ||
-    DEFAULT_MESSAGE;
+  const promptToDisplay = React.useMemo(() => {
+    const content =
+      currentChat?.systemPrompt || systemPrompt || DEFAULT_MESSAGE;
+    // Ensure content is string type
+    if (typeof content === "string") {
+      return content.trim() || DEFAULT_MESSAGE;
+    }
+    return DEFAULT_MESSAGE;
+  }, [currentChat?.systemPrompt, systemPrompt]);
 
   // Local state for expand/collapse
   const [uncontrolledExpanded, setUncontrolledExpanded] =

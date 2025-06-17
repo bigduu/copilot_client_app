@@ -1,4 +1,8 @@
-import { SystemPromptPreset, SystemPromptPresetList, ToolCategory } from "../types/chat";
+import {
+  SystemPromptPreset,
+  SystemPromptPresetList,
+  TOOL_CATEGORIES,
+} from "../types/chat";
 import { DEFAULT_MESSAGE } from "../constants";
 import { invoke } from "@tauri-apps/api/core";
 
@@ -6,8 +10,8 @@ const SYSTEM_PROMPT_KEY = "system_prompt";
 const SYSTEM_PROMPT_SELECTED_ID_KEY = "system_prompt_selected_id";
 
 /**
- * SystemPromptService - 简化版
- * 专注于从后端获取 ToolCategory 配置，移除前端管理功能
+ * SystemPromptService - Simplified version
+ * Focuses on getting ToolCategory configuration from backend, removes frontend management features
  */
 export class SystemPromptService {
   private static instance: SystemPromptService;
@@ -22,7 +26,7 @@ export class SystemPromptService {
   }
 
   /**
-   * 获取全局系统提示词（保留向后兼容）
+   * Get global system prompt (maintain backward compatibility)
    */
   getGlobalSystemPrompt(): string {
     try {
@@ -34,7 +38,7 @@ export class SystemPromptService {
   }
 
   /**
-   * 更新全局系统提示词（保留向后兼容）
+   * Update global system prompt (maintain backward compatibility)
    */
   updateGlobalSystemPrompt(prompt: string): void {
     try {
@@ -47,11 +51,14 @@ export class SystemPromptService {
   }
 
   /**
-   * 获取当前选中的预设 ID
+   * Get currently selected preset ID
    */
   getSelectedSystemPromptPresetId(): string {
     try {
-      return localStorage.getItem(SYSTEM_PROMPT_SELECTED_ID_KEY) || "general-assistant";
+      return (
+        localStorage.getItem(SYSTEM_PROMPT_SELECTED_ID_KEY) ||
+        "general-assistant"
+      );
     } catch (error) {
       console.error("Error loading selected system prompt preset ID:", error);
       return "general-assistant";
@@ -59,7 +66,7 @@ export class SystemPromptService {
   }
 
   /**
-   * 设置当前选中的预设 ID
+   * Set currently selected preset ID
    */
   setSelectedSystemPromptPresetId(id: string): void {
     try {
@@ -70,24 +77,24 @@ export class SystemPromptService {
   }
 
   /**
-   * 从后端获取 ToolCategory 配置生成预设列表
+   * Get ToolCategory configuration from backend to generate preset list
    */
   async getSystemPromptPresets(): Promise<SystemPromptPresetList> {
     try {
-      // 调用后端 API 获取工具分类
+      // Call backend API to get tool categories
       const categories = await invoke<any[]>("get_tool_categories");
-      
-      const presets: SystemPromptPresetList = categories.map(category => {
-        // 映射后端分类 ID 到前端枚举
+
+      const presets: SystemPromptPresetList = categories.map((category) => {
+        // Map backend category ID to frontend enum
         const frontendCategory = this.mapBackendCategoryToFrontend(category.id);
-        
+
         return {
           id: category.id,
           name: category.name,
           content: category.system_prompt,
           description: category.description,
           category: frontendCategory,
-          mode: category.restrict_conversation ? 'tool_specific' : 'general',
+          mode: category.restrict_conversation ? "tool_specific" : "general",
           autoToolPrefix: category.auto_prefix,
           allowedTools: category.tools || [],
           restrictConversation: category.restrict_conversation,
@@ -97,138 +104,109 @@ export class SystemPromptService {
       return presets;
     } catch (error) {
       console.error("Failed to get categories from backend:", error);
-      // 降级到默认预设
+      // Fallback to default presets
       return this.getDefaultPresets();
     }
   }
 
   /**
-   * 获取默认预设（后备方案）
+   * Get default presets (fallback solution)
    */
   private getDefaultPresets(): SystemPromptPresetList {
     return [
       {
         id: "general_assistant",
-        name: "通用助手",
-        content: "你是通用AI助手。你可以进行自然对话、回答各种问题、根据需要使用合适的工具、提供综合性的帮助和建议。",
-        description: "提供通用的对话和协助功能，不限制特定工具使用",
-        category: ToolCategory.GENERAL,
-        mode: 'general'
+        name: "General Assistant",
+        content:
+          "You are a general AI assistant. You can engage in natural conversation, answer various questions, use appropriate tools as needed, and provide comprehensive help and advice.",
+        description:
+          "Provides general conversation and assistance functions without restricting specific tool usage",
+        category: TOOL_CATEGORIES.GENERAL,
+        mode: "general",
       },
       {
-        id: "file_read",
-        name: "文件读取助手",
-        content: "你是专业的文件读取助手。你的任务是帮助用户读取、查看和理解文件内容。",
-        description: "专门用于读取和查看文件内容，支持多种文件格式",
-        category: ToolCategory.FILE_READER,
-        mode: 'tool_specific',
-        autoToolPrefix: "请帮我读取文件：",
-        allowedTools: ['read_file'],
-        restrictConversation: true
-      },
-      {
-        id: "file_create",
-        name: "文件创建助手",
-        content: "你是专业的文件创建助手。你的任务是帮助用户创建新文件和目录结构。",
-        description: "专门用于创建新文件和目录结构",
-        category: ToolCategory.FILE_CREATOR,
-        mode: 'tool_specific',
-        autoToolPrefix: "请帮我创建文件：",
-        allowedTools: ['create_file'],
-        restrictConversation: true
-      },
-      {
-        id: "file_update",
-        name: "文件更新助手",
-        content: "你是专业的文件更新助手。你的任务是帮助用户更新和修改现有文件内容。",
-        description: "专门用于更新和修改现有文件内容",
-        category: ToolCategory.FILE_UPDATER,
-        mode: 'tool_specific',
-        autoToolPrefix: "请帮我更新文件：",
-        allowedTools: ['update_file', 'append_file'],
-        restrictConversation: true
-      },
-      {
-        id: "file_delete",
-        name: "文件删除助手",
-        content: "你是专业的文件删除助手。你的任务是帮助用户安全地删除文件和目录。",
-        description: "专门用于安全地删除文件和目录",
-        category: ToolCategory.FILE_DELETER,
-        mode: 'tool_specific',
-        autoToolPrefix: "请帮我删除文件：",
-        allowedTools: ['delete_file'],
-        restrictConversation: true
-      },
-      {
-        id: "file_search",
-        name: "文件搜索助手",
-        content: "你是专业的文件搜索助手。你的任务是帮助用户搜索和定位文件及内容。",
-        description: "专门用于搜索文件和文件内容",
-        category: ToolCategory.FILE_SEARCHER,
-        mode: 'tool_specific',
-        autoToolPrefix: "请帮我搜索：",
-        allowedTools: ['search_files', 'simple_search'],
-        restrictConversation: true
+        id: "file_operations",
+        name: "File Operations Assistant",
+        content:
+          "You are a professional file operations assistant. Your task is to help users with file reading, creation, updating, deletion, and search operations.",
+        description:
+          "Specialized for various file operations including reading, creating, updating, deleting, and searching",
+        category: TOOL_CATEGORIES.FILE_READER,
+        mode: "tool_specific",
+        autoToolPrefix: "Please help me with file operations:",
+        allowedTools: [
+          "read_file",
+          "create_file",
+          "update_file",
+          "delete_file",
+          "search_files",
+          "simple_search",
+          "append_file",
+        ],
+        restrictConversation: true,
       },
       {
         id: "command_execution",
-        name: "命令执行助手",
-        content: "你是专业的命令执行助手。你的任务是帮助用户执行系统命令和脚本。",
-        description: "专门用于执行系统命令和脚本",
-        category: ToolCategory.COMMAND_EXECUTOR,
-        mode: 'tool_specific',
-        autoToolPrefix: "请帮我执行命令：",
-        allowedTools: ['execute_command'],
-        restrictConversation: true
-      }
+        name: "Command Execution Assistant",
+        content:
+          "You are a professional command execution assistant. Your task is to help users execute system commands and scripts.",
+        description: "Specialized for executing system commands and scripts",
+        category: TOOL_CATEGORIES.COMMAND_EXECUTOR,
+        mode: "tool_specific",
+        autoToolPrefix: "Please help me execute commands:",
+        allowedTools: ["execute_command"],
+        restrictConversation: true,
+      },
     ];
   }
 
   /**
-   * 映射后端分类 ID 到前端枚举
+   * Map backend category ID to frontend constants
    */
   private mapBackendCategoryToFrontend(backendId: string): string {
     switch (backendId) {
-      case "file_read": return ToolCategory.FILE_READER;
-      case "file_create": return ToolCategory.FILE_CREATOR;
-      case "file_delete": return ToolCategory.FILE_DELETER;
-      case "file_update": return ToolCategory.FILE_UPDATER;
-      case "file_search": return ToolCategory.FILE_SEARCHER;
-      case "command_execution": return ToolCategory.COMMAND_EXECUTOR;
-      case "general_assistant": return ToolCategory.GENERAL;
-      default: return ToolCategory.GENERAL;
+      case "file_operations":
+        return TOOL_CATEGORIES.FILE_READER;
+      case "command_execution":
+        return TOOL_CATEGORIES.COMMAND_EXECUTOR;
+      case "general_assistant":
+        return TOOL_CATEGORIES.GENERAL;
+      default:
+        return TOOL_CATEGORIES.GENERAL;
     }
   }
 
   /**
-   * 根据预设 ID 查找预设
+   * Find preset by preset ID
    */
   async findPresetById(id: string): Promise<SystemPromptPreset | undefined> {
     const presets = await this.getSystemPromptPresets();
-    return presets.find(preset => preset.id === id);
+    return presets.find((preset) => preset.id === id);
   }
 
   /**
-   * 获取当前系统提示词内容
+   * Get current system prompt content
    */
-  async getCurrentSystemPromptContent(selectedPresetId: string): Promise<string> {
+  async getCurrentSystemPromptContent(
+    selectedPresetId: string
+  ): Promise<string> {
     const preset = await this.findPresetById(selectedPresetId);
     if (preset) return preset.content;
-    
-    // 降级到全局系统提示词
+
+    // Fallback to global system prompt
     return this.getGlobalSystemPrompt();
   }
 
   /**
-   * 检查是否为工具专用模式
+   * Check if in tool-specific mode
    */
   async isToolSpecificMode(presetId: string): Promise<boolean> {
     const preset = await this.findPresetById(presetId);
-    return preset?.mode === 'tool_specific';
+    return preset?.mode === "tool_specific";
   }
 
   /**
-   * 获取允许的工具列表
+   * Get allowed tools list
    */
   async getAllowedTools(presetId: string): Promise<string[]> {
     const preset = await this.findPresetById(presetId);
@@ -236,7 +214,7 @@ export class SystemPromptService {
   }
 
   /**
-   * 获取自动工具前缀
+   * Get auto tool prefix
    */
   async getAutoToolPrefix(presetId: string): Promise<string | undefined> {
     const preset = await this.findPresetById(presetId);
@@ -244,7 +222,7 @@ export class SystemPromptService {
   }
 
   /**
-   * 检查是否限制普通对话
+   * Check if normal conversation is restricted
    */
   async isConversationRestricted(presetId: string): Promise<boolean> {
     const preset = await this.findPresetById(presetId);
@@ -252,10 +230,12 @@ export class SystemPromptService {
   }
 
   /**
-   * 按类别获取预设
+   * Get presets by category
    */
-  async getPresetsByCategory(category: ToolCategory): Promise<SystemPromptPresetList> {
+  async getPresetsByCategory(
+    category: string
+  ): Promise<SystemPromptPresetList> {
     const presets = await this.getSystemPromptPresets();
-    return presets.filter(preset => preset.category === category);
+    return presets.filter((preset) => preset.category === category);
   }
 }

@@ -2,33 +2,33 @@
 //!
 //! 基于建造者模式的工具管理系统，提供零硬编码、高扩展性的工具管理架构
 
-use std::fmt::Debug;
 use async_trait::async_trait;
+use std::fmt::Debug;
 
 // 核心模块
 pub mod categories;
-pub mod types;
-pub mod tool_category;
-pub mod tool_manager;
 pub mod config_manager;
 pub mod file_tools;
+
+pub mod tool_manager;
+pub mod types;
 
 // 测试模块
 #[cfg(test)]
 mod tests;
 
 // 重新导出核心类型
-pub use types::{NewToolCategory, ToolConfig};
-pub use tool_category::ToolCategory;
-pub use tool_manager::ToolManager;
 pub use config_manager::ToolConfigManager;
+
+pub use tool_manager::ToolManager;
+pub use types::{ToolCategory, ToolConfig};
 
 // 重新导出类别建造者类型
 pub use categories::{CategoryBuilder, ToolManagerBuilder};
 
 // 重新导出管理器创建函数
 pub use tool_manager::{
-    create_default_tool_manager, create_tool_manager_with_config_dir, create_basic_tool_manager,
+    create_basic_tool_manager, create_default_tool_manager, create_tool_manager_with_config_dir,
     ToolManagerFactory,
 };
 
@@ -40,18 +40,18 @@ pub trait Tool: Debug + Send + Sync {
     fn parameters(&self) -> Vec<Parameter>;
     fn required_approval(&self) -> bool;
     fn tool_type(&self) -> ToolType;
-    
+
     /// 对于 RegexParameterExtraction 类型的工具，返回参数提取的正则表达式
     fn parameter_regex(&self) -> Option<String> {
         None
     }
-    
+
     /// 返回工具特定的自定义提示内容，将在标准格式后追加
     /// 用于提供工具特定的格式要求或处理指导
     fn custom_prompt(&self) -> Option<String> {
         None
     }
-    
+
     async fn execute(&self, parameters: Vec<Parameter>) -> anyhow::Result<String>;
 }
 
@@ -110,9 +110,9 @@ pub fn build_default_tool_manager() -> ToolManager {
 // ============================================================================
 
 /// 获取所有可用的工具类别
-pub fn get_available_categories() -> Vec<NewToolCategory> {
+pub fn get_available_categories() -> Vec<ToolCategory> {
     use categories::*;
-    
+
     ToolManagerBuilder::new()
         .register_category(FileOperationsCategory::new())
         .register_category(CommandExecutionCategory::new())
@@ -121,9 +121,9 @@ pub fn get_available_categories() -> Vec<NewToolCategory> {
 }
 
 /// 获取启用的工具类别
-pub fn get_enabled_categories() -> Vec<NewToolCategory> {
+pub fn get_enabled_categories() -> Vec<ToolCategory> {
     use categories::*;
-    
+
     ToolManagerBuilder::new()
         .register_category(FileOperationsCategory::new())
         .register_category(CommandExecutionCategory::new())
@@ -157,7 +157,7 @@ mod module_tests {
     #[test]
     fn test_create_default_tool_manager() {
         let manager = create_default_tool_manager();
-        
+
         // 验证基本工具存在
         assert!(manager.get_tool("read_file").is_some());
         assert!(manager.get_tool("create_file").is_some());
@@ -167,10 +167,10 @@ mod module_tests {
     #[test]
     fn test_get_available_categories() {
         let categories = get_available_categories();
-        
+
         // 验证有预期的类别
         assert!(categories.len() >= 3);
-        
+
         let category_names: Vec<String> = categories.iter().map(|c| c.name.clone()).collect();
         assert!(category_names.contains(&"file_operations".to_string()));
         assert!(category_names.contains(&"command_execution".to_string()));
@@ -183,12 +183,12 @@ mod module_tests {
             builder
                 .register_category(categories::FileOperationsCategory::new())
                 .register_category(categories::GeneralAssistantCategory::new())
-                // 故意省略 CommandExecutionCategory
+            // 故意省略 CommandExecutionCategory
         });
 
         // 验证文件操作工具存在
         assert!(manager.get_tool("read_file").is_some());
-        
+
         // CommandExecutionCategory 被省略，但工具实例仍然创建
         // 因为工具实例创建是独立的
         assert!(manager.get_tool("execute_command").is_some());
@@ -199,7 +199,7 @@ mod module_tests {
         // 测试向后兼容性函数
         let manager1 = create_tool_manager();
         let manager2 = build_default_tool_manager();
-        
+
         // 两个管理器都应该能获取到相同的工具
         assert!(manager1.get_tool("read_file").is_some());
         assert!(manager2.get_tool("read_file").is_some());
@@ -209,9 +209,9 @@ mod module_tests {
     fn test_module_structure() {
         // 验证模块导出的结构
         let _: ToolManager = create_default_tool_manager();
-        let _: Vec<NewToolCategory> = get_available_categories();
-        let _: Vec<NewToolCategory> = get_enabled_categories();
-        
+        let _: Vec<ToolCategory> = get_available_categories();
+        let _: Vec<ToolCategory> = get_enabled_categories();
+
         // 测试类型可用性
         let tool_config = ToolConfig {
             name: "test".to_string(),
@@ -226,7 +226,7 @@ mod module_tests {
             parameter_regex: None,
             custom_prompt: None,
         };
-        
+
         assert_eq!(tool_config.name, "test");
     }
 }

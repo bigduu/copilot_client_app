@@ -2,8 +2,7 @@
 //!
 //! 提供工具和类别配置的管理功能
 
-use crate::tools::tool_category::ToolCategory;
-use crate::tools::types::ToolConfig;
+use crate::tools::types::{ToolCategory, ToolConfig};
 use std::collections::HashMap;
 
 /// 工具配置管理器
@@ -60,7 +59,11 @@ impl ToolConfigManager {
     }
 
     /// 更新工具配置
-    pub fn update_tool_config(&mut self, tool_name: &str, config: ToolConfig) -> Result<(), String> {
+    pub fn update_tool_config(
+        &mut self,
+        tool_name: &str,
+        config: ToolConfig,
+    ) -> Result<(), String> {
         if self.tool_configs.contains_key(tool_name) {
             self.tool_configs.insert(tool_name.to_string(), config);
             Ok(())
@@ -70,7 +73,11 @@ impl ToolConfigManager {
     }
 
     /// 更新类别配置
-    pub fn update_category_config(&mut self, category_id: &str, category: ToolCategory) -> Result<(), String> {
+    pub fn update_category_config(
+        &mut self,
+        category_id: &str,
+        category: ToolCategory,
+    ) -> Result<(), String> {
         if let Some(existing_category) = self.categories.iter_mut().find(|c| c.id == category_id) {
             *existing_category = category;
             Ok(())
@@ -80,7 +87,11 @@ impl ToolConfigManager {
     }
 
     /// 将工具注册到类别
-    pub fn register_tool_to_category(&mut self, tool_name: &str, category_id: &str) -> Result<(), String> {
+    pub fn register_tool_to_category(
+        &mut self,
+        tool_name: &str,
+        category_id: &str,
+    ) -> Result<(), String> {
         if let Some(tool_config) = self.tool_configs.get_mut(tool_name) {
             tool_config.category_id = category_id.to_string();
             Ok(())
@@ -117,7 +128,8 @@ impl ToolConfigManager {
 
     /// 获取类别的工具
     pub fn get_category_tools(&self, category_id: &str) -> Result<Vec<ToolConfig>, String> {
-        let tools: Vec<ToolConfig> = self.tool_configs
+        let tools: Vec<ToolConfig> = self
+            .tool_configs
             .values()
             .filter(|config| config.category_id == category_id)
             .cloned()
@@ -192,12 +204,18 @@ impl ToolConfigManager {
 
     /// 获取启用的工具数量
     pub fn get_enabled_tools_count(&self) -> usize {
-        self.tool_configs.values().filter(|config| config.enabled).count()
+        self.tool_configs
+            .values()
+            .filter(|config| config.enabled)
+            .count()
     }
 
     /// 获取启用的类别数量
     pub fn get_enabled_categories_count(&self) -> usize {
-        self.categories.iter().filter(|category| category.enabled).count()
+        self.categories
+            .iter()
+            .filter(|category| category.enabled)
+            .count()
     }
 
     /// 检查类别是否存在
@@ -212,14 +230,17 @@ impl ToolConfigManager {
 
     /// 获取工具的显示名称
     pub fn get_tool_display_name(&self, tool_name: &str) -> Option<String> {
-        self.tool_configs.get(tool_name).map(|config| config.display_name.clone())
+        self.tool_configs
+            .get(tool_name)
+            .map(|config| config.display_name.clone())
     }
 
     /// 获取类别的显示名称
     pub fn get_category_display_name(&self, category_id: &str) -> Option<String> {
-        self.categories.iter()
+        self.categories
+            .iter()
             .find(|c| c.id == category_id)
-            .map(|c| c.name.clone())
+            .map(|c| c.display_name.clone())
     }
 }
 

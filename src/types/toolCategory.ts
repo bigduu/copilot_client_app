@@ -1,6 +1,6 @@
 /**
- * 工具类别类型定义
- * 匹配后端 ToolCategory 结构
+ * Tool category type definitions
+ * Matches backend ToolCategory structure
  */
 
 export interface ToolCategoryInfo {
@@ -18,7 +18,7 @@ export interface ToolCategoryInfo {
 }
 
 /**
- * 消息验证结果
+ * Message validation result
  */
 export interface MessageValidationResult {
   isValid: boolean;
@@ -26,7 +26,7 @@ export interface MessageValidationResult {
 }
 
 /**
- * 工具类别服务
+ * Tool category service
  */
 export class ToolCategoryService {
   private static instance: ToolCategoryService;
@@ -39,32 +39,32 @@ export class ToolCategoryService {
   }
 
   /**
-   * 验证消息格式是否符合严格模式要求
+   * Validate if message format meets strict mode requirements
    */
   validateMessageForStrictMode(
     message: string,
     categoryInfo: ToolCategoryInfo | null
   ): MessageValidationResult {
-    // 如果没有类别信息或者没有启用严格模式，允许所有消息
+    // If no category info or strict mode not enabled, allow all messages
     if (!categoryInfo || !categoryInfo.strict_tools_mode) {
       return { isValid: true };
     }
 
     const trimmedMessage = message.trim();
-    
-    // 严格模式下，消息必须以 / 开头
-    if (!trimmedMessage.startsWith('/')) {
+
+    // In strict mode, message must start with /
+    if (!trimmedMessage.startsWith("/")) {
       return {
         isValid: false,
-        errorMessage: `严格模式下只能使用工具调用，请以 / 开头输入工具命令`
+        errorMessage: `In strict mode, only tool calls are allowed. Please input tool commands starting with /`,
       };
     }
 
-    // 检查消息长度（至少要有工具名）
+    // Check message length (must have at least tool name)
     if (trimmedMessage.length <= 1) {
       return {
         isValid: false,
-        errorMessage: `请输入完整的工具调用命令，格式：/工具名 参数`
+        errorMessage: `Please input complete tool call command, format: /tool_name parameters`,
       };
     }
 
@@ -72,26 +72,26 @@ export class ToolCategoryService {
   }
 
   /**
-   * 检查消息是否为有效的工具调用格式
+   * Check if message is valid tool call format
    */
   isValidToolCallFormat(message: string): boolean {
     const trimmed = message.trim();
-    return trimmed.startsWith('/') && trimmed.length > 1;
+    return trimmed.startsWith("/") && trimmed.length > 1;
   }
 
   /**
-   * 获取严格模式的错误提示消息
+   * Get strict mode error message
    */
   getStrictModeErrorMessage(categoryInfo: ToolCategoryInfo): string {
-    const categoryName = categoryInfo.name || '当前类别';
-    return `${categoryName}启用了严格模式，只能发送以 / 开头的工具调用命令`;
+    const categoryName = categoryInfo.name || "Current Category";
+    return `${categoryName} has strict mode enabled, only tool call commands starting with / are allowed`;
   }
 
   /**
-   * 获取严格模式的输入提示
+   * Get strict mode input placeholder
    */
   getStrictModePlaceholder(categoryInfo: ToolCategoryInfo): string {
-    const categoryName = categoryInfo.name || '当前类别';
+    const categoryName = categoryInfo.name || "当前类别";
     return `${categoryName} - 严格模式：请输入工具调用 (格式: /工具名 参数)`;
   }
 }

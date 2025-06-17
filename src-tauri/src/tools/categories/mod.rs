@@ -12,8 +12,7 @@ pub use command_execution::CommandExecutionCategory;
 pub use file_operations::FileOperationsCategory;
 pub use general_assistant::GeneralAssistantCategory;
 
-use crate::tools::types::{NewToolCategory, ToolConfig};
-use crate::tools::tool_category::ToolCategory;
+use crate::tools::types::{ToolCategory, ToolConfig};
 use std::collections::HashMap;
 
 /// 类别建造者 trait
@@ -26,7 +25,7 @@ use std::collections::HashMap;
 /// 5. 图标和颜色配置
 pub trait CategoryBuilder: Send + Sync {
     /// 构建类别信息
-    fn build_category(&self) -> NewToolCategory;
+    fn build_category(&self) -> ToolCategory;
 
     /// 构建该类别包含的所有工具配置
     fn build_tools(&self) -> Vec<ToolConfig>;
@@ -50,17 +49,24 @@ pub trait CategoryBuilder: Send + Sync {
     }
 
     /// 获取类别的图标名称
-    /// 默认实现使用 ToolCategory 的默认图标映射
+    /// 默认实现提供基于类别ID的图标映射
     fn icon(&self) -> String {
         let category = self.build_category();
-        ToolCategory::get_default_icon(&category.name)
+        get_default_icon(&category.name)
     }
 
     /// 获取类别的颜色
-    /// 默认实现使用 ToolCategory 的默认颜色映射
+    /// 默认实现提供基于类别ID的颜色映射
     fn color(&self) -> String {
         let category = self.build_category();
-        ToolCategory::get_default_color(&category.name)
+        get_default_color(&category.name)
+    }
+
+    /// 获取前端兼容的图标名称
+    /// 返回 Ant Design 图标名称
+    fn frontend_icon(&self) -> String {
+        let category = self.build_category();
+        get_frontend_icon(&category.name)
     }
 
     /// 自动从工具生成 ToolConfigs
@@ -70,12 +76,12 @@ pub trait CategoryBuilder: Send + Sync {
     fn build_tool_configs(&self) -> Vec<ToolConfig> {
         let category = self.build_category();
         let mut tools = self.build_tools();
-        
+
         // 确保所有工具都设置了正确的 category_id
         for tool in &mut tools {
             tool.category_id = category.name.clone();
         }
-        
+
         tools
     }
 
@@ -83,8 +89,53 @@ pub trait CategoryBuilder: Send + Sync {
     ///
     /// 这个方法允许类别创建实际的工具实例
     /// 默认实现返回空映射，子类可以重写以提供实际实现
-    fn create_tool_instances(&self) -> std::collections::HashMap<String, std::sync::Arc<dyn crate::tools::Tool>> {
+    fn create_tool_instances(
+        &self,
+    ) -> std::collections::HashMap<String, std::sync::Arc<dyn crate::tools::Tool>> {
         std::collections::HashMap::new()
+    }
+}
+
+/// 工具类别映射工具函数
+/// 这些函数提供了独立于trait的类别映射逻辑
+
+/// 根据工具名称推断类别ID
+pub fn get_category_id_for_tool(tool_name: &str) -> String {
+    match tool_name {
+        "read_file" | "create_file" | "delete_file" | "update_file" | "search_files"
+        | "simple_search" | "append_file" => "file_operations".to_string(),
+        "execute_command" => "command_execution".to_string(),
+        _ => "general_assistant".to_string(),
+    }
+}
+
+/// 获取类别的默认图标
+pub fn get_default_icon(category_id: &str) -> String {
+    match category_id {
+        "file_operations" => "📁".to_string(),
+        "command_execution" => "⚡".to_string(),
+        "general_assistant" => "🤖".to_string(),
+        _ => "🔧".to_string(),
+    }
+}
+
+/// 获取类别的默认颜色
+pub fn get_default_color(category_id: &str) -> String {
+    match category_id {
+        "file_operations" => "green".to_string(),
+        "command_execution" => "magenta".to_string(),
+        "general_assistant" => "blue".to_string(),
+        _ => "default".to_string(),
+    }
+}
+
+/// 获取前端兼容的图标名称
+pub fn get_frontend_icon(category_id: &str) -> String {
+    match category_id {
+        "file_operations" => "FileTextOutlined".to_string(),
+        "command_execution" => "PlayCircleOutlined".to_string(),
+        "general_assistant" => "ToolOutlined".to_string(),
+        _ => "ToolOutlined".to_string(),
     }
 }
 
@@ -127,7 +178,7 @@ impl ToolManagerBuilder {
     }
 
     /// 获取所有类别信息（不论是否启用）
-    pub fn get_all_categories(&self) -> Vec<NewToolCategory> {
+    pub fn get_all_categories(&self) -> Vec<ToolCategory> {
         self.categories
             .iter()
             .map(|builder| builder.build_category())
@@ -135,7 +186,7 @@ impl ToolManagerBuilder {
     }
 
     /// 获取启用的类别信息
-    pub fn get_enabled_categories(&self) -> Vec<NewToolCategory> {
+    pub fn get_enabled_categories(&self) -> Vec<ToolCategory> {
         self.categories
             .iter()
             .filter(|builder| builder.enabled())
@@ -151,21 +202,14 @@ impl ToolManagerBuilder {
 
         for category_builder in self.categories {
             // 构建类别信息
-            let new_category = category_builder.build_category();
-            let category = ToolCategory {
-                id: new_category.name.clone(),
-                name: new_category.display_name.clone(),
-                description: new_category.description,
-                system_prompt: format!("这个类别包含{}相关的工具。", new_category.display_name),
-                tools: vec![], // 将由工具配置填充
-                restrict_conversation: false,
-                enabled: category_builder.enabled(),
-                auto_prefix: Some(format!("{}：", new_category.display_name)),
-                icon: Some(category_builder.icon()),
-                color: Some(category_builder.color()),
-                strict_tools_mode: category_builder.strict_tools_mode(),
-            };
-            categories.push(category);
+            let mut new_category = category_builder.build_category();
+
+            // 设置图标和颜色
+            new_category.icon = category_builder.icon();
+            new_category.enabled = category_builder.enabled();
+            new_category.strict_tools_mode = category_builder.strict_tools_mode();
+
+            categories.push(new_category);
 
             // 只有启用的类别才会添加其工具
             if category_builder.enabled() {

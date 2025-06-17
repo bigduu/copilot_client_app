@@ -17,7 +17,7 @@ import ToolSelector from "../ToolSelector";
 import { useChat } from "../../contexts/ChatContext";
 import { useChatInput } from "../../hooks/useChatInput";
 import { useToolCategoryValidation } from "../../hooks/useToolCategoryValidation";
-import { ToolService } from "../../services/ToolService";
+
 import { SystemPromptService } from "../../services/SystemPromptService";
 import { getCategoryDisplayInfo } from "../../utils/chatUtils";
 
@@ -40,10 +40,10 @@ export const InputContainer: React.FC<InputContainerProps> = ({
   const { currentMessages, currentChat, selectedSystemPromptPresetId } =
     useChat();
 
-  // 服务实例
+  // Service instances
   const systemPromptService = SystemPromptService.getInstance();
 
-  // 获取当前系统提示预设信息
+  // Get current system prompt preset information
   const [currentSystemPromptInfo, setCurrentSystemPromptInfo] =
     useState<any>(null);
 
@@ -72,16 +72,16 @@ export const InputContainer: React.FC<InputContainerProps> = ({
     systemPromptService,
   ]);
 
-  // 检查是否为工具专用模式
+  // Check if in tool-specific mode
   const isToolSpecificMode = currentSystemPromptInfo?.mode === "tool_specific";
   const isRestrictConversation = currentSystemPromptInfo?.restrictConversation;
   const allowedTools = currentSystemPromptInfo?.allowedTools || [];
   const autoToolPrefix = currentSystemPromptInfo?.autoToolPrefix;
 
-  // 检查 System Prompt 是否已锁定
+  // Check if System Prompt is locked
   const isSystemPromptLocked = Boolean(currentChat?.systemPromptId);
 
-  // 获取锁定的模式显示信息
+  // Get locked mode display information
   const lockedModeInfo = useMemo(() => {
     if (!isSystemPromptLocked || !currentSystemPromptInfo) return null;
 
@@ -95,7 +95,7 @@ export const InputContainer: React.FC<InputContainerProps> = ({
     };
   }, [isSystemPromptLocked, currentSystemPromptInfo]);
 
-  // 工具类别验证逻辑
+  // Tool category validation logic
   const {
     validateMessage,
     isStrictMode,
@@ -160,7 +160,7 @@ export const InputContainer: React.FC<InputContainerProps> = ({
       return "Send a message (includes reference)";
     }
 
-    // 检查是否为严格模式
+    // Check if in strict mode
     if (isStrictMode()) {
       const strictPlaceholder = getStrictModePlaceholder();
       if (strictPlaceholder) {
@@ -170,11 +170,11 @@ export const InputContainer: React.FC<InputContainerProps> = ({
 
     if (isToolSpecificMode) {
       if (isRestrictConversation) {
-        return `仅支持工具调用 (允许的工具: ${allowedTools.join(", ")})`;
+        return `Tool calls only (allowed tools: ${allowedTools.join(", ")})`;
       } else if (autoToolPrefix) {
-        return `自动前缀模式: ${autoToolPrefix} (输入 '/' 选择工具)`;
+        return `Auto-prefix mode: ${autoToolPrefix} (type '/' to select tools)`;
       } else {
-        return `工具专用模式 (允许的工具: ${allowedTools.join(", ")})`;
+        return `Tool-specific mode (allowed tools: ${allowedTools.join(", ")})`;
       }
     }
 
@@ -201,7 +201,7 @@ export const InputContainer: React.FC<InputContainerProps> = ({
         width: "100%",
       }}
     >
-      {/* 严格模式提示 */}
+      {/* Strict mode alert */}
       {isStrictMode() && currentCategoryInfo && (
         <Alert
           type="warning"
@@ -209,15 +209,17 @@ export const InputContainer: React.FC<InputContainerProps> = ({
           style={{ marginBottom: token.marginSM }}
           message={
             <Space wrap>
-              <span>严格模式：{currentCategoryInfo.name} - 仅支持工具调用</span>
-              <Tag color="red">严格模式已启用</Tag>
+              <span>
+                Strict Mode: {currentCategoryInfo.name} - Tool calls only
+              </span>
+              <Tag color="red">Strict Mode Enabled</Tag>
             </Space>
           }
-          description="在此模式下，只能发送以 / 开头的工具调用命令"
+          description="In this mode, only tool call commands starting with / are allowed"
         />
       )}
 
-      {/* 工具专用模式提示 */}
+      {/* Tool-specific mode alert */}
       {!isStrictMode() && isToolSpecificMode && (
         <Alert
           type={isRestrictConversation ? "warning" : "info"}
@@ -227,12 +229,12 @@ export const InputContainer: React.FC<InputContainerProps> = ({
             <Space wrap>
               <span>
                 {isRestrictConversation
-                  ? "严格模式：仅支持工具调用"
-                  : "工具专用模式"}
+                  ? "Strict Mode: Tool calls only"
+                  : "Tool-specific Mode"}
               </span>
               {autoToolPrefix && (
                 <Tag color="blue">
-                  <ToolOutlined /> 自动前缀: {autoToolPrefix}
+                  <ToolOutlined /> Auto-prefix: {autoToolPrefix}
                 </Tag>
               )}
             </Space>
@@ -240,7 +242,7 @@ export const InputContainer: React.FC<InputContainerProps> = ({
           description={
             allowedTools.length > 0 && (
               <Space wrap>
-                <span>允许的工具:</span>
+                <span>Allowed tools:</span>
                 {allowedTools.map((tool: string) => (
                   <Tag key={tool} color="green">
                     /{tool}
@@ -262,18 +264,18 @@ export const InputContainer: React.FC<InputContainerProps> = ({
       <div style={{ position: "relative" }}>
         <Space.Compact block>
           {isSystemPromptLocked && lockedModeInfo ? (
-            // 显示锁定状态的模式信息
+            // Display locked mode information
             <Tooltip
               title={
                 <div>
                   <div style={{ fontWeight: "bold", marginBottom: 4 }}>
-                    🔒 模式已锁定
+                    🔒 Mode Locked
                   </div>
                   <div style={{ marginBottom: 4 }}>
                     {lockedModeInfo.presetDescription}
                   </div>
                   <div style={{ fontSize: "12px", opacity: 0.8 }}>
-                    要切换模式，请创建新聊天
+                    To switch modes, create a new chat
                   </div>
                 </div>
               }
@@ -308,7 +310,7 @@ export const InputContainer: React.FC<InputContainerProps> = ({
               </Button>
             </Tooltip>
           ) : (
-            // 显示设置按钮（未锁定状态）
+            // Display settings button (unlocked state)
             <Tooltip title="Customize System Prompt">
               <Button
                 icon={<SettingOutlined />}
@@ -345,7 +347,15 @@ export const InputContainer: React.FC<InputContainerProps> = ({
           onCancel={handleToolSelectorCancel}
           onAutoComplete={handleAutoComplete}
           searchText={toolSearchText}
-          allowedTools={isToolSpecificMode ? allowedTools : undefined}
+          categoryId={currentChat?.toolCategory}
+          allowedTools={
+            // In strict mode, tools are already filtered by backend, no need for frontend filtering
+            isStrictMode() && currentCategoryInfo
+              ? undefined
+              : isToolSpecificMode
+              ? allowedTools
+              : undefined
+          }
         />
       </div>
 
@@ -363,7 +373,7 @@ export const InputContainer: React.FC<InputContainerProps> = ({
         </Space>
       )}
 
-      {/* 只有在未锁定状态下才显示 SystemPromptModal */}
+      {/* Only show SystemPromptModal when not locked */}
       {!isSystemPromptLocked && (
         <SystemPromptModal
           open={isPromptModalOpen}

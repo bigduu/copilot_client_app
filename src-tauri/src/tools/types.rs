@@ -2,6 +2,7 @@
 //!
 //! 本模块包含工具管理系统的基础类型，提供最小化、类型安全的核心抽象。
 
+use crate::tools::categories::get_category_id_for_tool;
 use serde::{Deserialize, Serialize};
 
 /// 工具配置结构
@@ -23,13 +24,11 @@ pub struct ToolConfig {
 impl ToolConfig {
     /// 从 Tool trait 对象创建 ToolConfig
     pub fn from_tool(tool: Box<dyn crate::tools::Tool>) -> Self {
-        use crate::tools::tool_category::ToolCategory;
-        
         ToolConfig {
             name: tool.name(),
             display_name: tool.name(),
             description: tool.description(),
-            category_id: ToolCategory::get_category_id_for_tool(&tool.name()),
+            category_id: get_category_id_for_tool(&tool.name()),
             enabled: true,
             requires_approval: tool.required_approval(),
             auto_prefix: Some(format!("/{}", tool.name())),
@@ -70,22 +69,24 @@ impl ToolConfig {
     }
 }
 
-/// 新的工具类别结构（用于建造者模式）
+/// 工具类别结构
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub struct NewToolCategory {
-    pub name: String,
-    pub display_name: String,
-    pub description: String,
-    pub icon: String,
-    pub enabled: bool,
+pub struct ToolCategory {
+    pub id: String,           // 类别ID，与name相同
+    pub name: String,         // 内部名称
+    pub display_name: String, // 显示名称
+    pub description: String,  // 描述
+    pub icon: String,         // 图标
+    pub enabled: bool,        // 是否启用
     #[serde(default)]
-    pub strict_tools_mode: bool,
+    pub strict_tools_mode: bool, // 严格工具模式
 }
 
-impl NewToolCategory {
+impl ToolCategory {
     /// 创建新的工具类别
     pub fn new(name: String, display_name: String, description: String, icon: String) -> Self {
         Self {
+            id: name.clone(), // id与name相同
             name,
             display_name,
             description,

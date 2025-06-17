@@ -3,7 +3,7 @@
 //! 包含所有文件相关的工具：读取、创建、删除、更新、搜索等
 
 use super::CategoryBuilder;
-use crate::tools::types::{NewToolCategory, ToolConfig};
+use crate::tools::types::{ToolCategory, ToolConfig};
 
 /// 文件操作类别建造者
 pub struct FileOperationsCategory {
@@ -30,8 +30,9 @@ impl Default for FileOperationsCategory {
 }
 
 impl CategoryBuilder for FileOperationsCategory {
-    fn build_category(&self) -> NewToolCategory {
-        NewToolCategory {
+    fn build_category(&self) -> ToolCategory {
+        ToolCategory {
+            id: "file_operations".to_string(),
             name: "file_operations".to_string(),
             display_name: "文件操作".to_string(),
             description: "提供完整的文件操作功能，包括读取、创建、更新、删除和搜索".to_string(),

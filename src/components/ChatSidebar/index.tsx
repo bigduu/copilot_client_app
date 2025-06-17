@@ -28,7 +28,7 @@ import {
 import { SystemSettingsModal } from "../SystemSettingsModal";
 import { ChatItem } from "../ChatItem";
 import SystemPromptSelector from "../SystemPromptSelector";
-import { SystemPromptPreset, ToolCategory } from "../../types/chat";
+import { SystemPromptPreset, TOOL_CATEGORIES } from "../../types/chat";
 
 const { Sider } = Layout;
 const { Text } = Typography;
@@ -122,23 +122,26 @@ export const ChatSidebar: React.FC<{
 
   const handleSystemPromptSelect = (preset: SystemPromptPreset) => {
     try {
-      // 创建新聊天并应用选中的 System Prompt 设置
+      // Create new chat and apply selected System Prompt settings
       const newChatId = addChat(undefined, {
         systemPromptId: preset.id,
         toolCategory: preset.category,
         systemPrompt: preset.content,
       });
 
-      // 选择新创建的聊天
+      // Select the newly created chat
       selectChat(newChatId);
 
-      // 关闭选择器
+      // Close the selector
       setIsNewChatSelectorOpen(false);
     } catch (error) {
-      console.error("创建聊天失败:", error);
+      console.error("Failed to create chat:", error);
       Modal.error({
-        title: "创建聊天失败",
-        content: error instanceof Error ? error.message : "未知错误，请重试",
+        title: "Failed to Create Chat",
+        content:
+          error instanceof Error
+            ? error.message
+            : "Unknown error, please try again",
       });
     }
   };
@@ -293,7 +296,7 @@ export const ChatSidebar: React.FC<{
               .flat()
               .map((chat) => {
                 const categoryInfo = getCategoryDisplayInfo(
-                  chat.toolCategory || ToolCategory.GENERAL
+                  chat.toolCategory || TOOL_CATEGORIES.GENERAL
                 );
                 return (
                   <Tooltip
@@ -490,7 +493,7 @@ export const ChatSidebar: React.FC<{
         onClose={handleNewChatSelectorClose}
         onSelect={handleSystemPromptSelect}
         presets={systemPromptPresets}
-        title="创建新聊天 - 选择 System Prompt"
+        title="Create New Chat - Select System Prompt"
         showCancelButton={true}
       />
     </Sider>

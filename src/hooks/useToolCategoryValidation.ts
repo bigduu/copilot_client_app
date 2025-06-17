@@ -1,18 +1,23 @@
-import { useState, useEffect, useCallback } from 'react';
-import { invoke } from '@tauri-apps/api/core';
-import { ToolCategoryInfo, ToolCategoryService, MessageValidationResult } from '../types/toolCategory';
+import { useState, useEffect, useCallback } from "react";
+import { invoke } from "@tauri-apps/api/core";
+import {
+  ToolCategoryInfo,
+  ToolCategoryService,
+  MessageValidationResult,
+} from "../types/toolCategory";
 
 /**
- * 工具类别验证的 React Hook
+ * React Hook for tool category validation
  */
 export function useToolCategoryValidation(currentChatToolCategory?: string) {
-  const [currentCategoryInfo, setCurrentCategoryInfo] = useState<ToolCategoryInfo | null>(null);
+  const [currentCategoryInfo, setCurrentCategoryInfo] =
+    useState<ToolCategoryInfo | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  
+
   const toolCategoryService = ToolCategoryService.getInstance();
 
   /**
-   * 根据类别ID获取类别信息
+   * Get category information by category ID
    */
   const loadCategoryInfo = useCallback(async (categoryId: string) => {
     if (!categoryId) {
@@ -22,13 +27,16 @@ export function useToolCategoryValidation(currentChatToolCategory?: string) {
 
     setIsLoading(true);
     try {
-      // 调用后端API获取工具类别信息
-      const categoryInfo = await invoke<ToolCategoryInfo>('get_tool_category_info', { 
-        categoryId 
-      });
+      // Call backend API to get tool category information
+      const categoryInfo = await invoke<ToolCategoryInfo>(
+        "get_tool_category_info",
+        {
+          categoryId,
+        }
+      );
       setCurrentCategoryInfo(categoryInfo);
     } catch (error) {
-      console.error('Failed to load tool category info:', error);
+      console.error("Failed to load tool category info:", error);
       setCurrentCategoryInfo(null);
     } finally {
       setIsLoading(false);
@@ -36,21 +44,27 @@ export function useToolCategoryValidation(currentChatToolCategory?: string) {
   }, []);
 
   /**
-   * 验证消息是否符合当前类别的严格模式要求
+   * Validate if message meets current category's strict mode requirements
    */
-  const validateMessage = useCallback((message: string): MessageValidationResult => {
-    return toolCategoryService.validateMessageForStrictMode(message, currentCategoryInfo);
-  }, [currentCategoryInfo, toolCategoryService]);
+  const validateMessage = useCallback(
+    (message: string): MessageValidationResult => {
+      return toolCategoryService.validateMessageForStrictMode(
+        message,
+        currentCategoryInfo
+      );
+    },
+    [currentCategoryInfo, toolCategoryService]
+  );
 
   /**
-   * 检查当前是否为严格模式
+   * Check if currently in strict mode
    */
   const isStrictMode = useCallback((): boolean => {
     return currentCategoryInfo?.strict_tools_mode === true;
   }, [currentCategoryInfo]);
 
   /**
-   * 获取严格模式的输入提示
+   * Get strict mode input placeholder
    */
   const getStrictModePlaceholder = useCallback((): string | null => {
     if (!currentCategoryInfo || !currentCategoryInfo.strict_tools_mode) {
@@ -60,7 +74,7 @@ export function useToolCategoryValidation(currentChatToolCategory?: string) {
   }, [currentCategoryInfo, toolCategoryService]);
 
   /**
-   * 获取严格模式的错误提示
+   * Get strict mode error message
    */
   const getStrictModeErrorMessage = useCallback((): string | null => {
     if (!currentCategoryInfo || !currentCategoryInfo.strict_tools_mode) {
@@ -70,7 +84,7 @@ export function useToolCategoryValidation(currentChatToolCategory?: string) {
   }, [currentCategoryInfo, toolCategoryService]);
 
   /**
-   * 当聊天的工具类别改变时，重新加载类别信息
+   * Reload category information when chat's tool category changes
    */
   useEffect(() => {
     if (currentChatToolCategory) {

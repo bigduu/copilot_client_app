@@ -3,7 +3,7 @@
 //! 包含通用的AI助手工具
 
 use super::CategoryBuilder;
-use crate::tools::types::{NewToolCategory, ToolConfig};
+use crate::tools::types::{ToolCategory, ToolConfig};
 
 /// 通用助手类别建造者
 pub struct GeneralAssistantCategory {
@@ -30,8 +30,9 @@ impl Default for GeneralAssistantCategory {
 }
 
 impl CategoryBuilder for GeneralAssistantCategory {
-    fn build_category(&self) -> NewToolCategory {
-        NewToolCategory {
+    fn build_category(&self) -> ToolCategory {
+        ToolCategory {
+            id: "general_assistant".to_string(),
             name: "general_assistant".to_string(),
             display_name: "通用助手".to_string(),
             description: "提供通用的AI助手功能和对话支持，为用户提供智能帮助".to_string(),

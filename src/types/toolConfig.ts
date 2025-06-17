@@ -1,22 +1,14 @@
 import { invoke } from "@tauri-apps/api/core";
+import { TOOL_CATEGORIES, ToolCategoryInfo } from "./chat";
 
-// 工具类别枚举，匹配 Rust 端
-export enum ToolCategory {
-  FileRead = 'FileRead',
-  FileCreate = 'FileCreate', 
-  FileDelete = 'FileDelete',
-  FileUpdate = 'FileUpdate',
-  FileSearch = 'FileSearch',
-  CommandExecution = 'CommandExecution',
-  GeneralAssistant = 'GeneralAssistant',
-}
-
-// 工具配置接口，匹配 Rust 结构
+/**
+ * Tool configuration interface
+ */
 export interface ToolConfig {
   name: string;
   display_name: string;
   description: string;
-  category: ToolCategory;
+  category: string; // Changed to string type to maintain consistency with backend
   enabled: boolean;
   requires_approval: boolean;
   auto_prefix?: string;
@@ -26,7 +18,9 @@ export interface ToolConfig {
   custom_prompt?: string;
 }
 
-// 工具配置服务类
+/**
+ * Tool configuration service class
+ */
 export class ToolConfigService {
   private static instance: ToolConfigService;
 
@@ -38,7 +32,7 @@ export class ToolConfigService {
   }
 
   /**
-   * 获取所有可用的工具配置
+   * Get all available tool configurations
    */
   async getAvailableToolConfigs(): Promise<ToolConfig[]> {
     try {
@@ -50,11 +44,13 @@ export class ToolConfigService {
   }
 
   /**
-   * 根据名称获取工具配置
+   * Get configuration by tool name
    */
   async getToolConfig(toolName: string): Promise<ToolConfig | null> {
     try {
-      return await invoke<ToolConfig | null>("get_tool_config_by_name", { toolName });
+      return await invoke<ToolConfig | null>("get_tool_config_by_name", {
+        toolName,
+      });
     } catch (error) {
       console.error("Failed to get tool config:", error);
       throw new Error(`Failed to get tool config: ${error}`);
@@ -76,9 +72,9 @@ export class ToolConfigService {
   /**
    * 获取工具分类列表
    */
-  async getToolCategories(): Promise<ToolCategory[]> {
+  async getToolCategories(): Promise<ToolCategoryInfo[]> {
     try {
-      return await invoke<ToolCategory[]>("get_tool_categories_list");
+      return await invoke<ToolCategoryInfo[]>("get_tool_categories_list");
     } catch (error) {
       console.error("Failed to get tool categories:", error);
       throw new Error(`Failed to get tool categories: ${error}`);
@@ -88,9 +84,11 @@ export class ToolConfigService {
   /**
    * 根据分类获取工具
    */
-  async getToolsByCategory(category: ToolCategory): Promise<ToolConfig[]> {
+  async getToolsByCategory(categoryId: string): Promise<ToolConfig[]> {
     try {
-      return await invoke<ToolConfig[]>("get_tools_by_category", { category });
+      return await invoke<ToolConfig[]>("get_tools_by_category", {
+        categoryId,
+      });
     } catch (error) {
       console.error("Failed to get tools by category:", error);
       throw new Error(`Failed to get tools by category: ${error}`);
@@ -114,7 +112,9 @@ export class ToolConfigService {
    */
   async toolRequiresApproval(toolName: string): Promise<boolean> {
     try {
-      return await invoke<boolean>("tool_requires_approval_check", { toolName });
+      return await invoke<boolean>("tool_requires_approval_check", {
+        toolName,
+      });
     } catch (error) {
       console.error("Failed to check if tool requires approval:", error);
       return true; // 默认需要审批
@@ -170,71 +170,15 @@ export class ToolConfigService {
   }
 
   /**
-   * 将工具类别转换为前端字符串格式
-   */
-  categoryToString(category: ToolCategory): string {
-    switch (category) {
-      case ToolCategory.FileRead:
-        return "file_reader";
-      case ToolCategory.FileCreate:
-        return "file_creator";
-      case ToolCategory.FileDelete:
-        return "file_deleter";
-      case ToolCategory.FileUpdate:
-        return "file_updater";
-      case ToolCategory.FileSearch:
-        return "file_searcher";
-      case ToolCategory.CommandExecution:
-        return "command_execution";
-      case ToolCategory.GeneralAssistant:
-        return "general";
-      default:
-        return "general";
-    }
-  }
-
-  /**
-   * 从字符串转换为工具类别
-   */
-  stringToCategory(categoryStr: string): ToolCategory {
-    switch (categoryStr) {
-      case "file_reader":
-        return ToolCategory.FileRead;
-      case "file_creator":
-        return ToolCategory.FileCreate;
-      case "file_deleter":
-        return ToolCategory.FileDelete;
-      case "file_updater":
-        return ToolCategory.FileUpdate;
-      case "file_searcher":
-        return ToolCategory.FileSearch;
-      case "command_execution":
-        return ToolCategory.CommandExecution;
-      case "general":
-        return ToolCategory.GeneralAssistant;
-      default:
-        return ToolCategory.GeneralAssistant;
-    }
-  }
-
-  /**
    * 获取分类的显示名称
    */
-  getCategoryDisplayName(category: ToolCategory): string {
-    switch (category) {
-      case ToolCategory.FileRead:
-        return "文件读取";
-      case ToolCategory.FileCreate:
-        return "文件创建";
-      case ToolCategory.FileDelete:
-        return "文件删除";
-      case ToolCategory.FileUpdate:
-        return "文件更新";
-      case ToolCategory.FileSearch:
-        return "文件搜索";
-      case ToolCategory.CommandExecution:
+  getCategoryDisplayName(categoryId: string): string {
+    switch (categoryId) {
+      case TOOL_CATEGORIES.FILE_READER:
+        return "文件操作";
+      case TOOL_CATEGORIES.COMMAND_EXECUTOR:
         return "命令执行";
-      case ToolCategory.GeneralAssistant:
+      case TOOL_CATEGORIES.GENERAL:
         return "通用助手";
       default:
         return "未知类别";
@@ -244,13 +188,20 @@ export class ToolConfigService {
   /**
    * 根据工具名称推断类别
    */
-  inferCategoryFromToolName(toolName: string): ToolCategory {
-    if (toolName.includes("read")) return ToolCategory.FileRead;
-    if (toolName.includes("create")) return ToolCategory.FileCreate;
-    if (toolName.includes("delete")) return ToolCategory.FileDelete;
-    if (toolName.includes("update") || toolName.includes("append")) return ToolCategory.FileUpdate;
-    if (toolName.includes("search")) return ToolCategory.FileSearch;
-    if (toolName.includes("command") || toolName.includes("execute")) return ToolCategory.CommandExecution;
-    return ToolCategory.GeneralAssistant;
+  inferCategoryFromToolName(toolName: string): string {
+    if (
+      toolName.includes("read") ||
+      toolName.includes("create") ||
+      toolName.includes("delete") ||
+      toolName.includes("update") ||
+      toolName.includes("append") ||
+      toolName.includes("search")
+    ) {
+      return TOOL_CATEGORIES.FILE_READER;
+    }
+    if (toolName.includes("command") || toolName.includes("execute")) {
+      return TOOL_CATEGORIES.COMMAND_EXECUTOR;
+    }
+    return TOOL_CATEGORIES.GENERAL;
   }
 }
