@@ -40,15 +40,19 @@ const ModelSelection = ({
   onModelChange: (model: string) => void;
 }) => {
   const { token } = useToken();
-  const fallbackModel = "gpt-4o";
-  // Ensure modelOptions always has at least the fallback or the selected model if models array is empty
+  // 确保模型选项始终包含当前选中的模型（如果模型列表为空）
   const modelOptions =
-    models && models.length > 0
-      ? models
-      : selectedModel
-      ? [selectedModel]
-      : [fallbackModel]; // Use selectedModel here
-  const value = selectedModel || fallbackModel; // And here
+    models && models.length > 0 ? models : selectedModel ? [selectedModel] : [];
+
+  if (modelOptions.length === 0) {
+    throw new Error("没有可用的模型选项");
+  }
+
+  if (!selectedModel) {
+    throw new Error("未选择模型");
+  }
+
+  const value = selectedModel;
   return (
     <Space direction="vertical" size={token.marginXS} style={{ width: "100%" }}>
       <Text strong>Model Selection</Text>

@@ -15,12 +15,9 @@ import {
 import {
   InfoCircleOutlined,
   ToolOutlined,
-  FileTextOutlined,
-  PlayCircleOutlined,
   WarningOutlined,
 } from "@ant-design/icons";
 import { useChat } from "../../contexts/ChatContext";
-import { TOOL_CATEGORIES } from "../../types/chat";
 
 const { Text } = Typography;
 const { useToken } = theme;
@@ -30,31 +27,38 @@ interface SystemPromptModalProps {
   onClose: () => void;
 }
 
-// Category icon mapping
-const getCategoryIcon = (category: string) => {
-  switch (category) {
-    case TOOL_CATEGORIES.FILE_READER:
-      return <FileTextOutlined />;
-    case TOOL_CATEGORIES.COMMAND_EXECUTOR:
-      return <PlayCircleOutlined />;
-    case TOOL_CATEGORIES.GENERAL:
-    default:
-      return <ToolOutlined />;
+/**
+ * 严格模式类别配置函数 - 所有配置必须从后端获取
+ * 前端不包含任何硬编码配置，未配置的类别将抛出错误
+ */
+
+// Category icon mapping - 严格模式，没有配置就报错
+const getCategoryIcon = (
+  category: string,
+  categoryData?: any
+): React.ReactNode => {
+  // 如果有后端提供的类别数据，使用其中的图标信息
+  if (categoryData?.icon) {
+    // 这里可以根据后端提供的图标字符串返回对应的React图标组件
+    // 实际实现应该从后端获取图标映射配置
+    return <span>{categoryData.icon}</span>;
   }
+
+  throw new Error(
+    `未配置的类别图标: ${category}。请确保后端已提供该类别的图标配置。`
+  );
 };
 
-// Category tag color mapping
-const getCategoryTagColor = (category: string) => {
-  switch (category) {
-    case TOOL_CATEGORIES.GENERAL:
-      return "blue";
-    case TOOL_CATEGORIES.FILE_READER:
-      return "green";
-    case TOOL_CATEGORIES.COMMAND_EXECUTOR:
-      return "magenta";
-    default:
-      return "default";
+// Category tag color mapping - 严格模式，没有配置就报错
+const getCategoryTagColor = (category: string, categoryData?: any): string => {
+  // 如果有后端提供的类别数据，使用其中的颜色信息
+  if (categoryData?.color) {
+    return categoryData.color;
   }
+
+  throw new Error(
+    `未配置的类别颜色: ${category}。请确保后端已提供该类别的颜色配置。`
+  );
 };
 
 const SystemPromptModal: React.FC<SystemPromptModalProps> = ({
@@ -148,8 +152,28 @@ const SystemPromptModal: React.FC<SystemPromptModalProps> = ({
               </Text>
               {isToolSpecific && (
                 <Tag
-                  color={getCategoryTagColor(item.category)}
-                  icon={getCategoryIcon(item.category)}
+                  color={(() => {
+                    try {
+                      return getCategoryTagColor(item.category);
+                    } catch (error) {
+                      console.warn(
+                        "类别颜色配置缺失:",
+                        (error as Error).message
+                      );
+                      return "default";
+                    }
+                  })()}
+                  icon={(() => {
+                    try {
+                      return getCategoryIcon(item.category);
+                    } catch (error) {
+                      console.warn(
+                        "类别图标配置缺失:",
+                        (error as Error).message
+                      );
+                      return <ToolOutlined />;
+                    }
+                  })()}
                 >
                   Specialized Mode
                 </Tag>

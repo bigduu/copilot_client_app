@@ -1,5 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
-import { TOOL_CATEGORIES, ToolCategoryInfo } from "./chat";
+import { ToolCategoryInfo } from "./toolCategory";
 
 /**
  * Tool configuration interface
@@ -170,38 +170,28 @@ export class ToolConfigService {
   }
 
   /**
-   * 获取分类的显示名称
+   * 获取分类的显示名称（动态从后端数据获取）
+   * 如果后端数据不可用，提供默认映射
    */
-  getCategoryDisplayName(categoryId: string): string {
-    switch (categoryId) {
-      case TOOL_CATEGORIES.FILE_READER:
-        return "文件操作";
-      case TOOL_CATEGORIES.COMMAND_EXECUTOR:
-        return "命令执行";
-      case TOOL_CATEGORIES.GENERAL:
-        return "通用助手";
-      default:
-        return "未知类别";
+  getCategoryDisplayName(categoryId: string, categoriesData?: ToolCategoryInfo[]): string {
+    // 必须从后端数据获取显示名称
+    if (categoriesData) {
+      const category = categoriesData.find(cat => cat.id === categoryId);
+      if (category) {
+        return category.name || category.id;
+      }
     }
+    
+    // 前端不提供任何默认映射，必须从后端获取
+    throw new Error(`工具类别 "${categoryId}" 的显示名称必须从后端配置获取，前端不提供默认值`);
   }
 
   /**
-   * 根据工具名称推断类别
+   * 根据工具名称推断类别（动态处理，不硬编码类别列表）
+   * 这个方法应该逐步废弃，改为完全依赖后端分类
    */
   inferCategoryFromToolName(toolName: string): string {
-    if (
-      toolName.includes("read") ||
-      toolName.includes("create") ||
-      toolName.includes("delete") ||
-      toolName.includes("update") ||
-      toolName.includes("append") ||
-      toolName.includes("search")
-    ) {
-      return TOOL_CATEGORIES.FILE_READER;
-    }
-    if (toolName.includes("command") || toolName.includes("execute")) {
-      return TOOL_CATEGORIES.COMMAND_EXECUTOR;
-    }
-    return TOOL_CATEGORIES.GENERAL;
+    // 此方法已废弃 - 工具分类必须完全由后端提供
+    throw new Error(`工具 "${toolName}" 的类别分类必须从后端获取，前端不提供推断逻辑`);
   }
 }

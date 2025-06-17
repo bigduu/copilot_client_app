@@ -19,7 +19,7 @@ import { useChatInput } from "../../hooks/useChatInput";
 import { useToolCategoryValidation } from "../../hooks/useToolCategoryValidation";
 
 import { SystemPromptService } from "../../services/SystemPromptService";
-import { getCategoryDisplayInfo } from "../../utils/chatUtils";
+import { getCategoryDisplayInfoAsync } from "../../utils/chatUtils";
 
 const { useToken } = theme;
 const { Text } = Typography;
@@ -82,17 +82,31 @@ export const InputContainer: React.FC<InputContainerProps> = ({
   const isSystemPromptLocked = Boolean(currentChat?.systemPromptId);
 
   // Get locked mode display information
-  const lockedModeInfo = useMemo(() => {
-    if (!isSystemPromptLocked || !currentSystemPromptInfo) return null;
+  const [lockedModeInfo, setLockedModeInfo] = useState<any>(null);
 
-    const categoryInfo = getCategoryDisplayInfo(
-      currentSystemPromptInfo.category
-    );
-    return {
-      ...categoryInfo,
-      presetName: currentSystemPromptInfo.name,
-      presetDescription: currentSystemPromptInfo.description,
+  useEffect(() => {
+    const loadLockedModeInfo = async () => {
+      if (!isSystemPromptLocked || !currentSystemPromptInfo) {
+        setLockedModeInfo(null);
+        return;
+      }
+
+      try {
+        const categoryInfo = await getCategoryDisplayInfoAsync(
+          currentSystemPromptInfo.category
+        );
+        setLockedModeInfo({
+          ...categoryInfo,
+          presetName: currentSystemPromptInfo.name,
+          presetDescription: currentSystemPromptInfo.description,
+        });
+      } catch (error) {
+        console.error("Failed to load locked mode category info:", error);
+        setLockedModeInfo(null);
+      }
     };
+
+    loadLockedModeInfo();
   }, [isSystemPromptLocked, currentSystemPromptInfo]);
 
   // Tool category validation logic

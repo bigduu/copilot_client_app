@@ -118,29 +118,6 @@ export interface SystemPromptPreset {
 
 export type SystemPromptPresetList = SystemPromptPreset[];
 
-// Remove hardcoded tool category enum, changed to dynamic retrieval from backend
-// These constants are only for backward compatibility, should be obtained from backend API in actual applications
-export const TOOL_CATEGORIES = {
-  GENERAL: "general_assistant", // General assistant
-  FILE_READER: "file_operations", // File operations (including reading)
-  FILE_CREATOR: "file_operations", // File operations (including creation)
-  FILE_DELETER: "file_operations", // File operations (including deletion)
-  COMMAND_EXECUTOR: "command_execution", // Command execution
-  FILE_UPDATER: "file_operations", // File operations (including updates)
-  FILE_SEARCHER: "file_operations", // File operations (including search)
-} as const;
-
-// 工具类别接口，与后端保持一致
-export interface ToolCategoryInfo {
-  id: string;
-  name: string;
-  description: string;
-  system_prompt: string;
-  tools: string[];
-  restrict_conversation: boolean;
-  enabled: boolean;
-  auto_prefix?: string;
-  icon?: string;
-  color?: string;
-  strict_tools_mode: boolean;
-}
+// 注意：硬编码的 TOOL_CATEGORIES 枚举已被移除
+// 现在所有类别信息都从后端动态获取
+// ToolCategoryInfo 接口已移至 src/types/toolCategory.ts

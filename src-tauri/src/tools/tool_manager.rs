@@ -1,93 +1,152 @@
 //! 工具管理器实现
 //!
-//! 基于建造者模式的轻量级工具管理器实现
+//! 基于新架构的简洁工具管理器实现，直接管理 Category 列表
 
-use crate::tools::categories::get_category_id_for_tool;
-use crate::tools::config_manager::ToolConfigManager;
-
-use crate::tools::types::ToolConfig;
+use crate::tools::category::{Category, CategoryInfo};
+use crate::tools::tool_types::{ToolCategory, ToolConfig};
 use std::collections::HashMap;
-use std::sync::Arc;
+use std::sync::{Arc, RwLock};
 
 /// 工具管理器核心结构
 #[derive(Debug)]
 pub struct ToolManager {
-    tools: HashMap<String, std::sync::Arc<dyn crate::tools::Tool>>,
-    config_manager: std::sync::Arc<std::sync::RwLock<ToolConfigManager>>,
+    categories: Vec<Box<dyn Category>>,
+    tool_instances: HashMap<String, Arc<dyn crate::tools::Tool>>,
 }
 
 impl ToolManager {
     /// 创建新的工具管理器
-    pub fn new(tools: HashMap<String, std::sync::Arc<dyn crate::tools::Tool>>) -> Self {
-        let config_manager =
-            std::sync::Arc::new(std::sync::RwLock::new(ToolConfigManager::default()));
+    pub fn new(categories: Vec<Box<dyn Category>>) -> Self {
+        let mut tool_instances = HashMap::new();
+
+        // 收集所有启用类别的工具实例
+        for category in &categories {
+            if category.enable() {
+                let category_tools = category.tools();
+                tool_instances.extend(category_tools);
+            }
+        }
+
         Self {
-            tools,
-            config_manager,
+            categories,
+            tool_instances,
         }
     }
 
-    /// 使用配置管理器创建工具管理器
-    pub fn new_with_config(
-        tools: HashMap<String, std::sync::Arc<dyn crate::tools::Tool>>,
-        config_manager: ToolConfigManager,
-    ) -> Self {
-        let config_manager = std::sync::Arc::new(std::sync::RwLock::new(config_manager));
-        Self {
-            tools,
-            config_manager,
-        }
+    /// 获取所有启用的类别
+    pub fn get_enabled_categories(&self) -> Vec<ToolCategory> {
+        self.categories
+            .iter()
+            .filter(|category| category.enable())
+            .map(|category| category.build_info().category)
+            .collect()
+    }
+
+    /// 根据ID获取类别
+    pub fn get_category_by_id(&self, category_id: &str) -> Option<ToolCategory> {
+        self.categories
+            .iter()
+            .find(|category| category.id() == category_id)
+            .map(|category| category.build_info().category)
+    }
+
+    /// 获取指定类别下的工具配置
+    pub fn get_category_tools(&self, category_id: &str) -> Vec<ToolConfig> {
+        self.categories
+            .iter()
+            .find(|category| category.id() == category_id && category.enable())
+            .map(|category| category.build_tool_configs())
+            .unwrap_or_default()
     }
 
     /// 获取工具实例
-    pub fn get_tool(&self, name: &str) -> Option<std::sync::Arc<dyn crate::tools::Tool>> {
-        // 检查工具是否启用
-        if let Ok(config_manager) = self.config_manager.read() {
-            if !config_manager.is_tool_enabled(name) {
-                return None;
-            }
-        }
-        self.tools.get(name).cloned()
+    pub fn get_tool(&self, name: &str) -> Option<Arc<dyn crate::tools::Tool>> {
+        self.tool_instances.get(name).cloned()
     }
 
-    /// 注册工具
-    pub fn register_tool(&mut self, tool: std::sync::Arc<dyn crate::tools::Tool>) {
-        let tool_name = tool.name();
-        self.tools.insert(tool_name.clone(), tool.clone());
+    /// 获取所有工具实例
+    pub fn get_all_tools(&self) -> &HashMap<String, Arc<dyn crate::tools::Tool>> {
+        &self.tool_instances
+    }
 
-        // 在配置管理器中注册工具配置
-        if let Ok(mut config_manager) = self.config_manager.write() {
-            let tool_config = ToolConfig {
-                name: tool.name(),
-                display_name: tool.name(),
-                description: tool.description(),
-                category_id: get_category_id_for_tool(&tool.name()),
-                enabled: true,
-                requires_approval: tool.required_approval(),
-                auto_prefix: Some(format!("/{}", tool.name())),
-                permissions: vec![],
-                tool_type: match tool.tool_type() {
-                    crate::tools::ToolType::AIParameterParsing => "AIParameterParsing".to_string(),
-                    crate::tools::ToolType::RegexParameterExtraction => {
-                        "RegexParameterExtraction".to_string()
-                    }
-                },
-                parameter_regex: tool.parameter_regex(),
-                custom_prompt: tool.custom_prompt(),
-            };
-            config_manager.register_tool_config(tool_config);
-        }
+    /// 获取所有类别信息（包含优先级排序）
+    pub fn get_all_category_info(&self) -> Vec<CategoryInfo> {
+        let mut category_infos: Vec<CategoryInfo> = self
+            .categories
+            .iter()
+            .map(|category| category.build_info())
+            .collect();
+
+        // 按优先级排序
+        category_infos.sort_by(|a, b| b.priority.cmp(&a.priority));
+        category_infos
+    }
+
+    /// 获取启用的类别信息
+    pub fn get_enabled_category_info(&self) -> Vec<CategoryInfo> {
+        let mut category_infos: Vec<CategoryInfo> = self
+            .categories
+            .iter()
+            .filter(|category| category.enable())
+            .map(|category| category.build_info())
+            .collect();
+
+        // 按优先级排序
+        category_infos.sort_by(|a, b| b.priority.cmp(&a.priority));
+        category_infos
+    }
+
+    /// 检查工具是否存在且启用
+    pub fn is_tool_available(&self, tool_name: &str) -> bool {
+        self.tool_instances.contains_key(tool_name)
+    }
+
+    /// 获取类别数量
+    pub fn category_count(&self) -> usize {
+        self.categories.len()
+    }
+
+    /// 获取启用的类别数量
+    pub fn enabled_category_count(&self) -> usize {
+        self.categories.iter().filter(|c| c.enable()).count()
+    }
+
+    /// 获取工具数量
+    pub fn tool_count(&self) -> usize {
+        self.tool_instances.len()
     }
 
     /// 获取配置管理器
-    pub fn get_config_manager(&self) -> std::sync::Arc<std::sync::RwLock<ToolConfigManager>> {
-        self.config_manager.clone()
+    /// 这个方法提供向后兼容性，返回一个基于当前状态的配置管理器
+    pub fn get_config_manager(&self) -> Arc<RwLock<crate::tools::ToolConfigManager>> {
+        // 构建工具配置列表
+        let mut tool_configs = Vec::new();
+        for category_info in self.get_enabled_category_info() {
+            tool_configs.extend(category_info.tools);
+        }
+
+        // 构建类别列表
+        let categories = self.get_enabled_categories();
+
+        // 使用构建器创建配置管理器
+        let config_manager = crate::tools::config_manager::ConfigManagerBuilder::new()
+            .with_categories(categories)
+            .with_tool_configs(tool_configs)
+            .build();
+
+        Arc::new(RwLock::new(config_manager))
+    }
+
+    /// 注册工具
+    /// 向后兼容性方法，允许动态注册工具实例
+    pub fn register_tool(&mut self, tool: Arc<dyn crate::tools::Tool>) {
+        self.tool_instances.insert(tool.name().to_string(), tool);
     }
 
     /// 生成工具列表提示符
     pub fn list_tools(&self) -> String {
         let mut prompt = String::new();
-        for tool in self.tools.values() {
+        for tool in self.tool_instances.values() {
             let parameters = tool.parameters();
             let mut parameters_prompt = String::new();
             for parameter in parameters {
@@ -131,21 +190,9 @@ impl ToolManager {
 
     /// 获取UI用工具信息
     pub fn list_tools_for_ui(&self) -> Vec<crate::command::tools::ToolUIInfo> {
-        let config_manager = self.config_manager.read().unwrap();
-
-        self.tools
+        self.tool_instances
             .values()
-            .filter_map(|tool| {
-                let tool_name = tool.name();
-
-                // 检查工具是否启用
-                if !config_manager.is_tool_enabled(&tool_name) {
-                    return None;
-                }
-
-                // 获取工具配置
-                let tool_config = config_manager.get_tool_config(&tool_name);
-
+            .map(|tool| {
                 let parameters = tool
                     .parameters()
                     .into_iter()
@@ -154,240 +201,81 @@ impl ToolManager {
                             name: param.name,
                             description: param.description,
                             required: param.required,
-                            param_type: "string".to_string(), // Simplified for now
+                            param_type: "string".to_string(), // 简化处理
                         }
                     })
                     .collect();
 
-                let tool_type_str = if let Some(config) = tool_config {
-                    config.tool_type.clone()
-                } else {
-                    match tool.tool_type() {
-                        crate::tools::ToolType::AIParameterParsing => {
-                            "AIParameterParsing".to_string()
-                        }
-                        crate::tools::ToolType::RegexParameterExtraction => {
-                            "RegexParameterExtraction".to_string()
-                        }
+                let tool_type = match tool.tool_type() {
+                    crate::tools::ToolType::AIParameterParsing => "AIParameterParsing".to_string(),
+                    crate::tools::ToolType::RegexParameterExtraction => {
+                        "RegexParameterExtraction".to_string()
                     }
                 };
 
-                Some(crate::command::tools::ToolUIInfo {
+                crate::command::tools::ToolUIInfo {
                     name: tool.name(),
-                    description: tool_config
-                        .map(|c| c.description.clone())
-                        .unwrap_or_else(|| tool.description()),
+                    description: tool.description(),
                     parameters,
-                    tool_type: tool_type_str,
-                    parameter_regex: tool_config
-                        .and_then(|c| c.parameter_regex.clone())
-                        .or_else(|| tool.parameter_regex()),
-                    ai_response_template: tool_config
-                        .and_then(|c| c.custom_prompt.clone())
-                        .or_else(|| tool.custom_prompt()),
-                })
+                    tool_type,
+                    parameter_regex: tool.parameter_regex(),
+                    ai_response_template: tool.custom_prompt(),
+                }
             })
             .collect()
     }
 }
 
-// ============================================================================
-// 工具管理器工厂函数
-// ============================================================================
-
-/// 创建默认的工具管理器
-///
-/// 这是新架构的主要入口点，自动注册所有可用的工具类别
-/// 基于纯建造者模式，零硬编码实现
-pub fn create_default_tool_manager() -> ToolManager {
-    use crate::tools::categories::*;
-
-    // 使用建造者模式构建类别和工具配置
-    let (categories, tool_configs) = ToolManagerBuilder::new()
-        .register_category(FileOperationsCategory::new())
-        .register_category(CommandExecutionCategory::new())
-        .register_category(GeneralAssistantCategory::new())
-        .build_with_categories();
-
-    // 创建实际的工具实例映射
-    let tools = create_tool_instances();
-
-    // 创建配置管理器并设置类别
-    let mut config_manager = ToolConfigManager::default();
-    config_manager.set_custom_categories(categories);
-
-    // 注册工具配置
-    for tool_config in tool_configs {
-        config_manager.register_tool_config(tool_config);
-    }
-
-    ToolManager::new_with_config(tools, config_manager)
+/// 工具管理器构建器
+/// 用于简化工具管理器的创建过程
+pub struct ToolManagerBuilder {
+    categories: Vec<Box<dyn Category>>,
 }
 
-/// 创建带有自定义配置目录的工具管理器
-pub fn create_tool_manager_with_config_dir(config_dir: std::path::PathBuf) -> ToolManager {
-    use crate::tools::categories::*;
-
-    // 使用建造者模式构建类别和工具配置
-    // 图标和颜色通过 ToolCategory::get_default_icon/color 自动设置
-    let (categories, tool_configs) = ToolManagerBuilder::new()
-        .register_category(FileOperationsCategory::new())
-        .register_category(CommandExecutionCategory::new())
-        .register_category(GeneralAssistantCategory::new())
-        .build_with_categories();
-
-    // 创建实际的工具实例映射
-    let tools = create_tool_instances();
-
-    // 创建配置管理器
-    let mut config_manager = ToolConfigManager::new(config_dir);
-    config_manager.set_custom_categories(categories);
-
-    // 注册工具配置
-    for tool_config in tool_configs {
-        config_manager.register_tool_config(tool_config);
-    }
-
-    ToolManager::new_with_config(tools, config_manager)
-}
-
-/// 创建基础工具管理器（向后兼容）
-pub fn create_basic_tool_manager() -> ToolManager {
-    let tools = create_tool_instances();
-    let mut manager = ToolManager::new(tools);
-
-    // 手动注册工具（保持向后兼容性）
-    let tool_instances = create_tool_instances();
-    for (_, tool) in tool_instances {
-        manager.register_tool(tool);
-    }
-
-    manager
-}
-
-/// 创建所有工具实例
-///
-/// 这个函数集中管理所有工具的实例化逻辑
-/// 确保工具创建的一致性和可维护性
-fn create_tool_instances() -> HashMap<String, Arc<dyn crate::tools::Tool>> {
-    use crate::tools::file_tools::*;
-
-    let mut tools: HashMap<String, Arc<dyn crate::tools::Tool>> = HashMap::new();
-
-    // 注册文件操作工具
-    tools.insert("read_file".to_string(), Arc::new(ReadFileTool));
-    tools.insert("create_file".to_string(), Arc::new(CreateFileTool));
-    tools.insert("delete_file".to_string(), Arc::new(DeleteFileTool));
-    tools.insert("update_file".to_string(), Arc::new(UpdateFileTool));
-    tools.insert("search_files".to_string(), Arc::new(SearchFilesTool));
-    tools.insert("simple_search".to_string(), Arc::new(SimpleSearchTool));
-    tools.insert("append_file".to_string(), Arc::new(AppendFileTool));
-
-    // 注册命令执行工具
-    tools.insert("execute_command".to_string(), Arc::new(ExecuteCommandTool));
-
-    tools
-}
-
-/// 工具管理器工厂
-pub struct ToolManagerFactory;
-
-impl ToolManagerFactory {
-    /// 创建生产环境工具管理器
-    pub fn create_production() -> ToolManager {
-        create_default_tool_manager()
-    }
-
-    /// 创建测试环境工具管理器
-    pub fn create_test() -> ToolManager {
-        use crate::tools::categories::*;
-
-        // 测试环境可能需要不同的配置
-        let (categories, tool_configs) = ToolManagerBuilder::new()
-            .register_category(FileOperationsCategory::new().with_enabled(true))
-            .register_category(CommandExecutionCategory::new().with_enabled(false)) // 测试时禁用命令执行
-            .register_category(GeneralAssistantCategory::new().with_enabled(true))
-            .build_with_categories();
-
-        let tools = create_tool_instances();
-        let mut config_manager = ToolConfigManager::default();
-        config_manager.set_custom_categories(categories);
-
-        for tool_config in tool_configs {
-            config_manager.register_tool_config(tool_config);
-        }
-
-        ToolManager::new_with_config(tools, config_manager)
-    }
-
-    /// 创建开发环境工具管理器
-    pub fn create_development() -> ToolManager {
-        // 开发环境启用所有功能
-        create_default_tool_manager()
-    }
-
-    /// 创建自定义工具管理器
-    pub fn create_custom<F>(configure: F) -> ToolManager
-    where
-        F: FnOnce(
-            crate::tools::categories::ToolManagerBuilder,
-        ) -> crate::tools::categories::ToolManagerBuilder,
-    {
-        use crate::tools::categories::ToolManagerBuilder;
-
-        let builder = ToolManagerBuilder::new();
-        let builder = configure(builder);
-        let (categories, tool_configs) = builder.build_with_categories();
-
-        let tools = create_tool_instances();
-        let mut config_manager = ToolConfigManager::default();
-        config_manager.set_custom_categories(categories);
-
-        for tool_config in tool_configs {
-            config_manager.register_tool_config(tool_config);
-        }
-
-        ToolManager::new_with_config(tools, config_manager)
-    }
-}
-
-/// 工具发现和注册助手
-pub struct ToolRegistry {
-    tools: HashMap<String, Arc<dyn crate::tools::Tool>>,
-}
-
-impl ToolRegistry {
-    /// 创建新的工具注册表
+impl ToolManagerBuilder {
+    /// 创建新的构建器
     pub fn new() -> Self {
         Self {
-            tools: HashMap::new(),
+            categories: Vec::new(),
         }
     }
 
-    /// 注册工具
-    pub fn register<T: crate::tools::Tool + 'static>(mut self, tool: T) -> Self {
-        let name = tool.name();
-        self.tools.insert(name, Arc::new(tool));
+    /// 添加类别
+    pub fn add_category<T: Category + 'static>(mut self, category: T) -> Self {
+        self.categories.push(Box::new(category));
         self
     }
 
-    /// 批量注册工具
-    pub fn register_all(mut self, tools: Vec<Arc<dyn crate::tools::Tool>>) -> Self {
-        for tool in tools {
-            let name = tool.name();
-            self.tools.insert(name, tool);
-        }
-        self
-    }
-
-    /// 完成注册并返回工具映射
-    pub fn finish(self) -> HashMap<String, Arc<dyn crate::tools::Tool>> {
-        self.tools
+    /// 构建工具管理器
+    pub fn build(self) -> ToolManager {
+        ToolManager::new(self.categories)
     }
 }
 
-impl Default for ToolRegistry {
+impl Default for ToolManagerBuilder {
     fn default() -> Self {
         Self::new()
     }
+}
+
+// ============================================================================
+// 便利函数
+// ============================================================================
+
+/// 创建默认的工具管理器
+/// 注册所有可用的工具类别
+pub fn create_default_tool_manager() -> ToolManager {
+    // 获取所有默认类别
+    let categories = crate::tools::categories::get_default_categories();
+    ToolManager::new(categories)
+}
+
+/// 创建基础工具管理器（用于测试）
+pub fn create_basic_tool_manager() -> ToolManager {
+    create_default_tool_manager()
+}
+
+/// 创建带配置目录的工具管理器
+pub fn create_tool_manager_with_config_dir(_config_dir: std::path::PathBuf) -> ToolManager {
+    create_default_tool_manager()
 }

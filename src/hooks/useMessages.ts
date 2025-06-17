@@ -1,33 +1,50 @@
 import { useState, useCallback } from "react";
 import { invoke, Channel } from "@tauri-apps/api/core";
 import { Message, ChatItem } from "../types/chat";
-import { DEFAULT_MESSAGE } from "../constants";
 import {
   isMermaidEnhancementEnabled,
   getMermaidEnhancementPrompt,
 } from "../utils/mermaidUtils";
 import { ToolCallProcessor } from "../services/ToolCallProcessor";
+import { SystemPromptService } from "../services/SystemPromptService";
 
 // System prompt storage key
 const SYSTEM_PROMPT_KEY = "system_prompt";
 
-const getEffectiveSystemPrompt = (chat: ChatItem | null) => {
+const getEffectiveSystemPrompt = async (chat: ChatItem | null) => {
   let basePrompt = "";
+  const systemPromptService = SystemPromptService.getInstance();
 
   if (!chat) {
-    basePrompt = localStorage.getItem(SYSTEM_PROMPT_KEY) || DEFAULT_MESSAGE;
+    const storedPrompt = localStorage.getItem(SYSTEM_PROMPT_KEY);
+    if (!storedPrompt) {
+      throw new Error("系统提示词未配置");
+    }
+    basePrompt = storedPrompt;
   } else {
     // First try to use chat's stored systemPrompt
     if (chat.systemPrompt) {
       basePrompt = chat.systemPrompt;
+    } else if (chat.systemPromptId) {
+      // Use the new architecture: get system prompt from preset
+      try {
+        basePrompt = await systemPromptService.getCurrentSystemPromptContent(chat.systemPromptId);
+      } catch (error) {
+        console.error("Failed to get system prompt for chat:", error);
+        basePrompt = systemPromptService.getGlobalSystemPrompt();
+      }
     } else {
-      // Look for existing system message
+      // Look for existing system message (backward compatibility)
       const systemMessage = chat.messages.find((m) => m.role === "system");
       if (systemMessage) {
         basePrompt = systemMessage.content;
       } else {
-        // Fall back to current global system prompt
-        basePrompt = localStorage.getItem(SYSTEM_PROMPT_KEY) || DEFAULT_MESSAGE;
+        // 获取当前全局系统提示词
+        const storedPrompt = localStorage.getItem(SYSTEM_PROMPT_KEY);
+        if (!storedPrompt) {
+          throw new Error("系统提示词未配置");
+        }
+        basePrompt = storedPrompt;
       }
     }
   }
@@ -92,7 +109,7 @@ export const useMessages = (
         await new Promise((resolve) => setTimeout(resolve, 100));
 
         // Get the effective system prompt for this chat
-        const systemPromptContent = getEffectiveSystemPrompt(currentChat);
+        const systemPromptContent = await getEffectiveSystemPrompt(currentChat);
         const systemPromptMessage = {
           role: "system" as const,
           content: systemPromptContent,
@@ -347,7 +364,7 @@ export const useMessages = (
 
       await new Promise((resolve) => setTimeout(resolve, 100)); // Small delay
 
-      const systemPromptContent = getEffectiveSystemPrompt(currentChat);
+      const systemPromptContent = await getEffectiveSystemPrompt(currentChat);
       const systemPromptMessage = {
         role: "system" as const,
         content: systemPromptContent,

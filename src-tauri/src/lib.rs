@@ -74,6 +74,11 @@ pub fn run() {
             command::tools::update_category_config,
             command::tools::register_tool_to_category,
             command::tools::get_tool_category_info,
+            // 新架构优化的 API
+            command::tools::get_enabled_categories_with_priority,
+            command::tools::get_tool_manager_stats,
+            command::tools::is_category_enabled,
+            command::tools::get_category_system_prompt,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

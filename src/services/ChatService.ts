@@ -1,11 +1,9 @@
 import { v4 as uuidv4 } from "uuid";
 import { ChatItem, Message } from "../types/chat";
 import { generateChatTitle } from "../utils/chatUtils";
-import { DEFAULT_MESSAGE } from "../constants";
 
 const STORAGE_KEY = "copilot_chats";
 const SYSTEM_PROMPT_KEY = "system_prompt";
-const FALLBACK_MODEL_IN_CHATS = "gpt-4o";
 
 /**
  * ChatService handles core business logic for chat functionality
@@ -55,9 +53,14 @@ export class ChatService {
    */
   createChat(firstUserMessageContent?: string, defaultModel?: string): ChatItem {
     const newChatId = uuidv4();
-    const currentSystemPrompt =
-      localStorage.getItem(SYSTEM_PROMPT_KEY) || DEFAULT_MESSAGE;
-    const newChatModel = defaultModel || FALLBACK_MODEL_IN_CHATS;
+    const currentSystemPrompt = localStorage.getItem(SYSTEM_PROMPT_KEY);
+    if (!currentSystemPrompt) {
+      throw new Error("系统提示词未配置，无法创建聊天");
+    }
+    if (!defaultModel) {
+      throw new Error("模型未配置，无法创建聊天");
+    }
+    const newChatModel = defaultModel;
 
     let initialMessages: ChatItem["messages"] = [];
     if (firstUserMessageContent) {
@@ -238,7 +241,7 @@ export class ChatService {
         systemPrompt:
           systemMessage?.content ||
           localStorage.getItem(SYSTEM_PROMPT_KEY) ||
-          DEFAULT_MESSAGE,
+          (() => { throw new Error("系统提示词未配置，无法迁移现有聊天。请配置系统提示词后重试。"); })(),
       };
     });
   }

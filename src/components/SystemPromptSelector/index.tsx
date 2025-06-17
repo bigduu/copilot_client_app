@@ -11,16 +11,8 @@ import {
   Tag,
   Empty,
 } from "antd";
-import {
-  ToolOutlined,
-  FileTextOutlined,
-  PlayCircleOutlined,
-} from "@ant-design/icons";
-import {
-  SystemPromptPreset,
-  SystemPromptPresetList,
-  TOOL_CATEGORIES,
-} from "../../types/chat";
+import { ToolOutlined } from "@ant-design/icons";
+import { SystemPromptPreset, SystemPromptPresetList } from "../../types/chat";
 // SystemPromptService has been removed, now using backend configuration
 
 const { Text, Title } = Typography;
@@ -36,45 +28,53 @@ interface SystemPromptSelectorProps {
   showCancelButton?: boolean;
 }
 
-// Category icon mapping
-const getCategoryIcon = (category: string) => {
-  switch (category) {
-    case TOOL_CATEGORIES.FILE_READER:
-      return <FileTextOutlined />;
-    case TOOL_CATEGORIES.COMMAND_EXECUTOR:
-      return <PlayCircleOutlined />;
-    case TOOL_CATEGORIES.GENERAL:
-    default:
-      return <ToolOutlined />;
+/**
+ * 严格模式类别配置函数 - 所有配置必须从后端获取
+ * 前端不包含任何硬编码配置，未配置的类别将抛出错误
+ */
+
+// Category icon mapping - 严格模式，没有配置就报错
+const getCategoryIcon = (
+  category: string,
+  categoryData?: any
+): React.ReactNode => {
+  // 如果有后端提供的类别数据，使用其中的图标信息
+  if (categoryData?.icon) {
+    // 这里可以根据后端提供的图标字符串返回对应的React图标组件
+    // 实际实现应该从后端获取图标映射配置
+    return <span>{categoryData.icon}</span>;
   }
+
+  throw new Error(
+    `未配置的类别图标: ${category}。请确保后端已提供该类别的图标配置。`
+  );
 };
 
-// Category display name mapping
-const getCategoryDisplayName = (category: string): string => {
-  switch (category) {
-    case TOOL_CATEGORIES.GENERAL:
-      return "General Assistant";
-    case TOOL_CATEGORIES.FILE_READER:
-      return "File Operations";
-    case TOOL_CATEGORIES.COMMAND_EXECUTOR:
-      return "Command Execution";
-    default:
-      return "General Assistant";
+// Category display name mapping - 严格模式，没有配置就报错
+const getCategoryDisplayName = (
+  category: string,
+  categoryData?: any
+): string => {
+  // 如果有后端提供的类别数据，使用其中的显示名称
+  if (categoryData?.display_name || categoryData?.name) {
+    return categoryData.display_name || categoryData.name;
   }
+
+  throw new Error(
+    `未配置的类别显示名称: ${category}。请确保后端已提供该类别的显示名称配置。`
+  );
 };
 
-// Category tag color mapping
-const getCategoryTagColor = (category: string) => {
-  switch (category) {
-    case TOOL_CATEGORIES.GENERAL:
-      return "blue";
-    case TOOL_CATEGORIES.FILE_READER:
-      return "green";
-    case TOOL_CATEGORIES.COMMAND_EXECUTOR:
-      return "magenta";
-    default:
-      return "default";
+// Category tag color mapping - 严格模式，没有配置就报错
+const getCategoryTagColor = (category: string, categoryData?: any): string => {
+  // 如果有后端提供的类别数据，使用其中的颜色信息
+  if (categoryData?.color) {
+    return categoryData.color;
   }
+
+  throw new Error(
+    `未配置的类别颜色: ${category}。请确保后端已提供该类别的颜色配置。`
+  );
 };
 
 const SystemPromptSelector: React.FC<SystemPromptSelectorProps> = ({
@@ -94,7 +94,10 @@ const SystemPromptSelector: React.FC<SystemPromptSelectorProps> = ({
     const groups: Record<string, SystemPromptPreset[]> = {};
 
     presets.forEach((preset) => {
-      const category = preset.category || TOOL_CATEGORIES.GENERAL;
+      const category = preset.category;
+      if (!category) {
+        throw new Error("系统提示预设缺少类别信息，无法分组");
+      }
       if (!groups[category]) {
         groups[category] = [];
       }
@@ -108,8 +111,7 @@ const SystemPromptSelector: React.FC<SystemPromptSelectorProps> = ({
   const categoryOrder = useMemo(() => {
     const categories = Object.keys(groupedPresets);
     return categories.sort((a, b) => {
-      if (a === TOOL_CATEGORIES.GENERAL) return -1;
-      if (b === TOOL_CATEGORIES.GENERAL) return 1;
+      // 排序逻辑应该从后端配置获取，这里只提供基本的字典排序
       return a.localeCompare(b);
     });
   }, [groupedPresets]);
@@ -155,8 +157,22 @@ const SystemPromptSelector: React.FC<SystemPromptSelectorProps> = ({
           <Text strong>{preset.name}</Text>
           {preset.mode === "tool_specific" && (
             <Tag
-              color={getCategoryTagColor(preset.category)}
-              icon={getCategoryIcon(preset.category)}
+              color={(() => {
+                try {
+                  return getCategoryTagColor(preset.category);
+                } catch (error) {
+                  console.warn("类别颜色配置缺失:", (error as Error).message);
+                  return "default";
+                }
+              })()}
+              icon={(() => {
+                try {
+                  return getCategoryIcon(preset.category);
+                } catch (error) {
+                  console.warn("类别图标配置缺失:", (error as Error).message);
+                  return <ToolOutlined />;
+                }
+              })()}
             >
               Specialized Mode
             </Tag>
@@ -279,9 +295,29 @@ const SystemPromptSelector: React.FC<SystemPromptSelectorProps> = ({
             <Panel
               header={
                 <Space>
-                  {getCategoryIcon(category)}
+                  {(() => {
+                    try {
+                      return getCategoryIcon(category);
+                    } catch (error) {
+                      console.warn(
+                        "类别图标配置缺失:",
+                        (error as Error).message
+                      );
+                      return <ToolOutlined />;
+                    }
+                  })()}
                   <Title level={5} style={{ margin: 0 }}>
-                    {getCategoryDisplayName(category)}
+                    {(() => {
+                      try {
+                        return getCategoryDisplayName(category);
+                      } catch (error) {
+                        console.warn(
+                          "类别显示名称配置缺失:",
+                          (error as Error).message
+                        );
+                        return category;
+                      }
+                    })()}
                   </Title>
                   <Text type="secondary">
                     ({groupedPresets[category].length} items)

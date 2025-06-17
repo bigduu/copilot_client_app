@@ -5,6 +5,8 @@
 #[cfg(test)]
 mod tests {
     use crate::tools::categories::*;
+    use crate::tools::category::Category;
+    use crate::tools::tool_manager::ToolManagerBuilder;
 
     #[test]
     fn demo_strict_tools_mode_usage() {
@@ -22,68 +24,94 @@ mod tests {
 
         // 构建完整的工具管理器
         let builder = ToolManagerBuilder::new()
-            .register_category(file_ops)
-            .register_category(cmd_exec)
-            .register_category(general);
+            .add_category(file_ops)
+            .add_category(cmd_exec)
+            .add_category(general);
 
-        let (categories, _tool_configs) = builder.build_with_categories();
+        let manager = builder.build();
 
-        println!("\n=== 构建后的类别信息 ===");
+        // 获取启用的类别
+        let categories = manager.get_enabled_categories();
+        println!("启用的类别数量: {}", categories.len());
+
+        // 验证严格模式设置
         for category in &categories {
             println!(
-                "类别: {} ({}), 严格模式: {}, 启用: {}",
-                category.name, category.id, category.strict_tools_mode, category.enabled
+                "类别 {} - 严格模式: {}",
+                category.display_name, category.strict_tools_mode
             );
         }
 
-        // 验证命令执行类别确实启用了严格模式
-        let cmd_category = categories
-            .iter()
-            .find(|c| c.id == "command_execution")
-            .expect("应该找到命令执行类别");
-
-        assert!(
-            cmd_category.strict_tools_mode,
-            "命令执行类别应该启用严格模式"
-        );
-
-        // 验证其他类别没有启用严格模式
+        // 验证预期的严格模式设置
         let file_category = categories
             .iter()
             .find(|c| c.id == "file_operations")
-            .expect("应该找到文件操作类别");
+            .unwrap();
+        let cmd_category = categories
+            .iter()
+            .find(|c| c.id == "command_execution")
+            .unwrap();
+        let general_category = categories
+            .iter()
+            .find(|c| c.id == "general_assistant")
+            .unwrap();
 
         assert!(
             !file_category.strict_tools_mode,
-            "文件操作类别不应该启用严格模式"
+            "文件操作应该不使用严格模式"
+        );
+        assert!(cmd_category.strict_tools_mode, "命令执行应该使用严格模式");
+        assert!(
+            !general_category.strict_tools_mode,
+            "通用助手应该不使用严格模式"
         );
 
-        println!("\n✅ 严格工具模式功能验证成功！");
+        println!("=== 严格工具模式验证通过 ===");
     }
 
     #[test]
-    fn demo_new_tool_category_strict_mode() {
-        use crate::tools::types::ToolCategory;
+    fn test_strict_mode_configuration() {
+        // 测试各类别的严格模式配置
+        let file_ops = FileOperationsCategory::new();
+        let cmd_exec = CommandExecutionCategory::new();
+        let general = GeneralAssistantCategory::new();
 
-        println!("=== ToolCategory 严格模式演示 ===");
+        // 验证默认配置
+        assert!(!file_ops.strict_tools_mode());
+        assert!(cmd_exec.strict_tools_mode());
+        assert!(!general.strict_tools_mode());
 
-        // 创建一个自定义类别并设置严格模式
-        let custom_category = ToolCategory::new(
-            "custom_ai".to_string(),
-            "AI助手".to_string(),
-            "专门用于AI对话的类别".to_string(),
-            "🤖".to_string(),
-        )
-        .with_strict_tools_mode(true)
-        .with_enabled(true);
+        // 验证类别信息中的严格模式设置
+        let file_info = file_ops.build_info();
+        let cmd_info = cmd_exec.build_info();
+        let general_info = general.build_info();
 
-        println!("自定义类别: {}", custom_category.display_name);
-        println!("严格模式: {}", custom_category.strict_tools_mode);
-        println!("启用状态: {}", custom_category.enabled);
+        assert!(!file_info.category.strict_tools_mode);
+        assert!(cmd_info.category.strict_tools_mode);
+        assert!(!general_info.category.strict_tools_mode);
+    }
 
-        assert!(custom_category.strict_tools_mode);
-        assert!(custom_category.enabled);
+    #[test]
+    fn test_strict_mode_in_manager() {
+        // 创建工具管理器并测试严格模式
+        let manager = ToolManagerBuilder::new()
+            .add_category(FileOperationsCategory::new())
+            .add_category(CommandExecutionCategory::new())
+            .add_category(GeneralAssistantCategory::new())
+            .build();
 
-        println!("✅ ToolCategory 严格模式设置成功！");
+        let categories = manager.get_enabled_categories();
+        assert_eq!(categories.len(), 3);
+
+        // 检查严格模式设置是否正确传递
+        let strict_categories: Vec<_> = categories.iter().filter(|c| c.strict_tools_mode).collect();
+        let non_strict_categories: Vec<_> =
+            categories.iter().filter(|c| !c.strict_tools_mode).collect();
+
+        assert_eq!(strict_categories.len(), 1, "应该只有一个严格模式类别");
+        assert_eq!(non_strict_categories.len(), 2, "应该有两个非严格模式类别");
+
+        // 验证命令执行是严格模式
+        assert!(strict_categories[0].id == "command_execution");
     }
 }

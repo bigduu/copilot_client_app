@@ -15,6 +15,7 @@ export interface ToolCategoryInfo {
   icon?: string;
   color?: string;
   strict_tools_mode: boolean;
+  category_type: string; // 完全由后端控制，不再硬编码类型
 }
 
 /**

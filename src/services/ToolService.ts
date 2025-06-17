@@ -23,7 +23,7 @@ export interface ToolUIInfo {
   parameters: ParameterInfo[];
   tool_type: string;
   parameter_regex?: string;
-  ai_response_template?: string; // Keep field name consistent, but content is custom_prompt
+  ai_response_template?: string;
 }
 
 export interface ParameterInfo {
@@ -38,6 +38,26 @@ export interface ValidationResult {
   errorMessage?: string;
 }
 
+export interface ToolConfig {
+  parameterParsingRules: Record<string, ToolParameterRule>;
+  resultFormattingRules: Record<string, ToolFormatRule>;
+  fileExtensionMappings: Record<string, string>;
+}
+
+export interface ToolParameterRule {
+  separator?: string;
+  parameterNames: string[];
+  fallbackBehavior?: 'error' | 'use_description';
+}
+
+export interface ToolFormatRule {
+  codeLanguage: string;
+  parameterExtraction?: {
+    pathParam?: string;
+    filePathParam?: string;
+  };
+}
+
 /**
  * ToolService handles business logic for tool invocations
  * Including tool call parsing, parameter processing, tool execution, etc.
@@ -45,6 +65,7 @@ export interface ValidationResult {
 export class ToolService {
   private static instance: ToolService;
   private systemPromptService: SystemPromptService;
+  private toolConfig: ToolConfig | null = null;
 
   constructor() {
     this.systemPromptService = SystemPromptService.getInstance();
@@ -106,7 +127,7 @@ export class ToolService {
     sendLLMRequest: (messages: Message[]) => Promise<string>
   ): Promise<ParameterValue[]> {
     // Build system prompt for parameter parsing
-    const systemPrompt = this.buildParameterParsingPrompt(
+    const systemPrompt = await this.buildParameterParsingPrompt(
       tool,
       toolCall.user_description
     );
@@ -126,7 +147,7 @@ export class ToolService {
     const aiResponse = await sendLLMRequest(messages);
 
     // Parse parameters returned by AI
-    return this.parseAIParameterResponse(
+    return await this.parseAIParameterResponse(
       aiResponse,
       tool,
       toolCall.user_description
@@ -146,12 +167,26 @@ export class ToolService {
   }
 
   /**
+   * 获取工具配置（从后端获取）
+   */
+  private async getToolConfig(): Promise<ToolConfig> {
+    if (!this.toolConfig) {
+      try {
+        this.toolConfig = await invoke<ToolConfig>("get_tool_config");
+      } catch (error) {
+        throw new Error(`工具配置必须从后端获取，前端不提供硬编码配置。后端错误: ${error}`);
+      }
+    }
+    return this.toolConfig;
+  }
+
+  /**
    * Build system prompt for parameter parsing
    */
-  private buildParameterParsingPrompt(
+  private async buildParameterParsingPrompt(
     tool: ToolUIInfo,
     userDescription: string
-  ): string {
+  ): Promise<string> {
     const parametersDesc = tool.parameters
       .map(
         (p) =>
@@ -161,6 +196,21 @@ export class ToolService {
       )
       .join("\n");
 
+    // 获取工具参数解析规则（从后端配置获取）
+    const config = await this.getToolConfig();
+    const rule = config.parameterParsingRules[tool.name];
+    
+    if (!rule) {
+      throw new Error(`工具 "${tool.name}" 的参数解析规则必须从后端配置获取，前端不提供硬编码规则`);
+    }
+
+    // 构建参数解析指导
+    let parsingInstructions = "参数解析规则:\n";
+    if (rule.separator) {
+      parsingInstructions += `- 多个参数使用 "${rule.separator}" 分隔\n`;
+    }
+    parsingInstructions += `- 参数顺序: ${rule.parameterNames.join(", ")}\n`;
+
     return `You are a parameter parser for tool execution. Based on the user's description, extract the required parameters for the tool and return ONLY the parameter values in the exact format needed.
 
 Tool: ${tool.name}
@@ -168,9 +218,7 @@ Description: ${tool.description}
 Parameters:
 ${parametersDesc}
 
-For execute_command tool, return only the shell command.
-For create_file tool, return the file path and content separated by '|||'.
-For read_file/delete_file tools, return only the file path.
+${parsingInstructions}
 
 User request: ${userDescription}
 
@@ -180,11 +228,11 @@ Respond with only the parameter value(s), no explanation:`;
   /**
    * Parse AI parameter response
    */
-  private parseAIParameterResponse(
+  private async parseAIParameterResponse(
     aiResponse: string,
     tool: ToolUIInfo,
     userDescription: string
-  ): ParameterValue[] {
+  ): Promise<ParameterValue[]> {
     const trimmedResponse = aiResponse.trim();
 
     if (!trimmedResponse) {
@@ -193,50 +241,52 @@ Respond with only the parameter value(s), no explanation:`;
 
     const parameters: ParameterValue[] = [];
 
-    // Parse parameters based on tool type
-    switch (tool.name) {
-      case "execute_command":
-        parameters.push({
-          name: "command",
-          value: trimmedResponse,
-        });
-        break;
+    // 获取工具参数解析规则（从后端配置获取）
+    const config = await this.getToolConfig();
+    const rule = config.parameterParsingRules[tool.name];
+    
+    if (!rule) {
+      throw new Error(`工具 "${tool.name}" 的参数解析规则必须从后端配置获取，前端不提供硬编码解析逻辑`);
+    }
 
-      case "create_file":
-        if (trimmedResponse.includes("|||")) {
-          const parts = trimmedResponse.split("|||");
-          if (parts.length >= 2) {
-            parameters.push(
-              { name: "path", value: parts[0].trim() },
-              { name: "content", value: parts[1].trim() }
-            );
+    // 根据配置规则解析参数
+    if (rule.separator && trimmedResponse.includes(rule.separator)) {
+      const parts = trimmedResponse.split(rule.separator);
+      if (parts.length >= rule.parameterNames.length) {
+        rule.parameterNames.forEach((paramName, index) => {
+          if (parts[index]) {
+            parameters.push({
+              name: paramName,
+              value: parts[index].trim(),
+            });
           }
+        });
+      } else {
+        // 参数不足时的处理
+        if (rule.fallbackBehavior === 'error') {
+          throw new Error(`工具 "${tool.name}" 需要 ${rule.parameterNames.length} 个参数，但只解析到 ${parts.length} 个`);
+        } else if (rule.fallbackBehavior === 'use_description') {
+          // 使用用户描述作为后备
+          rule.parameterNames.forEach((paramName, index) => {
+            parameters.push({
+              name: paramName,
+              value: parts[index] ? parts[index].trim() : userDescription,
+            });
+          });
         } else {
-          // Fallback: use original description
-          parameters.push(
-            { name: "path", value: "test.txt" },
-            { name: "content", value: userDescription }
-          );
+          throw new Error(`工具 "${tool.name}" 的回退行为配置无效，必须从后端重新配置`);
         }
-        break;
-
-      case "read_file":
-      case "delete_file":
+      }
+    } else {
+      // 单参数情况
+      if (rule.parameterNames.length > 0) {
         parameters.push({
-          name: "path",
+          name: rule.parameterNames[0],
           value: trimmedResponse,
         });
-        break;
-
-      default:
-        // Default: use AI-parsed parameters for the first parameter
-        if (tool.parameters.length > 0) {
-          parameters.push({
-            name: tool.parameters[0].name,
-            value: trimmedResponse,
-          });
-        }
-        break;
+      } else {
+        throw new Error(`工具 "${tool.name}" 的参数名称配置缺失，必须从后端配置获取`);
+      }
     }
 
     return parameters;
@@ -245,67 +295,35 @@ Respond with only the parameter value(s), no explanation:`;
   /**
    * Format tool execution result
    */
-  formatToolResult(
+  async formatToolResult(
     toolName: string,
     parameters: ParameterValue[],
     result: string
-  ): string {
+  ): Promise<string> {
     const paramStr = parameters.map((p) => `${p.name}: ${p.value}`).join(", ");
 
-    // Select appropriate code block language based on tool type
-    let codeLanguage = "text";
-    switch (toolName) {
-      case "execute_command":
-        codeLanguage = "bash";
-        break;
-      case "create_file":
-      case "read_file":
-        // Try to infer language from file extension
-        const fileParam = parameters.find(
-          (p) => p.name === "path" || p.name === "file_path"
-        );
+    // 获取工具结果格式化规则（从后端配置获取）
+    const config = await this.getToolConfig();
+    const formatRule = config.resultFormattingRules[toolName];
+    
+    if (!formatRule) {
+      throw new Error(`工具 "${toolName}" 的结果格式化规则必须从后端配置获取，前端不提供硬编码格式化逻辑`);
+    }
+
+    let codeLanguage = formatRule.codeLanguage;
+
+    // 如果配置支持文件扩展名推断
+    if (formatRule.parameterExtraction) {
+      const pathParamName = formatRule.parameterExtraction.pathParam || formatRule.parameterExtraction.filePathParam;
+      if (pathParamName) {
+        const fileParam = parameters.find((p) => p.name === pathParamName);
         if (fileParam) {
           const ext = fileParam.value.split(".").pop()?.toLowerCase();
-          switch (ext) {
-            case "js":
-            case "jsx":
-              codeLanguage = "javascript";
-              break;
-            case "ts":
-            case "tsx":
-              codeLanguage = "typescript";
-              break;
-            case "py":
-              codeLanguage = "python";
-              break;
-            case "rs":
-              codeLanguage = "rust";
-              break;
-            case "json":
-              codeLanguage = "json";
-              break;
-            case "md":
-              codeLanguage = "markdown";
-              break;
-            case "html":
-              codeLanguage = "html";
-              break;
-            case "css":
-              codeLanguage = "css";
-              break;
-            case "sh":
-              codeLanguage = "bash";
-              break;
-            default:
-              codeLanguage = "text";
+          if (ext && config.fileExtensionMappings[ext]) {
+            codeLanguage = config.fileExtensionMappings[ext];
           }
         }
-        break;
-      case "list_files":
-        codeLanguage = "bash";
-        break;
-      default:
-        codeLanguage = "text";
+      }
     }
 
     return `**Tool: ${toolName}**
@@ -337,10 +355,14 @@ ${result}
   async getToolInfo(toolName: string): Promise<ToolUIInfo | null> {
     try {
       const tools = await this.getAvailableTools();
-      return tools.find((tool) => tool.name === toolName) || null;
+      const tool = tools.find((tool) => tool.name === toolName);
+      if (!tool) {
+        throw new Error(`工具 "${toolName}" 不存在，请检查工具是否已在后端正确注册`);
+      }
+      return tool;
     } catch (error) {
       console.error("Failed to get tool info:", error);
-      return null;
+      throw new Error(`获取工具 "${toolName}" 信息失败: ${error}`);
     }
   }
 
@@ -352,7 +374,8 @@ ${result}
     systemPromptId: string
   ): Promise<boolean> {
     if (!systemPromptId) {
-      return true; // Allow all tools when no system prompt
+      // 严格模式：没有系统提示时不应该有默认行为
+      throw new Error("系统提示词ID必须提供，不能使用默认权限配置");
     }
 
     try {
@@ -360,14 +383,27 @@ ${result}
         systemPromptId
       );
 
-      if (!preset || preset.mode !== "tool_specific") {
-        return true; // General mode allows all tools
+      if (!preset) {
+        throw new Error(`系统提示词预设 "${systemPromptId}" 不存在，无法检查工具权限`);
       }
 
-      return preset.allowedTools?.includes(toolName) || false;
+      if (preset.mode !== "tool_specific") {
+        // 从后端获取通用模式的工具权限配置
+        const generalModeConfig = await invoke<{allowAllTools: boolean}>("get_general_mode_config");
+        if (!generalModeConfig.allowAllTools) {
+          throw new Error("通用模式的工具权限配置必须从后端获取，前端不提供默认权限");
+        }
+        return true;
+      }
+
+      if (!preset.allowedTools) {
+        throw new Error(`工具专用模式的允许工具列表未配置，系统提示词 "${systemPromptId}" 缺少必要配置`);
+      }
+
+      return preset.allowedTools.includes(toolName);
     } catch (error) {
       console.error("Failed to check tool permission:", error);
-      return true; // Default allow on error
+      throw new Error(`检查工具 "${toolName}" 权限失败: ${error}`);
     }
   }
 
@@ -378,7 +414,11 @@ ${result}
     message: string,
     systemPromptId: string
   ): Promise<string> {
-    if (!systemPromptId || !message.trim()) {
+    if (!systemPromptId) {
+      throw new Error("系统提示词ID必须提供，不能使用默认前缀配置");
+    }
+    
+    if (!message.trim()) {
       return message;
     }
 
@@ -387,7 +427,11 @@ ${result}
         systemPromptId
       );
 
-      if (preset?.mode === "tool_specific" && preset.autoToolPrefix) {
+      if (!preset) {
+        throw new Error(`系统提示词预设 "${systemPromptId}" 不存在，无法自动添加工具前缀`);
+      }
+
+      if (preset.mode === "tool_specific" && preset.autoToolPrefix) {
         // Check if message already contains tool prefix
         if (!message.startsWith("/")) {
           return `${preset.autoToolPrefix} ${message}`;
@@ -396,7 +440,7 @@ ${result}
       return message;
     } catch (error) {
       console.error("Failed to auto add tool prefix:", error);
-      return message;
+      throw new Error(`自动添加工具前缀失败: ${error}`);
     }
   }
 
@@ -428,7 +472,7 @@ ${result}
     systemPromptId: string
   ): Promise<ValidationResult> {
     if (!systemPromptId) {
-      return { isValid: true };
+      throw new Error("系统提示词ID必须提供，不能使用默认对话验证配置");
     }
 
     try {
@@ -436,14 +480,18 @@ ${result}
         systemPromptId
       );
 
-      if (preset?.restrictConversation) {
+      if (!preset) {
+        throw new Error(`系统提示词预设 "${systemPromptId}" 不存在，无法验证对话权限`);
+      }
+
+      if (preset.restrictConversation) {
         // Check if it's a tool call
         const isToolCall = this.parseToolCallFormat(content) !== null;
         if (!isToolCall) {
           return {
             isValid: false,
             errorMessage:
-              "Current mode only supports tool calls, normal conversation is not supported",
+              "当前模式仅支持工具调用，不支持普通对话",
           };
         }
       }
@@ -451,7 +499,7 @@ ${result}
       return { isValid: true };
     } catch (error) {
       console.error("Failed to validate conversation:", error);
-      return { isValid: true }; // Default allow on error
+      throw new Error(`验证对话权限失败: ${error}`);
     }
   }
 
@@ -500,5 +548,76 @@ ${result}
       processedContent,
       validation: { isValid: true },
     };
+  }
+
+  /**
+   * 获取工具类别权重 (用于排序)
+   */
+  async getCategoryWeight(categoryId: string): Promise<number> {
+    try {
+      // 使用现有的get_enabled_categories_with_priority命令
+      const categories = await invoke<any[]>('get_enabled_categories_with_priority');
+      
+      // 根据类别在数组中的位置计算权重
+      // 数组已经按优先级排序，所以索引就是权重
+      const categoryIndex = categories.findIndex(cat => cat.id === categoryId);
+      
+      if (categoryIndex === -1) {
+        throw new Error(`工具类别 "${categoryId}" 的排序权重未配置。请检查后端是否已注册该类别。`);
+      }
+      
+      return categoryIndex + 1; // 权重从1开始
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      throw new Error(`获取工具类别 "${categoryId}" 权重失败: ${errorMessage}`);
+    }
+  }
+
+  /**
+   * 获取工具类别显示信息
+   */
+  async getCategoryDisplayInfo(categoryId: string): Promise<{
+    name: string;
+    icon: string;
+    description: string;
+    color?: string;
+  }> {
+    try {
+      // 使用现有的get_enabled_categories_with_priority命令
+      const categories = await invoke<any[]>('get_enabled_categories_with_priority');
+      
+      // 查找指定类别
+      const category = categories.find(cat => cat.id === categoryId);
+      
+      if (!category) {
+        throw new Error(`工具类别 "${categoryId}" 未找到。请检查后端是否已注册该类别。`);
+      }
+      
+      // 返回显示信息
+      return {
+        name: category.display_name || category.name,
+        icon: category.icon || '🔧',
+        description: category.description || '',
+        color: this.getCategoryColor(categoryId)
+      };
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      throw new Error(`获取工具类别 "${categoryId}" 显示信息失败: ${errorMessage}`);
+    }
+  }
+
+  /**
+   * 获取类别颜色（基于类别ID的简单映射）
+   */
+  private getCategoryColor(categoryId: string): string {
+    const colorMap: Record<string, string> = {
+      'file_operations': '#52c41a',
+      'command_execution': '#1890ff',
+      'general_assistant': '#722ed1',
+      'system_analysis': '#fa8c16',
+      'development_tools': '#13c2c2',
+    };
+    
+    return colorMap[categoryId] || '#666666';
   }
 }

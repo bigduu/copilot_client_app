@@ -2,7 +2,7 @@
 //!
 //! 提供工具和类别配置的管理功能
 
-use crate::tools::types::{ToolCategory, ToolConfig};
+use crate::tools::tool_types::{ToolCategory, ToolConfig};
 use std::collections::HashMap;
 
 /// 工具配置管理器
@@ -108,8 +108,23 @@ impl ToolConfigManager {
 
     /// 导入配置
     pub fn import_configs(&mut self, json_content: &str) -> Result<(), String> {
-        // 简化实现，实际应该解析JSON并更新配置
-        let _ = json_content;
+        // 解析JSON并更新配置
+        use serde_json::Value;
+
+        let parsed: Value = serde_json::from_str(json_content)
+            .map_err(|e| format!("Failed to parse JSON: {}", e))?;
+
+        if let Some(configs) = parsed.as_object() {
+            for (name, config_value) in configs {
+                if let Ok(tool_config) = serde_json::from_value::<
+                    crate::tools::tool_types::ToolConfig,
+                >(config_value.clone())
+                {
+                    self.tool_configs.insert(name.clone(), tool_config);
+                }
+            }
+        }
+
         Ok(())
     }
 

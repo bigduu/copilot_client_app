@@ -1,4 +1,4 @@
-import { ChatItem, TOOL_CATEGORIES } from "../types/chat";
+import { ChatItem } from "../types/chat";
 
 export const generateChatTitle = (chatNumber: number): string => {
   const now = new Date();
@@ -59,7 +59,10 @@ export const groupChatsByToolCategory = (
   chats
     .filter((chat) => !chat.pinned)
     .forEach((chat) => {
-      const category = chat.toolCategory || TOOL_CATEGORIES.GENERAL;
+      const category = chat.toolCategory;
+      if (!category) {
+        throw new Error("聊天记录缺少工具类别信息，无法分组");
+      }
       if (!grouped[category]) {
         grouped[category] = [];
       }
@@ -89,50 +92,81 @@ export interface CategoryDisplayInfo {
 export const getCategoryDisplayInfo = (
   category: string
 ): CategoryDisplayInfo => {
-  const categoryMap: Record<string, CategoryDisplayInfo> = {
-    [TOOL_CATEGORIES.GENERAL]: {
-      name: "General Assistant",
-      icon: "💬",
-      description:
-        "Versatile AI assistant supporting conversation, analysis, programming and various tasks",
-      color: "#1677ff",
-    },
-    [TOOL_CATEGORIES.FILE_READER]: {
-      name: "File Operations",
-      icon: "📁",
-      description:
-        "File reading, creation, updating, deletion and search functions",
-      color: "#52c41a",
-    },
-    [TOOL_CATEGORIES.COMMAND_EXECUTOR]: {
-      name: "Command Execution",
-      icon: "⚡",
-      description: "Safely execute system commands and scripts",
-      color: "#722ed1",
-    },
-    Pinned: {
+  // 固定的特殊分组处理
+  if (category === "Pinned") {
+    return {
       name: "Pinned Chats",
       icon: "📌",
       description: "Important pinned chat records",
       color: "#f5222d",
-    },
-  };
+    };
+  }
 
-  return categoryMap[category] || categoryMap[TOOL_CATEGORIES.GENERAL];
+  // 对于工具类别，必须从后端动态获取配置
+  throw new Error(`工具类别 "${category}" 的显示信息必须从后端配置获取，前端不提供硬编码配置`);
+};
+
+/**
+ * Get category display information (异步版本)
+ * 从后端获取类别显示信息
+ */
+export const getCategoryDisplayInfoAsync = async (
+  category: string
+): Promise<CategoryDisplayInfo> => {
+  // 固定的特殊分组处理
+  if (category === "Pinned") {
+    return {
+      name: "Pinned Chats",
+      icon: "📌",
+      description: "Important pinned chat records",
+      color: "#f5222d",
+    };
+  }
+
+  // 从ToolService获取类别显示信息
+  try {
+    const { ToolService } = await import('../services/ToolService');
+    const toolService = ToolService.getInstance();
+    return await toolService.getCategoryDisplayInfo(category);
+  } catch (error) {
+    console.error('获取工具类别显示信息失败:', error);
+    throw new Error(`工具类别 "${category}" 的显示信息未配置。请检查后端是否已注册该类别。`);
+  }
 };
 
 /**
  * Get sorting weight for tool categories
+ * 同步版本：用于已知有后端配置的情况
  */
 export const getCategoryWeight = (category: string): number => {
-  const weights: Record<string, number> = {
-    Pinned: 0,
-    [TOOL_CATEGORIES.GENERAL]: 1,
-    [TOOL_CATEGORIES.FILE_READER]: 2,
-    [TOOL_CATEGORIES.COMMAND_EXECUTOR]: 3,
-  };
+  // 固定的特殊分组处理
+  if (category === "Pinned") {
+    return 0;
+  }
 
-  return weights[category] || 999;
+  // 对于工具类别，排序权重必须从后端配置获取
+  throw new Error(`工具类别 "${category}" 的排序权重必须从后端配置获取，前端不提供硬编码配置`);
+};
+
+/**
+ * Get sorting weight for tool categories (异步版本)
+ * 从后端获取类别权重
+ */
+export const getCategoryWeightAsync = async (category: string): Promise<number> => {
+  // 固定的特殊分组处理
+  if (category === "Pinned") {
+    return 0;
+  }
+
+  // 从ToolService获取权重
+  try {
+    const { ToolService } = await import('../services/ToolService');
+    const toolService = ToolService.getInstance();
+    return await toolService.getCategoryWeight(category);
+  } catch (error) {
+    console.error('获取工具类别权重失败:', error);
+    throw new Error(`工具类别 "${category}" 的排序权重未配置。请检查后端是否已注册该类别。`);
+  }
 };
 
 /**
