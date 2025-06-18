@@ -87,6 +87,48 @@ Ready to write some code? Fantastic!
 
 We'll do our best to review your contribution promptly and provide constructive feedback. Thank you for helping out! 🙏
 
+## 📚 项目文档
+
+本项目包含完整的技术文档，按类别组织在 `docs/` 目录下：
+
+### 📖 文档结构
+
+- **[开发指南](./docs/development/)** - 代码规范和开发最佳实践
+  - [样式指南](./docs/development/STYLING_GUIDELINES.md) - 代码格式和样式规范
+  - [组件文档](./docs/development/components/) - 前端组件使用指南
+    - [SystemPromptSelector](./docs/development/components/SystemPromptSelector.md) - 系统提示选择器组件
+
+- **[架构设计](./docs/architecture/)** - 系统架构和设计文档
+  - [工具系统开发者指南](./docs/architecture/tools-system.md) - Category trait 架构和开发接口
+  - [工具调用流程改进](./docs/architecture/IMPROVED_TOOL_CALL_FLOW.md) - 工具调用优化方案
+  - [Mermaid 功能增强](./docs/architecture/MERMAID_ENHANCEMENT.md) - 图表功能扩展
+  - [系统提示优化计划](./docs/architecture/SYSTEM_PROMPT_ENHANCEMENT_PLAN.md) - AI 提示改进
+  - [工具架构迁移指南](./docs/architecture/TOOL_ARCHITECTURE_MIGRATION_GUIDE.md) - 架构升级指导
+
+- **[项目报告](./docs/reports/)** - 重构和修复报告
+  - [实施报告](./docs/reports/implementation/) - 具体实施过程记录
+    - [项目重构总结](./docs/reports/implementation/PROJECT_REFACTORING_SUMMARY_REPORT.md)
+    - [严格模式实施](./docs/reports/implementation/STRICT_MODE_IMPLEMENTATION.md)
+    - [硬编码清理报告](./docs/reports/implementation/HARDCODE_CLEANUP_REPORT.md)
+    - [其他修复报告](./docs/reports/implementation/)
+
+- **[测试文档](./docs/testing/)** - 测试策略和结果
+  - [测试分类](./docs/testing/test_categories.md) - 测试规范和分类
+  - [工具调用测试](./docs/testing/TOOL_CALL_TEST_RESULTS.md) - 测试结果分析
+  - [重构测试报告](./docs/testing/TOOL_CALL_REFACTOR_TEST.md) - 重构验证
+
+- **[工具文档](./docs/tools/)** - 工具配置和使用指南
+  - [Mermaid 示例](./docs/tools/MERMAID_EXAMPLES.md) - 图表使用示例
+  - [工具迁移指南](./docs/tools/TOOL_MIGRATION_GUIDE.md) - 工具升级指导
+  - [配置重构计划](./docs/tools/TOOLS_CONFIG_REFACTOR_PLAN.md) - 配置优化方案
+
+### 📋 文档使用建议
+
+- **新开发人员**: 建议从 [开发指南](./docs/development/) 开始阅读
+- **架构了解**: 查看 [架构设计](./docs/architecture/) 文档了解系统设计
+- **问题排查**: 参考 [测试文档](./docs/testing/) 和 [项目报告](./docs/reports/)
+- **工具使用**: 查阅 [工具文档](./docs/tools/) 获取详细使用说明
+
 ## 🔧 Recommended IDE Setup
 
 For the best development experience, we recommend:
