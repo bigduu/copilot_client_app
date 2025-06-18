@@ -15,7 +15,7 @@ import SystemMessage from "../SystemMessage";
 import StreamingMessageItem from "../StreamingMessageItem";
 import { DownOutlined } from "@ant-design/icons";
 import { InputContainer } from "../InputContainer";
-import "./ChatView.css"; // Import a new CSS file for animations and specific styles
+import "./styles.css"; // Import a new CSS file for animations and specific styles
 import MessageCard from "../MessageCard";
 
 const { Content } = Layout;
