@@ -38,25 +38,7 @@ export interface ValidationResult {
   errorMessage?: string;
 }
 
-export interface ToolConfig {
-  parameterParsingRules: Record<string, ToolParameterRule>;
-  resultFormattingRules: Record<string, ToolFormatRule>;
-  fileExtensionMappings: Record<string, string>;
-}
 
-export interface ToolParameterRule {
-  separator?: string;
-  parameterNames: string[];
-  fallbackBehavior?: 'error' | 'use_description';
-}
-
-export interface ToolFormatRule {
-  codeLanguage: string;
-  parameterExtraction?: {
-    pathParam?: string;
-    filePathParam?: string;
-  };
-}
 
 /**
  * ToolService handles business logic for tool invocations
@@ -65,7 +47,6 @@ export interface ToolFormatRule {
 export class ToolService {
   private static instance: ToolService;
   private systemPromptService: SystemPromptService;
-  private toolConfig: ToolConfig | null = null;
 
   constructor() {
     this.systemPromptService = SystemPromptService.getInstance();
@@ -166,19 +147,7 @@ export class ToolService {
     }
   }
 
-  /**
-   * 获取工具配置（从后端获取）
-   */
-  private async getToolConfig(): Promise<ToolConfig> {
-    if (!this.toolConfig) {
-      try {
-        this.toolConfig = await invoke<ToolConfig>("get_tool_config");
-      } catch (error) {
-        throw new Error(`工具配置必须从后端获取，前端不提供硬编码配置。后端错误: ${error}`);
-      }
-    }
-    return this.toolConfig;
-  }
+
 
   /**
    * Build system prompt for parameter parsing
@@ -196,20 +165,11 @@ export class ToolService {
       )
       .join("\n");
 
-    // 获取工具参数解析规则（从后端配置获取）
-    const config = await this.getToolConfig();
-    const rule = config.parameterParsingRules[tool.name];
-    
-    if (!rule) {
-      throw new Error(`工具 "${tool.name}" 的参数解析规则必须从后端配置获取，前端不提供硬编码规则`);
-    }
-
-    // 构建参数解析指导
+    // 构建标准的参数解析指导
     let parsingInstructions = "参数解析规则:\n";
-    if (rule.separator) {
-      parsingInstructions += `- 多个参数使用 "${rule.separator}" 分隔\n`;
-    }
-    parsingInstructions += `- 参数顺序: ${rule.parameterNames.join(", ")}\n`;
+    parsingInstructions += `- 根据工具描述和参数要求解析用户输入\n`;
+    parsingInstructions += `- 确保所有必需参数都被正确提取\n`;
+    parsingInstructions += `- 参数值应该准确反映用户意图\n`;
 
     return `You are a parameter parser for tool execution. Based on the user's description, extract the required parameters for the tool and return ONLY the parameter values in the exact format needed.
 
@@ -241,52 +201,34 @@ Respond with only the parameter value(s), no explanation:`;
 
     const parameters: ParameterValue[] = [];
 
-    // 获取工具参数解析规则（从后端配置获取）
-    const config = await this.getToolConfig();
-    const rule = config.parameterParsingRules[tool.name];
-    
-    if (!rule) {
-      throw new Error(`工具 "${tool.name}" 的参数解析规则必须从后端配置获取，前端不提供硬编码解析逻辑`);
-    }
-
-    // 根据配置规则解析参数
-    if (rule.separator && trimmedResponse.includes(rule.separator)) {
-      const parts = trimmedResponse.split(rule.separator);
-      if (parts.length >= rule.parameterNames.length) {
-        rule.parameterNames.forEach((paramName, index) => {
-          if (parts[index]) {
-            parameters.push({
-              name: paramName,
-              value: parts[index].trim(),
-            });
-          }
+    // 简化的参数解析：根据工具参数定义解析 AI 响应
+    // 对于大多数工具，AI 应该返回适合的参数值
+    if (tool.parameters.length === 1) {
+      // 单参数工具：直接使用 AI 响应作为参数值
+      parameters.push({
+        name: tool.parameters[0].name,
+        value: trimmedResponse,
+      });
+    } else if (tool.parameters.length > 1) {
+      // 多参数工具：尝试按行分割或使用整个响应作为第一个参数
+      const lines = trimmedResponse.split('\n').filter(line => line.trim());
+      if (lines.length >= tool.parameters.length) {
+        // 按行分配参数
+        tool.parameters.forEach((param, index) => {
+          parameters.push({
+            name: param.name,
+            value: lines[index] ? lines[index].trim() : userDescription,
+          });
         });
       } else {
-        // 参数不足时的处理
-        if (rule.fallbackBehavior === 'error') {
-          throw new Error(`工具 "${tool.name}" 需要 ${rule.parameterNames.length} 个参数，但只解析到 ${parts.length} 个`);
-        } else if (rule.fallbackBehavior === 'use_description') {
-          // 使用用户描述作为后备
-          rule.parameterNames.forEach((paramName, index) => {
-            parameters.push({
-              name: paramName,
-              value: parts[index] ? parts[index].trim() : userDescription,
-            });
-          });
-        } else {
-          throw new Error(`工具 "${tool.name}" 的回退行为配置无效，必须从后端重新配置`);
-        }
+        // 回退：使用用户描述作为第一个参数的值
+        parameters.push({
+          name: tool.parameters[0].name,
+          value: userDescription,
+        });
       }
     } else {
-      // 单参数情况
-      if (rule.parameterNames.length > 0) {
-        parameters.push({
-          name: rule.parameterNames[0],
-          value: trimmedResponse,
-        });
-      } else {
-        throw new Error(`工具 "${tool.name}" 的参数名称配置缺失，必须从后端配置获取`);
-      }
+      throw new Error(`工具 "${tool.name}" 没有定义参数`);
     }
 
     return parameters;
@@ -302,27 +244,35 @@ Respond with only the parameter value(s), no explanation:`;
   ): Promise<string> {
     const paramStr = parameters.map((p) => `${p.name}: ${p.value}`).join(", ");
 
-    // 获取工具结果格式化规则（从后端配置获取）
-    const config = await this.getToolConfig();
-    const formatRule = config.resultFormattingRules[toolName];
-    
-    if (!formatRule) {
-      throw new Error(`工具 "${toolName}" 的结果格式化规则必须从后端配置获取，前端不提供硬编码格式化逻辑`);
-    }
+    // 简化的结果格式化：根据工具类型和参数推断代码语言
+    let codeLanguage = "text";
 
-    let codeLanguage = formatRule.codeLanguage;
+    // 尝试从文件路径参数推断语言
+    const pathParam = parameters.find((p) =>
+      p.name.toLowerCase().includes("path") ||
+      p.name.toLowerCase().includes("file")
+    );
 
-    // 如果配置支持文件扩展名推断
-    if (formatRule.parameterExtraction) {
-      const pathParamName = formatRule.parameterExtraction.pathParam || formatRule.parameterExtraction.filePathParam;
-      if (pathParamName) {
-        const fileParam = parameters.find((p) => p.name === pathParamName);
-        if (fileParam) {
-          const ext = fileParam.value.split(".").pop()?.toLowerCase();
-          if (ext && config.fileExtensionMappings[ext]) {
-            codeLanguage = config.fileExtensionMappings[ext];
-          }
-        }
+    if (pathParam) {
+      const ext = pathParam.value.split(".").pop()?.toLowerCase();
+      const extensionMap: Record<string, string> = {
+        "js": "javascript",
+        "jsx": "javascript",
+        "ts": "typescript",
+        "tsx": "typescript",
+        "py": "python",
+        "rs": "rust",
+        "json": "json",
+        "md": "markdown",
+        "html": "html",
+        "css": "css",
+        "sh": "bash",
+        "yml": "yaml",
+        "yaml": "yaml"
+      };
+
+      if (ext && extensionMap[ext]) {
+        codeLanguage = extensionMap[ext];
       }
     }
 
@@ -387,15 +337,13 @@ ${result}
         throw new Error(`系统提示词预设 "${systemPromptId}" 不存在，无法检查工具权限`);
       }
 
+      // 通用模式（general）：允许使用所有工具
+      // 这是因为通用助手类别应该能够访问所有可用的工具
       if (preset.mode !== "tool_specific") {
-        // 从后端获取通用模式的工具权限配置
-        const generalModeConfig = await invoke<{allowAllTools: boolean}>("get_general_mode_config");
-        if (!generalModeConfig.allowAllTools) {
-          throw new Error("通用模式的工具权限配置必须从后端获取，前端不提供默认权限");
-        }
         return true;
       }
 
+      // 工具专用模式：检查工具是否在允许列表中
       if (!preset.allowedTools) {
         throw new Error(`工具专用模式的允许工具列表未配置，系统提示词 "${systemPromptId}" 缺少必要配置`);
       }
