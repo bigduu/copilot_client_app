@@ -1,6 +1,6 @@
-//! 通用助手类别
+//! General Assistant Category
 //!
-//! 包含通用的AI助手工具
+//! Contains general AI assistant tools
 
 use crate::tools::category::Category;
 use crate::tools::tool_types::CategoryType;
@@ -8,19 +8,19 @@ use crate::tools::Tool;
 use std::collections::HashMap;
 use std::sync::Arc;
 
-/// 通用助手类别
+/// General Assistant Category
 #[derive(Debug)]
 pub struct GeneralAssistantCategory {
     enabled: bool,
 }
 
 impl GeneralAssistantCategory {
-    /// 创建新的通用助手类别
+    /// Create a new general assistant category
     pub fn new() -> Self {
         Self { enabled: true }
     }
 
-    /// 设置是否启用此类别
+    /// Set whether this category is enabled
     pub fn with_enabled(mut self, enabled: bool) -> Self {
         self.enabled = enabled;
         self
@@ -43,15 +43,15 @@ impl Category for GeneralAssistantCategory {
     }
 
     fn display_name(&self) -> String {
-        "通用助手".to_string()
+        "General Assistant".to_string()
     }
 
     fn description(&self) -> String {
-        "提供通用的AI助手功能和对话支持，为用户提供智能帮助".to_string()
+        "Provides general AI assistant functionality and conversation support, offering intelligent help to users".to_string()
     }
 
     fn system_prompt(&self) -> String {
-        "你是一个智能的通用AI助手，能够理解用户的各种需求并提供有用的帮助。你可以回答问题、提供建议、协助解决问题，并以友好和专业的方式与用户交互。请根据用户的具体需求，提供准确、有用的信息和建议，保持专业性和友好的态度。".to_string()
+        "You are an intelligent general AI assistant capable of understanding various user needs and providing useful help. You can answer questions, provide suggestions, assist in problem-solving, and interact with users in a friendly and professional manner. Please provide accurate and useful information and suggestions based on users' specific needs, maintaining professionalism and a friendly attitude.".to_string()
     }
 
     fn icon(&self) -> String {
@@ -67,15 +67,15 @@ impl Category for GeneralAssistantCategory {
     }
 
     fn strict_tools_mode(&self) -> bool {
-        false // 通用助手需要自然语言交互
+        false // General assistant requires natural language interaction
     }
 
     fn priority(&self) -> i32 {
-        1 // 通用助手是最低优先级，作为兜底功能
+        1 // General assistant has the lowest priority, serving as a fallback function
     }
 
     fn enable(&self) -> bool {
-        // 通用助手类别通常总是启用的，作为兜底功能
+        // General assistant category is usually always enabled as a fallback function
         self.enabled
     }
 
@@ -84,11 +84,11 @@ impl Category for GeneralAssistantCategory {
     }
 
     fn tools(&self) -> HashMap<String, Arc<dyn Tool>> {
-        // 目前通用助手类别暂时没有具体的工具实现
-        // 这可以作为未来扩展的占位符，例如：
-        // - 代码生成工具
-        // - 文档分析工具
-        // - 智能问答工具
+        // Currently, the general assistant category has no specific tool implementations
+        // This can serve as a placeholder for future extensions, such as:
+        // - Code generation tools
+        // - Document analysis tools
+        // - Intelligent Q&A tools
         HashMap::new()
     }
 }

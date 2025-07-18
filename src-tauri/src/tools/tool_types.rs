@@ -1,24 +1,24 @@
-//! 工具系统的核心类型定义
+//! Core type definitions for the tool system
 //!
-//! 本模块包含工具管理系统的基础类型，提供最小化、类型安全的核心抽象。
+//! This module contains the basic types for the tool management system, providing minimal, type-safe core abstractions.
 
 use crate::tools::categories::get_category_id_for_tool;
 use serde::{Deserialize, Serialize};
 
-/// 类别类型枚举
-/// 用于标识不同类别的功能性质，前端可据此显示不同的图标、样式或功能
+/// Category type enumeration
+/// Used to identify the functional nature of different categories, frontend can display different icons, styles or functions based on this
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub enum CategoryType {
-    /// 文件操作类别
+    /// File operations category
     FileOperations,
-    /// 命令执行类别
+    /// Command execution category
     CommandExecution,
-    /// 通用助手类别
+    /// General assistant category
     GeneralAssistant,
 }
 
 impl CategoryType {
-    /// 获取类别类型的字符串表示
+    /// Get the string representation of the category type
     pub fn as_str(&self) -> &'static str {
         match self {
             CategoryType::FileOperations => "file_operations",
@@ -27,7 +27,7 @@ impl CategoryType {
         }
     }
 
-    /// 从字符串创建类别类型
+    /// Create category type from string
     pub fn from_str(s: &str) -> Option<Self> {
         match s {
             "file_operations" => Some(CategoryType::FileOperations),
@@ -38,7 +38,7 @@ impl CategoryType {
     }
 }
 
-/// 工具配置结构
+/// Tool configuration structure
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ToolConfig {
     pub name: String,
@@ -55,7 +55,7 @@ pub struct ToolConfig {
 }
 
 impl ToolConfig {
-    /// 从 Tool trait 对象创建 ToolConfig
+    /// Create ToolConfig from Tool trait object
     pub fn from_tool(tool: Box<dyn crate::tools::Tool>) -> Self {
         ToolConfig {
             name: tool.name(),
@@ -77,49 +77,49 @@ impl ToolConfig {
         }
     }
 
-    /// 设置类别ID
+    /// Set category ID
     pub fn with_category_id(mut self, category_id: String) -> Self {
         self.category_id = category_id;
         self
     }
 
-    /// 设置启用状态
+    /// Set enabled status
     pub fn with_enabled(mut self, enabled: bool) -> Self {
         self.enabled = enabled;
         self
     }
 
-    /// 设置显示名称
+    /// Set display name
     pub fn with_display_name(mut self, display_name: String) -> Self {
         self.display_name = display_name;
         self
     }
 
-    /// 设置描述
+    /// Set description
     pub fn with_description(mut self, description: String) -> Self {
         self.description = description;
         self
     }
 }
 
-/// 工具类别结构
+/// Tool category structure
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct ToolCategory {
-    pub id: String,           // 类别ID，与name相同
-    pub name: String,         // 内部名称
-    pub display_name: String, // 显示名称
-    pub description: String,  // 描述
-    pub icon: String,         // 图标
-    pub enabled: bool,        // 是否启用
+    pub id: String,           // Category ID, same as name
+    pub name: String,         // Internal name
+    pub display_name: String, // Display name
+    pub description: String,  // Description
+    pub icon: String,         // Icon
+    pub enabled: bool,        // Whether enabled
     #[serde(default)]
-    pub strict_tools_mode: bool, // 严格工具模式
+    pub strict_tools_mode: bool, // Strict tools mode
     #[serde(default)]
-    pub system_prompt: String, // 系统提示词
-    pub category_type: CategoryType, // 类别类型
+    pub system_prompt: String, // System prompt
+    pub category_type: CategoryType, // Category type
 }
 
 impl ToolCategory {
-    /// 创建新的工具类别
+    /// Create a new tool category
     pub fn new(
         name: String,
         display_name: String,
@@ -128,7 +128,7 @@ impl ToolCategory {
         category_type: CategoryType,
     ) -> Self {
         Self {
-            id: name.clone(), // id与name相同
+            id: name.clone(), // id is the same as name
             name,
             display_name,
             description,
@@ -140,19 +140,19 @@ impl ToolCategory {
         }
     }
 
-    /// 设置启用状态
+    /// Set enabled status
     pub fn with_enabled(mut self, enabled: bool) -> Self {
         self.enabled = enabled;
         self
     }
 
-    /// 设置严格工具模式
+    /// Set strict tools mode
     pub fn with_strict_tools_mode(mut self, strict_tools_mode: bool) -> Self {
         self.strict_tools_mode = strict_tools_mode;
         self
     }
 
-    /// 设置系统提示词
+    /// Set system prompt
     pub fn with_system_prompt(mut self, system_prompt: String) -> Self {
         self.system_prompt = system_prompt;
         self

@@ -1,6 +1,6 @@
-//! 文件操作类别
+//! File Operations Category
 //!
-//! 包含所有文件相关的工具：读取、创建、删除、更新、搜索等
+//! Contains all file-related tools: read, create, delete, update, search, etc.
 
 use crate::tools::category::Category;
 use crate::tools::tool_types::CategoryType;
@@ -8,19 +8,19 @@ use crate::tools::Tool;
 use std::collections::HashMap;
 use std::sync::Arc;
 
-/// 文件操作类别
+/// File Operations Category
 #[derive(Debug)]
 pub struct FileOperationsCategory {
     enabled: bool,
 }
 
 impl FileOperationsCategory {
-    /// 创建新的文件操作类别
+    /// Create a new file operations category
     pub fn new() -> Self {
         Self { enabled: true }
     }
 
-    /// 设置是否启用此类别
+    /// Set whether this category is enabled
     pub fn with_enabled(mut self, enabled: bool) -> Self {
         self.enabled = enabled;
         self
@@ -43,15 +43,15 @@ impl Category for FileOperationsCategory {
     }
 
     fn display_name(&self) -> String {
-        "文件操作".to_string()
+        "File Operations".to_string()
     }
 
     fn description(&self) -> String {
-        "提供完整的文件操作功能，包括读取、创建、更新、删除和搜索".to_string()
+        "Provides comprehensive file operation functionality, including read, create, update, delete, and search".to_string()
     }
 
     fn system_prompt(&self) -> String {
-        "你是一个专业的文件操作助手，负责处理各种文件相关的任务，包括文件的读取、创建、更新、删除和搜索。你需要确保文件操作的安全性和准确性，遵循最佳实践进行文件系统操作。在进行文件操作时，请注意权限检查、路径验证和数据完整性。".to_string()
+        "You are a professional file operations assistant responsible for handling various file-related tasks, including reading, creating, updating, deleting, and searching files. You need to ensure the security and accuracy of file operations, following best practices for file system operations. When performing file operations, please pay attention to permission checks, path validation, and data integrity.".to_string()
     }
 
     fn icon(&self) -> String {
@@ -67,15 +67,15 @@ impl Category for FileOperationsCategory {
     }
 
     fn strict_tools_mode(&self) -> bool {
-        false // 文件操作可能需要自然语言描述
+        false // File operations may require natural language descriptions
     }
 
     fn priority(&self) -> i32 {
-        10 // 文件操作是高优先级的核心功能
+        10 // File operations are high-priority core functionality
     }
 
     fn enable(&self) -> bool {
-        // 可以在这里添加文件系统权限检查等逻辑
+        // Can add file system permission checks and other logic here
         self.enabled
     }
 
@@ -88,19 +88,19 @@ impl Category for FileOperationsCategory {
 
         let mut tools: HashMap<String, Arc<dyn Tool>> = HashMap::new();
 
-        // 文件读取工具
+        // File reading tool
         tools.insert("read_file".to_string(), Arc::new(ReadFileTool));
-        // 文件创建工具
+        // File creation tool
         tools.insert("create_file".to_string(), Arc::new(CreateFileTool));
-        // 文件删除工具
+        // File deletion tool
         tools.insert("delete_file".to_string(), Arc::new(DeleteFileTool));
-        // 文件更新工具
+        // File update tool
         tools.insert("update_file".to_string(), Arc::new(UpdateFileTool));
-        // 文件搜索工具
+        // File search tool
         tools.insert("search_files".to_string(), Arc::new(SearchFilesTool));
-        // 简单搜索工具
+        // Simple search tool
         tools.insert("simple_search".to_string(), Arc::new(SimpleSearchTool));
-        // 文件追加工具
+        // File append tool
         tools.insert("append_file".to_string(), Arc::new(AppendFileTool));
 
         tools

@@ -1,6 +1,6 @@
-//! 命令执行类别
+//! Command Execution Category
 //!
-//! 包含系统命令执行相关的工具
+//! Contains tools related to system command execution
 
 use crate::tools::category::Category;
 use crate::tools::tool_types::CategoryType;
@@ -8,19 +8,19 @@ use crate::tools::Tool;
 use std::collections::HashMap;
 use std::sync::Arc;
 
-/// 命令执行类别
+/// Command Execution Category
 #[derive(Debug)]
 pub struct CommandExecutionCategory {
     enabled: bool,
 }
 
 impl CommandExecutionCategory {
-    /// 创建新的命令执行类别
+    /// Create a new command execution category
     pub fn new() -> Self {
         Self { enabled: true }
     }
 
-    /// 设置是否启用此类别
+    /// Set whether this category is enabled
     pub fn with_enabled(mut self, enabled: bool) -> Self {
         self.enabled = enabled;
         self
@@ -43,15 +43,15 @@ impl Category for CommandExecutionCategory {
     }
 
     fn display_name(&self) -> String {
-        "命令执行".to_string()
+        "Command Execution".to_string()
     }
 
     fn description(&self) -> String {
-        "安全执行系统命令和脚本，需要严格的权限控制".to_string()
+        "Safely execute system commands and scripts with strict permission control".to_string()
     }
 
     fn system_prompt(&self) -> String {
-        "你是一个系统命令执行助手，专门负责安全地执行用户请求的系统命令。你需要确保命令的安全性，验证命令参数，避免执行潜在危险的操作。在执行命令前，请仔细检查命令的合法性和安全性，并提供详细的执行结果和错误处理。".to_string()
+        "You are a system command execution assistant responsible for safely executing user-requested system commands. You need to ensure command security, validate command parameters, and avoid executing potentially dangerous operations. Before executing commands, please carefully check the legality and security of commands, and provide detailed execution results and error handling.".to_string()
     }
 
     fn icon(&self) -> String {
@@ -67,16 +67,16 @@ impl Category for CommandExecutionCategory {
     }
 
     fn strict_tools_mode(&self) -> bool {
-        true // 命令执行应该使用严格的工具调用
+        true // Command execution should use strict tool calls
     }
 
     fn priority(&self) -> i32 {
-        5 // 命令执行是中等优先级，需要谨慎使用
+        5 // Command execution has medium priority and should be used cautiously
     }
 
     fn enable(&self) -> bool {
-        // 可以在这里添加系统权限检查等逻辑
-        // 例如：检查是否有执行权限、是否在安全环境中等
+        // Can add system permission checks and other logic here
+        // For example: check if there are execution permissions, if in a secure environment, etc.
         self.enabled
     }
 
@@ -89,7 +89,7 @@ impl Category for CommandExecutionCategory {
 
         let mut tools: HashMap<String, Arc<dyn Tool>> = HashMap::new();
 
-        // 命令执行工具
+        // Command execution tool
         tools.insert("execute_command".to_string(), Arc::new(ExecuteCommandTool));
 
         tools

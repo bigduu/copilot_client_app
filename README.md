@@ -87,47 +87,47 @@ Ready to write some code? Fantastic!
 
 We'll do our best to review your contribution promptly and provide constructive feedback. Thank you for helping out! 🙏
 
-## 📚 项目文档
+## 📚 Project Documentation
 
-本项目包含完整的技术文档，按类别组织在 `docs/` 目录下：
+This project contains comprehensive technical documentation, organized by category in the `docs/` directory:
 
-### 📖 文档结构
+### 📖 Documentation Structure
 
-- **[开发指南](./docs/development/)** - 代码规范和开发最佳实践
-  - [样式指南](./docs/development/STYLING_GUIDELINES.md) - 代码格式和样式规范
-  - [组件文档](./docs/development/components/) - 前端组件使用指南
-    - [SystemPromptSelector](./docs/development/components/SystemPromptSelector.md) - 系统提示选择器组件
+- **[Development Guide](./docs/development/)** - Code standards and development best practices
+  - [Style Guide](./docs/development/STYLING_GUIDELINES.md) - Code formatting and style standards
+  - [Component Documentation](./docs/development/components/) - Frontend component usage guide
+    - [SystemPromptSelector](./docs/development/components/SystemPromptSelector.md) - System prompt selector component
 
-- **[架构设计](./docs/architecture/)** - 系统架构和设计文档
-  - [工具系统开发者指南](./docs/architecture/tools-system.md) - Category trait 架构和开发接口
-  - [工具调用流程改进](./docs/architecture/IMPROVED_TOOL_CALL_FLOW.md) - 工具调用优化方案
-  - [Mermaid 功能增强](./docs/architecture/MERMAID_ENHANCEMENT.md) - 图表功能扩展
-  - [系统提示优化计划](./docs/architecture/SYSTEM_PROMPT_ENHANCEMENT_PLAN.md) - AI 提示改进
-  - [工具架构迁移指南](./docs/architecture/TOOL_ARCHITECTURE_MIGRATION_GUIDE.md) - 架构升级指导
+- **[Architecture Design](./docs/architecture/)** - System architecture and design documentation
+  - [Tool System Developer Guide](./docs/architecture/tools-system.md) - Category trait architecture and development interface
+  - [Tool Call Flow Improvement](./docs/architecture/IMPROVED_TOOL_CALL_FLOW.md) - Tool call optimization solution
+  - [Mermaid Feature Enhancement](./docs/architecture/MERMAID_ENHANCEMENT.md) - Chart functionality extension
+  - [System Prompt Enhancement Plan](./docs/architecture/SYSTEM_PROMPT_ENHANCEMENT_PLAN.md) - AI prompt improvement
+  - [Tool Architecture Migration Guide](./docs/architecture/TOOL_ARCHITECTURE_MIGRATION_GUIDE.md) - Architecture upgrade guidance
 
-- **[项目报告](./docs/reports/)** - 重构和修复报告
-  - [实施报告](./docs/reports/implementation/) - 具体实施过程记录
-    - [项目重构总结](./docs/reports/implementation/PROJECT_REFACTORING_SUMMARY_REPORT.md)
-    - [严格模式实施](./docs/reports/implementation/STRICT_MODE_IMPLEMENTATION.md)
-    - [硬编码清理报告](./docs/reports/implementation/HARDCODE_CLEANUP_REPORT.md)
-    - [其他修复报告](./docs/reports/implementation/)
+- **[Project Reports](./docs/reports/)** - Refactoring and fix reports
+  - [Implementation Reports](./docs/reports/implementation/) - Specific implementation process records
+    - [Project Refactoring Summary](./docs/reports/implementation/PROJECT_REFACTORING_SUMMARY_REPORT.md)
+    - [Strict Mode Implementation](./docs/reports/implementation/STRICT_MODE_IMPLEMENTATION.md)
+    - [Hardcode Cleanup Report](./docs/reports/implementation/HARDCODE_CLEANUP_REPORT.md)
+    - [Other Fix Reports](./docs/reports/implementation/)
 
-- **[测试文档](./docs/testing/)** - 测试策略和结果
-  - [测试分类](./docs/testing/test_categories.md) - 测试规范和分类
-  - [工具调用测试](./docs/testing/TOOL_CALL_TEST_RESULTS.md) - 测试结果分析
-  - [重构测试报告](./docs/testing/TOOL_CALL_REFACTOR_TEST.md) - 重构验证
+- **[Testing Documentation](./docs/testing/)** - Testing strategies and results
+  - [Test Categories](./docs/testing/test_categories.md) - Testing standards and classification
+  - [Tool Call Testing](./docs/testing/TOOL_CALL_TEST_RESULTS.md) - Test result analysis
+  - [Refactoring Test Report](./docs/testing/TOOL_CALL_REFACTOR_TEST.md) - Refactoring verification
 
-- **[工具文档](./docs/tools/)** - 工具配置和使用指南
-  - [Mermaid 示例](./docs/tools/MERMAID_EXAMPLES.md) - 图表使用示例
-  - [工具迁移指南](./docs/tools/TOOL_MIGRATION_GUIDE.md) - 工具升级指导
-  - [配置重构计划](./docs/tools/TOOLS_CONFIG_REFACTOR_PLAN.md) - 配置优化方案
+- **[Tool Documentation](./docs/tools/)** - Tool configuration and usage guide
+  - [Mermaid Examples](./docs/tools/MERMAID_EXAMPLES.md) - Chart usage examples
+  - [Tool Migration Guide](./docs/tools/TOOL_MIGRATION_GUIDE.md) - Tool upgrade guidance
+  - [Configuration Refactoring Plan](./docs/tools/TOOLS_CONFIG_REFACTOR_PLAN.md) - Configuration optimization solution
 
-### 📋 文档使用建议
+### 📋 Documentation Usage Recommendations
 
-- **新开发人员**: 建议从 [开发指南](./docs/development/) 开始阅读
-- **架构了解**: 查看 [架构设计](./docs/architecture/) 文档了解系统设计
-- **问题排查**: 参考 [测试文档](./docs/testing/) 和 [项目报告](./docs/reports/)
-- **工具使用**: 查阅 [工具文档](./docs/tools/) 获取详细使用说明
+- **New Developers**: Recommended to start reading from [Development Guide](./docs/development/)
+- **Architecture Understanding**: Check [Architecture Design](./docs/architecture/) documentation to understand system design
+- **Problem Troubleshooting**: Refer to [Testing Documentation](./docs/testing/) and [Project Reports](./docs/reports/)
+- **Tool Usage**: Consult [Tool Documentation](./docs/tools/) for detailed usage instructions
 
 ## 🔧 Recommended IDE Setup
 

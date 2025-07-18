@@ -1,6 +1,6 @@
-//! 配置管理测试
+//! Configuration Management Tests
 //!
-//! 测试工具配置管理器的各项功能
+//! Tests various functions of the tool configuration manager
 
 #[cfg(test)]
 mod tests {
@@ -21,8 +21,8 @@ mod tests {
 
         let tool_config = ToolConfig {
             name: "test_tool".to_string(),
-            display_name: "测试工具".to_string(),
-            description: "这是一个测试工具".to_string(),
+            display_name: "Test Tool".to_string(),
+            description: "This is a test tool".to_string(),
             category_id: "test_category".to_string(),
             enabled: true,
             requires_approval: false,
@@ -41,7 +41,7 @@ mod tests {
 
         let retrieved_config = config_manager.get_tool_config("test_tool").unwrap();
         assert_eq!(retrieved_config.name, "test_tool");
-        assert_eq!(retrieved_config.display_name, "测试工具");
+        assert_eq!(retrieved_config.display_name, "Test Tool");
     }
 
     #[test]
@@ -51,12 +51,12 @@ mod tests {
         let category = ToolCategory {
             id: "test_category".to_string(),
             name: "test_category".to_string(),
-            display_name: "测试类别".to_string(),
-            description: "测试用类别".to_string(),
+            display_name: "Test Category".to_string(),
+            description: "Category for testing".to_string(),
             icon: "🧪".to_string(),
             enabled: true,
             strict_tools_mode: false,
-            system_prompt: "测试类别的系统提示词".to_string(),
+            system_prompt: "System prompt for test category".to_string(),
             category_type: CategoryType::GeneralAssistant,
         };
 
@@ -67,7 +67,7 @@ mod tests {
         assert_eq!(config_manager.get_enabled_categories_count(), 1);
 
         let categories = config_manager.get_tool_categories();
-        assert_eq!(categories[0].display_name, "测试类别");
+        assert_eq!(categories[0].display_name, "Test Category");
     }
 
     #[test]
@@ -76,8 +76,8 @@ mod tests {
 
         let tool_config = ToolConfig {
             name: "toggle_tool".to_string(),
-            display_name: "可切换工具".to_string(),
-            description: "用于测试启用/禁用功能".to_string(),
+            display_name: "Toggle Tool".to_string(),
+            description: "Tool for testing enable/disable functionality".to_string(),
             category_id: "test".to_string(),
             enabled: true,
             requires_approval: false,
@@ -90,14 +90,14 @@ mod tests {
 
         config_manager.register_tool_config(tool_config);
 
-        // 初始状态应该是启用的
+        // Initial state should be enabled
         assert!(config_manager.is_tool_enabled("toggle_tool"));
 
-        // 禁用工具
+        // Disable tool
         config_manager.disable_tool("toggle_tool").unwrap();
         assert!(!config_manager.is_tool_enabled("toggle_tool"));
 
-        // 重新启用工具
+        // Re-enable tool
         config_manager.enable_tool("toggle_tool").unwrap();
         assert!(config_manager.is_tool_enabled("toggle_tool"));
     }
@@ -109,25 +109,25 @@ mod tests {
         let category = ToolCategory {
             id: "toggle_category".to_string(),
             name: "toggle_category".to_string(),
-            display_name: "可切换类别".to_string(),
-            description: "用于测试类别启用/禁用".to_string(),
+            display_name: "Toggle Category".to_string(),
+            description: "Category for testing enable/disable".to_string(),
             icon: "🔧".to_string(),
             enabled: true,
             strict_tools_mode: false,
-            system_prompt: "可切换类别的系统提示词".to_string(),
+            system_prompt: "System prompt for toggle category".to_string(),
             category_type: CategoryType::GeneralAssistant,
         };
 
         config_manager.set_custom_categories(vec![category]);
 
-        // 初始状态应该是启用的
+        // Initial state should be enabled
         assert_eq!(config_manager.get_enabled_categories_count(), 1);
 
-        // 禁用类别
+        // Disable category
         config_manager.disable_category("toggle_category").unwrap();
         assert_eq!(config_manager.get_enabled_categories_count(), 0);
 
-        // 重新启用类别
+        // Re-enable category
         config_manager.enable_category("toggle_category").unwrap();
         assert_eq!(config_manager.get_enabled_categories_count(), 1);
     }
@@ -138,8 +138,8 @@ mod tests {
 
         let original_config = ToolConfig {
             name: "update_tool".to_string(),
-            display_name: "原始工具".to_string(),
-            description: "原始描述".to_string(),
+            display_name: "Original Tool".to_string(),
+            description: "Original description".to_string(),
             category_id: "original".to_string(),
             enabled: true,
             requires_approval: false,
@@ -154,8 +154,8 @@ mod tests {
 
         let updated_config = ToolConfig {
             name: "update_tool".to_string(),
-            display_name: "更新后的工具".to_string(),
-            description: "更新后的描述".to_string(),
+            display_name: "Updated Tool".to_string(),
+            description: "Updated description".to_string(),
             category_id: "updated".to_string(),
             enabled: false,
             requires_approval: true,
@@ -163,7 +163,7 @@ mod tests {
             permissions: vec!["write".to_string()],
             tool_type: "RegexParameterExtraction".to_string(),
             parameter_regex: Some(r"test_(\w+)".to_string()),
-            custom_prompt: Some("更新的提示".to_string()),
+            custom_prompt: Some("Updated prompt".to_string()),
         };
 
         config_manager
@@ -171,8 +171,8 @@ mod tests {
             .unwrap();
 
         let retrieved_config = config_manager.get_tool_config("update_tool").unwrap();
-        assert_eq!(retrieved_config.display_name, "更新后的工具");
-        assert_eq!(retrieved_config.description, "更新后的描述");
+        assert_eq!(retrieved_config.display_name, "Updated Tool");
+        assert_eq!(retrieved_config.description, "Updated description");
         assert_eq!(retrieved_config.category_id, "updated");
         assert!(!retrieved_config.enabled);
         assert!(retrieved_config.requires_approval);
@@ -184,7 +184,7 @@ mod tests {
 
         let tool1 = ToolConfig {
             name: "cat1_tool1".to_string(),
-            display_name: "类别1工具1".to_string(),
+            display_name: "Category1 Tool1".to_string(),
             description: "".to_string(),
             category_id: "category1".to_string(),
             enabled: true,
@@ -198,7 +198,7 @@ mod tests {
 
         let tool2 = ToolConfig {
             name: "cat1_tool2".to_string(),
-            display_name: "类别1工具2".to_string(),
+            display_name: "Category1 Tool2".to_string(),
             description: "".to_string(),
             category_id: "category1".to_string(),
             enabled: true,
@@ -212,7 +212,7 @@ mod tests {
 
         let tool3 = ToolConfig {
             name: "cat2_tool1".to_string(),
-            display_name: "类别2工具1".to_string(),
+            display_name: "Category2 Tool1".to_string(),
             description: "".to_string(),
             category_id: "category2".to_string(),
             enabled: true,
@@ -245,8 +245,8 @@ mod tests {
     fn test_config_manager_builder() {
         let tool_config = ToolConfig {
             name: "builder_tool".to_string(),
-            display_name: "建造者工具".to_string(),
-            description: "通过建造者模式创建".to_string(),
+            display_name: "Builder Tool".to_string(),
+            description: "Created through builder pattern".to_string(),
             category_id: "builder_category".to_string(),
             enabled: true,
             requires_approval: false,
@@ -260,12 +260,12 @@ mod tests {
         let category = ToolCategory {
             id: "builder_category".to_string(),
             name: "builder_category".to_string(),
-            display_name: "建造者类别".to_string(),
-            description: "通过建造者模式创建的类别".to_string(),
+            display_name: "Builder Category".to_string(),
+            description: "Category created through builder pattern".to_string(),
             icon: "🔧".to_string(),
             enabled: true,
             strict_tools_mode: false,
-            system_prompt: "建造者类别的系统提示词".to_string(),
+            system_prompt: "System prompt for builder category".to_string(),
             category_type: CategoryType::GeneralAssistant,
         };
 
@@ -286,8 +286,8 @@ mod tests {
 
         let tool_config = ToolConfig {
             name: "secure_tool".to_string(),
-            display_name: "安全工具".to_string(),
-            description: "需要审批和权限的工具".to_string(),
+            display_name: "Security Tool".to_string(),
+            description: "Tool requiring approval and permissions".to_string(),
             category_id: "secure".to_string(),
             enabled: true,
             requires_approval: true,
@@ -314,8 +314,8 @@ mod tests {
 
         let tool_config = ToolConfig {
             name: "display_tool".to_string(),
-            display_name: "显示工具".to_string(),
-            description: "测试显示名称".to_string(),
+            display_name: "Display Tool".to_string(),
+            description: "Test display name".to_string(),
             category_id: "display_category".to_string(),
             enabled: true,
             requires_approval: false,
@@ -329,12 +329,12 @@ mod tests {
         let category = ToolCategory {
             id: "display_category".to_string(),
             name: "display_category".to_string(),
-            display_name: "显示类别".to_string(),
-            description: "测试类别显示名称".to_string(),
+            display_name: "Display Category".to_string(),
+            description: "Test category display name".to_string(),
             icon: "🔧".to_string(),
             enabled: true,
             strict_tools_mode: false,
-            system_prompt: "显示类别的系统提示词".to_string(),
+            system_prompt: "System prompt for display category".to_string(),
             category_type: CategoryType::GeneralAssistant,
         };
 
@@ -345,16 +345,16 @@ mod tests {
             config_manager
                 .get_tool_display_name("display_tool")
                 .unwrap(),
-            "显示工具"
+            "Display Tool"
         );
         assert_eq!(
             config_manager
                 .get_category_display_name("display_category")
                 .unwrap(),
-            "显示类别"
+            "Display Category"
         );
 
-        // 测试不存在的项目
+        // Test non-existent items
         assert!(config_manager
             .get_tool_display_name("nonexistent")
             .is_none());

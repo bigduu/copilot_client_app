@@ -60,11 +60,15 @@ const SystemMessage: React.FC<SystemMessageProps> = ({
           }
         }
 
-        // 无法获取类别描述时抛出错误
-        throw new Error("无法获取类别描述，前端不提供默认值");
+        // Throw error when unable to get category description
+        throw new Error(
+          "Unable to get category description, frontend does not provide default values"
+        );
       } catch (error) {
         console.error("Failed to load category description:", error);
-        throw new Error("加载类别描述失败，前端不提供默认值");
+        throw new Error(
+          "Failed to load category description, frontend does not provide default values"
+        );
       }
     };
 
@@ -81,21 +85,21 @@ const SystemMessage: React.FC<SystemMessageProps> = ({
       return categoryDescription;
     }
 
-    // 获取系统提示词，不提供默认值
+    // Get system prompt, do not provide default values
     const content = currentChat?.systemPrompt || systemPrompt;
 
     if (!content) {
-      throw new Error("系统提示词未配置");
+      throw new Error("System prompt not configured");
     }
 
     if (typeof content === "string") {
       const trimmedContent = content.trim();
       if (!trimmedContent) {
-        throw new Error("系统提示词为空");
+        throw new Error("System prompt is empty");
       }
       return trimmedContent;
     }
-    throw new Error("系统提示词格式错误");
+    throw new Error("System prompt format error");
   }, [categoryDescription, currentChat?.systemPrompt, systemPrompt]);
 
   // Local state for expand/collapse
