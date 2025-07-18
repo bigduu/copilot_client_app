@@ -1,6 +1,6 @@
 /**
- * 严格模式类别配置管理器
- * 核心原则：前端不能有任何hardcode定义，没有配置就必须报错
+ * Strict Mode Category Configuration Manager
+ * Core principle: Frontend cannot have any hardcoded definitions, must throw error if no configuration
  */
 
 import { ToolCategoryInfo } from '../types/toolCategory';
@@ -19,13 +19,13 @@ export interface DisplayNameMapping {
 }
 
 /**
- * 严格模式类别配置管理器
- * 所有配置必须从后端获取，前端不包含任何默认值
+ * Strict Mode Category Configuration Manager
+ * All configurations must be obtained from backend, frontend contains no default values
  */
 export class StrictCategoryConfigManager {
   private static instance: StrictCategoryConfigManager;
   
-  // 从后端获取的配置 - 没有默认值
+  // Configuration obtained from backend - no default values
   private configuredIcons: IconMapping = {};
   private configuredColors: ColorMapping = {};
   private configuredDisplayNames: DisplayNameMapping = {};
@@ -39,8 +39,8 @@ export class StrictCategoryConfigManager {
   }
 
   /**
-   * 从后端加载配置
-   * 这是唯一的配置来源
+   * Load configuration from backend
+   * This is the only source of configuration
    */
   loadConfigFromBackend(
     icons: IconMapping,
@@ -54,55 +54,55 @@ export class StrictCategoryConfigManager {
   }
 
   /**
-   * 检查配置是否已加载
+   * Check if configuration is loaded
    */
   private ensureConfigLoaded(): void {
     if (!this.isConfigLoaded) {
-      throw new Error('类别配置尚未从后端加载。前端不包含任何默认配置，必须先从后端获取配置信息。');
+      throw new Error('Category configuration has not been loaded from backend. Frontend contains no default configuration, must first obtain configuration information from backend.');
     }
   }
 
   /**
-   * 获取类别图标 - 严格模式，没有配置就报错
+   * Get category icon - strict mode, throw error if no configuration
    */
   getCategoryIcon(categoryType: string): string {
     this.ensureConfigLoaded();
     
     const icon = this.configuredIcons[categoryType];
     if (!icon) {
-      throw new Error(`未配置的类别类型图标: ${categoryType}。请确保后端已提供该类别的图标配置。`);
+      throw new Error(`Unconfigured category type icon: ${categoryType}. Please ensure backend has provided icon configuration for this category.`);
     }
     return icon;
   }
 
   /**
-   * 获取类别颜色 - 严格模式，没有配置就报错
+   * Get category color - strict mode, throw error if no configuration
    */
   getCategoryColor(categoryType: string): string {
     this.ensureConfigLoaded();
     
     const color = this.configuredColors[categoryType];
     if (!color) {
-      throw new Error(`未配置的类别类型颜色: ${categoryType}。请确保后端已提供该类别的颜色配置。`);
+      throw new Error(`Unconfigured category type color: ${categoryType}. Please ensure backend has provided color configuration for this category.`);
     }
     return color;
   }
 
   /**
-   * 获取类别显示名称 - 严格模式，没有配置就报错
+   * Get category display name - strict mode, throw error if no configuration
    */
   getCategoryDisplayName(categoryType: string): string {
     this.ensureConfigLoaded();
     
     const displayName = this.configuredDisplayNames[categoryType];
     if (!displayName) {
-      throw new Error(`未配置的类别类型显示名称: ${categoryType}。请确保后端已提供该类别的显示名称配置。`);
+      throw new Error(`Unconfigured category type display name: ${categoryType}. Please ensure backend has provided display name configuration for this category.`);
     }
     return displayName;
   }
 
   /**
-   * 清空所有配置
+   * Clear all configurations
    */
   clearConfig(): void {
     this.configuredIcons = {};
@@ -112,7 +112,7 @@ export class StrictCategoryConfigManager {
   }
 
   /**
-   * 获取所有已配置的类别类型
+   * Get all configured category types
    */
   getAllConfiguredCategories(): string[] {
     this.ensureConfigLoaded();
@@ -126,7 +126,7 @@ export class StrictCategoryConfigManager {
   }
 
   /**
-   * 检查类别是否完全配置
+   * Check if category is fully configured
    */
   isCategoryFullyConfigured(categoryType: string): boolean {
     return this.isConfigLoaded &&
@@ -136,7 +136,7 @@ export class StrictCategoryConfigManager {
   }
 
   /**
-   * 验证类别配置完整性
+   * Validate category configuration completeness
    */
   validateCategoryConfig(categoryType: string): {
     isValid: boolean;
@@ -147,51 +147,51 @@ export class StrictCategoryConfigManager {
       return {
         isValid: false,
         missingConfigs: [],
-        error: '配置尚未从后端加载'
+        error: 'Configuration has not been loaded from backend'
       };
     }
 
     const missingConfigs: string[] = [];
     
     if (!this.configuredIcons.hasOwnProperty(categoryType)) {
-      missingConfigs.push('图标');
+      missingConfigs.push('icon');
     }
     if (!this.configuredColors.hasOwnProperty(categoryType)) {
-      missingConfigs.push('颜色');
+      missingConfigs.push('color');
     }
     if (!this.configuredDisplayNames.hasOwnProperty(categoryType)) {
-      missingConfigs.push('显示名称');
+      missingConfigs.push('display name');
     }
 
     return {
       isValid: missingConfigs.length === 0,
       missingConfigs,
       error: missingConfigs.length > 0 ? 
-        `类别 ${categoryType} 缺少配置: ${missingConfigs.join(', ')}` : 
+        `Category ${categoryType} missing configuration: ${missingConfigs.join(', ')}` :
         undefined
     };
   }
 }
 
 /**
- * 创建严格模式的工具类别信息
- * 所有信息必须从后端配置获取
+ * Create strict mode tool category information
+ * All information must be obtained from backend configuration
  */
 export const createStrictCategoryInfo = (categoryType: string): ToolCategoryInfo => {
   const manager = StrictCategoryConfigManager.getInstance();
   
-  // 验证配置完整性
+  // Validate configuration completeness
   const validation = manager.validateCategoryConfig(categoryType);
   if (!validation.isValid) {
-    throw new Error(`无法创建类别信息: ${validation.error}`);
+    throw new Error(`Unable to create category information: ${validation.error}`);
   }
   
   return {
     id: categoryType,
     name: manager.getCategoryDisplayName(categoryType),
-    description: `${manager.getCategoryDisplayName(categoryType)}相关功能`,
-    system_prompt: `你是一个专业的${manager.getCategoryDisplayName(categoryType)}助手`,
-    tools: [], // 工具列表应该从后端获取
+    description: `${manager.getCategoryDisplayName(categoryType)} related functionality`,
+    system_prompt: `You are a professional ${manager.getCategoryDisplayName(categoryType)} assistant`,
+    tools: [], // Tool list should be obtained from backend
     restrict_conversation: false,
     enabled: true,
     icon: manager.getCategoryIcon(categoryType),
@@ -202,52 +202,52 @@ export const createStrictCategoryInfo = (categoryType: string): ToolCategoryInfo
 };
 
 /**
- * 测试严格模式配置
+ * Test strict mode configuration
  */
 export const testStrictModeConfig = () => {
   const manager = StrictCategoryConfigManager.getInstance();
   
-  console.log('=== 严格模式类别配置测试 ===');
+  console.log('=== Strict Mode Category Configuration Test ===');
   
   try {
-    // 尝试获取未加载配置时的行为
-    console.log('测试未加载配置时的行为:');
+    // Try to get behavior when configuration is not loaded
+    console.log('Testing behavior when configuration is not loaded:');
     manager.getCategoryIcon('file_operations');
   } catch (error) {
-    console.log('✅ 正确抛出错误:', (error as Error).message);
+    console.log('✅ Correctly threw error:', (error as Error).message);
   }
   
-  // 模拟从后端加载配置
-  console.log('\n模拟从后端加载配置...');
+  // Simulate loading configuration from backend
+  console.log('\nSimulating loading configuration from backend...');
   manager.loadConfigFromBackend(
     { 'file_operations': '📁', 'command_execution': '⚡' },
     { 'file_operations': 'green', 'command_execution': 'magenta' },
-    { 'file_operations': '文件操作', 'command_execution': '命令执行' }
+    { 'file_operations': 'File Operations', 'command_execution': 'Command Execution' }
   );
   
-  // 测试已配置的类别
-  console.log('\n测试已配置的类别:');
+  // Test configured categories
+  console.log('\nTesting configured categories:');
   try {
     const icon = manager.getCategoryIcon('file_operations');
     const color = manager.getCategoryColor('file_operations');
     const name = manager.getCategoryDisplayName('file_operations');
-    console.log('✅ file_operations 配置正常:', { icon, color, name });
+    console.log('✅ file_operations configuration normal:', { icon, color, name });
   } catch (error) {
-    console.log('❌ 配置错误:', (error as Error).message);
+    console.log('❌ Configuration error:', (error as Error).message);
   }
   
-  // 测试未配置的类别
-  console.log('\n测试未配置的类别:');
+  // Test unconfigured categories
+  console.log('\nTesting unconfigured categories:');
   try {
     manager.getCategoryIcon('unknown_category');
   } catch (error) {
-    console.log('✅ 正确拒绝未配置类别:', (error as Error).message);
+    console.log('✅ Correctly rejected unconfigured category:', (error as Error).message);
   }
 };
 
-// 导出严格模式管理器实例
+// Export strict mode manager instance
 export const strictCategoryManager = StrictCategoryConfigManager.getInstance();
 
-// 向后兼容的导出（但会在使用时报错）
+// Backward compatible exports (but will throw error when used)
 export const dynamicCategoryManager = strictCategoryManager;
 export const DynamicCategoryConfigManager = StrictCategoryConfigManager;

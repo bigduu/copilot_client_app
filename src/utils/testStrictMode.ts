@@ -1,53 +1,53 @@
 /**
- * 严格模式测试文件
- * 验证所有默认配置已被移除，实现"无配置即报错"机制
+ * Strict Mode Test File
+ * Verify that all default configurations have been removed, implementing "no configuration means error" mechanism
  */
 
 import { StrictCategoryConfigManager, testStrictModeConfig } from './dynamicCategoryConfig';
 
 /**
- * 测试严格模式配置管理器
+ * Test strict mode configuration manager
  */
 export const testStrictModeImplementation = () => {
-  console.log('=== 严格模式实现验证 ===');
+  console.log('=== Strict Mode Implementation Verification ===');
   
   const manager = StrictCategoryConfigManager.getInstance();
   
-  // 测试1: 验证未加载配置时所有操作都会报错
-  console.log('\n测试1: 验证未加载配置时的报错机制');
+  // Test 1: Verify that all operations will throw errors when configuration is not loaded
+  console.log('\nTest 1: Verify error mechanism when configuration is not loaded');
   
   const testCategories = ['file_operations', 'command_execution', 'general_assistant', 'unknown_category'];
   
   testCategories.forEach(category => {
-    console.log(`\n测试类别: ${category}`);
+    console.log(`\nTesting category: ${category}`);
     
-    // 测试图标获取
+    // Test icon retrieval
     try {
       manager.getCategoryIcon(category);
-      console.log('❌ 错误: 应该抛出异常但没有');
+      console.log('❌ Error: Should throw exception but did not');
     } catch (error) {
-      console.log('✅ 图标获取正确抛出异常:', (error as Error).message);
+      console.log('✅ Icon retrieval correctly threw exception:', (error as Error).message);
     }
     
-    // 测试颜色获取
+    // Test color retrieval
     try {
       manager.getCategoryColor(category);
-      console.log('❌ 错误: 应该抛出异常但没有');
+      console.log('❌ Error: Should throw exception but did not');
     } catch (error) {
-      console.log('✅ 颜色获取正确抛出异常:', (error as Error).message);
+      console.log('✅ Color retrieval correctly threw exception:', (error as Error).message);
     }
     
-    // 测试显示名称获取
+    // Test display name retrieval
     try {
       manager.getCategoryDisplayName(category);
-      console.log('❌ 错误: 应该抛出异常但没有');
+      console.log('❌ Error: Should throw exception but did not');
     } catch (error) {
-      console.log('✅ 显示名称获取正确抛出异常:', (error as Error).message);
+      console.log('✅ Display name retrieval correctly threw exception:', (error as Error).message);
     }
   });
   
-  // 测试2: 验证配置加载后的正常工作
-  console.log('\n测试2: 验证配置加载后的正常工作');
+  // Test 2: Verify normal operation after configuration loading
+  console.log('\nTest 2: Verify normal operation after configuration loading');
   
   const mockBackendConfig = {
     icons: {
@@ -61,118 +61,118 @@ export const testStrictModeImplementation = () => {
       'general_assistant': 'blue'
     },
     displayNames: {
-      'file_operations': '文件操作',
-      'command_execution': '命令执行',
-      'general_assistant': '通用助手'
+      'file_operations': 'File Operations',
+      'command_execution': 'Command Execution',
+      'general_assistant': 'General Assistant'
     }
   };
   
-  // 模拟从后端加载配置
+  // Simulate loading configuration from backend
   manager.loadConfigFromBackend(
     mockBackendConfig.icons,
     mockBackendConfig.colors,
     mockBackendConfig.displayNames
   );
   
-  console.log('✅ 后端配置已加载');
+  console.log('✅ Backend configuration loaded');
   
-  // 测试已配置的类别
+  // Test configured categories
   Object.keys(mockBackendConfig.icons).forEach(category => {
-    console.log(`\n测试已配置类别: ${category}`);
+    console.log(`\nTesting configured category: ${category}`);
     
     try {
       const icon = manager.getCategoryIcon(category);
       const color = manager.getCategoryColor(category);
       const displayName = manager.getCategoryDisplayName(category);
       
-      console.log('✅ 配置获取成功:', { icon, color, displayName });
+      console.log('✅ Configuration retrieval successful:', { icon, color, displayName });
     } catch (error) {
-      console.log('❌ 配置获取失败:', (error as Error).message);
+      console.log('❌ Configuration retrieval failed:', (error as Error).message);
     }
   });
   
-  // 测试3: 验证未配置类别仍然报错
-  console.log('\n测试3: 验证未配置类别仍然报错');
+  // Test 3: Verify that unconfigured categories still throw errors
+  console.log('\nTest 3: Verify that unconfigured categories still throw errors');
   
   const unconfiguredCategories = ['database_operations', 'network_operations', 'ai_services'];
   
   unconfiguredCategories.forEach(category => {
-    console.log(`\n测试未配置类别: ${category}`);
+    console.log(`\nTesting unconfigured category: ${category}`);
     
     try {
       manager.getCategoryIcon(category);
-      console.log('❌ 错误: 应该抛出异常但没有');
+      console.log('❌ Error: Should throw exception but did not');
     } catch (error) {
-      console.log('✅ 未配置类别正确抛出异常:', (error as Error).message);
+      console.log('✅ Unconfigured category correctly threw exception:', (error as Error).message);
     }
   });
   
-  // 测试4: 验证配置验证功能
-  console.log('\n测试4: 验证配置验证功能');
+  // Test 4: Verify configuration validation functionality
+  console.log('\nTest 4: Verify configuration validation functionality');
   
   const validationTests = [
-    'file_operations',     // 完全配置
-    'unknown_category'     // 未配置
+    'file_operations',     // Fully configured
+    'unknown_category'     // Not configured
   ];
   
   validationTests.forEach(category => {
     const validation = manager.validateCategoryConfig(category);
-    console.log(`类别 ${category} 验证结果:`, validation);
+    console.log(`Category ${category} validation result:`, validation);
   });
   
-  // 测试5: 验证配置完整性检查
-  console.log('\n测试5: 验证配置完整性检查');
+  // Test 5: Verify configuration completeness check
+  console.log('\nTest 5: Verify configuration completeness check');
   
   const allConfigured = manager.getAllConfiguredCategories();
-  console.log('所有已配置类别:', allConfigured);
+  console.log('All configured categories:', allConfigured);
   
   allConfigured.forEach(category => {
     const isFullyConfigured = manager.isCategoryFullyConfigured(category);
-    console.log(`类别 ${category} 完全配置状态:`, isFullyConfigured);
+    console.log(`Category ${category} fully configured status:`, isFullyConfigured);
   });
   
-  console.log('\n=== 严格模式实现验证完成 ===');
+  console.log('\n=== Strict Mode Implementation Verification Complete ===');
 };
 
 /**
- * 验证前端组件不包含硬编码配置
+ * Verify that frontend components do not contain hardcoded configurations
  */
 export const validateNoHardcodedConfig = () => {
-  console.log('\n=== 验证前端组件无硬编码配置 ===');
+  console.log('\n=== Verify Frontend Components Have No Hardcoded Configuration ===');
   
-  // 这里可以添加更多的验证逻辑
-  // 检查是否还有其他地方包含硬编码的类别配置
+  // More validation logic can be added here
+  // Check if there are other places that contain hardcoded category configurations
   
-  console.log('✅ 前端组件硬编码配置检查完成');
-  console.log('注意: 组件现在使用严格模式，未配置的类别将抛出错误或显示警告');
+  console.log('✅ Frontend component hardcoded configuration check complete');
+  console.log('Note: Components now use strict mode, unconfigured categories will throw errors or display warnings');
 };
 
 /**
- * 运行所有严格模式测试
+ * Run all strict mode tests
  */
 export const runAllStrictModeTests = () => {
-  console.log('开始运行严格模式测试...\n');
+  console.log('Starting strict mode tests...\n');
   
   try {
-    // 清空之前的配置
+    // Clear previous configuration
     const manager = StrictCategoryConfigManager.getInstance();
     manager.clearConfig();
     
     testStrictModeImplementation();
     validateNoHardcodedConfig();
     
-    // 运行原有的测试
+    // Run original tests
     testStrictModeConfig();
     
-    console.log('\n🎉 所有严格模式测试通过！');
-    console.log('✅ 已成功实现"无配置即报错"机制');
-    console.log('✅ 前端不再包含任何硬编码的类别配置');
-    console.log('✅ 所有配置信息必须从后端获取');
+    console.log('\n🎉 All strict mode tests passed!');
+    console.log('✅ Successfully implemented "no configuration means error" mechanism');
+    console.log('✅ Frontend no longer contains any hardcoded category configurations');
+    console.log('✅ All configuration information must be obtained from backend');
     
   } catch (error) {
-    console.error('❌ 严格模式测试失败:', (error as Error).message);
+    console.error('❌ Strict mode test failed:', (error as Error).message);
   }
 };
 
-// 导出测试函数供外部调用
+// Export test function for external calls
 export default runAllStrictModeTests;

@@ -349,34 +349,34 @@ src/tools/
     └── general_assistant.rs
 ```
 
-### 命名规范
+### Naming Conventions
 
-- **类别 ID**：使用下划线分隔的小写字母（如：`file_operations`）
-- **类别名称**：与 ID 保持一致
-- **显示名称**：使用中文描述（如：`文件操作`）
-- **工具名称**：使用下划线分隔的小写字母（如：`read_file`）
+- **Category ID**: Use lowercase letters separated by underscores (e.g., `file_operations`)
+- **Category Name**: Keep consistent with ID
+- **Display Name**: Use English description (e.g., `File Operations`)
+- **Tool Name**: Use lowercase letters separated by underscores (e.g., `read_file`)
 
-## 架构优势
+## Architecture Advantages
 
-### 相比建造者模式的改进
+### Improvements over Builder Pattern
 
-1. **简洁性**：去除了复杂的建造者链式调用
-2. **直观性**：每个类别直接实现 Category trait
-3. **维护性**：减少了中间层，代码更易理解
-4. **性能**：减少了不必要的对象创建和转换
-5. **测试性**：每个方法可以独立测试
+1. **Simplicity**: Removed complex builder chain calls
+2. **Intuitiveness**: Each category directly implements Category trait
+3. **Maintainability**: Reduced intermediate layers, code is easier to understand
+4. **Performance**: Reduced unnecessary object creation and conversion
+5. **Testability**: Each method can be tested independently
 
-### 系统特点
+### System Features
 
-- **tools 注册到 tool_category 里面** ✅
-- **tool_category 暴露给前端** ✅  
-- **前端只负责解析 tool_categories 然后展示** ✅
-- **后端可以离线控制发行版功能（通过 enable() 方法）** ✅
-- **前端不能有任何 hardcode 定义** ✅
+- **Tools register to tool_category** ✅
+- **tool_category exposed to frontend** ✅
+- **Frontend only responsible for parsing tool_categories and displaying** ✅
+- **Backend can offline control release features (through enable() method)** ✅
+- **Frontend cannot have any hardcode definitions** ✅
 
-## 示例代码
+## Example Code
 
-### 创建简单的工具管理器
+### Creating a Simple Tool Manager
 
 ```rust
 use crate::tools::*;
