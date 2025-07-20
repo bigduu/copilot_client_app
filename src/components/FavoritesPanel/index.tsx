@@ -47,16 +47,18 @@ export const FavoritesPanel: React.FC = () => {
   const screens = useBreakpoint();
   const { currentChatId } = useChats();
 
-  // TODO: 这些功能需要在新架构中实现
-  const getCurrentChatFavorites = (): FavoriteItem[] => [];
-  const removeFavorite = (id: string) => console.log("removeFavorite", id);
-  const exportFavorites = (format: string) =>
-    console.log("exportFavorites", format);
-  const updateFavorite = (id: string, data: any) =>
-    console.log("updateFavorite", id, data);
+  // Get favorites functionality from useChatManager
+  const {
+    getCurrentChatFavorites,
+    removeFavorite,
+    updateFavorite,
+    exportFavorites,
+    summarizeFavorites,
+  } = useChatManager();
+
+  // TODO: Implement message navigation functionality
   const navigateToMessage = (messageId: string) =>
     console.log("navigateToMessage", messageId);
-  const summarizeFavorites = () => console.log("summarizeFavorites");
 
   const [sortOrder, setSortOrder] = useState<"descending" | "ascending">(
     "descending"
