@@ -29,6 +29,7 @@ import {
 } from "@ant-design/icons";
 import { useChats } from "../../hooks/useChats";
 import { FavoriteItem } from "../../types/chat";
+import { useChatManager } from "../../hooks/useChatManager";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
