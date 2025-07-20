@@ -17,7 +17,7 @@ import {
   ToolOutlined,
   WarningOutlined,
 } from "@ant-design/icons";
-import { useChat } from "../../contexts/ChatContext";
+import { useChats } from "../../hooks/useChats";
 
 const { Text } = Typography;
 const { useToken } = theme;
@@ -66,12 +66,16 @@ const SystemPromptModal: React.FC<SystemPromptModalProps> = ({
   onClose,
 }) => {
   const { token } = useToken();
-  const {
-    currentChatId,
-    currentChat,
-    updateCurrentChatSystemPrompt,
-    systemPromptPresets,
-  } = useChat();
+  const { currentChatId, currentChat, updateChat } = useChats();
+  // TODO: systemPromptPresets 需要从新的 store 中获取
+  const systemPromptPresets: any[] = [];
+
+  // 替代 updateCurrentChatSystemPrompt 的功能
+  const updateCurrentChatSystemPrompt = (systemPrompt: string) => {
+    if (currentChatId) {
+      updateChat(currentChatId, { systemPrompt });
+    }
+  };
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [messageApi, contextHolder] = message.useMessage();
   // Remove unused categoryInfoMap state

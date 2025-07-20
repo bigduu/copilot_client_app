@@ -4,20 +4,20 @@ import { ChatSidebar } from "../components/ChatSidebar";
 import { ChatView } from "../components/ChatView";
 import { FavoritesPanel } from "../components/FavoritesPanel";
 import { listen } from "@tauri-apps/api/event";
-import { useChat } from "../contexts/ChatContext";
+import { useChatStore, useCurrentMessages } from "../store/chatStore";
+
 import "./styles.css";
 
 export const MainLayout: React.FC<{
   themeMode: "light" | "dark";
   onThemeModeChange: (mode: "light" | "dark") => void;
 }> = ({ themeMode, onThemeModeChange }) => {
-  const {
-    addChat,
-    selectChat,
-    initiateAIResponse,
-    currentMessages,
-    currentChatId,
-  } = useChat();
+  // Direct access to Zustand store
+  const addChat = useChatStore((state) => state.addChat);
+  const selectChat = useChatStore((state) => state.selectChat);
+  const initiateAIResponse = useChatStore((state) => state.initiateAIResponse);
+  const currentMessages = useCurrentMessages();
+  const currentChatId = useChatStore((state) => state.currentChatId);
   const pendingAIRef = useRef(false);
   const [showFavorites, setShowFavorites] = useState(true);
 
@@ -33,14 +33,18 @@ export const MainLayout: React.FC<{
         );
 
         // Add chat with the initial message content
-        const chatId = addChat(messageContent);
+        addChat({
+          title: "New Chat",
+          messages: [],
+          createdAt: Date.now(),
+        });
+
+        // Get the current chat ID (addChat automatically selects the new chat)
+        const currentChatId = useChatStore.getState().currentChatId;
         console.log(
           "[MainLayout] New chat ID created with initial message:",
-          chatId
+          currentChatId
         );
-
-        // Ensure the new chat is selected (addChat should already do this)
-        selectChat(chatId);
 
         // Mark that AI reply needs to be triggered automatically
         pendingAIRef.current = true;
@@ -62,7 +66,9 @@ export const MainLayout: React.FC<{
       console.log(
         "[MainLayout] useEffect: Auto triggering AI response for new chat."
       );
-      initiateAIResponse();
+      if (currentChatId) {
+        initiateAIResponse(currentChatId, currentMessages[0].content);
+      }
       pendingAIRef.current = false;
     }
   }, [currentMessages, initiateAIResponse]);

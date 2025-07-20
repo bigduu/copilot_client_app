@@ -19,7 +19,7 @@ import {
   MenuFoldOutlined,
   MenuUnfoldOutlined,
 } from "@ant-design/icons";
-import { useChat } from "../../contexts/ChatContext";
+import { useChatStore } from "../../store/chatStore";
 import {
   groupChatsByToolCategory,
   getCategoryDisplayInfoAsync,
@@ -29,6 +29,7 @@ import { ChatItem as ChatItemComponent } from "../ChatItem";
 import { ChatItem } from "../../types/chat";
 import SystemPromptSelector from "../SystemPromptSelector";
 import { SystemPromptPreset } from "../../types/chat";
+import { useMessages } from "../../hooks/useMessages";
 
 const { Sider } = Layout;
 const { Text } = Typography;
@@ -40,18 +41,26 @@ export const ChatSidebar: React.FC<{
   onThemeModeChange: (mode: "light" | "dark") => void;
 }> = ({ themeMode, onThemeModeChange }) => {
   const { token } = useToken();
-  const {
-    chats,
-    addChat,
-    selectChat,
-    currentChatId,
-    deleteChat,
-    deleteChats,
-    pinChat,
-    unpinChat,
-    updateChat,
-    systemPromptPresets,
-  } = useChat();
+  // Direct access to Zustand store - much simpler!
+  const chats = useChatStore((state) => state.chats);
+  const addChat = useChatStore((state) => state.addChat);
+  const selectChat = useChatStore((state) => state.selectChat);
+  const currentChatId = useChatStore((state) => state.currentChatId);
+  const deleteChat = useChatStore((state) => state.deleteChat);
+  const deleteChats = useChatStore((state) => state.deleteChats);
+  const pinChat = useChatStore((state) => state.pinChat);
+  const unpinChat = useChatStore((state) => state.unpinChat);
+  const updateChat = useChatStore((state) => state.updateChat);
+  const systemPromptPresets = useChatStore(
+    (state) => state.systemPromptPresets
+  );
+  const loadChats = useChatStore((state) => state.loadChats);
+  const loadSystemPromptPresets = useChatStore(
+    (state) => state.loadSystemPromptPresets
+  );
+
+  // Add useMessages hook for AI title generation
+  const { generateChatTitle } = useMessages();
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   const [isNewChatSelectorOpen, setIsNewChatSelectorOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
@@ -141,6 +150,11 @@ export const ChatSidebar: React.FC<{
     return Object.fromEntries(sortedEntries);
   };
 
+  // Load system prompt presets on component mount
+  useEffect(() => {
+    loadSystemPromptPresets();
+  }, [loadSystemPromptPresets]);
+
   // Dynamically calculate footer button area height
   useEffect(() => {
     function updateFooterHeight() {
@@ -210,6 +224,17 @@ export const ChatSidebar: React.FC<{
     updateChat(chatId, { title: newTitle });
   };
 
+  const handleGenerateTitle = async (chatId: string) => {
+    try {
+      console.log(`[ChatSidebar] Generating AI title for chat: ${chatId}`);
+      const newTitle = await generateChatTitle(chatId);
+      updateChat(chatId, { title: newTitle });
+      console.log(`[ChatSidebar] Generated title: "${newTitle}"`);
+    } catch (error) {
+      console.error("Failed to generate title:", error);
+    }
+  };
+
   const handleNewChat = () => {
     setIsNewChatSelectorOpen(true);
   };
@@ -221,14 +246,16 @@ export const ChatSidebar: React.FC<{
   const handleSystemPromptSelect = (preset: SystemPromptPreset) => {
     try {
       // Create new chat and apply selected System Prompt settings
-      const newChatId = addChat(undefined, {
+      addChat({
+        title: `New Chat - ${preset.name}`,
+        messages: [],
+        createdAt: Date.now(),
         systemPromptId: preset.id,
         toolCategory: preset.category,
         systemPrompt: preset.content,
       });
 
-      // Select the newly created chat
-      selectChat(newChatId);
+      // The new chat is automatically selected in the store
 
       // Close the selector
       setIsNewChatSelectorOpen(false);
@@ -376,6 +403,7 @@ export const ChatSidebar: React.FC<{
                           onPin={pinChat}
                           onUnpin={unpinChat}
                           onEdit={handleEditTitle}
+                          onGenerateTitle={handleGenerateTitle}
                           SelectMode={isSelectMode}
                           checked={selectedChatIds.includes(chat.id)}
                           onCheck={(chatId, checked) => {

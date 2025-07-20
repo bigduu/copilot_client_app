@@ -10,7 +10,8 @@ import {
   Grid,
   Flex,
 } from "antd";
-import { useChat } from "../../contexts/ChatContext";
+import { useChats } from "../../hooks/useChats";
+import { useMessages } from "../../hooks/useMessages";
 import SystemMessage from "../SystemMessage";
 import StreamingMessageItem from "../StreamingMessageItem";
 import { DownOutlined } from "@ant-design/icons";
@@ -24,14 +25,15 @@ const { useToken } = theme;
 const { useBreakpoint } = Grid;
 
 export const ChatView: React.FC = () => {
-  const {
-    currentChatId,
-    currentMessages,
-    isStreaming,
-    activeChannel,
-    addAssistantMessage,
-    updateChat,
-  } = useChat();
+  // 使用新的 Zustand hooks
+  const { currentChatId, currentChat, currentMessages, updateChat } =
+    useChats();
+  const { isProcessing } = useMessages();
+
+  // 暂时设置这些值，因为原组件依赖它们
+  const isStreaming = isProcessing;
+  const activeChannel = null;
+  const addAssistantMessage = () => {}; // 这个功能现在在 Store 中处理
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesListRef = useRef<HTMLDivElement>(null);
   const { token } = useToken();
@@ -270,6 +272,7 @@ export const ChatView: React.FC = () => {
                 .map((message, index) => {
                   const messageCardId =
                     message.id || `msg-${currentChatId}-${index}`;
+
                   return (
                     <Flex
                       key={index}

@@ -59,10 +59,7 @@ export const groupChatsByToolCategory = (
   chats
     .filter((chat) => !chat.pinned)
     .forEach((chat) => {
-      const category = chat.toolCategory;
-      if (!category) {
-        throw new Error("聊天记录缺少工具类别信息，无法分组");
-      }
+      const category = chat.toolCategory || "General"; // 默认分类为 "General"
       if (!grouped[category]) {
         grouped[category] = [];
       }

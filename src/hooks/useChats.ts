@@ -1,351 +1,145 @@
-import React from "react";
-import { useState, useCallback, useEffect } from "react";
-import { v4 as uuidv4 } from "uuid";
-import { ChatItem, Message } from "../types/chat";
-import { generateChatTitle } from "../utils/chatUtils";
+import { useChatStore } from '../store/chatStore';
+import { ChatItem, Message, SystemPromptPreset } from '../types/chat';
 
-const STORAGE_KEY = "copilot_chats";
-const SYSTEM_PROMPT_KEY = "system_prompt";
-
+/**
+ * Hook for managing chat list operations
+ * 遵循 Hook → Store → Service 架构模式
+ *
+ * 数据流向：
+ * Component → useChats Hook → Zustand Store → Services → External APIs
+ */
 interface UseChatsReturn {
+  // 数据状态
   chats: ChatItem[];
   currentChatId: string | null;
   currentChat: ChatItem | null;
   currentMessages: Message[];
-  addChat: (firstUserMessageContent?: string) => string;
-  selectChat: (chatId: string | null) => void;
+  pinnedChats: ChatItem[];
+  unpinnedChats: ChatItem[];
+  chatCount: number;
+
+  // 基础操作 (直接映射到 Store)
+  selectChat: (chatId: string) => void;
   deleteChat: (chatId: string) => void;
   deleteChats: (chatIds: string[]) => void;
-  saveChats: () => void;
-  deleteAllChats: () => void;
   pinChat: (chatId: string) => void;
   unpinChat: (chatId: string) => void;
+  updateChat: (chatId: string, updates: Partial<ChatItem>) => void;
+  loadChats: () => Promise<void>;
+  saveChats: () => Promise<void>;
+
+  // 便捷操作 (组合多个 Store 操作)
+  createNewChat: (title?: string, options?: Partial<ChatItem>) => void;
+  createChatWithSystemPrompt: (preset: SystemPromptPreset) => void;
+  toggleChatPin: (chatId: string) => void;
+  updateChatTitle: (chatId: string, newTitle: string) => void;
   deleteEmptyChats: () => void;
-  setChats: React.Dispatch<React.SetStateAction<ChatItem[]>>;
-  updateChatMessages: (chatId: string, messages: Message[]) => void;
-  updateChatSystemPrompt: (chatId: string, systemPrompt: string) => void;
+  deleteAllUnpinnedChats: () => void;
 }
 
-export const useChats = (defaultModel?: string): UseChatsReturn => {
-  const [chats, setChats] = useState<ChatItem[]>([]);
-  const [currentChatId, setCurrentChatId] = useState<string | null>(null);
+export const useChats = (): UseChatsReturn => {
+  // 从 Zustand Store 获取数据 (Hook → Store)
+  const chats = useChatStore(state => state.chats);
+  const currentChatId = useChatStore(state => state.currentChatId);
+  const messages = useChatStore(state => state.messages);
 
-  const migrateExistingChats = useCallback((chats: ChatItem[]): ChatItem[] => {
-    return chats.map((chat) => {
-      if (chat.systemPrompt) return chat; // Already migrated
+  // 从 Zustand Store 获取操作方法 (Hook → Store)
+  const addChat = useChatStore(state => state.addChat);
+  const selectChat = useChatStore(state => state.selectChat);
+  const deleteChat = useChatStore(state => state.deleteChat);
+  const deleteChats = useChatStore(state => state.deleteChats);
+  const updateChat = useChatStore(state => state.updateChat);
+  const pinChat = useChatStore(state => state.pinChat);
+  const unpinChat = useChatStore(state => state.unpinChat);
+  const loadChats = useChatStore(state => state.loadChats);
+  const saveChats = useChatStore(state => state.saveChats);
 
-      // Look for system message in existing messages
-      const systemMessage = chat.messages.find((m) => m.role === "system");
-      return {
-        ...chat,
-        systemPrompt:
-          systemMessage?.content ||
-          localStorage.getItem(SYSTEM_PROMPT_KEY) ||
-          (() => { throw new Error("系统提示词未配置，无法迁移现有聊天。请配置系统提示词后重试。"); })(),
-      };
+  // 计算派生状态 (从 Store 数据计算得出)
+  const currentChat = chats.find(chat => chat.id === currentChatId) || null;
+  const currentMessages = currentChatId ? messages[currentChatId] || [] : [];
+  const pinnedChats = chats.filter(chat => chat.pinned);
+  const unpinnedChats = chats.filter(chat => !chat.pinned);
+  const chatCount = chats.length;
+
+  // 便捷操作方法 (组合 Store 操作)
+  const createNewChat = (title?: string, options?: Partial<ChatItem>) => {
+    addChat({
+      title: title || 'New Chat',
+      messages: [],
+      createdAt: Date.now(),
+      systemPromptId: 'general_assistant', // 默认使用通用助手
+      toolCategory: 'general_assistant',
+      ...options,
     });
-  }, []);
+  };
 
-  const loadChats = useCallback(() => {
-    try {
-      const savedChats = localStorage.getItem(STORAGE_KEY);
-      if (savedChats) {
-        const parsedChats = JSON.parse(savedChats) as ChatItem[];
-        // Migrate existing chats to include system prompts
-        const migratedChats = migrateExistingChats(parsedChats);
-        setChats(migratedChats);
-
-        if (!currentChatId && migratedChats.length > 0) {
-          migratedChats.sort((a, b) => b.createdAt - a.createdAt);
-          setCurrentChatId(migratedChats[0].id);
-        }
-      }
-    } catch (error) {
-      console.error("Failed to load chats from storage:", error);
-    }
-  }, [currentChatId, migrateExistingChats]);
-
-  const saveChats = useCallback(() => {
-    try {
-      const sortedChats = [...chats].sort((a, b) => b.createdAt - a.createdAt);
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(sortedChats));
-    } catch (error) {
-      console.error("Failed to save chats to storage:", error);
-    }
-  }, [chats]);
-
-  useEffect(() => {
-    loadChats();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  const addChat = useCallback(
-    (firstUserMessageContent?: string): string => {
-      const newChatId = uuidv4();
-      const chatNumber = chats.length + 1;
-      const currentSystemPrompt =
-        localStorage.getItem(SYSTEM_PROMPT_KEY);
-      if (!currentSystemPrompt) {
-        throw new Error("系统提示词未配置，无法创建新聊天");
-      }
-      const newChatModel = defaultModel;
-      if (!newChatModel) {
-        throw new Error("模型未配置，无法创建新聊天");
-      }
-
-      let initialMessages: ChatItem["messages"] = [];
-      if (firstUserMessageContent) {
-        initialMessages.push({
-          role: "user",
-          content: firstUserMessageContent,
-          id: uuidv4(), // Add ID to user message
-        });
-      }
-
-      const newChat: ChatItem = {
-        id: newChatId,
-        title: firstUserMessageContent
-          ? firstUserMessageContent.substring(0, 30) +
-            (firstUserMessageContent.length > 30 ? "..." : "")
-          : generateChatTitle(chatNumber),
-        messages: initialMessages,
-        createdAt: Date.now(),
-        systemPrompt: currentSystemPrompt,
-        model: newChatModel, // Set the model for the new chat
-        pinned: false, // New chats are not pinned by default
-      };
-
-      console.log("Creating new chat:", newChatId, "with model:", newChatModel);
-
-      // Update the chats state
-      setChats((prevChats) => {
-        const updatedChats = [newChat, ...prevChats];
-        // Save to local storage
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedChats));
-        return updatedChats;
-      });
-
-      // Set current chat ID
-      setCurrentChatId(newChatId);
-
-      return newChatId;
-    },
-    [chats, defaultModel]
-  );
-
-  const selectChat = useCallback((chatId: string | null) => {
-    setCurrentChatId(chatId);
-  }, []);
-
-  const deleteChat = useCallback(
-    (chatId: string) => {
-      const chatsAfterDeletion = chats.filter((chat) => chat.id !== chatId);
-      setChats(chatsAfterDeletion);
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(chatsAfterDeletion));
-
-      if (currentChatId === chatId) {
-        const remainingChatsSorted = [...chatsAfterDeletion].sort(
-          (a, b) => b.createdAt - a.createdAt
-        );
-        const nextChatId =
-          remainingChatsSorted.length > 0 ? remainingChatsSorted[0].id : null;
-        setCurrentChatId(nextChatId);
-      }
-    },
-    [chats, currentChatId]
-  );
-
-  const deleteChats = useCallback(
-    (chatIds: string[]) => {
-      try {
-        console.log("Deleting all chats");
-        setChats((prevChats) => {
-          const filtered = prevChats.filter(
-            (chat) => !chatIds.includes(chat.id)
-          );
-          localStorage.setItem(STORAGE_KEY, JSON.stringify(filtered));
-          return filtered;
-        });
-        setCurrentChatId(null);
-      } catch (error) {
-        console.error("Failed to delete all chats:", error);
-      }
-    },
-    [chats] // Removed currentChatId as it's not directly used for filtering, set separately
-  );
-
-  const updateChatMessages = useCallback(
-    (chatId: string, newMessages: ChatItem["messages"]) => {
-      console.log(
-        `[useChats] updateChatMessages called for chatId: ${chatId}. New messages count: ${newMessages.length}`
-      );
-      if (newMessages.length > 0) {
-        console.log(
-          `[useChats] First new message content: ${newMessages[0].content.substring(
-            0,
-            50
-          )}...`
-        );
-      }
-      setChats((prevChats) => {
-        const chatExists = prevChats.some((chat) => chat.id === chatId);
-        if (!chatExists) {
-          console.error(
-            `[useChats] Attempted to update messages for non-existent chat ID: ${chatId}`
-          );
-          return prevChats;
-        }
-        const updatedChats = prevChats.map((chat) =>
-          chat.id === chatId
-            ? {
-                ...chat,
-                messages: newMessages, // Directly use the newMessages array passed in
-                // Update title if this is the first user message in an empty chat
-                title:
-                  chat.messages.length === 0 && // old messages were empty
-                  newMessages.length > 0 && // new messages are not
-                  newMessages[0].role === "user" &&
-                  chat.title.startsWith("Chat ") // only update default titles
-                    ? newMessages[0].content.substring(0, 30) +
-                      (newMessages[0].content.length > 30 ? "..." : "")
-                    : chat.title,
-              }
-            : chat
-        );
-
-        console.log(
-          `[useChats] Chat ${chatId} updated. New total messages: ${
-            updatedChats.find((c) => c.id === chatId)?.messages.length
-          }`
-        );
-        // Save to storage
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedChats));
-        return updatedChats;
-      });
-    },
-    []
-  );
-
-  // Add new function to update a chat's system prompt
-  const updateChatSystemPrompt = useCallback(
-    (chatId: string, systemPrompt: string) => {
-      console.log(
-        `[useChats] updateChatSystemPrompt called for chatId: ${chatId}`
-      );
-
-      setChats((prevChats) => {
-        const chatExists = prevChats.some((chat) => chat.id === chatId);
-        if (!chatExists) {
-          console.error(
-            `[useChats] Attempted to update system prompt for non-existent chat ID: ${chatId}`
-          );
-          return prevChats;
-        }
-
-        const updatedChats = prevChats.map((chat) =>
-          chat.id === chatId
-            ? {
-                ...chat,
-                systemPrompt,
-              }
-            : chat
-        );
-
-        console.log(`[useChats] Chat ${chatId} system prompt updated.`);
-        // Save to storage
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedChats));
-        return updatedChats;
-      });
-    },
-    []
-  );
-
-  // Add pin/unpin chat functions
-  const pinChat = useCallback((chatId: string) => {
-    setChats((prevChats) => {
-      const updatedChats = prevChats.map((chat) =>
-        chat.id === chatId ? { ...chat, pinned: true } : chat
-      );
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedChats));
-      return updatedChats;
+  const createChatWithSystemPrompt = (preset: SystemPromptPreset) => {
+    addChat({
+      title: `New Chat - ${preset.name}`,
+      messages: [],
+      createdAt: Date.now(),
+      systemPromptId: preset.id,
+      toolCategory: preset.category,
+      systemPrompt: preset.content,
     });
-  }, []);
+  };
 
-  const unpinChat = useCallback((chatId: string) => {
-    setChats((prevChats) => {
-      const updatedChats = prevChats.map((chat) =>
-        chat.id === chatId ? { ...chat, pinned: false } : chat
-      );
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedChats));
-      return updatedChats;
-    });
-  }, []);
-
-  // Delete all chats except pinned
-  const deleteAllChats = useCallback(() => {
-    try {
-      console.log("Deleting all chats");
-      setChats((prevChats) => {
-        const filtered = prevChats.filter((chat) => chat.pinned);
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(filtered));
-        return filtered;
-      });
-      setCurrentChatId(null);
-    } catch (error) {
-      console.error("Failed to delete all chats:", error);
-    }
-  }, []);
-
-  // Add new function to delete empty chats (not pinned)
-  const deleteEmptyChats = useCallback(() => {
-    try {
-      console.log("Deleting empty chats (not pinned)");
-      let newCurrentChatId = currentChatId;
-      setChats((prevChats) => {
-        const chatsToKeep = prevChats.filter(
-          (chat) => chat.pinned || chat.messages.length > 0
-        );
-
-        // If current chat is deleted, try to select another one
-        if (currentChatId && !chatsToKeep.find((c) => c.id === currentChatId)) {
-          const remainingChatsSorted = [...chatsToKeep].sort(
-            (a, b) => b.createdAt - a.createdAt
-          );
-          newCurrentChatId =
-            remainingChatsSorted.length > 0 ? remainingChatsSorted[0].id : null;
-        }
-
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(chatsToKeep));
-        return chatsToKeep;
-      });
-      // Update currentChatId if it was part of the deleted empty chats
-      if (newCurrentChatId !== currentChatId) {
-        setCurrentChatId(newCurrentChatId);
+  const toggleChatPin = (chatId: string) => {
+    const chat = chats.find(c => c.id === chatId);
+    if (chat) {
+      if (chat.pinned) {
+        unpinChat(chatId);
+      } else {
+        pinChat(chatId);
       }
-    } catch (error) {
-      console.error("Failed to delete empty chats:", error);
     }
-  }, [currentChatId]);
+  };
 
-  const currentChat = chats.find((chat) => chat.id === currentChatId) || null;
-  const currentMessages = currentChat?.messages || [];
+  const updateChatTitle = (chatId: string, newTitle: string) => {
+    updateChat(chatId, { title: newTitle });
+  };
+
+  const deleteEmptyChats = () => {
+    const emptyChats = chats.filter(chat => !chat.pinned && chat.messages.length === 0);
+    const emptyChatsIds = emptyChats.map(chat => chat.id);
+    if (emptyChatsIds.length > 0) {
+      deleteChats(emptyChatsIds);
+    }
+  };
+
+  const deleteAllUnpinnedChats = () => {
+    const unpinnedChatsIds = unpinnedChats.map(chat => chat.id);
+    if (unpinnedChatsIds.length > 0) {
+      deleteChats(unpinnedChatsIds);
+    }
+  };
 
   return {
+    // 数据状态
     chats,
     currentChatId,
     currentChat,
     currentMessages,
-    addChat,
+    pinnedChats,
+    unpinnedChats,
+    chatCount,
+
+    // 基础操作 (直接映射到 Store)
     selectChat,
     deleteChat,
     deleteChats,
-    updateChatMessages,
-    updateChatSystemPrompt,
-    saveChats,
-    deleteAllChats,
-    deleteEmptyChats,
     pinChat,
     unpinChat,
-    setChats,
+    updateChat,
+    loadChats,
+    saveChats,
+
+    // 便捷操作 (组合多个 Store 操作)
+    createNewChat,
+    createChatWithSystemPrompt,
+    toggleChatPin,
+    updateChatTitle,
+    deleteEmptyChats,
+    deleteAllUnpinnedChats,
   };
 };

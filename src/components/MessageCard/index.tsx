@@ -18,7 +18,7 @@ import remarkBreaks from "remark-breaks";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism";
 import mermaid from "mermaid";
-import { useChat } from "../../contexts/ChatContext";
+import { useChats } from "../../hooks/useChats";
 
 const { Text } = Typography;
 const { useToken } = theme;
@@ -225,7 +225,14 @@ const MessageCard: React.FC<MessageCardProps> = ({
 }) => {
   const { token } = useToken();
   const screens = useBreakpoint();
-  const { currentChatId, addFavorite } = useChat();
+  const { currentChatId } = useChats();
+  // TODO: addFavorite 功能需要在新架构中实现
+  const addFavorite = (favoriteData?: any) => {
+    console.log(
+      "addFavorite functionality needs to be implemented",
+      favoriteData
+    );
+  };
   const cardRef = useRef<HTMLDivElement>(null);
   const [selectedText, setSelectedText] = useState<string>("");
   const [isHovering, setIsHovering] = useState<boolean>(false);

@@ -209,7 +209,9 @@ impl CopilotClient {
         while let Some((message, remaining)) = extract_sse_message(buffer) {
             *buffer = remaining.to_string();
             if message.trim() == "[DONE]" {
-                info!("Received [DONE] signal");
+                info!("Received [DONE] signal, sending to frontend");
+                // Send the [DONE] signal to frontend
+                let _ = tx.send(Ok(Bytes::from("[DONE]"))).await;
                 break;
             }
             self.process_message(&message, tx).await?;

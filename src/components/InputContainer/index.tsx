@@ -14,7 +14,7 @@ import { MessageInput } from "../MessageInput";
 import SystemPromptModal from "../SystemPromptModal";
 import InputPreview from "./InputPreview";
 import ToolSelector from "../ToolSelector";
-import { useChat } from "../../contexts/ChatContext";
+import { useChats } from "../../hooks/useChats";
 import { useChatInput } from "../../hooks/useChatInput";
 import { useToolCategoryValidation } from "../../hooks/useToolCategoryValidation";
 
@@ -37,8 +37,9 @@ export const InputContainer: React.FC<InputContainerProps> = ({
   const [showToolSelector, setShowToolSelector] = useState(false);
   const [toolSearchText, setToolSearchText] = useState("");
   const { token } = useToken();
-  const { currentMessages, currentChat, selectedSystemPromptPresetId } =
-    useChat();
+  const { currentMessages, currentChat } = useChats();
+  // TODO: selectedSystemPromptPresetId 需要从新的 store 中获取
+  const selectedSystemPromptPresetId = null;
 
   // Service instances
   const systemPromptService = SystemPromptService.getInstance();
@@ -125,6 +126,7 @@ export const InputContainer: React.FC<InputContainerProps> = ({
     handleSubmit,
     handleRetry,
     handleCloseReferencePreview,
+    contextHolder,
   } = useChatInput();
 
   // Handle input changes to detect tool selector trigger
@@ -215,6 +217,8 @@ export const InputContainer: React.FC<InputContainerProps> = ({
         width: "100%",
       }}
     >
+      {/* Ant Design message context holder */}
+      {contextHolder}
       {/* Strict mode alert */}
       {isStrictMode() && currentCategoryInfo && (
         <Alert

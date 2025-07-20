@@ -220,6 +220,8 @@ ${toolResult}`;
           toolInfo,
           sendLLMRequest
         );
+
+        console.log("[ToolCallProcessor] AI parsed parameters:", parameters);
       }
 
       // 3. Execute tool
@@ -233,6 +235,8 @@ ${toolResult}`;
         tool_name: toolCall.tool_name,
         parameters,
       });
+
+      console.log("[ToolCallProcessor] Tool execution result:", result);
 
       // 4. Process results
       // For regex tools, use AI to summarize results

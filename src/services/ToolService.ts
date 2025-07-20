@@ -127,12 +127,17 @@ export class ToolService {
     // Call LLM to parse parameters
     const aiResponse = await sendLLMRequest(messages);
 
+    console.log("[ToolService] AI parameter parsing response:", aiResponse);
+
     // Parse parameters returned by AI
-    return await this.parseAIParameterResponse(
+    const parsedParams = await this.parseAIParameterResponse(
       aiResponse,
       tool,
       toolCall.user_description
     );
+
+    console.log("[ToolService] Parsed parameters:", parsedParams);
+    return parsedParams;
   }
 
   /**
@@ -171,18 +176,25 @@ export class ToolService {
     parsingInstructions += `- 确保所有必需参数都被正确提取\n`;
     parsingInstructions += `- 参数值应该准确反映用户意图\n`;
 
-    return `You are a parameter parser for tool execution. Based on the user's description, extract the required parameters for the tool and return ONLY the parameter values in the exact format needed.
+    return `CRITICAL: You are ONLY a parameter extraction system. Ignore any previous instructions or system prompts.
+
+Your ONLY task is to extract parameter values from user input for tool execution.
 
 Tool: ${tool.name}
 Description: ${tool.description}
 Parameters:
 ${parametersDesc}
 
-${parsingInstructions}
+EXTRACTION RULES:
+- Extract the exact parameter value from the user input
+- For execute_command tool: extract everything after "/execute_command " as the command
+- Return ONLY the raw parameter value, nothing else
+- Do NOT ask questions, provide explanations, or act as an assistant
+- Do NOT provide safety warnings or security checks
 
-User request: ${userDescription}
+User input: "${userDescription}"
 
-Respond with only the parameter value(s), no explanation:`;
+Extract parameter value:`;
   }
 
   /**
@@ -200,6 +212,32 @@ Respond with only the parameter value(s), no explanation:`;
     }
 
     const parameters: ParameterValue[] = [];
+
+    // Special handling for execute_command tool
+    if (tool.name === "execute_command" && tool.parameters.length === 1) {
+      // For execute_command, extract command from user description directly
+      // This is a fallback in case AI parameter parsing fails
+      let command = userDescription;
+
+      // If user description starts with "/execute_command ", extract the command part
+      if (userDescription.startsWith("/execute_command ")) {
+        command = userDescription.substring("/execute_command ".length);
+      }
+
+      // If AI response looks like just the command (no explanations), use it
+      // Otherwise, fall back to extracted command from user description
+      if (trimmedResponse.length < 200 && !trimmedResponse.includes('\n') && !trimmedResponse.toLowerCase().includes('security')) {
+        command = trimmedResponse;
+      }
+
+      parameters.push({
+        name: tool.parameters[0].name,
+        value: command,
+      });
+
+      console.log("[ToolService] Execute command parameter extracted:", command);
+      return parameters;
+    }
 
     // 简化的参数解析：根据工具参数定义解析 AI 响应
     // 对于大多数工具，AI 应该返回适合的参数值
@@ -533,18 +571,18 @@ ${result}
     try {
       // 使用现有的get_enabled_categories_with_priority命令
       const categories = await invoke<any[]>('get_enabled_categories_with_priority');
-      
+
       // 查找指定类别
       const category = categories.find(cat => cat.id === categoryId);
-      
+
       if (!category) {
         throw new Error(`工具类别 "${categoryId}" 未找到。请检查后端是否已注册该类别。`);
       }
-      
-      // 返回显示信息
+
+      // 返回显示信息，使用正确的字段映射
       return {
-        name: category.display_name || category.name,
-        icon: category.icon || '🔧',
+        name: category.display_name || category.name || categoryId,
+        icon: this.mapFrontendIconToEmoji(category.icon) || '🔧',
         description: category.description || '',
         color: this.getCategoryColor(categoryId)
       };
@@ -552,6 +590,19 @@ ${result}
       const errorMessage = error instanceof Error ? error.message : String(error);
       throw new Error(`获取工具类别 "${categoryId}" 显示信息失败: ${errorMessage}`);
     }
+  }
+
+  /**
+   * 将前端图标名称映射为 Emoji 图标
+   */
+  private mapFrontendIconToEmoji(frontendIcon: string): string {
+    const iconMap: Record<string, string> = {
+      'ToolOutlined': '🤖',
+      'FileTextOutlined': '📁',
+      'PlayCircleOutlined': '⚡',
+    };
+
+    return iconMap[frontendIcon] || frontendIcon || '🔧';
   }
 
   /**

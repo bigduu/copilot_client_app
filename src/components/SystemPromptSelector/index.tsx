@@ -33,48 +33,37 @@ interface SystemPromptSelectorProps {
  * 前端不包含任何硬编码配置，未配置的类别将抛出错误
  */
 
-// Category icon mapping - 严格模式，没有配置就报错
-const getCategoryIcon = (
-  category: string,
-  categoryData?: any
-): React.ReactNode => {
-  // 如果有后端提供的类别数据，使用其中的图标信息
-  if (categoryData?.icon) {
-    // 这里可以根据后端提供的图标字符串返回对应的React图标组件
-    // 实际实现应该从后端获取图标映射配置
-    return <span>{categoryData.icon}</span>;
-  }
+// Category icon mapping - 简单的静态映射
+const getCategoryIcon = (category: string): React.ReactNode => {
+  const iconMap: Record<string, string> = {
+    general_assistant: "🤖",
+    file_operations: "📁",
+    command_execution: "⚡",
+  };
 
-  throw new Error(
-    `未配置的类别图标: ${category}。请确保后端已提供该类别的图标配置。`
-  );
+  return <span>{iconMap[category] || "🔧"}</span>;
 };
 
-// Category display name mapping - 严格模式，没有配置就报错
-const getCategoryDisplayName = (
-  category: string,
-  categoryData?: any
-): string => {
-  // 如果有后端提供的类别数据，使用其中的显示名称
-  if (categoryData?.display_name || categoryData?.name) {
-    return categoryData.display_name || categoryData.name;
-  }
+// Category display name mapping - 简单的静态映射
+const getCategoryDisplayName = (category: string): string => {
+  const nameMap: Record<string, string> = {
+    general_assistant: "General Assistant",
+    file_operations: "File Operations",
+    command_execution: "Command Execution",
+  };
 
-  throw new Error(
-    `未配置的类别显示名称: ${category}。请确保后端已提供该类别的显示名称配置。`
-  );
+  return nameMap[category] || category;
 };
 
-// Category tag color mapping - 严格模式，没有配置就报错
-const getCategoryTagColor = (category: string, categoryData?: any): string => {
-  // 如果有后端提供的类别数据，使用其中的颜色信息
-  if (categoryData?.color) {
-    return categoryData.color;
-  }
+// Category tag color mapping - 简单的静态映射
+const getCategoryTagColor = (category: string): string => {
+  const colorMap: Record<string, string> = {
+    general_assistant: "blue",
+    file_operations: "green",
+    command_execution: "magenta",
+  };
 
-  throw new Error(
-    `未配置的类别颜色: ${category}。请确保后端已提供该类别的颜色配置。`
-  );
+  return colorMap[category] || "default";
 };
 
 const SystemPromptSelector: React.FC<SystemPromptSelectorProps> = ({
@@ -157,22 +146,8 @@ const SystemPromptSelector: React.FC<SystemPromptSelectorProps> = ({
           <Text strong>{preset.name}</Text>
           {preset.mode === "tool_specific" && (
             <Tag
-              color={(() => {
-                try {
-                  return getCategoryTagColor(preset.category);
-                } catch (error) {
-                  console.warn("类别颜色配置缺失:", (error as Error).message);
-                  return "default";
-                }
-              })()}
-              icon={(() => {
-                try {
-                  return getCategoryIcon(preset.category);
-                } catch (error) {
-                  console.warn("类别图标配置缺失:", (error as Error).message);
-                  return <ToolOutlined />;
-                }
-              })()}
+              color={getCategoryTagColor(preset.category)}
+              icon={getCategoryIcon(preset.category)}
             >
               Specialized Mode
             </Tag>
@@ -295,29 +270,9 @@ const SystemPromptSelector: React.FC<SystemPromptSelectorProps> = ({
             <Panel
               header={
                 <Space>
-                  {(() => {
-                    try {
-                      return getCategoryIcon(category);
-                    } catch (error) {
-                      console.warn(
-                        "类别图标配置缺失:",
-                        (error as Error).message
-                      );
-                      return <ToolOutlined />;
-                    }
-                  })()}
+                  {getCategoryIcon(category)}
                   <Title level={5} style={{ margin: 0 }}>
-                    {(() => {
-                      try {
-                        return getCategoryDisplayName(category);
-                      } catch (error) {
-                        console.warn(
-                          "类别显示名称配置缺失:",
-                          (error as Error).message
-                        );
-                        return category;
-                      }
-                    })()}
+                    {getCategoryDisplayName(category)}
                   </Title>
                   <Text type="secondary">
                     ({groupedPresets[category].length} items)
