@@ -7,6 +7,7 @@ import {
   EditOutlined,
   CheckOutlined,
   CloseOutlined,
+  BulbOutlined,
 } from "@ant-design/icons";
 import { ChatItem as ChatItemType } from "../../types/chat";
 import theme from "../../styles/theme";
@@ -19,6 +20,7 @@ interface ChatItemProps {
   onPin: (chatId: string) => void;
   onUnpin: (chatId: string) => void;
   onEdit?: (chatId: string, newTitle: string) => void;
+  onGenerateTitle?: (chatId: string) => void;
   SelectMode?: boolean;
   checked?: boolean;
   onCheck?: (chatId: string, checked: boolean) => void;
@@ -32,12 +34,14 @@ export const ChatItem: React.FC<ChatItemProps> = ({
   onPin,
   onUnpin,
   onEdit,
+  onGenerateTitle,
   SelectMode,
   checked,
   onCheck,
 }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [editValue, setEditValue] = useState(chat.title);
+  const [isHovered, setIsHovered] = useState(false);
 
   const handleDelete = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -94,77 +98,101 @@ export const ChatItem: React.FC<ChatItemProps> = ({
     marginRight: theme.components.chatItem.editInput.marginRight,
   };
 
-  // Build List.Item actions
-  const actions = [
-    // Pin/Unpin button
-    <Tooltip key="pin" title={chat.pinned ? "Unpin" : "Pin"}>
-      <Button
-        type="text"
-        size="small"
-        icon={
-          chat.pinned ? (
-            <PushpinFilled style={{ color: theme.colors.pinned }} />
-          ) : (
-            <PushpinOutlined />
-          )
-        }
-        onClick={(e) => {
-          e.stopPropagation();
-          chat.pinned ? onUnpin(chat.id) : onPin(chat.id);
-        }}
-        style={{
-          opacity: chat.pinned ? 1 : undefined, // Always show when pinned
-        }}
-      />
-    </Tooltip>,
-
-    // Edit related buttons
-    ...(isEditing
+  // Build List.Item actions - only show when hovered or editing
+  const actions =
+    isHovered || isEditing || SelectMode
       ? [
-          <Tooltip key="save" title="Save">
+          // Pin/Unpin button
+          <Tooltip key="pin" title={chat.pinned ? "Unpin" : "Pin"}>
             <Button
               type="text"
               size="small"
-              icon={<CheckOutlined style={{ color: theme.colors.success }} />}
-              onClick={handleSave}
+              icon={
+                chat.pinned ? (
+                  <PushpinFilled style={{ color: theme.colors.pinned }} />
+                ) : (
+                  <PushpinOutlined />
+                )
+              }
+              onClick={(e) => {
+                e.stopPropagation();
+                chat.pinned ? onUnpin(chat.id) : onPin(chat.id);
+              }}
+              style={{
+                opacity: chat.pinned ? 1 : undefined, // Always show when pinned
+              }}
             />
           </Tooltip>,
-          <Tooltip key="cancel" title="Cancel">
+
+          // Edit related buttons
+          ...(isEditing
+            ? [
+                <Tooltip key="save" title="Save">
+                  <Button
+                    type="text"
+                    size="small"
+                    icon={
+                      <CheckOutlined style={{ color: theme.colors.success }} />
+                    }
+                    onClick={handleSave}
+                  />
+                </Tooltip>,
+                <Tooltip key="cancel" title="Cancel">
+                  <Button
+                    type="text"
+                    size="small"
+                    icon={
+                      <CloseOutlined style={{ color: theme.colors.error }} />
+                    }
+                    onClick={handleCancel}
+                  />
+                </Tooltip>,
+              ]
+            : [
+                <Tooltip key="edit" title="Edit">
+                  <Button
+                    type="text"
+                    size="small"
+                    icon={<EditOutlined />}
+                    onClick={handleEdit}
+                  />
+                </Tooltip>,
+                ...(onGenerateTitle
+                  ? [
+                      <Tooltip key="generate-title" title="Generate AI Title">
+                        <Button
+                          type="text"
+                          size="small"
+                          icon={<BulbOutlined />}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onGenerateTitle(chat.id);
+                          }}
+                        />
+                      </Tooltip>,
+                    ]
+                  : []),
+              ]),
+
+          // Delete button
+          <Tooltip key="delete" title="Delete">
             <Button
               type="text"
               size="small"
-              icon={<CloseOutlined style={{ color: theme.colors.error }} />}
-              onClick={handleCancel}
+              icon={<DeleteOutlined />}
+              onClick={handleDelete}
+              danger
             />
           </Tooltip>,
         ]
-      : [
-          <Tooltip key="edit" title="Edit">
-            <Button
-              type="text"
-              size="small"
-              icon={<EditOutlined />}
-              onClick={handleEdit}
-            />
-          </Tooltip>,
-        ]),
-
-    // Delete button
-    <Tooltip key="delete" title="Delete">
-      <Button
-        type="text"
-        size="small"
-        icon={<DeleteOutlined />}
-        onClick={handleDelete}
-        danger
-      />
-    </Tooltip>,
-  ];
+      : [];
 
   return (
     <List.Item
       style={itemStyle}
       onClick={() => !isEditing && onSelect(chat.id)}
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
       actions={actions}
       className="chat-item" // Keep class name for CSS hover effects
     >

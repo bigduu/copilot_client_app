@@ -14,7 +14,7 @@ import {
   Flex,
 } from "antd";
 import { DeleteOutlined } from "@ant-design/icons";
-import { useChat } from "../../contexts/ChatContext";
+import { useChats } from "../../hooks/useChats";
 import { useModels } from "../../hooks/useModels";
 import {
   isMermaidEnhancementEnabled,
@@ -90,7 +90,7 @@ const SystemSettingsModal = ({
   onThemeModeChange: (mode: "light" | "dark") => void;
 }) => {
   const { token } = useToken();
-  const { deleteAllChats, deleteEmptyChats } = useChat();
+  const { deleteAllUnpinnedChats, deleteEmptyChats } = useChats();
   const [msgApi, contextHolder] = message.useMessage();
   const [mermaidEnhancementEnabled, setMermaidEnhancementEnabledState] =
     useState<boolean>(() => {
@@ -105,7 +105,7 @@ const SystemSettingsModal = ({
   } = useModels();
 
   const handleDeleteAll = () => {
-    deleteAllChats();
+    deleteAllUnpinnedChats();
     msgApi.success("All chats deleted (except pinned)");
     onClose();
   };

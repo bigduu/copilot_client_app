@@ -81,11 +81,13 @@ const StreamingMessageItem: React.FC<StreamingMessageItemProps> = ({
     hasCompletedRef.current = true;
     setIsComplete(true);
 
-    onComplete({
-      role: "assistant",
+    const completedMessage = {
+      role: "assistant" as const,
       content: finalContent || "Message interrupted",
       processorUpdates: processorUpdatesRef.current,
-    });
+    };
+
+    onComplete(completedMessage);
   };
 
   useEffect(() => {
@@ -107,6 +109,7 @@ const StreamingMessageItem: React.FC<StreamingMessageItemProps> = ({
         rawText = rawText.substring(5);
       }
       receivedMessagesCount.current += 1;
+
       // Check if this is the "[DONE]" marker that indicates the end of streaming
       if (rawText.trim() === "[DONE]") {
         if (fullTextRef.current) {
@@ -117,130 +120,85 @@ const StreamingMessageItem: React.FC<StreamingMessageItemProps> = ({
         return;
       }
 
-      try {
-        // Parse the JSON string
-        const response = JSON.parse(rawText);
+      // Skip empty messages
+      if (!rawText || rawText.trim() === "") {
+        return;
+      }
 
-        console.log("[StreamingMessageItem] Response:", response);
+      // Split multiple JSON objects and process each one
+      const jsonObjects = rawText.split(/(?<=})\s*(?={)/);
 
-        // Check for processor updates
-        if (
-          response.type === "processor_update" &&
-          response.source &&
-          response.content
-        ) {
-          console.log(
-            "[StreamingMessageItem] Received processor update:",
-            response
-          );
-          const processorMessage = `[Processor: ${response.source}] ${response.content}`;
-          // Add to processorUpdates state for live rendering
-          setProcessorUpdates((prevUpdates) => [
-            ...prevUpdates,
-            processorMessage,
-          ]);
-          // Also add to ref for onComplete
-          processorUpdatesRef.current.push(processorMessage); // Add this line
-          return;
-        }
+      for (const jsonStr of jsonObjects) {
+        if (!jsonStr.trim()) continue;
 
-        // Check for error fields in the response
-        if (response.error) {
-          console.error(
-            "[StreamingMessageItem] Error in response:",
-            response.error
-          );
-          completeMessage(`Error: ${JSON.stringify(response.error)}`);
-          return;
-        }
+        try {
+          const response = JSON.parse(jsonStr);
+          // Check for processor updates
+          if (
+            response.type === "processor_update" &&
+            response.source &&
+            response.content
+          ) {
+            const processorMessage = `[Processor: ${response.source}] ${response.content}`;
+            // Add to processorUpdates state for live rendering
+            setProcessorUpdates((prevUpdates) => [
+              ...prevUpdates,
+              processorMessage,
+            ]);
+            // Also add to ref for onComplete
+            processorUpdatesRef.current.push(processorMessage);
+          } else if (response.choices && response.choices.length > 0) {
+            // Handle normal streaming response
+            const choice = response.choices[0];
 
-        // Check if this is a valid response with choices
-        if (response.choices && response.choices.length > 0) {
-          const choice = response.choices[0];
-          // Check if this is the final message with stop reason
-          if (choice.finish_reason === "stop") {
-            console.log("[StreamingMessageItem] Received finish_reason=stop");
-            completeMessage(fullTextRef.current);
-            return;
-          }
-
-          // For regular streaming updates with content
-          if (choice.delta && typeof choice.delta.content !== "undefined") {
-            let newContent = "";
-
-            // Handle both string content and null content (end of message marker)
-            if (choice.delta.content === null) {
-              console.log("[StreamingMessageItem] Received null content");
+            // Check if this is the final message with stop reason
+            if (choice.finish_reason === "stop") {
+              completeMessage(fullTextRef.current);
               return;
             }
 
-            if (typeof choice.delta.content === "string") {
-              newContent = choice.delta.content;
-            } else {
-              try {
-                newContent = String(choice.delta.content);
-              } catch (e) {
-                console.error(
-                  "[StreamingMessageItem] Could not convert delta content to string:",
-                  e
-                );
-                return;
+            // For regular streaming updates with content
+            if (choice.delta && typeof choice.delta.content !== "undefined") {
+              let newContent = "";
+
+              // Handle both string content and null content (end of message marker)
+              if (choice.delta.content === null) {
+                continue;
               }
-            }
 
-            if (newContent) {
-              console.log(
-                `[StreamingMessageItem] Adding ${newContent.length} chars to content`
-              );
-              // Accumulate content
-              fullTextRef.current += newContent;
-              setContent(fullTextRef.current);
-            }
-          } else if (choice.delta) {
-            console.log(
-              "[StreamingMessageItem] Delta without content:",
-              choice.delta
-            );
-          }
-        }
-      } catch (error) {
-        console.error(
-          "[StreamingMessageItem] Error parsing streaming response:",
-          error
-        );
-        console.error(
-          "[StreamingMessageItem] Raw text that caused error:",
-          rawText
-        );
+              if (typeof choice.delta.content === "string") {
+                newContent = choice.delta.content;
+              } else {
+                try {
+                  newContent = String(choice.delta.content);
+                } catch (e) {
+                  console.error(
+                    "[StreamingMessageItem] Could not convert delta content to string:",
+                    e
+                  );
+                  continue;
+                }
+              }
 
-        // Skip empty or obviously invalid responses
-        if (!rawText || rawText.trim() === "" || rawText.trim() === "[DONE]") {
-          return;
-        }
-
-        // Try to handle non-JSON responses gracefully by treating them as plain text
-        if (typeof rawText === "string" && rawText.trim()) {
-          // If it looks like it might be a partial JSON, try to extract content
-          if (rawText.includes('"content"')) {
-            try {
-              const contentMatch = /"content"\s*:\s*"([^"]*)"/.exec(rawText);
-              if (contentMatch && contentMatch[1]) {
-                fullTextRef.current += contentMatch[1];
+              if (newContent) {
+                // Accumulate content
+                fullTextRef.current += newContent;
                 setContent(fullTextRef.current);
-                return;
               }
-            } catch (e) {
-              console.error(
-                "[StreamingMessageItem] Failed to extract content from partial JSON:",
-                e
-              );
             }
           }
+        } catch (parseError) {
+          console.error(
+            "[StreamingMessageItem] Failed to parse JSON:",
+            parseError
+          );
+          console.error("[StreamingMessageItem] JSON string:", jsonStr);
 
-          // As a fallback, just add the raw text
-          console.log("[StreamingMessageItem] Adding raw text as fallback");
-          fullTextRef.current += rawText + "\n";
-          setContent(fullTextRef.current);
+          // Don't show raw JSON to user - just log the error
+          console.warn(
+            "[StreamingMessageItem] Skipping malformed JSON data:",
+            jsonStr.substring(0, 100) + "..."
+          );
         }
       }
     };

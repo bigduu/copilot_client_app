@@ -27,7 +27,7 @@ import {
   EnvironmentOutlined,
   FileTextOutlined,
 } from "@ant-design/icons";
-import { useChat } from "../../contexts/ChatContext";
+import { useChats } from "../../hooks/useChats";
 import { FavoriteItem } from "../../types/chat";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -44,15 +44,18 @@ const { useBreakpoint } = Grid;
 export const FavoritesPanel: React.FC = () => {
   const { token } = useToken();
   const screens = useBreakpoint();
-  const {
-    getCurrentChatFavorites,
-    removeFavorite,
-    exportFavorites,
-    updateFavorite,
-    navigateToMessage,
-    summarizeFavorites,
-    currentChatId,
-  } = useChat();
+  const { currentChatId } = useChats();
+
+  // TODO: 这些功能需要在新架构中实现
+  const getCurrentChatFavorites = (): FavoriteItem[] => [];
+  const removeFavorite = (id: string) => console.log("removeFavorite", id);
+  const exportFavorites = (format: string) =>
+    console.log("exportFavorites", format);
+  const updateFavorite = (id: string, data: any) =>
+    console.log("updateFavorite", id, data);
+  const navigateToMessage = (messageId: string) =>
+    console.log("navigateToMessage", messageId);
+  const summarizeFavorites = () => console.log("summarizeFavorites");
 
   const [sortOrder, setSortOrder] = useState<"descending" | "ascending">(
     "descending"
@@ -280,7 +283,7 @@ export const FavoritesPanel: React.FC = () => {
                         boxShadow: token.boxShadowTertiary,
                         border: `1px solid ${token.colorBorderSecondary}`,
                       }}
-                      bodyStyle={{ padding: token.paddingSM }}
+                      styles={{ body: { padding: token.paddingSM } }}
                     >
                       <Space
                         direction="vertical"
@@ -474,6 +477,7 @@ export const FavoritesPanel: React.FC = () => {
                                 size="small"
                                 type="text"
                                 onClick={() =>
+                                  favorite.messageId &&
                                   navigateToMessage(favorite.messageId)
                                 }
                               />

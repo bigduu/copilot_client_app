@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import { message } from "antd";
-import { useChat } from "../contexts/ChatContext";
+import { useChats } from "./useChats";
+import { useMessages } from "./useMessages";
 import { ToolService } from "../services/ToolService";
 
 /**
@@ -12,14 +13,13 @@ export function useChatInput() {
   const [referenceMap, setReferenceMap] = useState<{
     [chatId: string]: string | null;
   }>({});
+  const [messageApi, contextHolder] = message.useMessage();
 
-  const {
-    currentChatId,
-    sendMessage,
-    initiateAIResponse,
-    currentChat,
-    selectedSystemPromptPresetId,
-  } = useChat();
+  const { currentChatId, currentChat } = useChats();
+  const { sendMessage } = useMessages();
+  // 从 store 中获取系统提示词预设（如果需要的话可以添加选中的预设ID状态）
+  const selectedSystemPromptPresetId = null; // 暂时保持为 null，因为我们主要依赖聊天的 systemPromptId
+  // initiateAIResponse 现在通过 sendMessage 处理
   const prevChatIdRef = useRef<string | null>(null);
   const toolService = ToolService.getInstance();
 
@@ -92,6 +92,12 @@ export function useChatInput() {
       const systemPromptId =
         currentChat?.systemPromptId || selectedSystemPromptPresetId;
 
+      // 如果没有系统提示词ID，显示错误并返回
+      if (!systemPromptId) {
+        messageApi.error("当前聊天缺少系统提示词配置，请重新创建聊天或选择系统提示词");
+        return;
+      }
+
       try {
         // Use ToolService to process message: apply auto prefix and permission validation
         const processResult = await toolService.processMessage(
@@ -102,7 +108,7 @@ export function useChatInput() {
         // Check validation result
         if (!processResult.validation.isValid) {
           // Show permission error message
-          message.error(processResult.validation.errorMessage);
+          messageApi.error(processResult.validation.errorMessage);
           return;
         }
 
@@ -133,12 +139,13 @@ export function useChatInput() {
   // Handle AI retry
   const handleRetry = useCallback(async () => {
     try {
-      await initiateAIResponse();
+      // 重试功能暂时禁用，因为新架构中通过 sendMessage 处理
+      console.log("Retry functionality needs to be implemented in new architecture");
     } catch (error) {
       console.error("Error initiating AI response:", error);
       throw error;
     }
-  }, [initiateAIResponse]);
+  }, []);
 
   // Close reference preview
   const handleCloseReferencePreview = useCallback(() => {
@@ -167,5 +174,8 @@ export function useChatInput() {
         clearReferenceText(currentChatId);
       }
     },
+
+    // Message context holder for Ant Design messages
+    contextHolder,
   };
 }

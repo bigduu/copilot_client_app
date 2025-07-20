@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { Card, Space, Typography, theme } from "antd";
 import ReactMarkdown from "react-markdown";
-import { useChat } from "../../contexts/ChatContext";
+import { useChats } from "../../hooks/useChats";
 import { SystemPromptService } from "../../services/SystemPromptService";
 
 const { Text } = Typography;
@@ -22,7 +22,9 @@ const SystemMessage: React.FC<SystemMessageProps> = ({
   const { token } = useToken();
 
   // Get the current chat context
-  const { currentChat, systemPrompt } = useChat();
+  const { currentChat } = useChats();
+  // TODO: systemPrompt 需要从 currentChat 中获取
+  const systemPrompt = currentChat?.systemPrompt || "";
 
   // State for category description
   const [categoryDescription, setCategoryDescription] = useState<string>("");
