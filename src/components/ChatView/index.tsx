@@ -52,7 +52,7 @@ export const ChatView: React.FC = () => {
     if (screens.sm) return "95%";
     if (screens.md) return "90%";
     if (screens.lg) return "85%";
-    return "768px";
+    return "1024px"; // Increased from 768px to allow wider input
   };
 
   // Responsive padding calculation
@@ -296,6 +296,7 @@ export const ChatView: React.FC = () => {
                           processorUpdates={message.processorUpdates}
                           messageIndex={index}
                           messageId={messageCardId}
+                          images={message.images}
                         />
                       </div>
                     </Flex>

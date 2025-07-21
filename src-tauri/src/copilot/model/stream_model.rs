@@ -1,35 +1,152 @@
 use serde::{Deserialize, Serialize};
+use std::fmt;
+
+#[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq)]
+pub struct MessageImage {
+    pub id: String,
+    pub base64: String,
+    pub name: String,
+    pub size: u64,
+    #[serde(rename = "type")]
+    pub image_type: String,
+    pub width: Option<u32>,
+    pub height: Option<u32>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+#[serde(untagged)]
+pub enum MessageContent {
+    Text(String),
+    Array(Vec<ContentPart>),
+}
+
+impl Default for MessageContent {
+    fn default() -> Self {
+        MessageContent::Text(String::new())
+    }
+}
+
+impl fmt::Display for MessageContent {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            MessageContent::Text(text) => write!(f, "{}", text),
+            MessageContent::Array(parts) => {
+                let text_parts: Vec<String> = parts
+                    .iter()
+                    .filter_map(|part| {
+                        if part.content_type == "text" {
+                            part.text.clone()
+                        } else {
+                            None
+                        }
+                    })
+                    .collect();
+                write!(f, "{}", text_parts.join(" "))
+            }
+        }
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+pub struct ContentPart {
+    #[serde(rename = "type")]
+    pub content_type: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub text: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub image_url: Option<ImageUrl>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+pub struct ImageUrl {
+    pub url: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub detail: Option<String>,
+}
 
 #[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq)]
 pub struct Message {
     pub role: String,
-    pub content: String,
+    pub content: MessageContent,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub images: Option<Vec<MessageImage>>,
 }
 
 impl Message {
     pub fn system(content: String) -> Self {
         Self {
             role: "system".to_string(),
-            content,
+            content: MessageContent::Text(content),
+            images: None,
         }
     }
 
     pub fn user(content: String) -> Self {
         Self {
             role: "user".to_string(),
-            content,
+            content: MessageContent::Text(content),
+            images: None,
         }
     }
+
+    pub fn user_with_images(content: String, images: Vec<MessageImage>) -> Self {
+        // Create content array with text and images
+        let mut content_parts = vec![ContentPart {
+            content_type: "text".to_string(),
+            text: Some(content),
+            image_url: None,
+        }];
+
+        // Add image parts
+        for image in &images {
+            content_parts.push(ContentPart {
+                content_type: "image_url".to_string(),
+                text: None,
+                image_url: Some(ImageUrl {
+                    url: image.base64.clone(),
+                    detail: Some("high".to_string()),
+                }),
+            });
+        }
+
+        Self {
+            role: "user".to_string(),
+            content: MessageContent::Array(content_parts),
+            images: Some(images),
+        }
+    }
+
     pub fn assistant(content: String) -> Self {
         Self {
             role: "assistant".to_string(),
-            content,
+            content: MessageContent::Text(content),
+            images: None,
         }
     }
+
     pub fn developer(content: String) -> Self {
         Self {
             role: "developer".to_string(),
-            content,
+            content: MessageContent::Text(content),
+            images: None,
+        }
+    }
+
+    // Helper method to get text content regardless of format
+    pub fn get_text_content(&self) -> String {
+        match &self.content {
+            MessageContent::Text(text) => text.clone(),
+            MessageContent::Array(parts) => parts
+                .iter()
+                .filter_map(|part| {
+                    if part.content_type == "text" {
+                        part.text.clone()
+                    } else {
+                        None
+                    }
+                })
+                .collect::<Vec<String>>()
+                .join(" "),
         }
     }
 }

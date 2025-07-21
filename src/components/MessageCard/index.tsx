@@ -10,8 +10,14 @@ import {
   Collapse,
   Grid,
   Flex,
+  Image,
 } from "antd";
-import { CopyOutlined, BookOutlined, StarOutlined } from "@ant-design/icons";
+import {
+  CopyOutlined,
+  BookOutlined,
+  StarOutlined,
+  EyeOutlined,
+} from "@ant-design/icons";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import remarkBreaks from "remark-breaks";
@@ -19,6 +25,7 @@ import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism";
 import mermaid from "mermaid";
 import { useChats } from "../../hooks/useChats";
+import { MessageImage, MessageContent, getMessageText } from "../../types/chat";
 
 const { Text } = Typography;
 const { useToken } = theme;
@@ -209,11 +216,12 @@ const MermaidChart: React.FC<MermaidProps> = React.memo(
 
 interface MessageCardProps {
   role: string;
-  content: string;
+  content: MessageContent;
   processorUpdates?: string[];
   messageIndex?: number;
   children?: React.ReactNode;
   messageId?: string;
+  images?: MessageImage[];
 }
 
 const MessageCard: React.FC<MessageCardProps> = ({
@@ -222,6 +230,7 @@ const MessageCard: React.FC<MessageCardProps> = ({
   processorUpdates,
   children,
   messageId,
+  images = [],
 }) => {
   const { token } = useToken();
   const screens = useBreakpoint();
@@ -318,7 +327,8 @@ const MessageCard: React.FC<MessageCardProps> = ({
       });
       window.dispatchEvent(event);
     } else {
-      const referenceText = createReference(content);
+      const textContent = getMessageText(content);
+      const referenceText = createReference(textContent);
       const event = new CustomEvent("reference-text", {
         detail: { text: referenceText, chatId: currentChatId },
       });
@@ -336,7 +346,7 @@ const MessageCard: React.FC<MessageCardProps> = ({
         if (selectedText) {
           copyToClipboard(selectedText);
         } else {
-          copyToClipboard(content);
+          copyToClipboard(getMessageText(content));
         }
       },
     },
@@ -431,6 +441,94 @@ const MessageCard: React.FC<MessageCardProps> = ({
                   </Space>
                 </Collapse.Panel>
               </Collapse>
+            )}
+
+            {/* Images */}
+            {images && images.length > 0 && (
+              <div style={{ marginBottom: token.marginMD }}>
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns:
+                      images.length === 1
+                        ? "1fr"
+                        : images.length === 2
+                        ? "1fr 1fr"
+                        : "repeat(auto-fit, minmax(200px, 1fr))",
+                    gap: token.marginSM,
+                    maxWidth: "100%",
+                  }}
+                >
+                  {images.map((image, index) => (
+                    <div
+                      key={image.id}
+                      style={{
+                        position: "relative",
+                        borderRadius: token.borderRadius,
+                        overflow: "hidden",
+                        backgroundColor: token.colorBgLayout,
+                        border: `1px solid ${token.colorBorder}`,
+                      }}
+                    >
+                      <Image
+                        src={image.base64}
+                        alt={image.name}
+                        style={{
+                          width: "100%",
+                          height: "auto",
+                          maxHeight: images.length === 1 ? 400 : 200,
+                          objectFit: "cover",
+                        }}
+                        preview={{
+                          mask: (
+                            <div
+                              style={{
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                gap: token.marginXS,
+                                color: token.colorTextLightSolid,
+                              }}
+                            >
+                              <EyeOutlined />
+                              <span>Preview</span>
+                            </div>
+                          ),
+                        }}
+                      />
+                      {/* Image info overlay */}
+                      <div
+                        style={{
+                          position: "absolute",
+                          bottom: 0,
+                          left: 0,
+                          right: 0,
+                          background:
+                            "linear-gradient(transparent, rgba(0,0,0,0.7))",
+                          color: token.colorTextLightSolid,
+                          padding: `${token.paddingXS}px ${token.paddingSM}px`,
+                          fontSize: token.fontSizeSM,
+                        }}
+                      >
+                        <div style={{ fontWeight: 500 }}>{image.name}</div>
+                        {image.size && (
+                          <div
+                            style={{
+                              fontSize: token.fontSizeSM * 0.85,
+                              opacity: 0.8,
+                            }}
+                          >
+                            {(image.size / 1024).toFixed(1)} KB
+                            {image.width &&
+                              image.height &&
+                              ` • ${image.width}×${image.height}`}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
             )}
 
             {/* Content */}
@@ -544,7 +642,7 @@ const MessageCard: React.FC<MessageCardProps> = ({
                   ),
                 }}
               >
-                {content}
+                {getMessageText(content)}
               </ReactMarkdown>
             </div>
             {children}
@@ -570,7 +668,7 @@ const MessageCard: React.FC<MessageCardProps> = ({
                   icon={<CopyOutlined />}
                   size={getActionButtonSize()}
                   type="text"
-                  onClick={() => copyToClipboard(content)}
+                  onClick={() => copyToClipboard(getMessageText(content))}
                   style={{
                     background: token.colorBgElevated,
                     borderRadius: token.borderRadiusSM,

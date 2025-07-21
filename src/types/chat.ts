@@ -1,9 +1,72 @@
+// Image attachment interface for messages
+export interface MessageImage {
+  id: string;
+  base64: string; // Base64 encoded image data with data URL prefix
+  name: string;
+  size: number;
+  type: string; // MIME type
+  width?: number;
+  height?: number;
+}
+
+// Content can be either string or array for GitHub Copilot API compatibility
+export type MessageContent =
+  | string
+  | Array<{
+      type: "text" | "image_url";
+      text?: string;
+      image_url?: {
+        url: string;
+        detail?: "low" | "high" | "auto";
+      };
+    }>;
+
 export interface Message {
   role: "system" | "user" | "assistant";
-  content: string;
+  content: MessageContent;
   id?: string; // Unique identifier for the message
   processorUpdates?: string[]; // Optional: To store processor update strings
+  images?: MessageImage[]; // Optional: Array of attached images (for internal use)
 }
+
+// Utility functions for message content handling
+export const getMessageText = (content: MessageContent): string => {
+  if (typeof content === 'string') {
+    return content;
+  }
+
+  // Extract text from array format
+  const textParts = content
+    .filter(part => part.type === 'text' && part.text)
+    .map(part => part.text!)
+    .join(' ');
+
+  return textParts;
+};
+
+export const createTextContent = (text: string): MessageContent => text;
+
+export const createContentWithImages = (text: string, images: MessageImage[]): MessageContent => {
+  const content: MessageContent = [
+    {
+      type: "text",
+      text: text
+    }
+  ];
+
+  // Add images to content array
+  images.forEach(image => {
+    (content as any[]).push({
+      type: "image_url",
+      image_url: {
+        url: image.base64,
+        detail: "high"
+      }
+    });
+  });
+
+  return content;
+};
 
 export interface FavoriteItem {
   id: string;
