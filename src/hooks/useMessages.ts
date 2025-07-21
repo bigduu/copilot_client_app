@@ -1,6 +1,22 @@
 import { useChatStore, useCurrentMessages } from '../store/chatStore';
-import { Message } from '../types/chat';
+import { Message, MessageImage, getMessageText, createTextContent, createContentWithImages } from '../types/chat';
 import { ToolCallProcessor } from '../services/ToolCallProcessor';
+import { ImageFile } from '../utils/imageUtils';
+
+/**
+ * Convert ImageFile to MessageImage format
+ */
+const convertImageFileToMessageImage = (imageFile: ImageFile): MessageImage => {
+  return {
+    id: imageFile.id,
+    base64: imageFile.base64,
+    name: imageFile.name,
+    size: imageFile.size,
+    type: imageFile.type,
+    width: undefined, // Could be extracted from image if needed
+    height: undefined, // Could be extracted from image if needed
+  };
+};
 
 /**
  * Hook for managing messages within the current chat
@@ -22,7 +38,7 @@ interface UseMessagesReturn {
   // 便捷操作 (针对当前聊天)
   addMessageToCurrentChat: (message: Message) => void;
   updateMessageInCurrentChat: (messageId: string, updates: Partial<Message>) => void;
-  sendMessage: (content: string) => Promise<void>;
+  sendMessage: (content: string, images?: ImageFile[]) => Promise<void>;
   generateChatTitle: (chatId: string) => Promise<string>;
   autoUpdateChatTitle: (chatId: string) => Promise<void>;
 }
@@ -37,6 +53,7 @@ export const useMessages = (): UseMessagesReturn => {
   const addMessage = useChatStore(state => state.addMessage);
   const updateMessage = useChatStore(state => state.updateMessage);
   const initiateAIResponse = useChatStore(state => state.initiateAIResponse);
+  const triggerAIResponseOnly = useChatStore(state => state.triggerAIResponseOnly);
 
   // 便捷操作方法 (针对当前聊天)
   const addMessageToCurrentChat = (message: Message) => {
@@ -51,7 +68,7 @@ export const useMessages = (): UseMessagesReturn => {
     }
   };
 
-  const sendMessage = async (content: string) => {
+  const sendMessage = async (content: string, images?: ImageFile[]) => {
     if (!currentChatId) {
       console.error('Cannot send message: no active chat');
       return;
@@ -72,6 +89,7 @@ export const useMessages = (): UseMessagesReturn => {
           role: "user",
           content,
           id: crypto.randomUUID(),
+          images: images ? images.map(convertImageFileToMessageImage) : undefined,
         };
         addMessageToCurrentChat(userMessage);
 
@@ -165,8 +183,25 @@ export const useMessages = (): UseMessagesReturn => {
       }
     }
 
-    // Regular message - use store's AI response handling
-    await initiateAIResponse(currentChatId, content);
+    // Regular message - handle with or without images
+    if (images && images.length > 0) {
+      // Handle message with images - custom implementation
+      const messageImages = images.map(convertImageFileToMessageImage);
+      const userMessage: Message = {
+        role: "user",
+        content: createContentWithImages(content, messageImages),
+        id: crypto.randomUUID(),
+        images: messageImages, // Keep for backward compatibility
+      };
+      addMessageToCurrentChat(userMessage);
+
+      // TODO: Implement AI response with image support
+      // For now, we'll trigger AI response without creating duplicate user message
+      await triggerAIResponseOnly(currentChatId);
+    } else {
+      // Regular message without images - use store's AI response handling
+      await initiateAIResponse(currentChatId, content);
+    }
 
     // Auto-update chat title after AI response (with delay to ensure response is complete)
     setTimeout(() => autoUpdateChatTitle(currentChatId), 2000);
@@ -282,8 +317,9 @@ Title:`;
       // Fallback to first user message
       const firstUserMessage = chatMessages.find(msg => msg.role === 'user');
       if (firstUserMessage) {
-        return firstUserMessage.content.substring(0, 30) +
-               (firstUserMessage.content.length > 30 ? '...' : '');
+        const textContent = getMessageText(firstUserMessage.content);
+        return textContent.substring(0, 30) +
+               (textContent.length > 30 ? '...' : '');
       }
       return 'New Chat';
     }

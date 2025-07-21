@@ -9,6 +9,8 @@ async fn send_direct_llm_request(
     channel: tauri::ipc::Channel<String>,
 ) -> Result<(), String> {
     info!("=== SENDING DIRECT LLM REQUEST ===");
+    info!("Model: {:?}", model);
+    info!("Messages count: {}", messages.len());
 
     let (mut rx, handle) = copilot_client.send_stream_request(messages, model).await;
 
@@ -22,14 +24,26 @@ async fn send_direct_llm_request(
                 }
                 Err(e) => {
                     error!("Error in direct LLM response: {e}");
+                    error!("Error details: {:?}", e);
                     let _ = channel.send(format!(r#"{{\"error\": "{e}"}}"#));
                 }
             }
         }
     });
 
-    let _ = handle.await.unwrap();
-    Ok(())
+    match handle.await {
+        Ok(result) => {
+            info!("LLM request handle completed successfully");
+            result.map_err(|e| {
+                error!("LLM request failed: {}", e);
+                format!("LLM request failed: {}", e)
+            })
+        }
+        Err(e) => {
+            error!("LLM request handle join error: {}", e);
+            Err(format!("LLM request handle join error: {}", e))
+        }
+    }
 }
 
 #[tauri::command(async)]
@@ -42,7 +56,7 @@ pub async fn execute_prompt(
     info!("=== EXECUTE_PROMPT START ===");
 
     if let Some(last_msg) = messages.last() {
-        info!("Latest message: {}", last_msg.content);
+        info!("Latest message: {}", last_msg.get_text_content());
     }
 
     // Send directly to LLM

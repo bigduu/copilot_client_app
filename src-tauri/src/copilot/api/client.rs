@@ -9,7 +9,7 @@ use tokio::sync::mpsc::Sender;
 // Tentative path adjustments - will be finalized in Phase 4
 // use super::http_utils::execute_request; // This should be correct as http_utils is in the same `api` module
 use crate::copilot::model::{block_model, stream_model::ChatCompletionRequest}; // Adjusted path
-use crate::copilot::utils::http_utils::execute_request;
+use crate::copilot::utils::http_utils::execute_request_with_vision;
 use crate::copilot::utils::sse::extract_sse_message; // Adjusted path
 
 // use super::models_handler::CopilotModelsHandler; // This should be correct
@@ -101,10 +101,11 @@ impl CopilotClient {
                 e
             })?;
         let first = response.choices.first().unwrap();
-        info!("The first message: {}", first.message.content.clone());
+        info!("The first message: {}", first.message.get_text_content());
 
-        // Send the content
-        tx.send(Ok(bytes::Bytes::from(first.message.content.clone())))
+        // Send the content - convert MessageContent to string first
+        let content_text = first.message.get_text_content();
+        tx.send(Ok(bytes::Bytes::from(content_text)))
             .await
             .map_err(|_| anyhow!("Failed to send response"))?;
 
@@ -129,10 +130,16 @@ impl CopilotClient {
         let request = ChatCompletionRequest::new_stream(model, messages.clone());
         let client = self.clone();
         let handle = tokio::spawn(async move {
+            info!("Starting stream request processing");
             let response = client.send_request(messages, &request).await;
             match response {
-                Ok(resp) => client.forward_message(resp, tx).await,
+                Ok(resp) => {
+                    info!("Got successful response, starting message forwarding");
+                    client.forward_message(resp, tx).await
+                }
                 Err(e) => {
+                    error!("Stream request failed: {}", e);
+                    error!("Error details: {:?}", e);
                     let _ = tx.send(Err(e)).await;
                     Ok(())
                 }
@@ -154,16 +161,77 @@ impl CopilotClient {
 
         info!("Successfully got chat token");
 
+        // Check if any message contains images (either in images field or content array)
+        let has_images = messages.iter().any(|msg| {
+            // Check images field
+            if msg.images.is_some() && !msg.images.as_ref().unwrap().is_empty() {
+                info!(
+                    "Found images in images field: {} images",
+                    msg.images.as_ref().unwrap().len()
+                );
+                return true;
+            }
+            // Check content array for image_url type
+            match &msg.content {
+                crate::copilot::model::stream_model::MessageContent::Array(parts) => {
+                    let image_parts: Vec<_> = parts
+                        .iter()
+                        .filter(|part| part.content_type == "image_url")
+                        .collect();
+                    if !image_parts.is_empty() {
+                        info!(
+                            "Found images in content array: {} image parts",
+                            image_parts.len()
+                        );
+                        return true;
+                    }
+                    false
+                }
+                _ => false,
+            }
+        });
+
         let url = "https://api.githubcopilot.com/chat/completions";
         info!("Preparing request with {} messages", messages.len());
+
+        // Log message details for debugging
+        for (i, msg) in messages.iter().enumerate() {
+            let content_type = match &msg.content {
+                crate::copilot::model::stream_model::MessageContent::Text(_) => "text".to_string(),
+                crate::copilot::model::stream_model::MessageContent::Array(parts) => {
+                    format!("array({} parts)", parts.len())
+                }
+            };
+            info!(
+                "Message {}: role={}, content_type={}",
+                i, msg.role, content_type
+            );
+        }
+
+        if has_images {
+            info!("Request contains images, adding vision header");
+        } else {
+            info!("Request contains no images, using standard headers");
+        }
         info!("Sending request to Copilot API via http_utils...");
 
-        execute_request(
+        // Log the request payload for debugging
+        match serde_json::to_string_pretty(request) {
+            Ok(json_str) => {
+                info!("Request payload: {}", json_str);
+            }
+            Err(e) => {
+                error!("Failed to serialize request payload: {}", e);
+            }
+        }
+
+        execute_request_with_vision(
             &self.client,
             reqwest::Method::POST,
             url,
             Some(&access_token),
             Some(request),
+            has_images,
         )
         .await
     }
@@ -173,6 +241,27 @@ impl CopilotClient {
         response: Response,
         tx: Sender<anyhow::Result<Bytes>>,
     ) -> anyhow::Result<()> {
+        let status = response.status();
+        info!("Processing response with status: {}", status);
+
+        // If we get a bad request, log the response body for debugging
+        if !status.is_success() {
+            error!("Received error response with status: {}", status);
+            match response.text().await {
+                Ok(body) => {
+                    error!("Error response body: {}", body);
+                    let error_msg = format!("HTTP {} error: {}", status, body);
+                    let _ = tx.send(Err(anyhow::anyhow!(error_msg))).await;
+                    return Ok(());
+                }
+                Err(e) => {
+                    error!("Failed to read error response body: {}", e);
+                    let error_msg = format!("HTTP {} error (could not read body)", status);
+                    let _ = tx.send(Err(anyhow::anyhow!(error_msg))).await;
+                    return Ok(());
+                }
+            }
+        }
         use futures_util::StreamExt;
         let mut stream = response.bytes_stream();
         let mut buffer = String::new();

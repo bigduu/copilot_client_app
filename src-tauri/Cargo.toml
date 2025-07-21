@@ -44,7 +44,7 @@ futures-util = "0.3"                           # For stream processing
 bytes = "1"                                    # For stream processing
 arboard = "3"                                  # Clipboard handling
 anyhow = "1.0"
-dirs = "5.0"                                       # For config directory
+dirs = "5.0"                                   # For config directory
 
 # Logging and Debug
 log = { version = "0.4", features = ["std"] }

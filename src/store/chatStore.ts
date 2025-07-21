@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { ChatItem, Message, SystemPromptPreset } from '../types/chat';
+import { ChatItem, Message, SystemPromptPreset, createTextContent } from '../types/chat';
 // import { tauriService } from '../services/tauriService';
 // import { storageService } from '../services/storageService';
 
@@ -98,6 +98,7 @@ interface ChatState {
   setSystemPromptPresets: (presets: SystemPromptPreset[]) => void;
 
   initiateAIResponse: (chatId: string, userMessage: string) => Promise<void>;
+  triggerAIResponseOnly: (chatId: string) => Promise<void>;
 }
 
 export const useChatStore = create<ChatState>((set, get) => ({
@@ -345,7 +346,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
     // Add user message
     const userMsg: Message = {
       id: Date.now().toString(),
-      content: userMessage,
+      content: createTextContent(userMessage),
       role: 'user',
     };
     addMessage(chatId, userMsg);
@@ -354,6 +355,134 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
     try {
       // 获取当前聊天的所有消息（包括刚添加的用户消息）
+      const chatMessages = messages[chatId] || [];
+      const currentChat = chats.find(chat => chat.id === chatId);
+
+      // 构建发送给 AI 的消息列表，包含系统提示
+      const messagesToSend: Message[] = [];
+
+      // 添加系统消息（如果存在）
+      if (currentChat?.systemPrompt) {
+        messagesToSend.push({
+          role: 'system',
+          content: currentChat.systemPrompt,
+          id: 'system',
+        });
+      }
+
+      // 添加所有聊天消息
+      messagesToSend.push(...chatMessages);
+
+      // 调用 Tauri 后端的 execute_prompt 命令
+      const { invoke } = await import('@tauri-apps/api/core');
+      const { Channel } = await import('@tauri-apps/api/core');
+
+      // 创建流式响应通道
+      const channel = new Channel<string>();
+      let assistantResponse = '';
+
+      // Generate unique turn ID to avoid updating previous messages
+      const turnId = Date.now();
+      let isStreamingComplete = false;
+
+      // 监听流式响应
+      channel.onmessage = (rawMessage) => {
+        // 处理 [DONE] 信号
+        if (rawMessage.trim() === '[DONE]') {
+          return;
+        }
+
+        // 跳过空消息
+        if (!rawMessage || rawMessage.trim() === '') {
+          return;
+        }
+
+        // 分割多个 JSON 对象并处理每个
+        const jsonObjects = rawMessage.split(/(?<=})\s*(?={)/);
+
+        for (const jsonStr of jsonObjects) {
+          if (!jsonStr.trim()) continue;
+
+          try {
+            const response = JSON.parse(jsonStr);
+
+            // 处理正常的流式响应
+            if (response.choices && response.choices.length > 0) {
+              const choice = response.choices[0];
+
+              // 检查是否是完成信号
+              if (choice.finish_reason === 'stop') {
+                return;
+              }
+
+              // 处理增量内容
+              if (choice.delta && typeof choice.delta.content !== 'undefined') {
+                if (choice.delta.content !== null && typeof choice.delta.content === 'string') {
+                  const newContent = choice.delta.content;
+
+                  // 累积内容
+                  assistantResponse += newContent;
+
+                  // 实时更新 AI 响应消息
+                  // Use the turn ID generated at the beginning to avoid updating previous messages
+                  const messageId = `ai-${chatId}-${turnId}`;
+                  const assistantMsg: Message = {
+                    id: messageId,
+                    content: assistantResponse,
+                    role: 'assistant',
+                  };
+
+                  // 更新或添加 AI 消息 - only look for messages from this specific turn
+                  const currentMessages = get().messages[chatId] || [];
+                  const existingMsg = currentMessages.find(msg => msg.id === messageId);
+
+                  if (existingMsg) {
+                    // Only update if content has actually changed to prevent infinite loops
+                    if (existingMsg.content !== assistantResponse && !isStreamingComplete) {
+                      get().updateMessage(chatId, messageId, { content: assistantResponse });
+                    }
+                  } else {
+                    // 添加新消息
+                    addMessage(chatId, assistantMsg);
+                  }
+                }
+              }
+            }
+          } catch (parseError) {
+            console.error('[chatStore] Failed to parse JSON:', parseError);
+            console.error('[chatStore] JSON string:', jsonStr);
+          }
+        }
+      };
+
+      // 调用后端 AI 服务
+      await invoke('execute_prompt', {
+        messages: messagesToSend,
+        model: currentChat?.model || null,
+        channel,
+      });
+
+      set({ isProcessing: false });
+    } catch (error) {
+      console.error('AI response failed:', error);
+      // Add error message
+      addMessage(chatId, {
+        id: (Date.now() + 1).toString(),
+        content: 'Sorry, I encountered an error while processing your request. Please try again.',
+        role: 'assistant',
+      });
+      set({ isProcessing: false });
+    }
+  },
+
+  // AI response without creating user message (for cases where user message already exists)
+  triggerAIResponseOnly: async (chatId) => {
+    const { addMessage, messages, chats } = get();
+
+    set({ isProcessing: true });
+
+    try {
+      // 获取当前聊天的所有消息（用户消息应该已经存在）
       const chatMessages = messages[chatId] || [];
       const currentChat = chats.find(chat => chat.id === chatId);
 

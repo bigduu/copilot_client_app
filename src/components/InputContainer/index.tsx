@@ -123,9 +123,11 @@ export const InputContainer: React.FC<InputContainerProps> = ({
     content,
     setContent,
     referenceText,
+    images,
     handleSubmit,
     handleRetry,
     handleCloseReferencePreview,
+    setImages,
     contextHolder,
   } = useChatInput();
 
@@ -280,7 +282,14 @@ export const InputContainer: React.FC<InputContainerProps> = ({
       )}
 
       <div style={{ position: "relative" }}>
-        <Space.Compact block>
+        <div
+          style={{
+            display: "flex",
+            gap: token.marginXS,
+            alignItems: "center",
+            width: "100%",
+          }}
+        >
           {isSystemPromptLocked && lockedModeInfo ? (
             // Display locked mode information
             <Tooltip
@@ -300,27 +309,25 @@ export const InputContainer: React.FC<InputContainerProps> = ({
             >
               <Button
                 icon={<LockOutlined />}
-                size={isCenteredLayout ? "large" : "middle"}
+                size="large"
                 style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: token.marginXS,
                   cursor: "default",
-                  ...(isCenteredLayout
-                    ? {
-                        height: "auto",
-                        padding: `${token.paddingSM}px ${token.paddingContentHorizontal}px`,
-                      }
-                    : {}),
+                  minWidth: "auto",
+                  flexShrink: 0,
+                  maxWidth: "120px",
                 }}
                 disabled
               >
-                <span style={{ fontSize: "14px" }}>{lockedModeInfo.icon}</span>
+                <span style={{ fontSize: "12px", marginRight: "4px" }}>
+                  {lockedModeInfo.icon}
+                </span>
                 <Text
+                  ellipsis
                   style={{
                     color: token.colorTextSecondary,
-                    fontSize: isCenteredLayout ? "14px" : "12px",
+                    fontSize: "11px",
                     fontWeight: 500,
+                    maxWidth: "60px",
                   }}
                 >
                   {lockedModeInfo.presetName}
@@ -334,15 +341,12 @@ export const InputContainer: React.FC<InputContainerProps> = ({
                 icon={<SettingOutlined />}
                 onClick={() => setPromptModalOpen(true)}
                 aria-label="Customize System Prompt"
-                size={isCenteredLayout ? "large" : "middle"}
-                style={
-                  isCenteredLayout
-                    ? {
-                        height: "auto",
-                        padding: `${token.paddingSM}px ${token.paddingContentHorizontal}px`,
-                      }
-                    : {}
-                }
+                size="large"
+                style={{
+                  minWidth: "auto",
+                  flexShrink: 0,
+                  width: "40px",
+                }}
               />
             </Tooltip>
           )}
@@ -355,9 +359,12 @@ export const InputContainer: React.FC<InputContainerProps> = ({
             isCenteredLayout={isCenteredLayout}
             placeholder={placeholder}
             hasMessages={currentMessages.length > 0}
+            images={images}
+            onImagesChange={setImages}
+            allowImages={true}
             validateMessage={validateMessage}
           />
-        </Space.Compact>
+        </div>
 
         <ToolSelector
           visible={showToolSelector}

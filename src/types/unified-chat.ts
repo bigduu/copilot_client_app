@@ -129,6 +129,15 @@ export interface Attachment {
   mimeType: string;
 }
 
+// 图片附件类型 (专门用于聊天消息中的图片)
+export interface ImageAttachment extends Attachment {
+  type: 'image';
+  base64: string; // Base64 encoded image data
+  width?: number;
+  height?: number;
+  preview?: string; // Preview URL for display
+}
+
 // 处理步骤
 export interface ProcessingStep {
   id: string;

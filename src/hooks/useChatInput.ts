@@ -3,6 +3,7 @@ import { message } from "antd";
 import { useChats } from "./useChats";
 import { useMessages } from "./useMessages";
 import { ToolService } from "../services/ToolService";
+import { ImageFile, cleanupImagePreviews } from "../utils/imageUtils";
 
 /**
  * useChatInput - Manages chat input related state and logic
@@ -12,6 +13,9 @@ export function useChatInput() {
   const [content, setContent] = useState("");
   const [referenceMap, setReferenceMap] = useState<{
     [chatId: string]: string | null;
+  }>({});
+  const [imagesMap, setImagesMap] = useState<{
+    [chatId: string]: ImageFile[];
   }>({});
   const [messageApi, contextHolder] = message.useMessage();
 
@@ -23,8 +27,9 @@ export function useChatInput() {
   const prevChatIdRef = useRef<string | null>(null);
   const toolService = ToolService.getInstance();
 
-  // Get the reference text for the current chat
+  // Get the reference text and images for the current chat
   const referenceText = currentChatId ? referenceMap[currentChatId] : null;
+  const images = currentChatId ? (imagesMap[currentChatId] || []) : [];
 
   // Clear the reference text for a specific chat
   const clearReferenceText = useCallback((chatId: string) => {
@@ -48,6 +53,34 @@ export function useChatInput() {
     []
   );
 
+  // Clear images for a specific chat
+  const clearImages = useCallback((chatId: string) => {
+    if (!chatId) return;
+
+    // Clean up image previews before clearing
+    const chatImages = imagesMap[chatId];
+    if (chatImages && chatImages.length > 0) {
+      cleanupImagePreviews(chatImages);
+    }
+
+    setImagesMap((prevMap) => {
+      const newMap = { ...prevMap };
+      newMap[chatId] = [];
+      return newMap;
+    });
+  }, [imagesMap]);
+
+  // Set images for a specific chat
+  const setImages = useCallback(
+    (chatId: string, newImages: ImageFile[]) => {
+      setImagesMap((prev) => ({
+        ...prev,
+        [chatId]: newImages,
+      }));
+    },
+    []
+  );
+
   // Listen for reference text events
   useEffect(() => {
     const handleReferenceText = (e: Event) => {
@@ -65,19 +98,21 @@ export function useChatInput() {
     };
   }, [currentChatId, setReferenceText]);
 
-  // Clear reference text when switching chats
+  // Clear reference text and images when switching chats
   useEffect(() => {
     if (prevChatIdRef.current && prevChatIdRef.current !== currentChatId) {
       clearReferenceText(prevChatIdRef.current);
+      clearImages(prevChatIdRef.current);
     }
     prevChatIdRef.current = currentChatId;
-  }, [currentChatId, clearReferenceText]);
+  }, [currentChatId, clearReferenceText, clearImages]);
 
   // Handle message submission
   const handleSubmit = useCallback(
-    async (inputContent: string) => {
+    async (inputContent: string, messageImages?: ImageFile[]) => {
       const trimmedContent = inputContent.trim();
-      if (!trimmedContent && !referenceText) return;
+      const imagesToSend = messageImages || images;
+      if (!trimmedContent && !referenceText && imagesToSend.length === 0) return;
 
       let messageToSend = trimmedContent;
 
@@ -112,13 +147,14 @@ export function useChatInput() {
           return;
         }
 
-        // Send message using processed content
-        await sendMessage(processResult.processedContent);
+        // Send message using processed content with images
+        await sendMessage(processResult.processedContent, imagesToSend.length > 0 ? imagesToSend : undefined);
 
-        // Clear input content and reference text
+        // Clear input content, reference text, and images
         setContent("");
         if (currentChatId) {
           clearReferenceText(currentChatId);
+          clearImages(currentChatId);
         }
       } catch (error) {
         console.error("Error sending message:", error);
@@ -127,9 +163,11 @@ export function useChatInput() {
     },
     [
       referenceText,
+      images,
       sendMessage,
       currentChatId,
       clearReferenceText,
+      clearImages,
       toolService,
       currentChat?.systemPromptId,
       selectedSystemPromptPresetId,
@@ -159,6 +197,7 @@ export function useChatInput() {
     content,
     setContent,
     referenceText,
+    images,
 
     // Methods
     handleSubmit,
@@ -172,6 +211,16 @@ export function useChatInput() {
     clearReferenceText: () => {
       if (currentChatId) {
         clearReferenceText(currentChatId);
+      }
+    },
+    setImages: (newImages: ImageFile[]) => {
+      if (currentChatId) {
+        setImages(currentChatId, newImages);
+      }
+    },
+    clearImages: () => {
+      if (currentChatId) {
+        clearImages(currentChatId);
       }
     },
 
