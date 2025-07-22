@@ -79,37 +79,47 @@ const ToolSelector: React.FC<ToolSelectorProps> = ({
 
       switch (event.key) {
         case "ArrowDown":
+        case "n": // Ctrl+N for next
+          if (event.key === "n" && !event.ctrlKey) break; // Only handle Ctrl+N
           event.preventDefault();
+          event.stopPropagation();
           setSelectedIndex((prev) =>
             prev < filteredTools.length - 1 ? prev + 1 : 0
           );
           break;
         case "ArrowUp":
+        case "p": // Ctrl+P for previous
+          if (event.key === "p" && !event.ctrlKey) break; // Only handle Ctrl+P
           event.preventDefault();
+          event.stopPropagation();
           setSelectedIndex((prev) =>
             prev > 0 ? prev - 1 : filteredTools.length - 1
           );
           break;
         case "Enter":
           event.preventDefault();
+          event.stopPropagation();
           if (filteredTools[selectedIndex]) {
             onSelect(filteredTools[selectedIndex].name);
           }
           break;
         case " ": // Space key for auto-completion
           event.preventDefault();
+          event.stopPropagation();
           if (filteredTools[selectedIndex] && onAutoComplete) {
             onAutoComplete(filteredTools[selectedIndex].name);
           }
           break;
         case "Tab": // Tab key for auto-completion
           event.preventDefault();
+          event.stopPropagation();
           if (filteredTools[selectedIndex] && onAutoComplete) {
             onAutoComplete(filteredTools[selectedIndex].name);
           }
           break;
         case "Escape":
           event.preventDefault();
+          event.stopPropagation();
           onCancel();
           break;
       }
@@ -117,7 +127,14 @@ const ToolSelector: React.FC<ToolSelectorProps> = ({
 
     document.addEventListener("keydown", handleKeyDown);
     return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [visible, filteredTools, selectedIndex, onSelect, onCancel]);
+  }, [
+    visible,
+    filteredTools,
+    selectedIndex,
+    onSelect,
+    onCancel,
+    onAutoComplete,
+  ]);
 
   if (!visible) {
     return null;
@@ -175,7 +192,8 @@ const ToolSelector: React.FC<ToolSelectorProps> = ({
           color: token.colorTextTertiary,
         }}
       >
-        ↑↓ Navigate • Enter Select • Space/Tab Complete • Esc Cancel
+        ↑↓ Navigate • Ctrl+P/N Navigate • Enter Select • Space/Tab Complete •
+        Esc Cancel
       </div>
       {filteredTools.map((tool, index) => (
         <div

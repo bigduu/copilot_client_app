@@ -1,5 +1,5 @@
 import React, { useRef, useState, useCallback } from "react";
-import { Input, Button, Space, theme, message, Typography } from "antd";
+import { Button, Space, theme, message, Typography } from "antd";
 import {
   SendOutlined,
   SyncOutlined,
@@ -17,6 +17,8 @@ import {
 } from "../../utils/imageUtils";
 import ImagePreviewModal from "../ImagePreviewModal";
 
+import ToolHighlightedInput from "./ToolHighlightedInput";
+
 interface MessageInputProps {
   value: string;
   onChange: (value: string) => void;
@@ -31,6 +33,7 @@ interface MessageInputProps {
   images?: ImageFile[];
   onImagesChange?: (images: ImageFile[]) => void;
   allowImages?: boolean;
+  isToolSelectorVisible?: boolean; // Prevent Enter key handling when tool selector is open
   validateMessage?: (message: string) => {
     isValid: boolean;
     errorMessage?: string;
@@ -51,9 +54,9 @@ export const MessageInput: React.FC<MessageInputProps> = ({
   images = [],
   onImagesChange,
   allowImages = true,
+  isToolSelectorVisible = false,
   validateMessage,
 }) => {
-  const textAreaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { token } = theme.useToken();
   const [messageApi, contextHolder] = message.useMessage();
@@ -164,7 +167,13 @@ export const MessageInput: React.FC<MessageInputProps> = ({
   );
 
   const handleKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (event.key === "Enter" && !event.shiftKey && !isStreaming && !disabled) {
+    if (
+      event.key === "Enter" &&
+      !event.shiftKey &&
+      !isStreaming &&
+      !disabled &&
+      !isToolSelectorVisible
+    ) {
       event.preventDefault();
       handleSubmit();
     }
@@ -379,16 +388,15 @@ export const MessageInput: React.FC<MessageInputProps> = ({
             )}
           </div>
 
-          {/* Text input */}
-          <Input.TextArea
-            ref={textAreaRef}
-            autoSize={{ minRows: 1, maxRows: 4 }}
+          {/* Text input with tool highlighting */}
+          <ToolHighlightedInput
             value={value}
-            onChange={(e) => onChange(e.target.value)}
+            onChange={onChange}
             onKeyDown={handleKeyDown}
             onPaste={handlePaste}
             placeholder={placeholder}
             disabled={disabled || isStreaming}
+            autoSize={{ minRows: 1, maxRows: 4 }}
             variant="borderless"
             style={{
               resize: "none",

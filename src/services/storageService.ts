@@ -7,7 +7,7 @@ const STORAGE_KEYS = {
   SETTINGS: 'copilot_settings'
 };
 
-export const storageService = {
+export const StorageService = {
   /**
    * Load chats from localStorage
    */

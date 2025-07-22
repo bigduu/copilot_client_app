@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { ChatItem, Message, SystemPromptPreset, createTextContent } from '../types/chat';
-// import { tauriService } from '../services/tauriService';
-// import { storageService } from '../services/storageService';
+// import { TauriService } from '../services/TauriService';
+// import { StorageService } from '../services/StorageService';
 
 // 临时的简化存储服务
 const tempStorageService = {
