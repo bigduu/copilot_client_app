@@ -98,8 +98,8 @@ impl Category for FileOperationsCategory {
         tools.insert("update_file".to_string(), Arc::new(UpdateFileTool));
         // File search tool
         tools.insert("search_files".to_string(), Arc::new(SearchFilesTool));
-        // Simple search tool
-        tools.insert("simple_search".to_string(), Arc::new(SimpleSearchTool));
+        // Simple search tool - use the tool's actual name() for the key
+        tools.insert("search".to_string(), Arc::new(SimpleSearchTool));
         // File append tool
         tools.insert("append_file".to_string(), Arc::new(AppendFileTool));
 

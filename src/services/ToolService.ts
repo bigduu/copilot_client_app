@@ -579,12 +579,12 @@ ${result}
         throw new Error(`工具类别 "${categoryId}" 未找到。请检查后端是否已注册该类别。`);
       }
 
-      // 返回显示信息，使用正确的字段映射
+      // 返回显示信息，直接使用后端提供的数据，不进行任何硬编码映射
       return {
         name: category.display_name || category.name || categoryId,
-        icon: this.mapFrontendIconToEmoji(category.icon) || '🔧',
+        icon: category.icon || '🔧', // 直接使用后端提供的图标
         description: category.description || '',
-        color: this.getCategoryColor(categoryId)
+        color: category.color || '#666666' // 直接使用后端提供的颜色，如果没有则使用默认值
       };
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
@@ -592,31 +592,5 @@ ${result}
     }
   }
 
-  /**
-   * 将前端图标名称映射为 Emoji 图标
-   */
-  private mapFrontendIconToEmoji(frontendIcon: string): string {
-    const iconMap: Record<string, string> = {
-      'ToolOutlined': '🤖',
-      'FileTextOutlined': '📁',
-      'PlayCircleOutlined': '⚡',
-    };
 
-    return iconMap[frontendIcon] || frontendIcon || '🔧';
-  }
-
-  /**
-   * 获取类别颜色（基于类别ID的简单映射）
-   */
-  private getCategoryColor(categoryId: string): string {
-    const colorMap: Record<string, string> = {
-      'file_operations': '#52c41a',
-      'command_execution': '#1890ff',
-      'general_assistant': '#722ed1',
-      'system_analysis': '#fa8c16',
-      'development_tools': '#13c2c2',
-    };
-    
-    return colorMap[categoryId] || '#666666';
-  }
 }

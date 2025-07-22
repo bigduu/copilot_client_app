@@ -17,8 +17,7 @@ import ToolSelector from "../ToolSelector";
 import { useChats } from "../../hooks/useChats";
 import { useChatInput } from "../../hooks/useChatInput";
 import { useToolCategoryValidation } from "../../hooks/useToolCategoryValidation";
-
-import { SystemPromptService } from "../../services/SystemPromptService";
+import { useSystemPrompt } from "../../hooks/useSystemPrompt";
 import { getCategoryDisplayInfoAsync } from "../../utils/chatUtils";
 
 const { useToken } = theme;
@@ -41,37 +40,10 @@ export const InputContainer: React.FC<InputContainerProps> = ({
   // TODO: selectedSystemPromptPresetId 需要从新的 store 中获取
   const selectedSystemPromptPresetId = null;
 
-  // Service instances
-  const systemPromptService = SystemPromptService.getInstance();
-
-  // Get current system prompt preset information
-  const [currentSystemPromptInfo, setCurrentSystemPromptInfo] =
-    useState<any>(null);
-
-  useEffect(() => {
-    const loadSystemPromptInfo = async () => {
-      const systemPromptId =
-        currentChat?.systemPromptId || selectedSystemPromptPresetId;
-      if (!systemPromptId) {
-        setCurrentSystemPromptInfo(null);
-        return;
-      }
-
-      try {
-        const info = await systemPromptService.findPresetById(systemPromptId);
-        setCurrentSystemPromptInfo(info);
-      } catch (error) {
-        console.error("Failed to load system prompt info:", error);
-        setCurrentSystemPromptInfo(null);
-      }
-    };
-
-    loadSystemPromptInfo();
-  }, [
-    currentChat?.systemPromptId,
-    selectedSystemPromptPresetId,
-    systemPromptService,
-  ]);
+  // Use system prompt hook instead of direct service
+  const systemPromptId =
+    currentChat?.systemPromptId || selectedSystemPromptPresetId;
+  const { currentSystemPromptInfo } = useSystemPrompt(systemPromptId);
 
   // Check if in tool-specific mode
   const isToolSpecificMode = currentSystemPromptInfo?.mode === "tool_specific";
@@ -362,6 +334,7 @@ export const InputContainer: React.FC<InputContainerProps> = ({
             images={images}
             onImagesChange={setImages}
             allowImages={true}
+            isToolSelectorVisible={showToolSelector}
             validateMessage={validateMessage}
           />
         </div>
