@@ -18,6 +18,7 @@ function App() {
   const loadSystemPromptPresets = useChatStore(
     (state) => state.loadSystemPromptPresets
   );
+  const loadFavorites = useChatStore((state) => state.loadFavorites);
 
   useEffect(() => {
     document.body.setAttribute("data-theme", themeMode);
@@ -27,7 +28,8 @@ function App() {
   useEffect(() => {
     loadChats();
     loadSystemPromptPresets();
-  }, [loadChats, loadSystemPromptPresets]);
+    loadFavorites();
+  }, [loadChats, loadSystemPromptPresets, loadFavorites]);
 
   // Control the display of settings modal (can be adjusted according to actual project logic)
   const [settingsOpen, setSettingsOpen] = useState(false);

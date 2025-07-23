@@ -2,6 +2,8 @@ import { useState, useCallback, useEffect, useRef } from "react";
 import { message } from "antd";
 import { useChats } from "./useChats";
 import { useMessages } from "./useMessages";
+import { useChatStore } from "../store/chatStore";
+import { Message } from "../types/chat";
 import { ToolService } from "../services/ToolService";
 import { ImageFile, cleanupImagePreviews } from "../utils/imageUtils";
 
@@ -176,14 +178,43 @@ export function useChatInput() {
 
   // Handle AI retry
   const handleRetry = useCallback(async () => {
+    if (!currentChatId) {
+      console.error("Cannot retry: no active chat");
+      return;
+    }
+
     try {
-      // 重试功能暂时禁用，因为新架构中通过 sendMessage 处理
-      console.log("Retry functionality needs to be implemented in new architecture");
+      // Get current chat messages using the store directly
+      const store = useChatStore.getState();
+      const currentMessages = store.messages[currentChatId] || [];
+
+      // Find the last assistant message
+      const lastAssistantMessageIndex = currentMessages
+        .map((msg: Message, index: number) => ({ msg, index }))
+        .reverse()
+        .find(({ msg }: { msg: Message }) => msg.role === "assistant")?.index;
+
+      if (lastAssistantMessageIndex === undefined) {
+        console.warn("No assistant message found to retry");
+        messageApi.warning("No AI response found to regenerate");
+        return;
+      }
+
+      const lastAssistantMessage = currentMessages[lastAssistantMessageIndex];
+
+      // Delete the last assistant message instead of clearing it
+      store.deleteMessage(currentChatId, lastAssistantMessage.id!);
+
+      // Trigger AI response only (without adding a new user message)
+      await store.triggerAIResponseOnly(currentChatId);
+
+      console.log("AI response retry initiated successfully");
     } catch (error) {
-      console.error("Error initiating AI response:", error);
+      console.error("Error during retry:", error);
+      messageApi.error("Failed to regenerate AI response. Please try again.");
       throw error;
     }
-  }, []);
+  }, [currentChatId, messageApi]);
 
   // Close reference preview
   const handleCloseReferencePreview = useCallback(() => {

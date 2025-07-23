@@ -28,12 +28,19 @@ export const ChatView: React.FC = () => {
   // 使用新的 Zustand hooks
   const { currentChatId, currentChat, currentMessages, updateChat } =
     useChats();
-  const { isProcessing } = useMessages();
+  const { isProcessing, deleteMessage } = useMessages();
 
   // 暂时设置这些值，因为原组件依赖它们
   const isStreaming = isProcessing;
   const activeChannel = null;
   const addAssistantMessage = () => {}; // 这个功能现在在 Store 中处理
+
+  // Handle message deletion
+  const handleDeleteMessage = (messageId: string) => {
+    if (currentChatId) {
+      deleteMessage(currentChatId, messageId);
+    }
+  };
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesListRef = useRef<HTMLDivElement>(null);
   const { token } = useToken();
@@ -297,6 +304,7 @@ export const ChatView: React.FC = () => {
                           messageIndex={index}
                           messageId={messageCardId}
                           images={message.images}
+                          onDelete={handleDeleteMessage}
                         />
                       </div>
                     </Flex>

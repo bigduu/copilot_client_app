@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { ChatItem, Message, SystemPromptPreset, createTextContent } from '../types/chat';
+import { ChatItem, Message, SystemPromptPreset, FavoriteItem, createTextContent } from '../types/chat';
 // import { TauriService } from '../services/TauriService';
 // import { StorageService } from '../services/StorageService';
 
@@ -68,6 +68,24 @@ const tempStorageService = {
       console.error('Failed to save latest active chat ID:', error);
     }
   },
+
+  async loadFavorites(): Promise<FavoriteItem[]> {
+    try {
+      const stored = localStorage.getItem('copilot_favorites');
+      return stored ? JSON.parse(stored) : [];
+    } catch (error) {
+      console.error('Failed to load favorites:', error);
+      return [];
+    }
+  },
+
+  async saveFavorites(favorites: FavoriteItem[]): Promise<void> {
+    try {
+      localStorage.setItem('copilot_favorites', JSON.stringify(favorites));
+    } catch (error) {
+      console.error('Failed to save favorites:', error);
+    }
+  },
 };
 
 interface ChatState {
@@ -77,6 +95,7 @@ interface ChatState {
   latestActiveChatId: string | null; // Store the last active chat ID
   messages: Record<string, Message[]>;
   systemPromptPresets: SystemPromptPreset[];
+  favorites: FavoriteItem[];
   isProcessing: boolean;
 
   // Actions
@@ -90,12 +109,19 @@ interface ChatState {
   
   addMessage: (chatId: string, message: Message) => void;
   updateMessage: (chatId: string, messageId: string, updates: Partial<Message>) => void;
+  deleteMessage: (chatId: string, messageId: string) => void;
   
   loadChats: () => Promise<void>;
   saveChats: () => Promise<void>;
 
   loadSystemPromptPresets: () => Promise<void>;
   setSystemPromptPresets: (presets: SystemPromptPreset[]) => void;
+
+  addFavorite: (favorite: Omit<FavoriteItem, 'id' | 'createdAt'>) => string;
+  removeFavorite: (favoriteId: string) => void;
+  updateFavorite: (favoriteId: string, updates: Partial<Omit<FavoriteItem, 'id' | 'createdAt'>>) => void;
+  loadFavorites: () => Promise<void>;
+  saveFavorites: () => Promise<void>;
 
   initiateAIResponse: (chatId: string, userMessage: string) => Promise<void>;
   triggerAIResponseOnly: (chatId: string) => Promise<void>;
@@ -108,6 +134,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   latestActiveChatId: null,
   messages: {},
   systemPromptPresets: [],
+  favorites: [],
   isProcessing: false,
 
   // Chat management actions
@@ -253,6 +280,28 @@ export const useChatStore = create<ChatState>((set, get) => ({
     get().saveChats();
   },
 
+  deleteMessage: (chatId, messageId) => {
+    set(state => {
+      const currentMessages = state.messages[chatId] || [];
+      const messageExists = currentMessages.some(msg => msg.id === messageId);
+
+      if (!messageExists) {
+        console.warn(`Message ${messageId} not found in chat ${chatId}`);
+        return state; // Don't update if message doesn't exist
+      }
+
+      return {
+        messages: {
+          ...state.messages,
+          [chatId]: currentMessages.filter(msg => msg.id !== messageId)
+        }
+      };
+    });
+
+    // Auto-save messages to storage
+    get().saveChats();
+  },
+
   // Data persistence
   loadChats: async () => {
     try {
@@ -337,6 +386,63 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
   setSystemPromptPresets: (presets) => {
     set({ systemPromptPresets: presets });
+  },
+
+  // Favorites management
+  addFavorite: (favorite) => {
+    const id = crypto.randomUUID();
+    const newFavorite: FavoriteItem = {
+      ...favorite,
+      id,
+      createdAt: Date.now(),
+    };
+
+    set(state => ({
+      favorites: [...state.favorites, newFavorite]
+    }));
+
+    // Auto-save favorites
+    get().saveFavorites();
+    return id;
+  },
+
+  removeFavorite: (favoriteId) => {
+    set(state => ({
+      favorites: state.favorites.filter(fav => fav.id !== favoriteId)
+    }));
+
+    // Auto-save favorites
+    get().saveFavorites();
+  },
+
+  updateFavorite: (favoriteId, updates) => {
+    set(state => ({
+      favorites: state.favorites.map(fav =>
+        fav.id === favoriteId ? { ...fav, ...updates } : fav
+      )
+    }));
+
+    // Auto-save favorites
+    get().saveFavorites();
+  },
+
+  loadFavorites: async () => {
+    try {
+      const favorites = await tempStorageService.loadFavorites();
+      set({ favorites });
+    } catch (error) {
+      console.error('Failed to load favorites:', error);
+      set({ favorites: [] });
+    }
+  },
+
+  saveFavorites: async () => {
+    try {
+      const { favorites } = get();
+      await tempStorageService.saveFavorites(favorites);
+    } catch (error) {
+      console.error('Failed to save favorites:', error);
+    }
   },
 
   // AI interaction - 调用真正的 AI 服务

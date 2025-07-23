@@ -1,4 +1,4 @@
-import React, { useRef, useState, useCallback } from "react";
+import React, { useRef, useState, useCallback, useEffect } from "react";
 import { Button, Space, theme, message, Typography } from "antd";
 import {
   SendOutlined,
@@ -17,7 +17,10 @@ import {
 } from "../../utils/imageUtils";
 import ImagePreviewModal from "../ImagePreviewModal";
 
-import ToolHighlightedInput from "./ToolHighlightedInput";
+import { Input } from "antd";
+
+const { TextArea } = Input;
+import { ToolService } from "../../services/ToolService";
 
 interface MessageInputProps {
   value: string;
@@ -63,6 +66,8 @@ export const MessageInput: React.FC<MessageInputProps> = ({
   const [isDragOver, setIsDragOver] = useState(false);
   const [previewModalVisible, setPreviewModalVisible] = useState(false);
   const [previewImageIndex, setPreviewImageIndex] = useState(0);
+  const [availableTools, setAvailableTools] = useState<string[]>([]);
+  const toolService = ToolService.getInstance();
 
   // Image handling functions
   const handleImageFiles = useCallback(
@@ -166,7 +171,89 @@ export const MessageInput: React.FC<MessageInputProps> = ({
     [allowImages, handleImageFiles]
   );
 
+  // Fetch available tools on component mount
+  useEffect(() => {
+    const fetchTools = async () => {
+      try {
+        const tools = await toolService.getAvailableTools();
+        setAvailableTools(tools.map((tool) => tool.name));
+      } catch (error) {
+        console.error("Failed to fetch available tools:", error);
+      }
+    };
+
+    fetchTools();
+  }, [toolService]);
+
+  // Helper function to check if a string is a valid tool name
+  const isValidToolName = useCallback(
+    (toolName: string): boolean => {
+      return availableTools.includes(toolName);
+    },
+    [availableTools]
+  );
+
+  // Helper function to find tool names in text
+  const findToolMatches = useCallback(
+    (text: string) => {
+      const toolMatches: Array<{
+        start: number;
+        end: number;
+        toolName: string;
+      }> = [];
+      const regex = /\/(\w+)/g;
+      let match;
+
+      while ((match = regex.exec(text)) !== null) {
+        const toolName = match[1];
+        if (isValidToolName(toolName)) {
+          toolMatches.push({
+            start: match.index,
+            end: match.index + match[0].length,
+            toolName: toolName,
+          });
+        }
+      }
+
+      return toolMatches;
+    },
+    [isValidToolName]
+  );
+
   const handleKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    // Handle smart deletion for tool names
+    if (
+      event.key === "Backspace" &&
+      !event.ctrlKey &&
+      !event.altKey &&
+      !event.metaKey
+    ) {
+      const textarea = event.currentTarget;
+      const cursorPosition = textarea.selectionStart;
+      const text = textarea.value;
+
+      // Find all tool names in the text
+      const toolMatches = findToolMatches(text);
+
+      // Check if cursor is at the end of a tool name
+      for (const match of toolMatches) {
+        if (cursorPosition === match.end) {
+          // Cursor is at the end of a tool name, delete the entire tool name
+          event.preventDefault();
+          const newText =
+            text.substring(0, match.start) + text.substring(match.end);
+          onChange(newText);
+
+          // Set cursor position after deletion
+          setTimeout(() => {
+            textarea.setSelectionRange(match.start, match.start);
+          }, 0);
+
+          return;
+        }
+      }
+    }
+
     if (
       event.key === "Enter" &&
       !event.shiftKey &&
@@ -338,14 +425,14 @@ export const MessageInput: React.FC<MessageInputProps> = ({
         <div
           style={{
             display: "flex",
-            alignItems: "center",
+            alignItems: "stretch",
             gap: token.marginXS,
             backgroundColor: token.colorBgContainer,
             border: `1px solid ${token.colorBorder}`,
             borderRadius: token.borderRadius,
             padding: `${token.paddingXS}px ${token.paddingSM}px`,
             transition: "border-color 0.2s",
-            height: 40,
+            minHeight: 60,
             flex: 1,
             width: "100%",
           }}
@@ -355,6 +442,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
             style={{
               display: "flex",
               alignItems: "center",
+              alignSelf: "center",
               gap: token.marginXS,
             }}
           >
@@ -378,8 +466,8 @@ export const MessageInput: React.FC<MessageInputProps> = ({
                   style={{
                     minWidth: "auto",
                     padding: "4px",
-                    height: 24,
-                    width: 24,
+                    height: 32,
+                    width: 32,
                     color: token.colorTextSecondary,
                   }}
                   title="Add images"
@@ -388,23 +476,27 @@ export const MessageInput: React.FC<MessageInputProps> = ({
             )}
           </div>
 
-          {/* Text input with tool highlighting */}
-          <ToolHighlightedInput
+          {/* Text input */}
+          <TextArea
             value={value}
-            onChange={onChange}
+            onChange={(e) => onChange(e.target.value)}
             onKeyDown={handleKeyDown}
             onPaste={handlePaste}
             placeholder={placeholder}
             disabled={disabled || isStreaming}
-            autoSize={{ minRows: 1, maxRows: 4 }}
+            autoSize={{ minRows: 2, maxRows: 6 }}
             variant="borderless"
             style={{
               resize: "none",
               flex: 1,
               fontSize: token.fontSize,
-              padding: "0",
-              minHeight: "24px",
-              lineHeight: "24px",
+              padding: "8px 0",
+              minHeight: "100%",
+              height: "100%",
+              lineHeight: "1.5",
+              border: "none",
+              outline: "none",
+              // Keep clean appearance - visual feedback removed for better UX
             }}
           />
 
@@ -413,6 +505,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
             style={{
               display: "flex",
               alignItems: "center",
+              alignSelf: "center",
               gap: token.marginXS,
             }}
           >
@@ -427,8 +520,8 @@ export const MessageInput: React.FC<MessageInputProps> = ({
                 style={{
                   minWidth: "auto",
                   padding: "4px",
-                  height: 24,
-                  width: 24,
+                  height: 32,
+                  width: 32,
                   color: token.colorTextSecondary,
                 }}
               />
@@ -447,8 +540,8 @@ export const MessageInput: React.FC<MessageInputProps> = ({
               style={{
                 minWidth: "auto",
                 padding: "4px 6px",
-                height: 24,
-                width: 32,
+                height: 32,
+                width: 40,
               }}
               title="Send message"
             />
