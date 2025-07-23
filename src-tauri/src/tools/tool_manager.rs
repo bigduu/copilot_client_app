@@ -1,11 +1,11 @@
-//! 工具管理器实现
+//! Tool Manager Implementation
 //!
-//! 基于新架构的简洁工具管理器实现，直接管理 Category 列表
+//! Clean tool manager implementation based on new architecture, directly managing Category list
 
 use crate::tools::category::{Category, CategoryInfo};
 use crate::tools::tool_types::{ToolCategory, ToolConfig};
 use std::collections::HashMap;
-use std::sync::{Arc, RwLock};
+use std::sync::Arc;
 
 /// 工具管理器核心结构
 #[derive(Debug)]
@@ -114,33 +114,6 @@ impl ToolManager {
     /// 获取工具数量
     pub fn tool_count(&self) -> usize {
         self.tool_instances.len()
-    }
-
-    /// 获取配置管理器
-    /// 这个方法提供向后兼容性，返回一个基于当前状态的配置管理器
-    pub fn get_config_manager(&self) -> Arc<RwLock<crate::tools::ToolConfigManager>> {
-        // 构建工具配置列表
-        let mut tool_configs = Vec::new();
-        for category_info in self.get_enabled_category_info() {
-            tool_configs.extend(category_info.tools);
-        }
-
-        // 构建类别列表
-        let categories = self.get_enabled_categories();
-
-        // 使用构建器创建配置管理器
-        let config_manager = crate::tools::config_manager::ConfigManagerBuilder::new()
-            .with_categories(categories)
-            .with_tool_configs(tool_configs)
-            .build();
-
-        Arc::new(RwLock::new(config_manager))
-    }
-
-    /// 注册工具
-    /// 向后兼容性方法，允许动态注册工具实例
-    pub fn register_tool(&mut self, tool: Arc<dyn crate::tools::Tool>) {
-        self.tool_instances.insert(tool.name().to_string(), tool);
     }
 
     /// 生成工具列表提示符
@@ -265,17 +238,7 @@ impl Default for ToolManagerBuilder {
 /// 创建默认的工具管理器
 /// 注册所有可用的工具类别
 pub fn create_default_tool_manager() -> ToolManager {
-    // 获取所有默认类别
-    let categories = crate::tools::categories::get_default_categories();
+    // 使用CategoryFactory获取所有默认类别
+    let categories = crate::tools::category_factory::create_all_default_categories();
     ToolManager::new(categories)
-}
-
-/// 创建基础工具管理器（用于测试）
-pub fn create_basic_tool_manager() -> ToolManager {
-    create_default_tool_manager()
-}
-
-/// 创建带配置目录的工具管理器
-pub fn create_tool_manager_with_config_dir(_config_dir: std::path::PathBuf) -> ToolManager {
-    create_default_tool_manager()
 }

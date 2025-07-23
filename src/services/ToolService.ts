@@ -541,17 +541,17 @@ ${result}
    */
   async getCategoryWeight(categoryId: string): Promise<number> {
     try {
-      // 使用现有的get_enabled_categories_with_priority命令
-      const categories = await invoke<any[]>('get_enabled_categories_with_priority');
-      
+      // 使用新的get_tool_categories命令获取按优先级排序的类别
+      const categories = await invoke<any[]>('get_tool_categories');
+
       // 根据类别在数组中的位置计算权重
       // 数组已经按优先级排序，所以索引就是权重
       const categoryIndex = categories.findIndex(cat => cat.id === categoryId);
-      
+
       if (categoryIndex === -1) {
         throw new Error(`工具类别 "${categoryId}" 的排序权重未配置。请检查后端是否已注册该类别。`);
       }
-      
+
       return categoryIndex + 1; // 权重从1开始
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
@@ -569,8 +569,8 @@ ${result}
     color?: string;
   }> {
     try {
-      // 使用现有的get_enabled_categories_with_priority命令
-      const categories = await invoke<any[]>('get_enabled_categories_with_priority');
+      // 使用新的get_tool_categories命令获取类别信息
+      const categories = await invoke<any[]>('get_tool_categories');
 
       // 查找指定类别
       const category = categories.find(cat => cat.id === categoryId);
@@ -582,7 +582,7 @@ ${result}
       // 返回显示信息，直接使用后端提供的数据，不进行任何硬编码映射
       return {
         name: category.display_name || category.name || categoryId,
-        icon: category.icon || '🔧', // 直接使用后端提供的图标
+        icon: category.emoji_icon || '🔧', // 使用emoji图标而不是字符串名称
         description: category.description || '',
         color: category.color || '#666666' // 直接使用后端提供的颜色，如果没有则使用默认值
       };

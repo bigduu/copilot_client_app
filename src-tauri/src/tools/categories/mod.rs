@@ -1,36 +1,24 @@
-//! 工具类别模块
+//! Tool Categories Module
 //!
-//! 这个模块包含了所有工具类别的实现，每个类别都实现了新的 Category trait。
-//! 类别负责管理权限控制和工具组织。
+//! This module contains all tool category implementations, each implementing the new Category trait.
+//! Categories are responsible for managing permission control and tool organization.
 
 pub mod command_execution;
 pub mod file_operations;
 pub mod general_assistant;
 
-// 重新导出所有类别
+// Re-export all categories
 pub use command_execution::CommandExecutionCategory;
 pub use file_operations::FileOperationsCategory;
 pub use general_assistant::GeneralAssistantCategory;
 
-/// 注册所有默认类别的便捷函数
+/// Convenience function to register all default categories
 ///
-/// 这个函数提供了一个简单的方式来获取所有预定义的类别实例
+/// This function provides a simple way to get all predefined category instances
 pub fn get_default_categories() -> Vec<Box<dyn crate::tools::category::Category>> {
     vec![
         Box::new(FileOperationsCategory::new()),
         Box::new(CommandExecutionCategory::new()),
         Box::new(GeneralAssistantCategory::new()),
     ]
-}
-
-/// 根据工具名称推断类别ID
-///
-/// 这个函数保留用于向后兼容性，但在新架构中不再需要
-pub fn get_category_id_for_tool(tool_name: &str) -> String {
-    match tool_name {
-        "read_file" | "create_file" | "delete_file" | "update_file" | "search_files"
-        | "simple_search" | "append_file" => "file_operations".to_string(),
-        "execute_command" => "command_execution".to_string(),
-        _ => "general_assistant".to_string(),
-    }
 }

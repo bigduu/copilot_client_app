@@ -17,16 +17,19 @@ mod tests {
         let tools_for_ui = tool_manager.list_tools_for_ui();
         assert!(!tools_for_ui.is_empty(), "UI 工具列表应该不为空");
 
-        // 测试获取配置管理器
-        let config_manager = tool_manager.get_config_manager();
-        let config_guard = config_manager.read().expect("应能读取配置管理器");
-
-        // 验证类别和工具配置
-        let categories = config_guard.get_categories();
+        // 测试获取类别信息
+        let categories = tool_manager.get_enabled_categories();
         assert!(!categories.is_empty(), "类别列表应该不为空");
 
-        let available_tools = config_guard.get_available_tools();
-        assert!(!available_tools.is_empty(), "可用工具列表应该不为空");
+        // 测试获取工具配置
+        let category_infos = tool_manager.get_enabled_category_info();
+        assert!(!category_infos.is_empty(), "类别信息列表应该不为空");
+
+        let mut total_tools = 0;
+        for category_info in category_infos {
+            total_tools += category_info.tools.len();
+        }
+        assert!(total_tools > 0, "工具配置列表应该不为空");
 
         // 测试类别ID是否正确
         let category_ids: Vec<String> = categories.iter().map(|c| c.id.clone()).collect();
@@ -89,29 +92,18 @@ mod tests {
     #[test]
     fn test_config_update_compatibility() {
         let tool_manager = create_default_tool_manager();
-        let config_manager = tool_manager.get_config_manager();
 
         // 测试读取配置
-        {
-            let config_guard = config_manager.read().expect("应能读取配置");
-            let categories = config_guard.get_categories();
+        let categories = tool_manager.get_enabled_categories();
+        for category in categories {
+            println!("📁 类别: {} - {}", category.name, category.description);
 
-            for category in categories {
-                println!("📁 类别: {} - {}", category.name, category.description);
-
-                // 测试获取类别工具
-                if let Ok(tools) = config_guard.get_category_tools(&category.name) {
-                    println!("  🔧 工具数量: {}", tools.len());
-                }
-            }
+            // 测试获取类别工具
+            let tools = tool_manager.get_category_tools(&category.id);
+            println!("  🔧 工具数量: {}", tools.len());
         }
 
-        // 测试写入权限（不实际修改，只是验证 API 可用）
-        {
-            let _write_guard = config_manager.write().expect("应能获取写入权限");
-            // 这里不实际修改配置，只是验证 API 存在
-            println!("✅ 配置写入 API 可用");
-        }
+        println!("✅ 配置更新兼容性测试通过");
     }
 
     /// 测试 Tauri 命令兼容的数据结构
@@ -135,11 +127,13 @@ mod tests {
         }
 
         // 测试 ToolConfig 兼容性
-        let config_manager = tool_manager.get_config_manager();
-        let config_guard = config_manager.read().expect("应能读取配置");
-        let tool_configs = config_guard.get_available_tools();
+        let category_infos = tool_manager.get_enabled_category_info();
+        let mut all_tool_configs = Vec::new();
+        for category_info in category_infos {
+            all_tool_configs.extend(category_info.tools);
+        }
 
-        for config in &tool_configs {
+        for config in &all_tool_configs {
             assert!(!config.name.is_empty(), "配置名称不应为空");
             assert!(!config.display_name.is_empty(), "显示名称不应为空");
             assert!(!config.description.is_empty(), "描述不应为空");

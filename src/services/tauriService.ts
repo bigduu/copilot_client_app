@@ -71,48 +71,36 @@ export const TauriService = {
   },
 
   /**
-   * Get available tool configs
+   * Get tool categories
    */
-  async getAvailableToolConfigs(): Promise<any[]> {
-    return await invoke('get_available_tool_configs');
-  },
-
-  /**
-   * Get tool config by name
-   */
-  async getToolConfigByName(name: string): Promise<any> {
-    return await invoke('get_tool_config_by_name', { name });
-  },
-
-  /**
-   * Get available categories
-   */
-  async getAvailableCategories(): Promise<any[]> {
-    return await invoke('get_available_categories');
-  },
-
-  /**
-   * Get category by name
-   */
-  async getCategoryByName(name: string): Promise<any> {
-    return await invoke('get_category_by_name', { name });
+  async getToolCategories(): Promise<any[]> {
+    return await invoke('get_tool_categories');
   },
 
   /**
    * Get tools by category
    */
-  async getToolsByCategory(categoryName: string): Promise<any[]> {
-    return await invoke('get_tools_by_category', {
-      category_name: categoryName,
+  async getCategoryTools(categoryId: string): Promise<any[]> {
+    return await invoke('get_category_tools', {
+      categoryId,
+    });
+  },
+
+  /**
+   * Get category information by ID
+   */
+  async getToolCategoryInfo(categoryId: string): Promise<any> {
+    return await invoke('get_tool_category_info', {
+      categoryId,
     });
   },
 
   /**
    * Get category system prompt
    */
-  async getCategorySystemPrompt(categoryName: string): Promise<string> {
+  async getCategorySystemPrompt(categoryId: string): Promise<string> {
     return await invoke('get_category_system_prompt', {
-      category_name: categoryName,
+      categoryId,
     });
   },
 
