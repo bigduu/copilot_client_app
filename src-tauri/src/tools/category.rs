@@ -63,7 +63,8 @@ pub trait Category: Send + Sync + std::fmt::Debug {
                 name: self.name(),
                 display_name: self.display_name(),
                 description: self.description(),
-                icon: self.frontend_icon(), // 使用前端图标而不是Emoji图标
+                icon: self.frontend_icon(), // 前端图标名称 (e.g., "FileTextOutlined")
+                emoji_icon: self.icon(),    // Emoji图标 (e.g., "📁")
                 enabled: self.enable(),
                 strict_tools_mode: self.strict_tools_mode(),
                 system_prompt: self.system_prompt(),

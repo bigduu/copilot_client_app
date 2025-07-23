@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import {
   Modal,
   List,
@@ -28,44 +28,6 @@ interface SystemPromptSelectorProps {
   showCancelButton?: boolean;
 }
 
-/**
- * 严格模式类别配置函数 - 所有配置必须从后端获取
- * 前端不包含任何硬编码配置，未配置的类别将抛出错误
- */
-
-// Category icon mapping - 简单的静态映射
-const getCategoryIcon = (category: string): React.ReactNode => {
-  const iconMap: Record<string, string> = {
-    general_assistant: "🤖",
-    file_operations: "📁",
-    command_execution: "⚡",
-  };
-
-  return <span>{iconMap[category] || "🔧"}</span>;
-};
-
-// Category display name mapping - 简单的静态映射
-const getCategoryDisplayName = (category: string): string => {
-  const nameMap: Record<string, string> = {
-    general_assistant: "General Assistant",
-    file_operations: "File Operations",
-    command_execution: "Command Execution",
-  };
-
-  return nameMap[category] || category;
-};
-
-// Category tag color mapping - 简单的静态映射
-const getCategoryTagColor = (category: string): string => {
-  const colorMap: Record<string, string> = {
-    general_assistant: "blue",
-    file_operations: "green",
-    command_execution: "magenta",
-  };
-
-  return colorMap[category] || "default";
-};
-
 const SystemPromptSelector: React.FC<SystemPromptSelectorProps> = ({
   open,
   onClose,
@@ -76,7 +38,57 @@ const SystemPromptSelector: React.FC<SystemPromptSelectorProps> = ({
 }) => {
   const { token } = useToken();
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  // Remove unused systemPromptService
+  const [categoryInfoCache, setCategoryInfoCache] = useState<
+    Record<string, { icon: string; displayName: string; color: string }>
+  >({});
+
+  // Get category icon from backend data
+  const getCategoryIcon = (category: string): React.ReactNode => {
+    const info = categoryInfoCache[category];
+    return <span>{info?.icon || "🔧"}</span>;
+  };
+
+  // Get category display name from backend data
+  const getCategoryDisplayName = (category: string): string => {
+    const info = categoryInfoCache[category];
+    return info?.displayName || category;
+  };
+
+  // Get category tag color from backend data
+  const getCategoryTagColor = (category: string): string => {
+    const info = categoryInfoCache[category];
+    return info?.color || "default";
+  };
+
+  // Load category information from backend when component mounts
+  useEffect(() => {
+    const loadCategoryInfo = async () => {
+      try {
+        const { invoke } = await import("@tauri-apps/api/core");
+        const categories = await invoke<any[]>("get_tool_categories");
+
+        const categoryInfo: Record<
+          string,
+          { icon: string; displayName: string; color: string }
+        > = {};
+        categories.forEach((category) => {
+          categoryInfo[category.id] = {
+            icon: category.emoji_icon || "🔧",
+            displayName: category.display_name || category.name || category.id,
+            color: category.color || "default",
+          };
+        });
+
+        setCategoryInfoCache(categoryInfo);
+      } catch (error) {
+        console.error("Failed to load category information:", error);
+      }
+    };
+
+    if (open) {
+      loadCategoryInfo();
+    }
+  }, [open]);
 
   // Group presets by category
   const groupedPresets = useMemo(() => {

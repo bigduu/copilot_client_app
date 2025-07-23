@@ -2,7 +2,6 @@
 //!
 //! This module contains the basic types for the tool management system, providing minimal, type-safe core abstractions.
 
-use crate::tools::categories::get_category_id_for_tool;
 use serde::{Deserialize, Serialize};
 
 /// Category type enumeration
@@ -55,28 +54,6 @@ pub struct ToolConfig {
 }
 
 impl ToolConfig {
-    /// Create ToolConfig from Tool trait object
-    pub fn from_tool(tool: Box<dyn crate::tools::Tool>) -> Self {
-        ToolConfig {
-            name: tool.name(),
-            display_name: tool.name(),
-            description: tool.description(),
-            category_id: get_category_id_for_tool(&tool.name()),
-            enabled: true,
-            requires_approval: tool.required_approval(),
-            auto_prefix: Some(format!("/{}", tool.name())),
-            permissions: vec![],
-            tool_type: match tool.tool_type() {
-                crate::tools::ToolType::AIParameterParsing => "AIParameterParsing".to_string(),
-                crate::tools::ToolType::RegexParameterExtraction => {
-                    "RegexParameterExtraction".to_string()
-                }
-            },
-            parameter_regex: tool.parameter_regex(),
-            custom_prompt: tool.custom_prompt(),
-        }
-    }
-
     /// Set category ID
     pub fn with_category_id(mut self, category_id: String) -> Self {
         self.category_id = category_id;
@@ -109,7 +86,8 @@ pub struct ToolCategory {
     pub name: String,         // Internal name
     pub display_name: String, // Display name
     pub description: String,  // Description
-    pub icon: String,         // Icon
+    pub icon: String,         // Frontend icon name (e.g., "FileTextOutlined")
+    pub emoji_icon: String,   // Emoji icon (e.g., "📁")
     pub enabled: bool,        // Whether enabled
     #[serde(default)]
     pub strict_tools_mode: bool, // Strict tools mode
@@ -125,6 +103,7 @@ impl ToolCategory {
         display_name: String,
         description: String,
         icon: String,
+        emoji_icon: String,
         category_type: CategoryType,
     ) -> Self {
         Self {
@@ -133,6 +112,7 @@ impl ToolCategory {
             display_name,
             description,
             icon,
+            emoji_icon,
             enabled: true,
             strict_tools_mode: false,
             system_prompt: String::new(),

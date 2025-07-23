@@ -1,10 +1,9 @@
-//! 工具系统测试模块
+//! Tool System Test Module
 //!
-//! 包含所有工具系统相关的测试
+//! Contains all tool system related tests
 
-// 测试模块
+// Test modules
 pub mod api_interface_tests;
 pub mod builder_tests;
-pub mod config_tests;
 pub mod integration_tests;
 pub mod strict_mode_tests;

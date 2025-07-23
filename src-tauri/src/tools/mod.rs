@@ -1,40 +1,41 @@
-//! 工具系统主模块
+//! Tool System Main Module
 //!
-//! 基于建造者模式的工具管理系统，提供零硬编码、高扩展性的工具管理架构
+//! Category-based tool management system providing zero-hardcoded, highly extensible tool management architecture
 
 use async_trait::async_trait;
 use std::fmt::Debug;
 
-// 核心模块
+// Core modules
 pub mod categories;
 pub mod category;
-pub mod config_manager;
+pub mod category_factory;
 pub mod file_tools;
-
+pub mod tool_factory;
 pub mod tool_manager;
 pub mod tool_types;
 
-// 测试模块
+// Test modules
 #[cfg(test)]
 mod tests;
 
-// 重新导出核心类型
+// Re-export core types
 pub use category::{Category, CategoryInfo};
-pub use config_manager::ToolConfigManager;
-
+pub use category_factory::{
+    create_all_default_categories, create_categories_from_names, get_category_factory,
+    CategoryFactory,
+};
+pub use tool_factory::{create_category_tools, get_tool_factory, ToolFactory};
 pub use tool_manager::ToolManager;
 pub use tool_types::{ToolCategory, ToolConfig};
 
-// 重新导出类别相关函数
+// Re-export category related functions
 pub use categories::get_default_categories;
 
-// 重新导出构建器类型
+// Re-export builder types
 pub use tool_manager::ToolManagerBuilder;
 
-// 重新导出管理器创建函数
-pub use tool_manager::{
-    create_basic_tool_manager, create_default_tool_manager, create_tool_manager_with_config_dir,
-};
+// Re-export manager creation function (single entry point)
+pub use tool_manager::create_default_tool_manager;
 
 /// 工具 trait 定义
 #[async_trait]
@@ -78,31 +79,12 @@ pub enum ToolType {
 }
 
 // ============================================================================
-// 工厂函数 - 提供向后兼容性
+// Factory Functions
 // ============================================================================
 
-/// 创建工具管理器（向后兼容函数）
-pub fn create_tool_manager() -> ToolManager {
-    create_basic_tool_manager()
-}
-
-/// 构建默认的 ToolManager（主要入口点）
+/// Create custom tool manager
 ///
-/// 这是新架构的主要入口点，自动注册所有可用的工具类别
-/// 完全基于建造者模式，实现零硬编码
-pub fn build_default_tool_manager() -> ToolManager {
-    create_default_tool_manager()
-}
-
-// ============================================================================
-// 便利函数
-// ============================================================================
-
-// 这些函数已被删除，因为它们返回空列表且功能已由 ToolManager 的方法替代
-
-/// 创建自定义工具管理器
-///
-/// 允许用户自定义类别配置
+/// Allows users to customize category configuration
 pub fn create_custom_tool_manager<F>(configure: F) -> ToolManager
 where
     F: FnOnce(
@@ -166,14 +148,12 @@ mod module_tests {
     }
 
     #[test]
-    fn test_backward_compatibility() {
-        // 测试向后兼容性函数
-        let manager1 = create_tool_manager();
-        let manager2 = build_default_tool_manager();
+    fn test_default_tool_manager() {
+        // Test default tool manager creation
+        let manager = create_default_tool_manager();
 
-        // 两个管理器都应该能获取到相同的工具
-        assert!(manager1.get_tool("read_file").is_some());
-        assert!(manager2.get_tool("read_file").is_some());
+        // The manager should be able to get tools
+        assert!(manager.get_tool("read_file").is_some());
     }
 
     #[test]

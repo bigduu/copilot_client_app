@@ -108,71 +108,43 @@ pub async fn execute_tool(
 // This command is mainly for UI information purposes,
 // not for actual tool execution (that's handled by the processor)
 #[tauri::command]
-pub fn get_tools_documentation() -> Result<String, String> {
-    Ok(r#"
-    This application provides access to the following file operation tools:
-
-    1. create_file: Creates a new file with specified content
-    2. delete_file: Deletes a file at the specified path
-    3. read_file: Reads the content of a file (with partial reading capabilities)
-    4. update_file: Updates a file using a diff-style approach (replace old content with new)
-    5. append_file: Appends content to the end of a file
-    6. execute_command: Executes a shell command and returns the output
-    7. search_files: Searches for files matching patterns and/or containing specific text
-
-    These tools are available through the chat interface. Simply describe what you want to do
-    with files, and the AI will use the appropriate tools to help you.
-    "#
-    .to_string())
-}
-
-// ===== 新的工具配置管理 API =====
-
-#[tauri::command]
-pub fn get_available_tool_configs(
+pub fn get_tools_documentation(
     tool_manager: State<'_, Arc<ToolManager>>,
-) -> Result<Vec<ToolConfig>, String> {
-    let config_manager = tool_manager.get_config_manager();
-    let config_manager = config_manager
-        .read()
-        .map_err(|e| format!("Failed to read config: {}", e))?;
-    Ok(config_manager.get_available_tools())
+) -> Result<String, String> {
+    let mut documentation = String::from("Available Tools:\n\n");
+
+    // Get all categories and their tools
+    let category_infos = tool_manager.get_enabled_category_info();
+
+    for (index, category_info) in category_infos.iter().enumerate() {
+        // Add category header
+        documentation.push_str(&format!(
+            "{}. {} ({})\n",
+            index + 1,
+            category_info.category.display_name,
+            category_info.category.description
+        ));
+
+        // Add tools in this category
+        for tool in &category_info.tools {
+            documentation.push_str(&format!("   - {}: {}\n", tool.name, tool.description));
+        }
+
+        documentation.push('\n');
+    }
+
+    documentation.push_str("These tools are available through the chat interface. Simply describe what you want to do, and the AI will use the appropriate tools to help you.");
+
+    Ok(documentation)
 }
 
-#[tauri::command]
-pub fn get_tool_config_by_name(
-    tool_name: String,
-    tool_manager: State<'_, Arc<ToolManager>>,
-) -> Result<Option<ToolConfig>, String> {
-    let config_manager = tool_manager.get_config_manager();
-    let config_manager = config_manager
-        .read()
-        .map_err(|e| format!("Failed to read config: {}", e))?;
-    Ok(config_manager.get_tool_config(&tool_name).cloned())
-}
+// ===== Core Category Management API =====
 
-#[tauri::command]
-pub async fn update_tool_config_by_name(
-    tool_name: String,
-    config: ToolConfig,
-    tool_manager: State<'_, Arc<ToolManager>>,
-) -> Result<(), String> {
-    let config_manager = tool_manager.get_config_manager();
-    let mut config_manager = config_manager
-        .write()
-        .map_err(|e| format!("Failed to write config: {}", e))?;
-    config_manager
-        .update_tool_config(&tool_name, config)
-        .map_err(|e| format!("Failed to update config: {}", e))
-}
-
-// ===== 新的 Category 管理 API =====
-
+/// Get all available tool categories (sorted by priority)
 #[tauri::command]
 pub fn get_tool_categories(
     tool_manager: State<'_, Arc<ToolManager>>,
 ) -> Result<Vec<ToolCategory>, String> {
-    // 使用新架构获取所有类别信息（包括按优先级排序）
     let category_infos = tool_manager.get_all_category_info();
     let categories = category_infos
         .into_iter()
@@ -181,162 +153,29 @@ pub fn get_tool_categories(
     Ok(categories)
 }
 
+/// Get tools for a specific category
 #[tauri::command]
 pub fn get_category_tools(
     category_id: String,
     tool_manager: State<'_, Arc<ToolManager>>,
 ) -> Result<Vec<ToolConfig>, String> {
-    // 使用新架构直接获取类别工具
     let tools = tool_manager.get_category_tools(&category_id);
     Ok(tools)
 }
 
-#[tauri::command]
-pub async fn update_category_config(
-    category_id: String,
-    category: ToolCategory,
-    tool_manager: State<'_, Arc<ToolManager>>,
-) -> Result<(), String> {
-    let config_manager = tool_manager.get_config_manager();
-    let mut config_manager = config_manager
-        .write()
-        .map_err(|e| format!("Failed to write config: {}", e))?;
-    config_manager
-        .update_category_config(&category_id, category)
-        .map_err(|e| format!("Failed to update category config: {}", e))
-}
-
-#[tauri::command]
-pub async fn register_tool_to_category(
-    tool_name: String,
-    category_id: String,
-    tool_manager: State<'_, Arc<ToolManager>>,
-) -> Result<(), String> {
-    let config_manager = tool_manager.get_config_manager();
-    let mut config_manager = config_manager
-        .write()
-        .map_err(|e| format!("Failed to write config: {}", e))?;
-    config_manager
-        .register_tool_to_category(&tool_name, &category_id)
-        .map_err(|e| format!("Failed to register tool to category: {}", e))
-}
-
-// ===== 获取工具类别信息的 API =====
-
+/// Get category information by ID
 #[tauri::command]
 pub fn get_tool_category_info(
     category_id: String,
     tool_manager: State<'_, Arc<ToolManager>>,
 ) -> Result<Option<ToolCategory>, String> {
-    // 使用新架构根据ID获取类别信息
     let category = tool_manager.get_category_by_id(&category_id);
     Ok(category)
 }
 
-// ===== 向后兼容的 API =====
+// ===== Utility API Functions =====
 
-#[tauri::command]
-pub fn get_tool_categories_list(
-    tool_manager: State<'_, Arc<ToolManager>>,
-) -> Result<Vec<ToolCategory>, String> {
-    // 使用新架构直接获取启用的类别，包含 system_prompt 字段
-    let categories = tool_manager.get_enabled_categories();
-    Ok(categories)
-}
-
-#[tauri::command]
-pub fn get_tools_by_category(
-    category_id: String,
-    tool_manager: State<'_, Arc<ToolManager>>,
-) -> Result<Vec<ToolConfig>, String> {
-    // 使用新架构直接获取指定类别的工具配置
-    let tools = tool_manager.get_category_tools(&category_id);
-    Ok(tools)
-}
-
-#[tauri::command]
-pub fn is_tool_enabled_check(
-    tool_name: String,
-    tool_manager: State<'_, Arc<ToolManager>>,
-) -> Result<bool, String> {
-    // 使用新架构检查工具是否可用（即存在且启用）
-    Ok(tool_manager.is_tool_available(&tool_name))
-}
-
-#[tauri::command]
-pub fn tool_requires_approval_check(
-    tool_name: String,
-    tool_manager: State<'_, Arc<ToolManager>>,
-) -> Result<bool, String> {
-    let config_manager = tool_manager.get_config_manager();
-    let config_manager = config_manager
-        .read()
-        .map_err(|e| format!("Failed to read config: {}", e))?;
-    Ok(config_manager.requires_approval(&tool_name))
-}
-
-#[tauri::command]
-pub fn get_tool_permissions(
-    tool_name: String,
-    tool_manager: State<'_, Arc<ToolManager>>,
-) -> Result<Vec<String>, String> {
-    let config_manager = tool_manager.get_config_manager();
-    let config_manager = config_manager
-        .read()
-        .map_err(|e| format!("Failed to read config: {}", e))?;
-    Ok(config_manager.get_tool_permissions(&tool_name))
-}
-
-#[tauri::command]
-pub async fn reset_tool_configs_to_defaults(
-    tool_manager: State<'_, Arc<ToolManager>>,
-) -> Result<(), String> {
-    let config_manager = tool_manager.get_config_manager();
-    let mut config_manager = config_manager
-        .write()
-        .map_err(|e| format!("Failed to write config: {}", e))?;
-    config_manager.reset_to_defaults();
-    Ok(())
-}
-
-#[tauri::command]
-pub fn export_tool_configs(tool_manager: State<'_, Arc<ToolManager>>) -> Result<String, String> {
-    let config_manager = tool_manager.get_config_manager();
-    let config_manager = config_manager
-        .read()
-        .map_err(|e| format!("Failed to read config: {}", e))?;
-    config_manager
-        .export_configs()
-        .map_err(|e| format!("Failed to export configs: {}", e))
-}
-
-#[tauri::command]
-pub async fn import_tool_configs(
-    json_content: String,
-    tool_manager: State<'_, Arc<ToolManager>>,
-) -> Result<(), String> {
-    let config_manager = tool_manager.get_config_manager();
-    let mut config_manager = config_manager
-        .write()
-        .map_err(|e| format!("Failed to write config: {}", e))?;
-    config_manager
-        .import_configs(&json_content)
-        .map_err(|e| format!("Failed to import configs: {}", e))
-}
-
-// ===== 新架构优化的 API =====
-
-/// 获取启用类别的详细信息，包含 system_prompt 和优先级排序
-#[tauri::command]
-pub fn get_enabled_categories_with_priority(
-    tool_manager: State<'_, Arc<ToolManager>>,
-) -> Result<Vec<ToolCategory>, String> {
-    // 获取启用的类别，已按优先级排序
-    let categories = tool_manager.get_enabled_categories();
-    Ok(categories)
-}
-
-/// 获取工具管理器统计信息
+/// Get tool manager statistics
 #[tauri::command]
 pub fn get_tool_manager_stats(
     tool_manager: State<'_, Arc<ToolManager>>,
@@ -349,7 +188,7 @@ pub fn get_tool_manager_stats(
     Ok(stats)
 }
 
-/// 检查类别是否启用
+/// Check if a category is enabled
 #[tauri::command]
 pub fn is_category_enabled(
     category_id: String,
@@ -359,7 +198,7 @@ pub fn is_category_enabled(
     Ok(category.is_some_and(|cat| cat.enabled))
 }
 
-/// 获取类别的 system_prompt
+/// Get category system prompt
 #[tauri::command]
 pub fn get_category_system_prompt(
     category_id: String,

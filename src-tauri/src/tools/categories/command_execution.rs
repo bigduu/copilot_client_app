@@ -85,13 +85,7 @@ impl Category for CommandExecutionCategory {
     }
 
     fn tools(&self) -> HashMap<String, Arc<dyn Tool>> {
-        use crate::tools::file_tools::ExecuteCommandTool;
-
-        let mut tools: HashMap<String, Arc<dyn Tool>> = HashMap::new();
-
-        // Command execution tool
-        tools.insert("execute_command".to_string(), Arc::new(ExecuteCommandTool));
-
-        tools
+        // Use ToolFactory to create tools for this category
+        crate::tools::tool_factory::create_category_tools("command_execution")
     }
 }

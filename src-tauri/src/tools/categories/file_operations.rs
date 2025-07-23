@@ -84,25 +84,7 @@ impl Category for FileOperationsCategory {
     }
 
     fn tools(&self) -> HashMap<String, Arc<dyn Tool>> {
-        use crate::tools::file_tools::*;
-
-        let mut tools: HashMap<String, Arc<dyn Tool>> = HashMap::new();
-
-        // File reading tool
-        tools.insert("read_file".to_string(), Arc::new(ReadFileTool));
-        // File creation tool
-        tools.insert("create_file".to_string(), Arc::new(CreateFileTool));
-        // File deletion tool
-        tools.insert("delete_file".to_string(), Arc::new(DeleteFileTool));
-        // File update tool
-        tools.insert("update_file".to_string(), Arc::new(UpdateFileTool));
-        // File search tool
-        tools.insert("search_files".to_string(), Arc::new(SearchFilesTool));
-        // Simple search tool - use the tool's actual name() for the key
-        tools.insert("search".to_string(), Arc::new(SimpleSearchTool));
-        // File append tool
-        tools.insert("append_file".to_string(), Arc::new(AppendFileTool));
-
-        tools
+        // Use ToolFactory to create tools for this category
+        crate::tools::tool_factory::create_category_tools("file_operations")
     }
 }

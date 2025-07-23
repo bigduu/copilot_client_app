@@ -32,11 +32,23 @@ export class ToolConfigService {
   }
 
   /**
-   * Get all available tool configurations
+   * Get all available tool configurations from all categories
    */
   async getAvailableToolConfigs(): Promise<ToolConfig[]> {
     try {
-      return await invoke<ToolConfig[]>("get_available_tool_configs");
+      // Get all categories first
+      const categories = await invoke<any[]>("get_tool_categories");
+
+      // Get tools from each category
+      const allTools: ToolConfig[] = [];
+      for (const category of categories) {
+        const categoryTools = await invoke<ToolConfig[]>("get_category_tools", {
+          categoryId: category.id,
+        });
+        allTools.push(...categoryTools);
+      }
+
+      return allTools;
     } catch (error) {
       console.error("Failed to get available tool configs:", error);
       throw new Error(`Failed to get available tool configs: ${error}`);
@@ -48,9 +60,9 @@ export class ToolConfigService {
    */
   async getToolConfig(toolName: string): Promise<ToolConfig | null> {
     try {
-      return await invoke<ToolConfig | null>("get_tool_config_by_name", {
-        toolName,
-      });
+      // Get all tool configs and find the specific one
+      const allConfigs = await this.getAvailableToolConfigs();
+      return allConfigs.find(config => config.name === toolName) || null;
     } catch (error) {
       console.error("Failed to get tool config:", error);
       throw new Error(`Failed to get tool config: ${error}`);
@@ -58,15 +70,11 @@ export class ToolConfigService {
   }
 
   /**
-   * 更新工具配置
+   * 更新工具配置 (新架构中不支持动态更新，工具配置由categories管理)
    */
   async updateToolConfig(toolName: string, config: ToolConfig): Promise<void> {
-    try {
-      await invoke<void>("update_tool_config_by_name", { toolName, config });
-    } catch (error) {
-      console.error("Failed to update tool config:", error);
-      throw new Error(`Failed to update tool config: ${error}`);
-    }
+    console.warn("Tool config updates are not supported in the new category-based architecture");
+    throw new Error("Tool configuration updates are managed through categories and cannot be modified at runtime");
   }
 
   /**
@@ -74,7 +82,7 @@ export class ToolConfigService {
    */
   async getToolCategories(): Promise<ToolCategoryInfo[]> {
     try {
-      return await invoke<ToolCategoryInfo[]>("get_tool_categories_list");
+      return await invoke<ToolCategoryInfo[]>("get_tool_categories");
     } catch (error) {
       console.error("Failed to get tool categories:", error);
       throw new Error(`Failed to get tool categories: ${error}`);
@@ -86,7 +94,7 @@ export class ToolConfigService {
    */
   async getToolsByCategory(categoryId: string): Promise<ToolConfig[]> {
     try {
-      return await invoke<ToolConfig[]>("get_tools_by_category", {
+      return await invoke<ToolConfig[]>("get_category_tools", {
         categoryId,
       });
     } catch (error) {
@@ -96,11 +104,12 @@ export class ToolConfigService {
   }
 
   /**
-   * 检查工具是否启用
+   * 检查工具是否启用 (通过检查工具是否存在于categories中)
    */
   async isToolEnabled(toolName: string): Promise<boolean> {
     try {
-      return await invoke<boolean>("is_tool_enabled_check", { toolName });
+      const allConfigs = await this.getAvailableToolConfigs();
+      return allConfigs.some(config => config.name === toolName && config.enabled);
     } catch (error) {
       console.error("Failed to check if tool is enabled:", error);
       return false;
@@ -112,9 +121,8 @@ export class ToolConfigService {
    */
   async toolRequiresApproval(toolName: string): Promise<boolean> {
     try {
-      return await invoke<boolean>("tool_requires_approval_check", {
-        toolName,
-      });
+      const toolConfig = await this.getToolConfig(toolName);
+      return toolConfig?.requires_approval || false;
     } catch (error) {
       console.error("Failed to check if tool requires approval:", error);
       return true; // 默认需要审批
@@ -126,48 +134,16 @@ export class ToolConfigService {
    */
   async getToolPermissions(toolName: string): Promise<string[]> {
     try {
-      return await invoke<string[]>("get_tool_permissions", { toolName });
+      const toolConfig = await this.getToolConfig(toolName);
+      return toolConfig?.permissions || [];
     } catch (error) {
       console.error("Failed to get tool permissions:", error);
       return [];
     }
   }
 
-  /**
-   * 重置工具配置为默认值
-   */
-  async resetToDefaults(): Promise<void> {
-    try {
-      await invoke<void>("reset_tool_configs_to_defaults");
-    } catch (error) {
-      console.error("Failed to reset tool configs:", error);
-      throw new Error(`Failed to reset tool configs: ${error}`);
-    }
-  }
-
-  /**
-   * 导出工具配置为 JSON
-   */
-  async exportConfigs(): Promise<string> {
-    try {
-      return await invoke<string>("export_tool_configs");
-    } catch (error) {
-      console.error("Failed to export tool configs:", error);
-      throw new Error(`Failed to export tool configs: ${error}`);
-    }
-  }
-
-  /**
-   * 从 JSON 导入工具配置
-   */
-  async importConfigs(jsonContent: string): Promise<void> {
-    try {
-      await invoke<void>("import_tool_configs", { jsonContent });
-    } catch (error) {
-      console.error("Failed to import tool configs:", error);
-      throw new Error(`Failed to import tool configs: ${error}`);
-    }
-  }
+  // Configuration management methods are not supported in the new category-based architecture
+  // Tool configurations are managed through categories and cannot be modified at runtime
 
   /**
    * 获取分类的显示名称（动态从后端数据获取）

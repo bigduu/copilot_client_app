@@ -67,8 +67,8 @@ export const useChats = (): UseChatsReturn => {
       title: title || 'New Chat',
       messages: [],
       createdAt: Date.now(),
-      systemPromptId: 'general_assistant', // 默认使用通用助手
-      toolCategory: 'general_assistant',
+      systemPromptId: 'general_assistant', // TODO: 从后端动态获取默认category
+      toolCategory: 'general_assistant', // TODO: 从后端动态获取默认category
       ...options,
     });
   };
