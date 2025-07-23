@@ -17,6 +17,7 @@ import {
   BookOutlined,
   StarOutlined,
   EyeOutlined,
+  DeleteOutlined,
 } from "@ant-design/icons";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -25,6 +26,7 @@ import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism";
 import mermaid from "mermaid";
 import { useChats } from "../../hooks/useChats";
+import { useChatStore } from "../../store/chatStore";
 import { MessageImage, MessageContent, getMessageText } from "../../types/chat";
 
 const { Text } = Typography;
@@ -222,6 +224,7 @@ interface MessageCardProps {
   children?: React.ReactNode;
   messageId?: string;
   images?: MessageImage[];
+  onDelete?: (messageId: string) => void;
 }
 
 const MessageCard: React.FC<MessageCardProps> = ({
@@ -231,17 +234,12 @@ const MessageCard: React.FC<MessageCardProps> = ({
   children,
   messageId,
   images = [],
+  onDelete,
 }) => {
   const { token } = useToken();
   const screens = useBreakpoint();
   const { currentChatId } = useChats();
-  // TODO: addFavorite 功能需要在新架构中实现
-  const addFavorite = (favoriteData?: any) => {
-    console.log(
-      "addFavorite functionality needs to be implemented",
-      favoriteData
-    );
-  };
+  const addFavorite = useChatStore((state) => state.addFavorite);
   const cardRef = useRef<HTMLDivElement>(null);
   const [selectedText, setSelectedText] = useState<string>("");
   const [isHovering, setIsHovering] = useState<boolean>(false);
@@ -265,7 +263,7 @@ const MessageCard: React.FC<MessageCardProps> = ({
       } else {
         addFavorite({
           chatId: currentChatId,
-          content: content,
+          content: getMessageText(content),
           role: role as "user" | "assistant",
           messageId,
         });
@@ -362,6 +360,17 @@ const MessageCard: React.FC<MessageCardProps> = ({
       icon: <BookOutlined />,
       onClick: referenceMessage,
     },
+    ...(onDelete && messageId
+      ? [
+          {
+            key: "delete",
+            label: "Delete message",
+            icon: <DeleteOutlined />,
+            onClick: () => onDelete(messageId),
+            danger: true,
+          },
+        ]
+      : []),
   ];
 
   return (

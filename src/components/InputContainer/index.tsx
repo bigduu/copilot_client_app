@@ -182,7 +182,8 @@ export const InputContainer: React.FC<InputContainerProps> = ({
   return (
     <div
       style={{
-        padding: token.paddingMD,
+        padding: `${token.paddingLG}px ${token.paddingMD}px`,
+        minHeight: "80px",
         background: token.colorBgContainer,
         borderTop: isCenteredLayout
           ? "none"

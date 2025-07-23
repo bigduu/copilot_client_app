@@ -29,7 +29,7 @@ import {
 } from "@ant-design/icons";
 import { useChats } from "../../hooks/useChats";
 import { FavoriteItem } from "../../types/chat";
-import { useChatManager } from "../../hooks/useChatManager";
+import { useChatStore } from "../../store/chatStore";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
@@ -47,14 +47,50 @@ export const FavoritesPanel: React.FC = () => {
   const screens = useBreakpoint();
   const { currentChatId } = useChats();
 
-  // Get favorites functionality from useChatManager
-  const {
-    getCurrentChatFavorites,
-    removeFavorite,
-    updateFavorite,
-    exportFavorites,
-    summarizeFavorites,
-  } = useChatManager();
+  // Get favorites functionality from Zustand store
+  const allFavorites = useChatStore((state) => state.favorites);
+  const removeFavorite = useChatStore((state) => state.removeFavorite);
+  const updateFavorite = useChatStore((state) => state.updateFavorite);
+
+  // Get current chat favorites
+  const getCurrentChatFavorites = () => {
+    if (!currentChatId) return [];
+    return allFavorites.filter((fav) => fav.chatId === currentChatId);
+  };
+
+  // Export favorites functionality (simplified)
+  const exportFavorites = (format: "markdown" | "pdf") => {
+    const chatFavorites = getCurrentChatFavorites();
+    if (chatFavorites.length === 0) return;
+
+    let content = "# Favorites Export\n\n";
+    chatFavorites.forEach((fav, index) => {
+      content += `## ${fav.role === "user" ? "User" : "Assistant"} ${
+        index + 1
+      }\n\n`;
+      content += fav.content + "\n\n";
+      if (fav.note) {
+        content += `> Note: ${fav.note}\n\n`;
+      }
+    });
+
+    if (format === "markdown") {
+      const blob = new Blob([content], { type: "text/markdown" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `favorites-${currentChatId}.md`;
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+    // PDF export would need additional library
+  };
+
+  // Summarize favorites functionality (simplified)
+  const summarizeFavorites = () => {
+    console.log("Summarize favorites functionality needs to be implemented");
+    // This would typically create a new chat with summary request
+  };
 
   // TODO: Implement message navigation functionality
   const navigateToMessage = (messageId: string) =>
@@ -72,10 +108,10 @@ export const FavoritesPanel: React.FC = () => {
   const [noteText, setNoteText] = useState("");
 
   // Get favorites for the current chat
-  const favorites = getCurrentChatFavorites();
+  const currentChatFavorites = getCurrentChatFavorites();
 
   // Sort favorites based on current sorting options
-  const sortedFavorites = [...favorites].sort((a, b) => {
+  const sortedFavorites = [...currentChatFavorites].sort((a, b) => {
     if (sortField === "role") {
       const roleComparison = a.role.localeCompare(b.role);
       return sortOrder === "ascending" ? roleComparison : -roleComparison;
@@ -203,7 +239,7 @@ export const FavoritesPanel: React.FC = () => {
                   onClick={summarizeFavorites}
                   size="small"
                   type="primary"
-                  disabled={favorites.length === 0}
+                  disabled={currentChatFavorites.length === 0}
                 />
               </Tooltip>
               <Space.Compact>

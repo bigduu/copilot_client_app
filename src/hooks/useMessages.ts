@@ -34,6 +34,7 @@ interface UseMessagesReturn {
   // 基础操作 (直接映射到 Store)
   addMessage: (chatId: string, message: Message) => void;
   updateMessage: (chatId: string, messageId: string, updates: Partial<Message>) => void;
+  deleteMessage: (chatId: string, messageId: string) => void;
   
   // 便捷操作 (针对当前聊天)
   addMessageToCurrentChat: (message: Message) => void;
@@ -52,6 +53,7 @@ export const useMessages = (): UseMessagesReturn => {
   // 从 Zustand Store 获取操作方法 (Hook → Store)
   const addMessage = useChatStore(state => state.addMessage);
   const updateMessage = useChatStore(state => state.updateMessage);
+  const deleteMessage = useChatStore(state => state.deleteMessage);
   const initiateAIResponse = useChatStore(state => state.initiateAIResponse);
   const triggerAIResponseOnly = useChatStore(state => state.triggerAIResponseOnly);
 
@@ -363,6 +365,7 @@ Title:`;
     // 基础操作 (直接映射到 Store)
     addMessage,
     updateMessage,
+    deleteMessage,
     
     // 便捷操作 (针对当前聊天)
     addMessageToCurrentChat,

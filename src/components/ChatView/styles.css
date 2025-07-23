@@ -131,7 +131,8 @@ pre {
 .chat-view-input-container-wrapper {
   transition: all 0.3s ease-in-out;
   width: 100%;
-  padding: 16px;
+  padding: 24px 16px;
+  min-height: 80px;
 }
 
 .chat-view-input-container-wrapper.centered-view {
@@ -203,7 +204,7 @@ pre {
   }
   
   .chat-view-input-container-wrapper.centered-view {
-    min-height: 15vh;
-    padding: 12px;
+    min-height: 20vh;
+    padding: 20px 12px;
   }
 } 
