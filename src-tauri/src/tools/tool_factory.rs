@@ -3,6 +3,7 @@
 //! Provides a centralized way to register and create tools
 
 use crate::tools::file_tools::*;
+use crate::tools::tool_types::CategoryId;
 use crate::tools::Tool;
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -19,7 +20,7 @@ impl ToolFactory {
         let mut factory = Self {
             constructors: HashMap::new(),
         };
-        
+
         // Register default tools
         factory.register_defaults();
         factory
@@ -30,7 +31,8 @@ impl ToolFactory {
     where
         F: Fn() -> Arc<dyn Tool> + Send + Sync + 'static,
     {
-        self.constructors.insert(name.to_string(), Box::new(constructor));
+        self.constructors
+            .insert(name.to_string(), Box::new(constructor));
     }
 
     /// Create a tool by name
@@ -73,29 +75,24 @@ impl ToolFactory {
         self.register("append_file", || Arc::new(AppendFileTool));
         self.register("search_files", || Arc::new(SearchFilesTool));
         self.register("search", || Arc::new(SimpleSearchTool));
-        
+
         // Command execution tools
         self.register("execute_command", || Arc::new(ExecuteCommandTool));
     }
 
-    /// Get tools for a specific category
-    pub fn get_category_tools(&self, category: &str) -> HashMap<String, Arc<dyn Tool>> {
-        match category {
-            "file_operations" => self.create_tools(&[
-                "read_file",
-                "create_file", 
-                "delete_file",
-                "update_file",
-                "append_file",
-                "search_files",
-                "search"
-            ]),
-            "command_execution" => self.create_tools(&[
-                "execute_command"
-            ]),
-            "general_assistant" => HashMap::new(), // No specific tools for general assistant
-            _ => HashMap::new(),
+    /// Get tools for a specific category (using tool self-registration)
+    pub fn get_category_tools(&self, category: &CategoryId) -> HashMap<String, Arc<dyn Tool>> {
+        let mut result = HashMap::new();
+
+        // Iterate through all tools and check which ones belong to this category
+        for (name, constructor) in &self.constructors {
+            let tool = constructor();
+            if tool.categories().contains(category) {
+                result.insert(name.clone(), tool);
+            }
         }
+
+        result
     }
 }
 
@@ -120,7 +117,7 @@ pub fn get_tool_factory() -> &'static ToolFactory {
 }
 
 /// Create tools for a specific category
-pub fn create_category_tools(category: &str) -> HashMap<String, Arc<dyn Tool>> {
+pub fn create_category_tools(category: &CategoryId) -> HashMap<String, Arc<dyn Tool>> {
     let factory = get_tool_factory();
     factory.get_category_tools(category)
 }
@@ -132,14 +129,14 @@ mod tests {
     #[test]
     fn test_tool_factory() {
         let factory = ToolFactory::new();
-        
+
         // Test creating tools
         let read_file = factory.create("read_file");
         assert!(read_file.is_some());
-        
+
         let create_file = factory.create("create_file");
         assert!(create_file.is_some());
-        
+
         // Test unknown tool
         let unknown = factory.create("unknown");
         assert!(unknown.is_none());
@@ -148,17 +145,17 @@ mod tests {
     #[test]
     fn test_category_tools() {
         let factory = ToolFactory::new();
-        
-        let file_tools = factory.get_category_tools("file_operations");
+
+        let file_tools = factory.get_category_tools(&CategoryId::FileOperations);
         assert!(!file_tools.is_empty());
         assert!(file_tools.contains_key("read_file"));
         assert!(file_tools.contains_key("create_file"));
-        
-        let cmd_tools = factory.get_category_tools("command_execution");
+
+        let cmd_tools = factory.get_category_tools(&CategoryId::CommandExecution);
         assert!(!cmd_tools.is_empty());
         assert!(cmd_tools.contains_key("execute_command"));
-        
-        let general_tools = factory.get_category_tools("general_assistant");
+
+        let general_tools = factory.get_category_tools(&CategoryId::GeneralAssistant);
         assert!(general_tools.is_empty()); // No specific tools
     }
 
@@ -166,7 +163,7 @@ mod tests {
     fn test_create_all_tools() {
         let factory = ToolFactory::new();
         let all_tools = factory.create_all();
-        
+
         assert!(!all_tools.is_empty());
         assert!(all_tools.contains_key("read_file"));
         assert!(all_tools.contains_key("execute_command"));

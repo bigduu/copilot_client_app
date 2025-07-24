@@ -85,6 +85,8 @@ impl Category for FileOperationsCategory {
 
     fn tools(&self) -> HashMap<String, Arc<dyn Tool>> {
         // Use ToolFactory to create tools for this category
-        crate::tools::tool_factory::create_category_tools("file_operations")
+        crate::tools::tool_factory::create_category_tools(
+            &crate::tools::tool_types::CategoryId::FileOperations,
+        )
     }
 }

@@ -42,6 +42,10 @@ impl Tool for AppendFileTool {
         ToolType::AIParameterParsing
     }
 
+    fn categories(&self) -> Vec<crate::tools::tool_types::CategoryId> {
+        vec![crate::tools::tool_types::CategoryId::FileOperations]
+    }
+
     async fn execute(&self, parameters: Vec<Parameter>) -> Result<String> {
         let mut path = String::new();
         let mut content = String::new();

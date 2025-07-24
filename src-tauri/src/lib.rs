@@ -4,7 +4,7 @@ use crate::command::chat::{execute_prompt, get_models};
 use crate::command::copy::copy_to_clipboard;
 use crate::copilot::{Config, CopilotClient};
 use crate::mcp::client::init_all_clients;
-use crate::tools::create_default_tool_manager;
+use crate::tools::create_registered_tool_manager;
 use command::mcp::{get_mcp_client_status, get_mcp_servers, set_mcp_servers};
 use log::LevelFilter;
 use tauri::{App, Manager, Runtime};
@@ -20,8 +20,8 @@ fn setup<R: Runtime>(app: &mut App<R>) -> std::result::Result<(), Box<dyn std::e
     let client = CopilotClient::new(Config::new(), app_data_dir.clone());
     app.manage(client.clone());
 
-    // Create tool manager using the new category-based architecture
-    let tool_manager = Arc::new(create_default_tool_manager());
+    // Create tool manager using the new registration-based architecture
+    let tool_manager = Arc::new(create_registered_tool_manager());
 
     // Register tool manager with Tauri state management
     app.manage(tool_manager.clone());

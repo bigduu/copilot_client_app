@@ -86,6 +86,8 @@ impl Category for CommandExecutionCategory {
 
     fn tools(&self) -> HashMap<String, Arc<dyn Tool>> {
         // Use ToolFactory to create tools for this category
-        crate::tools::tool_factory::create_category_tools("command_execution")
+        crate::tools::tool_factory::create_category_tools(
+            &crate::tools::tool_types::CategoryId::CommandExecution,
+        )
     }
 }

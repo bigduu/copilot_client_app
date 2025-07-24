@@ -35,6 +35,10 @@ impl Tool for SimpleSearchTool {
         ToolType::RegexParameterExtraction
     }
 
+    fn categories(&self) -> Vec<crate::tools::tool_types::CategoryId> {
+        vec![crate::tools::tool_types::CategoryId::FileOperations]
+    }
+
     fn parameter_regex(&self) -> Option<String> {
         // Match all content after /search as query parameter
         Some(r"^/search\s+(.+)$".to_string())
