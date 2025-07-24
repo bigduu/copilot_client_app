@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { ChatItem, Message, SystemPromptPreset, FavoriteItem, createTextContent } from '../types/chat';
 // import { TauriService } from '../services/TauriService';
 // import { StorageService } from '../services/StorageService';
+import SystemPromptEnhancer from '../services/SystemPromptEnhancer';
 
 // Get default category ID from backend (highest priority category)
 const getDefaultCategoryId = async (): Promise<string> => {
@@ -489,9 +490,30 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
       // 添加系统消息（如果存在）
       if (currentChat?.systemPrompt) {
+        // 动态增强系统提示词（如果category不是strict mode）
+        let systemPromptContent = currentChat.systemPrompt;
+
+        try {
+          if (currentChat.systemPromptId) {
+            const enhancer = SystemPromptEnhancer.getInstance();
+            const isStrictMode = await enhancer.isStrictMode(currentChat.systemPromptId);
+
+            if (!isStrictMode) {
+              // Non-strict mode: 使用增强的system prompt
+              systemPromptContent = await enhancer.buildEnhancedSystemPrompt(currentChat.systemPromptId);
+              console.log('[chatStore] Using enhanced system prompt for non-strict mode category:', currentChat.systemPromptId);
+            } else {
+              console.log('[chatStore] Using original system prompt for strict mode category:', currentChat.systemPromptId);
+            }
+          }
+        } catch (error) {
+          console.error('[chatStore] Failed to enhance system prompt, using original:', error);
+          // 如果增强失败，继续使用原始的system prompt
+        }
+
         messagesToSend.push({
           role: 'system',
-          content: currentChat.systemPrompt,
+          content: systemPromptContent,
           id: 'system',
         });
       }
@@ -512,9 +534,37 @@ export const useChatStore = create<ChatState>((set, get) => ({
       let isStreamingComplete = false;
 
       // 监听流式响应
-      channel.onmessage = (rawMessage) => {
+      channel.onmessage = async (rawMessage) => {
         // 处理 [DONE] 信号
         if (rawMessage.trim() === '[DONE]') {
+          isStreamingComplete = true;
+
+          // 检查AI响应是否包含工具调用（仅在非严格模式下）
+          try {
+            console.log('[chatStore] Stream completed, checking for tool calls...');
+            console.log('[chatStore] Current chat systemPromptId:', currentChat?.systemPromptId);
+            console.log('[chatStore] Assistant response length:', assistantResponse.length);
+            console.log('[chatStore] Assistant response preview:', assistantResponse.substring(0, 200));
+
+            if (currentChat?.systemPromptId && assistantResponse.trim()) {
+              const enhancer = SystemPromptEnhancer.getInstance();
+              const isStrictMode = await enhancer.isStrictMode(currentChat.systemPromptId);
+
+              console.log('[chatStore] Category strict mode:', isStrictMode);
+
+              if (!isStrictMode) {
+                console.log('[chatStore] Non-strict mode detected, checking for AI tool calls...');
+                await get().handleAIToolCall(chatId, assistantResponse);
+              } else {
+                console.log('[chatStore] Strict mode detected, skipping AI tool call check');
+              }
+            } else {
+              console.log('[chatStore] Skipping tool call check - missing systemPromptId or empty response');
+            }
+          } catch (error) {
+            console.error('[chatStore] Failed to handle AI tool call:', error);
+          }
+
           return;
         }
 
@@ -617,9 +667,30 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
       // 添加系统消息（如果存在）
       if (currentChat?.systemPrompt) {
+        // 动态增强系统提示词（如果category不是strict mode）
+        let systemPromptContent = currentChat.systemPrompt;
+
+        try {
+          if (currentChat.systemPromptId) {
+            const enhancer = SystemPromptEnhancer.getInstance();
+            const isStrictMode = await enhancer.isStrictMode(currentChat.systemPromptId);
+
+            if (!isStrictMode) {
+              // Non-strict mode: 使用增强的system prompt
+              systemPromptContent = await enhancer.buildEnhancedSystemPrompt(currentChat.systemPromptId);
+              console.log('[chatStore] Using enhanced system prompt for non-strict mode category:', currentChat.systemPromptId);
+            } else {
+              console.log('[chatStore] Using original system prompt for strict mode category:', currentChat.systemPromptId);
+            }
+          }
+        } catch (error) {
+          console.error('[chatStore] Failed to enhance system prompt, using original:', error);
+          // 如果增强失败，继续使用原始的system prompt
+        }
+
         messagesToSend.push({
           role: 'system',
-          content: currentChat.systemPrompt,
+          content: systemPromptContent,
           id: 'system',
         });
       }
@@ -640,9 +711,37 @@ export const useChatStore = create<ChatState>((set, get) => ({
       let isStreamingComplete = false;
 
       // 监听流式响应
-      channel.onmessage = (rawMessage) => {
+      channel.onmessage = async (rawMessage) => {
         // 处理 [DONE] 信号
         if (rawMessage.trim() === '[DONE]') {
+          isStreamingComplete = true;
+
+          // 检查AI响应是否包含工具调用（仅在非严格模式下）
+          try {
+            console.log('[chatStore] Stream completed (triggerAIResponseOnly), checking for tool calls...');
+            console.log('[chatStore] Current chat systemPromptId:', currentChat?.systemPromptId);
+            console.log('[chatStore] Assistant response length:', assistantResponse.length);
+            console.log('[chatStore] Assistant response preview:', assistantResponse.substring(0, 200));
+
+            if (currentChat?.systemPromptId && assistantResponse.trim()) {
+              const enhancer = SystemPromptEnhancer.getInstance();
+              const isStrictMode = await enhancer.isStrictMode(currentChat.systemPromptId);
+
+              console.log('[chatStore] Category strict mode:', isStrictMode);
+
+              if (!isStrictMode) {
+                console.log('[chatStore] Non-strict mode detected, checking for AI tool calls...');
+                await get().handleAIToolCall(chatId, assistantResponse);
+              } else {
+                console.log('[chatStore] Strict mode detected, skipping AI tool call check');
+              }
+            } else {
+              console.log('[chatStore] Skipping tool call check - missing systemPromptId or empty response');
+            }
+          } catch (error) {
+            console.error('[chatStore] Failed to handle AI tool call:', error);
+          }
+
           return;
         }
 
@@ -726,6 +825,150 @@ export const useChatStore = create<ChatState>((set, get) => ({
         role: 'assistant',
       });
       set({ isProcessing: false });
+    }
+  },
+
+  // Handle AI automatic tool calls
+  handleAIToolCall: async (chatId: string, aiResponse: string) => {
+    try {
+      console.log('[chatStore] handleAIToolCall called with response:', aiResponse.substring(0, 300));
+
+      // Try to extract tool call from AI response
+      let jsonStr = '';
+
+      // First try to find JSON in code blocks
+      const codeBlockMatch = aiResponse.match(/```json\s*(\{[\s\S]*?\})\s*```/);
+      if (codeBlockMatch) {
+        jsonStr = codeBlockMatch[1];
+        console.log('[chatStore] Found JSON in code block:', jsonStr.substring(0, 100));
+      } else {
+        // Try to find JSON without code blocks - look for complete JSON objects
+        const jsonMatch = aiResponse.match(/\{[\s\S]*?"tool_call"[\s\S]*?\}/);
+        if (jsonMatch) {
+          jsonStr = jsonMatch[0];
+          console.log('[chatStore] Found JSON without code block:', jsonStr.substring(0, 100));
+        } else {
+          console.log('[chatStore] No tool call JSON found in response');
+          return; // No tool call found
+        }
+      }
+
+      if (!jsonStr.trim()) {
+        console.log('[chatStore] Empty JSON string');
+        return;
+      }
+
+      let toolCallData;
+      try {
+        toolCallData = JSON.parse(jsonStr);
+        console.log('[chatStore] Successfully parsed JSON:', toolCallData);
+      } catch (parseError) {
+        console.error('[chatStore] JSON parse error:', parseError);
+        console.error('[chatStore] Failed to parse JSON string:', jsonStr);
+        return;
+      }
+
+      // Validate tool call format
+      if (!toolCallData.tool_call || !toolCallData.parameters) {
+        console.log('[chatStore] Invalid tool call format in AI response');
+        return;
+      }
+
+      console.log('[chatStore] AI requested tool call:', toolCallData);
+
+      // Import ToolCallProcessor
+      const { ToolCallProcessor } = await import('../services/ToolCallProcessor');
+      const processor = ToolCallProcessor.getInstance();
+
+      // Create tool call request
+      const toolCall = {
+        tool_name: toolCallData.tool_call,
+        user_description: `AI requested: ${toolCallData.tool_call} with parameters: ${JSON.stringify(toolCallData.parameters)}`
+      };
+
+      // Process the tool call
+      const result = await processor.processToolCall(toolCall, undefined, async (messages) => {
+        // This is the sendLLMRequest function for AI parameter parsing
+        const { invoke } = await import('@tauri-apps/api/core');
+        const { Channel } = await import('@tauri-apps/api/core');
+
+        return new Promise((resolve, reject) => {
+          const tempChannel = new Channel<string>();
+          let response = '';
+
+          tempChannel.onmessage = (rawMessage) => {
+            // Handle [DONE] signal
+            if (rawMessage.trim() === '[DONE]') {
+              resolve(response);
+              return;
+            }
+
+            // Skip empty messages
+            if (!rawMessage || rawMessage.trim() === '') {
+              return;
+            }
+
+            // Split multiple JSON objects and process each
+            const jsonObjects = rawMessage.split(/(?<=})\s*(?={)/);
+
+            for (const jsonStr of jsonObjects) {
+              if (!jsonStr.trim()) continue;
+
+              try {
+                const data = JSON.parse(jsonStr);
+
+                // Handle streaming response format
+                if (data.choices && data.choices.length > 0) {
+                  const choice = data.choices[0];
+
+                  // Check if finished
+                  if (choice.finish_reason === 'stop') {
+                    resolve(response);
+                    return;
+                  }
+
+                  // Handle delta content
+                  if (choice.delta && typeof choice.delta.content !== 'undefined') {
+                    if (choice.delta.content !== null && typeof choice.delta.content === 'string') {
+                      response += choice.delta.content;
+                    }
+                  }
+                }
+              } catch (error) {
+                console.error('Error parsing AI response JSON:', error);
+                console.error('JSON string:', jsonStr);
+              }
+            }
+          };
+
+          invoke("execute_prompt", {
+            messages,
+            channel: tempChannel,
+            model: null,
+          }).catch(reject);
+        });
+      });
+
+      // Add tool execution result as a new assistant message
+      const { addMessage } = get();
+      addMessage(chatId, {
+        role: "assistant",
+        content: result.content,
+        id: crypto.randomUUID(),
+      });
+
+      console.log('[chatStore] AI tool call executed successfully');
+
+    } catch (error) {
+      console.error('[chatStore] Failed to handle AI tool call:', error);
+
+      // Add error message
+      const { addMessage } = get();
+      addMessage(chatId, {
+        role: "assistant",
+        content: `I tried to use a tool but encountered an error: ${error}`,
+        id: crypto.randomUUID(),
+      });
     }
   },
 }));

@@ -76,11 +76,52 @@ export const useMessages = (): UseMessagesReturn => {
       return;
     }
 
-    // Check if this is a tool call
+    // Check if this is a tool call or approval request
     const toolProcessor = ToolCallProcessor.getInstance();
     const isToolCall = toolProcessor.isToolCall(content);
+    const isApprovalRequest = toolProcessor.isApprovalRequest(content);
 
-    if (isToolCall) {
+    if (isApprovalRequest) {
+      // Handle approval request
+      console.log("[useMessages] Handling approval request:", content);
+
+      // Add user message first
+      const userMessage: Message = {
+        role: "user",
+        content,
+        id: crypto.randomUUID(),
+        images: images ? images.map(convertImageFileToMessageImage) : undefined,
+      };
+      addMessageToCurrentChat(userMessage);
+
+      // Process approval request
+      try {
+        const result = await toolProcessor.processApprovalRequest(content);
+
+        // Add assistant response
+        const assistantMessage: Message = {
+          role: "assistant",
+          content: result.content,
+          id: crypto.randomUUID(),
+        };
+        addMessageToCurrentChat(assistantMessage);
+
+        // Auto-update chat title after approval processing
+        if (currentChatId) {
+          setTimeout(() => autoUpdateChatTitle(currentChatId), 500);
+        }
+
+      } catch (error) {
+        console.error("Approval request failed:", error);
+        const errorMessage: Message = {
+          role: "assistant",
+          content: `Approval processing failed: ${error}`,
+          id: crypto.randomUUID(),
+        };
+        addMessageToCurrentChat(errorMessage);
+      }
+      return;
+    } else if (isToolCall) {
       // Handle tool call
       const toolCall = toolProcessor.parseToolCall(content);
       if (toolCall) {
