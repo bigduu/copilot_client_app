@@ -28,6 +28,14 @@ import mermaid from "mermaid";
 import { useChats } from "../../hooks/useChats";
 import { useChatStore } from "../../store/chatStore";
 import { MessageImage, MessageContent, getMessageText } from "../../types/chat";
+import { useMessages } from "../../hooks/useMessages";
+import ApprovalCard from "./ApprovalCard";
+import {
+  isApprovalRequest,
+  parseApprovalRequest,
+  createApprovedRequest,
+  createRejectedRequest,
+} from "../../utils/approvalUtils";
 
 const { Text } = Typography;
 const { useToken } = theme;
@@ -239,10 +247,13 @@ const MessageCard: React.FC<MessageCardProps> = ({
   const { token } = useToken();
   const screens = useBreakpoint();
   const { currentChatId } = useChats();
+  const { sendMessage } = useMessages();
   const addFavorite = useChatStore((state) => state.addFavorite);
   const cardRef = useRef<HTMLDivElement>(null);
   const [selectedText, setSelectedText] = useState<string>("");
   const [isHovering, setIsHovering] = useState<boolean>(false);
+  const [approvalProcessing, setApprovalProcessing] = useState<boolean>(false);
+  const [approvalHandled, setApprovalHandled] = useState<boolean>(false);
 
   // Responsive calculation
   const getCardMaxWidth = () => {
@@ -253,6 +264,72 @@ const MessageCard: React.FC<MessageCardProps> = ({
 
   const getActionButtonSize = (): "small" | "middle" | "large" => {
     return screens.xs ? "small" : "small";
+  };
+
+  // Check if this is an approval request
+  const messageText = getMessageText(content);
+  const isApproval = role === "assistant" && isApprovalRequest(messageText);
+  const approvalData = isApproval ? parseApprovalRequest(messageText) : null;
+
+  // Check if this is a user tool call
+  const isUserToolCall = role === "user" && messageText.startsWith("/");
+
+  // Check if this is an approval response (user's approval/rejection)
+  const isApprovalResponse =
+    role === "user" &&
+    isApprovalRequest(messageText) &&
+    parseApprovalRequest(messageText)?.approval !== undefined;
+
+  // Function to format user tool call display
+  const formatUserToolCall = (toolCall: string): string => {
+    if (!toolCall.startsWith("/")) return toolCall;
+
+    const parts = toolCall.split(" ");
+    const toolName = parts[0].substring(1); // Remove the "/"
+    const description = parts.slice(1).join(" ");
+
+    // Make tool name more user-friendly
+    const friendlyToolName = toolName
+      .replace(/_/g, " ")
+      .replace(/\b\w/g, (l) => l.toUpperCase());
+
+    return `🔧 ${friendlyToolName}: ${description}`;
+  };
+
+  // Don't render approval response messages
+  if (isApprovalResponse) {
+    return null;
+  }
+
+  // Handle approval actions
+  const handleApprove = async () => {
+    if (!approvalData || approvalHandled) return;
+
+    setApprovalProcessing(true);
+    try {
+      const approvedRequest = createApprovedRequest(approvalData);
+      await sendMessage(approvedRequest);
+      setApprovalHandled(true); // Mark as permanently handled
+    } catch (error) {
+      console.error("Failed to send approval:", error);
+    } finally {
+      setApprovalProcessing(false);
+    }
+  };
+
+  const handleReject = async () => {
+    if (!approvalData || approvalHandled) return;
+
+    setApprovalProcessing(true);
+    try {
+      const rejectedRequest = createRejectedRequest(approvalData);
+      await sendMessage(rejectedRequest);
+      setApprovalHandled(true); // Mark as permanently handled
+    } catch (error) {
+      console.error("Failed to send rejection:", error);
+    } finally {
+      setApprovalProcessing(false);
+    }
   };
 
   // Add entire message to favorites
@@ -542,117 +619,130 @@ const MessageCard: React.FC<MessageCardProps> = ({
 
             {/* Content */}
             <div style={{ width: "100%", maxWidth: "100%" }}>
-              <ReactMarkdown
-                remarkPlugins={
-                  role === "user" ? [remarkGfm, remarkBreaks] : [remarkGfm]
-                }
-                components={{
-                  p: ({ children }) => (
-                    <Text
-                      style={{
-                        marginBottom: token.marginSM,
-                        display: "block",
-                      }}
-                    >
-                      {children}
-                    </Text>
-                  ),
-                  ol: ({ children }) => (
-                    <ol
-                      style={{
-                        marginBottom: token.marginSM,
-                        paddingLeft: 20,
-                      }}
-                    >
-                      {children}
-                    </ol>
-                  ),
-                  ul: ({ children }) => (
-                    <ul
-                      style={{
-                        marginBottom: token.marginSM,
-                        paddingLeft: 20,
-                      }}
-                    >
-                      {children}
-                    </ul>
-                  ),
-                  li: ({ children }) => (
-                    <li
-                      style={{
-                        marginBottom: token.marginXS,
-                      }}
-                    >
-                      {children}
-                    </li>
-                  ),
-                  code({ className, children, ...props }) {
-                    const match = /language-(\w+)/.exec(className || "");
-                    const language = match ? match[1] : "";
-                    const isInline = !match && !className;
-                    const codeString = String(children).replace(/\n$/, "");
-
-                    if (isInline) {
-                      return (
-                        <Text code className={className} {...props}>
-                          {children}
-                        </Text>
-                      );
-                    }
-
-                    // Handle Mermaid diagrams
-                    if (language === "mermaid") {
-                      const mermaidId = `mermaid-${Math.random()
-                        .toString(36)
-                        .substr(2, 9)}`;
-                      return <MermaidChart chart={codeString} id={mermaidId} />;
-                    }
-
-                    return (
-                      <div
+              {isApproval && approvalData ? (
+                <ApprovalCard
+                  data={approvalData}
+                  onApprove={handleApprove}
+                  onReject={handleReject}
+                  disabled={approvalProcessing || approvalHandled}
+                />
+              ) : (
+                <ReactMarkdown
+                  remarkPlugins={
+                    role === "user" ? [remarkGfm, remarkBreaks] : [remarkGfm]
+                  }
+                  components={{
+                    p: ({ children }) => (
+                      <Text
                         style={{
-                          position: "relative",
-                          maxWidth: "100%",
-                          overflow: "auto",
+                          marginBottom: token.marginSM,
+                          display: "block",
                         }}
                       >
-                        <SyntaxHighlighter
-                          style={oneDark}
-                          language={language || "text"}
-                          PreTag="div"
-                          customStyle={{
-                            margin: `${token.marginXS}px 0`,
-                            borderRadius: token.borderRadiusSM,
-                            fontSize: token.fontSizeSM,
+                        {children}
+                      </Text>
+                    ),
+                    ol: ({ children }) => (
+                      <ol
+                        style={{
+                          marginBottom: token.marginSM,
+                          paddingLeft: 20,
+                        }}
+                      >
+                        {children}
+                      </ol>
+                    ),
+                    ul: ({ children }) => (
+                      <ul
+                        style={{
+                          marginBottom: token.marginSM,
+                          paddingLeft: 20,
+                        }}
+                      >
+                        {children}
+                      </ul>
+                    ),
+                    li: ({ children }) => (
+                      <li
+                        style={{
+                          marginBottom: token.marginXS,
+                        }}
+                      >
+                        {children}
+                      </li>
+                    ),
+                    code({ className, children, ...props }) {
+                      const match = /language-(\w+)/.exec(className || "");
+                      const language = match ? match[1] : "";
+                      const isInline = !match && !className;
+                      const codeString = String(children).replace(/\n$/, "");
+
+                      if (isInline) {
+                        return (
+                          <Text code className={className} {...props}>
+                            {children}
+                          </Text>
+                        );
+                      }
+
+                      // Handle Mermaid diagrams
+                      if (language === "mermaid") {
+                        const mermaidId = `mermaid-${Math.random()
+                          .toString(36)
+                          .substr(2, 9)}`;
+                        return (
+                          <MermaidChart chart={codeString} id={mermaidId} />
+                        );
+                      }
+
+                      return (
+                        <div
+                          style={{
+                            position: "relative",
                             maxWidth: "100%",
+                            overflow: "auto",
                           }}
                         >
-                          {codeString}
-                        </SyntaxHighlighter>
+                          <SyntaxHighlighter
+                            style={oneDark}
+                            language={language || "text"}
+                            PreTag="div"
+                            customStyle={{
+                              margin: `${token.marginXS}px 0`,
+                              borderRadius: token.borderRadiusSM,
+                              fontSize: token.fontSizeSM,
+                              maxWidth: "100%",
+                            }}
+                          >
+                            {codeString}
+                          </SyntaxHighlighter>
+                        </div>
+                      );
+                    },
+                    blockquote: ({ children }) => (
+                      <div
+                        style={{
+                          borderLeft: `3px solid ${token.colorPrimary}`,
+                          background: token.colorPrimaryBg,
+                          padding: `${token.paddingXS}px ${token.padding}px`,
+                          margin: `${token.marginXS}px 0`,
+                          color: token.colorTextSecondary,
+                          fontStyle: "italic",
+                        }}
+                      >
+                        {children}
                       </div>
-                    );
-                  },
-                  blockquote: ({ children }) => (
-                    <div
-                      style={{
-                        borderLeft: `3px solid ${token.colorPrimary}`,
-                        background: token.colorPrimaryBg,
-                        padding: `${token.paddingXS}px ${token.padding}px`,
-                        margin: `${token.marginXS}px 0`,
-                        color: token.colorTextSecondary,
-                        fontStyle: "italic",
-                      }}
-                    >
-                      {children}
-                    </div>
-                  ),
-                  a: ({ children }) => (
-                    <Text style={{ color: token.colorLink }}>{children}</Text>
-                  ),
-                }}
-              >
-                {getMessageText(content)}
-              </ReactMarkdown>
+                    ),
+                    a: ({ children }) => (
+                      <Text style={{ color: token.colorLink }}>{children}</Text>
+                    ),
+                  }}
+                >
+                  {isUserToolCall
+                    ? formatUserToolCall(getMessageText(content))
+                    : getMessageText(content)}
+                </ReactMarkdown>
+              )}
             </div>
             {children}
 

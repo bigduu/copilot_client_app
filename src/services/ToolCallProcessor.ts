@@ -5,6 +5,7 @@ import {
   ParameterValue,
   ToolUIInfo,
 } from "./ToolService";
+import { isApprovalRequest, parseApprovalRequest, createApprovalRequest } from "../utils/approvalUtils";
 
 export enum ToolType {
   AIParameterParsing = "AIParameterParsing",
@@ -51,10 +52,92 @@ export class ToolCallProcessor {
   }
 
   /**
+   * Check if message is an approval request
+   */
+  isApprovalRequest(content: string): boolean {
+    return isApprovalRequest(content);
+  }
+
+  /**
    * Parse tool call
    */
   parseToolCall(content: string): ToolCallRequest | null {
     return this.toolService.parseToolCallFormat(content);
+  }
+
+  /**
+   * Process approval request and execute approved tool
+   */
+  async processApprovalRequest(
+    content: string,
+    onUpdate?: (update: ProcessorUpdate) => void,
+    sendLLMRequest?: (messages: Message[]) => Promise<string>
+  ): Promise<ToolCallResult> {
+    const approvalData = parseApprovalRequest(content);
+
+    if (!approvalData) {
+      return {
+        success: false,
+        content: "Invalid approval request format",
+        toolName: "unknown",
+        parameters: [],
+      };
+    }
+
+    // Check if approved
+    if (approvalData.approval !== true) {
+      return {
+        success: true,
+        content: `Tool execution rejected: ${approvalData.tool_call}`,
+        toolName: approvalData.tool_call,
+        parameters: approvalData.parameters,
+      };
+    }
+
+    // Execute the approved tool
+    const toolCall: ToolCallRequest = {
+      tool_name: approvalData.tool_call,
+      user_description: approvalData.parameters.map(p => p.value).join(' '),
+    };
+
+    // Convert approval parameters to ParameterValue format
+    const parameters: ParameterValue[] = approvalData.parameters.map(p => ({
+      name: p.name,
+      value: p.value,
+    }));
+
+    onUpdate?.({
+      type: "processor_update",
+      source: "ToolCallProcessor",
+      content: `Executing approved tool: ${approvalData.tool_call}`,
+    });
+
+    try {
+      const result = await this.toolService.executeTool({
+        tool_name: approvalData.tool_call,
+        parameters,
+      });
+
+      const formattedResult = await this.toolService.formatToolResult(
+        approvalData.tool_call,
+        parameters,
+        result
+      );
+
+      return {
+        success: true,
+        content: formattedResult,
+        toolName: approvalData.tool_call,
+        parameters,
+      };
+    } catch (error) {
+      return {
+        success: false,
+        content: `Tool execution failed: ${error}`,
+        toolName: approvalData.tool_call,
+        parameters,
+      };
+    }
   }
 
   /**
@@ -222,9 +305,28 @@ ${toolResult}`;
         );
 
         console.log("[ToolCallProcessor] AI parsed parameters:", parameters);
+
+        // For AI parameter parsing tools, return approval request instead of executing directly
+        onUpdate?.({
+          type: "processor_update",
+          source: "ToolCallProcessor",
+          content: `Creating approval request for tool: ${toolCall.tool_name}`,
+        });
+
+        const approvalRequest = createApprovalRequest(
+          toolCall.tool_name,
+          parameters
+        );
+
+        return {
+          success: true,
+          content: approvalRequest,
+          toolName: toolCall.tool_name,
+          parameters,
+        };
       }
 
-      // 3. Execute tool
+      // 3. Execute tool (only for regex tools)
       onUpdate?.({
         type: "processor_update",
         source: "ToolCallProcessor",
