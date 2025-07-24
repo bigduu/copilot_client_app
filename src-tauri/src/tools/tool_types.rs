@@ -37,6 +37,44 @@ impl CategoryType {
     }
 }
 
+/// Category ID enumeration - provides type-safe category identifiers
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum CategoryId {
+    FileOperations,
+    CommandExecution,
+    GeneralAssistant,
+}
+
+impl CategoryId {
+    /// Get the string representation of the category ID
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            CategoryId::FileOperations => "file_operations",
+            CategoryId::CommandExecution => "command_execution",
+            CategoryId::GeneralAssistant => "general_assistant",
+        }
+    }
+
+    /// Create category ID from string
+    pub fn from_str(s: &str) -> Option<Self> {
+        match s {
+            "file_operations" => Some(CategoryId::FileOperations),
+            "command_execution" => Some(CategoryId::CommandExecution),
+            "general_assistant" => Some(CategoryId::GeneralAssistant),
+            _ => None,
+        }
+    }
+
+    /// Convert to CategoryType
+    pub fn to_category_type(&self) -> CategoryType {
+        match self {
+            CategoryId::FileOperations => CategoryType::FileOperations,
+            CategoryId::CommandExecution => CategoryType::CommandExecution,
+            CategoryId::GeneralAssistant => CategoryType::GeneralAssistant,
+        }
+    }
+}
+
 /// Tool configuration structure
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ToolConfig {

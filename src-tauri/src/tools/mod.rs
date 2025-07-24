@@ -10,6 +10,8 @@ pub mod categories;
 pub mod category;
 pub mod category_factory;
 pub mod file_tools;
+pub mod registration_system;
+pub mod registry;
 pub mod tool_factory;
 pub mod tool_manager;
 pub mod tool_types;
@@ -35,6 +37,7 @@ pub use categories::get_default_categories;
 pub use tool_manager::ToolManagerBuilder;
 
 // Re-export manager creation function (single entry point)
+pub use registration_system::create_registered_tool_manager;
 pub use tool_manager::create_default_tool_manager;
 
 /// 工具 trait 定义
@@ -45,6 +48,9 @@ pub trait Tool: Debug + Send + Sync {
     fn parameters(&self) -> Vec<Parameter>;
     fn required_approval(&self) -> bool;
     fn tool_type(&self) -> ToolType;
+
+    /// 返回工具所属的category列表（工具可以属于多个category）
+    fn categories(&self) -> Vec<tool_types::CategoryId>;
 
     /// 对于 RegexParameterExtraction 类型的工具，返回参数提取的正则表达式
     fn parameter_regex(&self) -> Option<String> {

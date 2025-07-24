@@ -33,6 +33,10 @@ impl Tool for ExecuteCommandTool {
         ToolType::AIParameterParsing
     }
 
+    fn categories(&self) -> Vec<crate::tools::tool_types::CategoryId> {
+        vec![crate::tools::tool_types::CategoryId::CommandExecution]
+    }
+
     async fn execute(&self, parameters: Vec<Parameter>) -> Result<String> {
         let mut command = String::new();
 
