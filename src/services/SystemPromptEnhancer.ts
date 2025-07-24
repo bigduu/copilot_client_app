@@ -1,5 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { ToolUIInfo } from "./ToolService";
+import { isMermaidEnhancementEnabled, getMermaidEnhancementPrompt } from '../utils/mermaidUtils';
 
 export interface CategoryInfo {
   id: string;
@@ -113,9 +114,14 @@ export class SystemPromptEnhancer {
       throw new Error(`Category not found: ${categoryId}`);
     }
     
-    // If strict mode, return original prompt
+    // If strict mode, return original prompt with optional Mermaid enhancement
     if (categoryInfo.strict_tools_mode) {
-      return categoryInfo.system_prompt;
+      const originalPrompt = categoryInfo.system_prompt;
+      if (isMermaidEnhancementEnabled()) {
+        const mermaidPrompt = getMermaidEnhancementPrompt();
+        return `${originalPrompt}${mermaidPrompt}`;
+      }
+      return originalPrompt;
     }
     
     // Build enhanced prompt with tool information
@@ -123,6 +129,11 @@ export class SystemPromptEnhancer {
     const tools = categoryInfo.tools;
     
     if (!tools || tools.length === 0) {
+      // No tools available, but still add Mermaid enhancement if enabled
+      if (isMermaidEnhancementEnabled()) {
+        const mermaidPrompt = getMermaidEnhancementPrompt();
+        return `${originalPrompt}${mermaidPrompt}`;
+      }
       return originalPrompt;
     }
     
@@ -179,6 +190,12 @@ Users can also manually call tools using: \`/tool_name description\`
 - When in doubt about file operations → Use tools to get accurate information
 
 **Remember**: Be proactive with tool usage. If a user asks for file system operations, directory listings, file content, or searches, use the appropriate tools immediately.`;
+
+    // Add Mermaid enhancement if enabled
+    if (isMermaidEnhancementEnabled()) {
+      const mermaidPrompt = getMermaidEnhancementPrompt();
+      return `${enhancedPrompt}${mermaidPrompt}`;
+    }
 
     return enhancedPrompt;
   }
