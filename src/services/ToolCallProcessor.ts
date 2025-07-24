@@ -297,16 +297,29 @@ ${toolResult}`;
           };
         }
       } else {
-        // For AI parameter parsing tools, directly format result (no AI summary needed)
+        // For AI parameter parsing tools, show the parsed parameters and then the result
         const formattedResult = await this.toolService.formatToolResult(
           toolCall.tool_name,
           parameters,
           result
         );
 
+        // Format AI parsed parameters for display (wrapped in code blocks as per user preference)
+        const parametersDisplay = parameters
+          .map((p) => `${p.name}: ${p.value}`)
+          .join(", ");
+
+        const finalContent = `**Parameters:**
+\`\`\`
+${parametersDisplay}
+\`\`\`
+
+**Result:**
+${formattedResult}`;
+
         return {
           success: true,
-          content: formattedResult,
+          content: finalContent,
           toolName: toolCall.tool_name,
           parameters,
         };

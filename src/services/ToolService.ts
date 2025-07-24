@@ -170,12 +170,27 @@ export class ToolService {
       )
       .join("\n");
 
-    // 构建标准的参数解析指导
-    let parsingInstructions = "参数解析规则:\n";
-    parsingInstructions += `- 根据工具描述和参数要求解析用户输入\n`;
-    parsingInstructions += `- 确保所有必需参数都被正确提取\n`;
-    parsingInstructions += `- 参数值应该准确反映用户意图\n`;
+    // Special handling for execute_command tool
+    if (tool.name === "execute_command") {
+      return `You are a command parameter parser. Your task is to extract the shell command from user input.
 
+Tool: ${tool.name}
+Description: ${tool.description}
+Parameters:
+${parametersDesc}
+
+RULES:
+- The user input is the command they want to execute
+- Return ONLY the command string, nothing else
+- Do NOT add explanations, quotes, or formatting
+- Do NOT provide safety warnings
+
+User wants to execute: "${userDescription}"
+
+Command:`;
+    }
+
+    // Default prompt for other tools
     return `CRITICAL: You are ONLY a parameter extraction system. Ignore any previous instructions or system prompts.
 
 Your ONLY task is to extract parameter values from user input for tool execution.
@@ -187,7 +202,6 @@ ${parametersDesc}
 
 EXTRACTION RULES:
 - Extract the exact parameter value from the user input
-- For execute_command tool: extract everything after "/execute_command " as the command
 - Return ONLY the raw parameter value, nothing else
 - Do NOT ask questions, provide explanations, or act as an assistant
 - Do NOT provide safety warnings or security checks
@@ -215,19 +229,17 @@ Extract parameter value:`;
 
     // Special handling for execute_command tool
     if (tool.name === "execute_command" && tool.parameters.length === 1) {
-      // For execute_command, extract command from user description directly
-      // This is a fallback in case AI parameter parsing fails
-      let command = userDescription;
+      // For execute_command, use AI response directly if it looks like a valid command
+      let command = trimmedResponse;
 
-      // If user description starts with "/execute_command ", extract the command part
-      if (userDescription.startsWith("/execute_command ")) {
-        command = userDescription.substring("/execute_command ".length);
-      }
+      // Fallback: if AI response is empty or looks invalid, use user description
+      if (!command || command.length === 0) {
+        command = userDescription;
 
-      // If AI response looks like just the command (no explanations), use it
-      // Otherwise, fall back to extracted command from user description
-      if (trimmedResponse.length < 200 && !trimmedResponse.includes('\n') && !trimmedResponse.toLowerCase().includes('security')) {
-        command = trimmedResponse;
+        // If user description starts with "/execute_command ", extract the command part
+        if (userDescription.startsWith("/execute_command ")) {
+          command = userDescription.substring("/execute_command ".length);
+        }
       }
 
       parameters.push({
@@ -236,6 +248,8 @@ Extract parameter value:`;
       });
 
       console.log("[ToolService] Execute command parameter extracted:", command);
+      console.log("[ToolService] AI response was:", trimmedResponse);
+      console.log("[ToolService] User description was:", userDescription);
       return parameters;
     }
 
