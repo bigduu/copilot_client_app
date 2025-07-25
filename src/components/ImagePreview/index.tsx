@@ -56,13 +56,10 @@ export const ImagePreview: React.FC<ImagePreviewProps> = ({
       }}
     >
       <Space direction="vertical" size="small" style={{ width: "100%" }}>
-        <Text
-          type="secondary"
-          style={{ fontSize: token.fontSizeSM }}
-        >
-          {images.length} image{images.length > 1 ? 's' : ''} attached
+        <Text type="secondary" style={{ fontSize: token.fontSizeSM }}>
+          {images.length} image{images.length > 1 ? "s" : ""} attached
         </Text>
-        
+
         <div
           style={{
             display: "flex",
@@ -107,7 +104,7 @@ export const ImagePreview: React.FC<ImagePreviewProps> = ({
                       e.currentTarget.style.transform = "scale(1)";
                     }}
                   />
-                  
+
                   {/* Overlay buttons */}
                   <div
                     style={{
@@ -135,7 +132,7 @@ export const ImagePreview: React.FC<ImagePreviewProps> = ({
                         }}
                       />
                     </Tooltip>
-                    
+
                     <Tooltip title="Remove">
                       <Button
                         danger
@@ -175,7 +172,7 @@ export const ImagePreview: React.FC<ImagePreviewProps> = ({
                   description={
                     <Text
                       type="secondary"
-                      style={{ fontSize: token.fontSizeXS }}
+                      style={{ fontSize: token.fontSizeSM }}
                     >
                       {formatFileSize(image.size)}
                     </Text>

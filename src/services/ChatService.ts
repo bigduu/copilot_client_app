@@ -1,5 +1,5 @@
 import { v4 as uuidv4 } from "uuid";
-import { ChatItem, Message } from "../types/chat";
+import { ChatItem, Message, getMessageText } from "../types/chat";
 import { generateChatTitle } from "../utils/chatUtils";
 
 const STORAGE_KEY = "copilot_chats";
@@ -159,8 +159,8 @@ export class ChatService {
               newMessages.length > 0 &&
               newMessages[0].role === "user" &&
               chat.title.startsWith("Chat ")
-                ? newMessages[0].content.substring(0, 30) +
-                  (newMessages[0].content.length > 30 ? "..." : "")
+                ? getMessageText(newMessages[0].content).substring(0, 30) +
+                  (getMessageText(newMessages[0].content).length > 30 ? "..." : "")
                 : chat.title,
           }
         : chat
@@ -239,7 +239,7 @@ export class ChatService {
       return {
         ...chat,
         systemPrompt:
-          systemMessage?.content ||
+          (systemMessage ? getMessageText(systemMessage.content) : null) ||
           localStorage.getItem(SYSTEM_PROMPT_KEY) ||
           (() => { throw new Error("系统提示词未配置，无法迁移现有聊天。请配置系统提示词后重试。"); })(),
       };

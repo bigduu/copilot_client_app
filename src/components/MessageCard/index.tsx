@@ -220,7 +220,7 @@ const MermaidChart: React.FC<MermaidProps> = React.memo(
       };
     }, [chart, initialCached]);
 
-    const { svg, height, svgWidth, svgHeight, error, isLoading } = renderState;
+    const { svg, height, svgWidth, error, isLoading } = renderState;
 
     // Calculate optimal initial scale - now that we've disabled useMaxWidth,
     // diagrams should render at their natural size, so we can use more conservative scaling
@@ -721,7 +721,7 @@ const MessageCard: React.FC<MessageCardProps> = ({
                     maxWidth: "100%",
                   }}
                 >
-                  {images.map((image, index) => (
+                  {images.map((image) => (
                     <div
                       key={image.id}
                       style={{

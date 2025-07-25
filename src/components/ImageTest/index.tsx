@@ -17,65 +17,70 @@ export const ImageTest: React.FC = () => {
   const [previewImageIndex, setPreviewImageIndex] = useState(0);
   const [messageApi, contextHolder] = message.useMessage();
 
-  const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileSelect = async (
+    event: React.ChangeEvent<HTMLInputElement>
+  ) => {
     const files = event.target.files;
     if (!files || files.length === 0) return;
 
     try {
       const processedImages = await processImageFiles(files);
-      setImages(prev => [...prev, ...processedImages]);
+      setImages((prev) => [...prev, ...processedImages]);
       messageApi.success(`Added ${processedImages.length} image(s)`);
     } catch (error) {
       messageApi.error(`Failed to process images: ${error}`);
     }
 
     // Reset input
-    event.target.value = '';
+    event.target.value = "";
   };
 
   const handleRemoveImage = (imageId: string) => {
-    setImages(prev => prev.filter(img => img.id !== imageId));
-    messageApi.info('Image removed');
+    setImages((prev) => prev.filter((img) => img.id !== imageId));
+    messageApi.info("Image removed");
   };
 
   const handleImagePreview = (image: ImageFile) => {
-    const index = images.findIndex(img => img.id === image.id);
+    const index = images.findIndex((img) => img.id === image.id);
     setPreviewImageIndex(index >= 0 ? index : 0);
     setPreviewModalVisible(true);
   };
 
   const handleClearAll = () => {
     setImages([]);
-    messageApi.info('All images cleared');
+    messageApi.info("All images cleared");
   };
 
   const handleTestMessage = () => {
     if (images.length === 0) {
-      messageApi.warning('Please add some images first');
+      messageApi.warning("Please add some images first");
       return;
     }
 
     // Simulate message sending with images
     const messageData = {
       content: "Test message with images",
-      images: images.map(img => ({
+      images: images.map((img) => ({
         id: img.id,
         base64: img.base64,
         name: img.name,
         size: img.size,
         type: img.type,
-      }))
+      })),
     };
 
-    console.log('Test message data:', messageData);
+    console.log("Test message data:", messageData);
     messageApi.success(`Test message created with ${images.length} image(s)`);
   };
 
   return (
-    <Card title="Image Functionality Test" style={{ maxWidth: 800, margin: '20px auto' }}>
+    <Card
+      title="Image Functionality Test"
+      style={{ maxWidth: 800, margin: "20px auto" }}
+    >
       {contextHolder}
-      
-      <Space direction="vertical" size="large" style={{ width: '100%' }}>
+
+      <Space direction="vertical" size="large" style={{ width: "100%" }}>
         <div>
           <Title level={4}>Upload Images</Title>
           <Space>
@@ -84,20 +89,26 @@ export const ImageTest: React.FC = () => {
               accept="image/*"
               multiple
               onChange={handleFileSelect}
-              style={{ display: 'none' }}
+              style={{ display: "none" }}
               id="image-upload-test"
             />
             <Button
               type="primary"
               icon={<PictureOutlined />}
-              onClick={() => document.getElementById('image-upload-test')?.click()}
+              onClick={() =>
+                document.getElementById("image-upload-test")?.click()
+              }
             >
               Select Images
             </Button>
             <Button onClick={handleClearAll} disabled={images.length === 0}>
               Clear All
             </Button>
-            <Button type="dashed" onClick={handleTestMessage} disabled={images.length === 0}>
+            <Button
+              type="dashed"
+              onClick={handleTestMessage}
+              disabled={images.length === 0}
+            >
               Test Message
             </Button>
           </Space>
@@ -106,7 +117,7 @@ export const ImageTest: React.FC = () => {
         <div>
           <Title level={4}>Image Count</Title>
           <Text>
-            {images.length} image{images.length !== 1 ? 's' : ''} selected
+            {images.length} image{images.length !== 1 ? "s" : ""} selected
           </Text>
         </div>
 
@@ -126,13 +137,14 @@ export const ImageTest: React.FC = () => {
           {images.length === 0 ? (
             <Text type="secondary">No images selected</Text>
           ) : (
-            <Space direction="vertical" size="small" style={{ width: '100%' }}>
-              {images.map((image, index) => (
+            <Space direction="vertical" size="small" style={{ width: "100%" }}>
+              {images.map((image) => (
                 <Card key={image.id} size="small">
                   <Space direction="vertical" size="small">
                     <Text strong>{image.name}</Text>
                     <Text type="secondary">
-                      Size: {(image.size / 1024).toFixed(1)} KB | Type: {image.type}
+                      Size: {(image.size / 1024).toFixed(1)} KB | Type:{" "}
+                      {image.type}
                     </Text>
                     <Text type="secondary">
                       Base64 length: {image.base64.length} characters

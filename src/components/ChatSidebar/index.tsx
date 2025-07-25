@@ -54,7 +54,7 @@ export const ChatSidebar: React.FC<{
   const systemPromptPresets = useChatStore(
     (state) => state.systemPromptPresets
   );
-  const loadChats = useChatStore((state) => state.loadChats);
+
   const loadSystemPromptPresets = useChatStore(
     (state) => state.loadSystemPromptPresets
   );

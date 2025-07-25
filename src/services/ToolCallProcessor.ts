@@ -71,7 +71,7 @@ export class ToolCallProcessor {
   async processApprovalRequest(
     content: string,
     onUpdate?: (update: ProcessorUpdate) => void,
-    sendLLMRequest?: (messages: Message[]) => Promise<string>
+    // sendLLMRequest?: (messages: Message[]) => Promise<string>
   ): Promise<ToolCallResult> {
     const approvalData = parseApprovalRequest(content);
 
@@ -95,10 +95,10 @@ export class ToolCallProcessor {
     }
 
     // Execute the approved tool
-    const toolCall: ToolCallRequest = {
-      tool_name: approvalData.tool_call,
-      user_description: approvalData.parameters.map(p => p.value).join(' '),
-    };
+    // const toolCall: ToolCallRequest = {
+    //   tool_name: approvalData.tool_call,
+    //   user_description: approvalData.parameters.map(p => p.value).join(' '),
+    // };
 
     // Convert approval parameters to ParameterValue format
     const parameters: ParameterValue[] = approvalData.parameters.map(p => ({
