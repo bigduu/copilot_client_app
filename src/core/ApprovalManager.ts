@@ -4,7 +4,7 @@ import {
 import {
   OperationResult,
   ApprovalConfig,
-  ApprovalAction,
+  // ApprovalAction,
   ApprovalFlow
 } from '../types/unified-chat';
 

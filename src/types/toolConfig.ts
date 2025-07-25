@@ -72,7 +72,7 @@ export class ToolConfigService {
   /**
    * 更新工具配置 (新架构中不支持动态更新，工具配置由categories管理)
    */
-  async updateToolConfig(toolName: string, config: ToolConfig): Promise<void> {
+  async updateToolConfig(_toolName: string, _config: ToolConfig): Promise<void> {
     console.warn("Tool config updates are not supported in the new category-based architecture");
     throw new Error("Tool configuration updates are managed through categories and cannot be modified at runtime");
   }

@@ -99,14 +99,14 @@ export class ChatManagerFactory {
           } as any
         };
       },
-      async handleToolCall(chatId: string, toolCall: any) {
+      async handleToolCall(_chatId: string, _toolCall: any) {
         return {
           toolId: crypto.randomUUID(),
           status: 'pending' as const,
           result: null
         };
       },
-      async processAIResponse(chatId: string, messages: any[]) {
+      async processAIResponse(_chatId: string, _messages: any[]) {
         return {
           responseId: crypto.randomUUID(),
           status: 'completed' as const,
@@ -114,26 +114,26 @@ export class ChatManagerFactory {
           processingTime: 0
         };
       },
-      async handleApprovalFlow(chatId: string, action: any) {
+      async handleApprovalFlow(_chatId: string, _action: any) {
         return {
           approved: config.enableAutoApproval || false,
           automatic: config.enableAutoApproval || false,
           timestamp: Date.now()
         };
       },
-      async startFlow(chatId: string, flowType: string) {
+      async startFlow(_chatId: string, _flowType: string) {
         return { success: true };
       },
-      async pauseFlow(chatId: string) {
+      async pauseFlow(_chatId: string) {
         return { success: true };
       },
-      async resumeFlow(chatId: string) {
+      async resumeFlow(_chatId: string) {
         return { success: true };
       },
-      async stopFlow(chatId: string) {
+      async stopFlow(_chatId: string) {
         return { success: true };
       },
-      subscribe(callback: (event: any) => void) {
+      subscribe(_callback: (event: any) => void) {
         return () => {};
       }
     };

@@ -26,8 +26,7 @@ const { useBreakpoint } = Grid;
 
 export const ChatView: React.FC = () => {
   // 使用新的 Zustand hooks
-  const { currentChatId, currentChat, currentMessages, updateChat } =
-    useChats();
+  const { currentChatId, currentMessages, updateChat } = useChats();
   const { isProcessing, deleteMessage } = useMessages();
 
   // 暂时设置这些值，因为原组件依赖它们

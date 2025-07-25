@@ -1,10 +1,10 @@
 import React, { useState } from "react";
 import { Modal, Button, Space, Typography, theme, Carousel } from "antd";
-import { 
-  LeftOutlined, 
-  RightOutlined, 
+import {
+  LeftOutlined,
+  RightOutlined,
   DownloadOutlined,
-  CloseOutlined 
+  CloseOutlined,
 } from "@ant-design/icons";
 import { ImageFile, formatFileSize } from "../../utils/imageUtils";
 
@@ -39,7 +39,7 @@ export const ImagePreviewModal: React.FC<ImagePreviewModalProps> = ({
       onDownload(currentImage);
     } else {
       // Default download behavior
-      const link = document.createElement('a');
+      const link = document.createElement("a");
       link.href = currentImage.base64;
       link.download = currentImage.name;
       document.body.appendChild(link);
@@ -81,7 +81,13 @@ export const ImagePreviewModal: React.FC<ImagePreviewModalProps> = ({
           background: token.colorBgContainer,
         }}
       >
-        <Space justify="space-between" style={{ width: "100%" }}>
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            width: "100%",
+          }}
+        >
           <div>
             <Title level={5} style={{ margin: 0 }}>
               {currentImage.name}
@@ -91,7 +97,7 @@ export const ImagePreviewModal: React.FC<ImagePreviewModalProps> = ({
               {images.length > 1 && ` • ${activeIndex + 1} of ${images.length}`}
             </Text>
           </div>
-          
+
           <Space>
             {images.length > 1 && (
               <>
@@ -107,14 +113,11 @@ export const ImagePreviewModal: React.FC<ImagePreviewModalProps> = ({
                 />
               </>
             )}
-            <Button
-              icon={<DownloadOutlined />}
-              onClick={handleDownload}
-            >
+            <Button icon={<DownloadOutlined />} onClick={handleDownload}>
               Download
             </Button>
           </Space>
-        </Space>
+        </div>
       </div>
 
       {/* Image Display */}
@@ -147,7 +150,7 @@ export const ImagePreviewModal: React.FC<ImagePreviewModalProps> = ({
             afterChange={setActiveIndex}
             style={{ width: "100%", height: "100%" }}
           >
-            {images.map((image, index) => (
+            {images.map((image) => (
               <div key={image.id}>
                 <div
                   style={{
@@ -224,9 +227,10 @@ export const ImagePreviewModal: React.FC<ImagePreviewModalProps> = ({
               style={{
                 minWidth: 60,
                 height: 60,
-                border: index === activeIndex 
-                  ? `2px solid ${token.colorPrimary}` 
-                  : `1px solid ${token.colorBorder}`,
+                border:
+                  index === activeIndex
+                    ? `2px solid ${token.colorPrimary}`
+                    : `1px solid ${token.colorBorder}`,
                 borderRadius: token.borderRadius,
                 overflow: "hidden",
                 cursor: "pointer",

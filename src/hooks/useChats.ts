@@ -19,7 +19,7 @@ interface UseChatsReturn {
   chatCount: number;
 
   // 基础操作 (直接映射到 Store)
-  selectChat: (chatId: string) => void;
+  selectChat: (chatId: string | null) => void;
   deleteChat: (chatId: string) => void;
   deleteChats: (chatIds: string[]) => void;
   pinChat: (chatId: string) => void;

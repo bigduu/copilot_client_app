@@ -157,7 +157,7 @@ export class AttachmentProcessor implements IAttachmentProcessor {
   async getResult(attachmentId: string): Promise<OperationResult<any>> {
     try {
       // 从缓存中查找结果
-      for (const [key, result] of this.cache.entries()) {
+      for (const [, result] of this.cache.entries()) {
         if (result.attachment.id === attachmentId) {
           return {
             success: true,

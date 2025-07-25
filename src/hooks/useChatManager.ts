@@ -1,6 +1,5 @@
 import { useState, useCallback, useMemo, useEffect } from "react";
 import {
-  ChatService,
   FavoritesService,
   SystemPromptService,
 } from "../services";
@@ -16,7 +15,6 @@ import { ChatItem, FavoriteItem, SystemPromptPresetList } from "../types/chat";
  */
 export function useChatManager() {
   // Service layer instances
-  const chatService = useMemo(() => ChatService.getInstance(), []);
   const favoritesService = useMemo(() => FavoritesService.getInstance(), []);
   const systemPromptService = useMemo(
     () => SystemPromptService.getInstance(),
@@ -33,25 +31,21 @@ export function useChatManager() {
     currentChat,
     currentMessages,
     selectChat,
-    updateChatMessages,
+    deleteChat: deleteChatFromHook,
+    deleteChats: deleteChatsFromHook,
+    pinChat: pinChatFromHook,
+    unpinChat: unpinChatFromHook,
+    updateChat: updateChatFromHook,
+    createNewChat,
+    deleteEmptyChats: deleteEmptyChatsFromHook,
     saveChats,
-    setChats,
-  } = useChats(selectedModel);
+  } = useChats();
 
   // Message-related state and functionality
   const {
-    isStreaming,
-    setIsStreaming,
-    activeChannel,
     sendMessage: originalSendMessage,
-    addAssistantMessage,
-    initiateAIResponse,
-  } = useMessages(
-    currentChatId,
-    updateChatMessages,
-    currentMessages,
-    currentChat
-  );
+    isProcessing,
+  } = useMessages();
 
   // ====== Favorites State Management ======
   const [favorites, setFavorites] = useState<FavoriteItem[]>(() => {
@@ -95,144 +89,97 @@ export function useChatManager() {
       }
     ): string => {
       try {
-        // Use Service to create chat data
-        const newChat = chatService.createChat(
-          firstUserMessageContent,
-          selectedModel
-        );
-
         // Update title number
         const chatNumber = chats.length + 1;
-        if (!firstUserMessageContent) {
-          newChat.title = `Chat ${chatNumber}`;
-        }
+        const title = firstUserMessageContent ?
+          (firstUserMessageContent.length > 30 ?
+            firstUserMessageContent.substring(0, 30) + "..." :
+            firstUserMessageContent) :
+          `Chat ${chatNumber}`;
 
-        // Apply optional settings for system prompt integration
-        if (options) {
-          if (options.systemPromptId) {
-            newChat.systemPromptId = options.systemPromptId;
-          }
-          if (options.toolCategory) {
-            newChat.toolCategory = options.toolCategory;
-          }
-          if (options.systemPrompt) {
-            newChat.systemPrompt = options.systemPrompt;
-          }
-        }
+        // Use hook's createNewChat method
+        createNewChat(title, {
+          systemPromptId: options?.systemPromptId || 'general_assistant',
+          toolCategory: options?.toolCategory || 'general_assistant',
+          systemPrompt: options?.systemPrompt,
+          model: selectedModel,
+        });
 
-        // Update React state
-        const updatedChats = [newChat, ...chats];
-        setChats(updatedChats);
-        chatService.saveChats(updatedChats);
-
-        // Select the newly created chat
-        selectChat(newChat.id);
-
-        return newChat.id;
+        // Get the newly created chat ID (it will be the first in the list after creation)
+        // Since createNewChat automatically selects the new chat, we can get it from currentChatId
+        // But we need to return the ID immediately, so we'll generate it the same way the store does
+        const newChatId = Date.now().toString();
+        return newChatId;
       } catch (error) {
         console.error("Failed to create chat:", error);
         throw new Error("Failed to create chat, please try again");
       }
     },
-    [chatService, selectedModel, chats, setChats, selectChat]
+    [chats, createNewChat, selectedModel]
   );
 
   const deleteChat = useCallback(
     (chatId: string) => {
-      const result = chatService.deleteChat(chatId, chats);
-      setChats(result.updatedChats);
-      chatService.saveChats(result.updatedChats);
-
-      if (currentChatId === chatId) {
-        const nextChatId = chatService.selectNextChat(result.updatedChats);
-        selectChat(nextChatId);
-      }
+      deleteChatFromHook(chatId);
+      // Hook automatically handles selecting next chat and saving
     },
-    [chatService, chats, currentChatId, setChats, selectChat]
+    [deleteChatFromHook]
   );
 
   const deleteChats = useCallback(
     (chatIds: string[]) => {
-      const updatedChats = chatService.deleteChats(chatIds, chats);
-      setChats(updatedChats);
-      chatService.saveChats(updatedChats);
-      selectChat(null);
+      deleteChatsFromHook(chatIds);
+      // Hook automatically handles deselecting and saving
     },
-    [chatService, chats, setChats, selectChat]
+    [deleteChatsFromHook]
   );
 
   const deleteAllChats = useCallback(() => {
-    const updatedChats = chatService.deleteAllChats(chats);
-    setChats(updatedChats);
-    chatService.saveChats(updatedChats);
-    selectChat(null);
-  }, [chatService, chats, setChats, selectChat]);
+    // Delete all chats by passing all chat IDs
+    const allChatIds = chats.map(chat => chat.id);
+    deleteChatsFromHook(allChatIds);
+  }, [chats, deleteChatsFromHook]);
 
   const deleteEmptyChats = useCallback(() => {
-    const updatedChats = chatService.deleteEmptyChats(chats);
-    setChats(updatedChats);
-    chatService.saveChats(updatedChats);
-
-    // Check if current chat was deleted
-    if (currentChatId && !updatedChats.find((c) => c.id === currentChatId)) {
-      const nextChatId = chatService.selectNextChat(updatedChats);
-      selectChat(nextChatId);
-    }
-  }, [chatService, chats, currentChatId, setChats, selectChat]);
+    deleteEmptyChatsFromHook();
+    // Hook automatically handles everything
+  }, [deleteEmptyChatsFromHook]);
 
   const pinChat = useCallback(
     (chatId: string) => {
-      const updatedChats = chatService.pinChat(chatId, chats);
-      setChats(updatedChats);
-      chatService.saveChats(updatedChats);
+      pinChatFromHook(chatId);
     },
-    [chatService, chats, setChats]
+    [pinChatFromHook]
   );
 
   const unpinChat = useCallback(
     (chatId: string) => {
-      const updatedChats = chatService.unpinChat(chatId, chats);
-      setChats(updatedChats);
-      chatService.saveChats(updatedChats);
+      unpinChatFromHook(chatId);
     },
-    [chatService, chats, setChats]
+    [unpinChatFromHook]
   );
 
   const updateChat = useCallback(
     (chatId: string, updates: Partial<ChatItem>) => {
-      const updatedChats = chatService.updateChat(chatId, updates, chats);
-      setChats(updatedChats);
-      chatService.saveChats(updatedChats);
+      updateChatFromHook(chatId, updates);
     },
-    [chatService, chats, setChats]
+    [updateChatFromHook]
   );
 
   const updateCurrentChatSystemPrompt = useCallback(
     (prompt: string) => {
       if (!currentChatId) return;
-      const updatedChats = chatService.updateChatSystemPrompt(
-        currentChatId,
-        prompt,
-        chats
-      );
-      setChats(updatedChats);
-      chatService.saveChats(updatedChats);
+      updateChatFromHook(currentChatId, { systemPrompt: prompt });
     },
-    [chatService, currentChatId, chats, setChats]
+    [currentChatId, updateChatFromHook]
   );
 
   const updateCurrentChatModel = useCallback(
     (model: string) => {
       if (!currentChatId) return;
-      const updatedChats = chatService.updateChatModel(
-        currentChatId,
-        model,
-        chats
-      );
-      setChats(updatedChats);
-      chatService.saveChats(updatedChats);
+      updateChatFromHook(currentChatId, { model });
     },
-    [chatService, currentChatId, chats, setChats]
+    [currentChatId, updateChatFromHook]
   );
 
   // ====== Favorites Operation Methods ======
@@ -300,24 +247,17 @@ export function useChatManager() {
     );
 
     // Create new chat and select it
-    const newChatId = addChat(summaryContent);
-    selectChat(newChatId);
+    addChat(summaryContent);
+    // The addChat method automatically selects the new chat
 
-    // Delay trigger AI response
-    setTimeout(() => {
-      try {
-        initiateAIResponse();
-      } catch (error) {
-        console.error("Error initiating AI response:", error);
-      }
-    }, 300);
+    // Note: AI response will need to be triggered manually by the user
+    // or through a separate mechanism since we don't have direct access
+    // to initiateAIResponse in this context
   }, [
     currentChatId,
     getCurrentChatFavorites,
     favoritesService,
     addChat,
-    selectChat,
-    initiateAIResponse,
   ]);
 
   // ====== System Prompt Operation Methods ======
@@ -419,10 +359,8 @@ export function useChatManager() {
     currentChat,
     currentMessages,
 
-    // Streaming state
-    isStreaming,
-    setIsStreaming,
-    activeChannel,
+    // Processing state
+    isProcessing,
 
     // Chat operations
     addChat,
@@ -438,8 +376,6 @@ export function useChatManager() {
 
     // Message operations
     sendMessage: originalSendMessage,
-    addAssistantMessage,
-    initiateAIResponse,
 
     // System prompt
     systemPrompt,

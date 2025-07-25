@@ -5,6 +5,7 @@ import { ChatView } from "../components/ChatView";
 import { FavoritesPanel } from "../components/FavoritesPanel";
 import { listen } from "@tauri-apps/api/event";
 import { useChatStore, useCurrentMessages } from "../store/chatStore";
+import { getMessageText } from "../types/chat";
 
 import "./styles.css";
 
@@ -67,7 +68,8 @@ export const MainLayout: React.FC<{
         "[MainLayout] useEffect: Auto triggering AI response for new chat."
       );
       if (currentChatId) {
-        initiateAIResponse(currentChatId, currentMessages[0].content);
+        const messageContent = getMessageText(currentMessages[0].content);
+        initiateAIResponse(currentChatId, messageContent);
       }
       pendingAIRef.current = false;
     }

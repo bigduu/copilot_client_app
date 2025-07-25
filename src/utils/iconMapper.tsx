@@ -1,4 +1,4 @@
-import React from 'react';
+import React from "react";
 import {
   FileTextOutlined,
   PlayCircleOutlined,
@@ -24,7 +24,7 @@ import {
   ExclamationCircleOutlined,
   InfoCircleOutlined,
   QuestionCircleOutlined,
-} from '@ant-design/icons';
+} from "@ant-design/icons";
 
 /**
  * Icon mapping from string names to React components
@@ -32,34 +32,34 @@ import {
  */
 const ICON_MAP: Record<string, React.ReactNode> = {
   // Category icons
-  'FileTextOutlined': <FileTextOutlined />,
-  'PlayCircleOutlined': <PlayCircleOutlined />,
-  'ToolOutlined': <ToolOutlined />,
-  'RobotOutlined': <RobotOutlined />,
-  'FolderOutlined': <FolderOutlined />,
-  'CodeOutlined': <CodeOutlined />,
-  'SettingOutlined': <SettingOutlined />,
-  'DatabaseOutlined': <DatabaseOutlined />,
-  'CloudOutlined': <CloudOutlined />,
-  'ApiOutlined': <ApiOutlined />,
-  'BugOutlined': <BugOutlined />,
-  'BuildOutlined': <BuildOutlined />,
-  
+  FileTextOutlined: <FileTextOutlined />,
+  PlayCircleOutlined: <PlayCircleOutlined />,
+  ToolOutlined: <ToolOutlined />,
+  RobotOutlined: <RobotOutlined />,
+  FolderOutlined: <FolderOutlined />,
+  CodeOutlined: <CodeOutlined />,
+  SettingOutlined: <SettingOutlined />,
+  DatabaseOutlined: <DatabaseOutlined />,
+  CloudOutlined: <CloudOutlined />,
+  ApiOutlined: <ApiOutlined />,
+  BugOutlined: <BugOutlined />,
+  BuildOutlined: <BuildOutlined />,
+
   // File operation icons
-  'FileSearchOutlined': <FileSearchOutlined />,
-  'EditOutlined': <EditOutlined />,
-  'DeleteOutlined': <DeleteOutlined />,
-  'CopyOutlined': <CopyOutlined />,
-  'SaveOutlined': <SaveOutlined />,
-  'UploadOutlined': <UploadOutlined />,
-  'DownloadOutlined': <DownloadOutlined />,
-  
+  FileSearchOutlined: <FileSearchOutlined />,
+  EditOutlined: <EditOutlined />,
+  DeleteOutlined: <DeleteOutlined />,
+  CopyOutlined: <CopyOutlined />,
+  SaveOutlined: <SaveOutlined />,
+  UploadOutlined: <UploadOutlined />,
+  DownloadOutlined: <DownloadOutlined />,
+
   // Status icons
-  'SyncOutlined': <SyncOutlined />,
-  'CheckCircleOutlined': <CheckCircleOutlined />,
-  'ExclamationCircleOutlined': <ExclamationCircleOutlined />,
-  'InfoCircleOutlined': <InfoCircleOutlined />,
-  'QuestionCircleOutlined': <QuestionCircleOutlined />,
+  SyncOutlined: <SyncOutlined />,
+  CheckCircleOutlined: <CheckCircleOutlined />,
+  ExclamationCircleOutlined: <ExclamationCircleOutlined />,
+  InfoCircleOutlined: <InfoCircleOutlined />,
+  QuestionCircleOutlined: <QuestionCircleOutlined />,
 };
 
 /**
@@ -69,26 +69,29 @@ const ICON_MAP: Record<string, React.ReactNode> = {
  * @returns React icon component
  */
 export const getIconComponent = (
-  iconName: string, 
+  iconName: string,
   fallback: React.ReactNode = <ToolOutlined />
 ): React.ReactNode => {
   // If it's already a React component or emoji, return as is
-  if (React.isValidElement(iconName) || /^[\u{1F000}-\u{1F9FF}]/.test(iconName)) {
+  if (
+    React.isValidElement(iconName) ||
+    /^[\u{1F000}-\u{1F9FF}]/u.test(iconName)
+  ) {
     return iconName;
   }
-  
+
   // Look up in the icon map
   const iconComponent = ICON_MAP[iconName];
-  
+
   if (iconComponent) {
     return iconComponent;
   }
-  
+
   // If not found, check if it's an emoji or other valid display string
   if (iconName && iconName.length <= 4) {
     return <span>{iconName}</span>;
   }
-  
+
   // Return fallback icon
   return fallback;
 };

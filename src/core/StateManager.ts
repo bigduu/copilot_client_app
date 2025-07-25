@@ -7,7 +7,7 @@ import {
   StateListener,
   Unsubscribe,
   ExtendedMessage,
-  OperationResult
+  // OperationResult
 } from '../types/unified-chat';
 import { ChatItem } from '../types/chat';
 

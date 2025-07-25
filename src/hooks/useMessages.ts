@@ -1,5 +1,5 @@
 import { useChatStore, useCurrentMessages } from '../store/chatStore';
-import { Message, MessageImage, getMessageText, createTextContent, createContentWithImages } from '../types/chat';
+import { Message, MessageImage, getMessageText, createContentWithImages } from '../types/chat';
 import { ToolCallProcessor } from '../services/ToolCallProcessor';
 import { ImageFile } from '../utils/imageUtils';
 

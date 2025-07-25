@@ -5,24 +5,24 @@ import { ChatItem, Message, SystemPromptPreset, FavoriteItem, createTextContent 
 import SystemPromptEnhancer from '../services/SystemPromptEnhancer';
 
 // Get default category ID from backend (highest priority category)
-const getDefaultCategoryId = async (): Promise<string> => {
-  try {
-    const { invoke } = await import('@tauri-apps/api/core');
-    const categories = await invoke<any[]>('get_tool_categories');
+// const getDefaultCategoryId = async (): Promise<string> => {
+//   try {
+//     const { invoke } = await import('@tauri-apps/api/core');
+//     const categories = await invoke<any[]>('get_tool_categories');
 
-    // Return the first category (highest priority) as default
-    if (categories.length > 0) {
-      return categories[0].id;
-    }
+//     // Return the first category (highest priority) as default
+//     if (categories.length > 0) {
+//       return categories[0].id;
+//     }
 
-    // Fallback if no categories available
-    throw new Error('No categories available from backend');
-  } catch (error) {
-    console.error('Failed to get default category ID:', error);
-    // Emergency fallback - this should not happen in production
-    return 'general_assistant';
-  }
-};
+//     // Fallback if no categories available
+//     throw new Error('No categories available from backend');
+//   } catch (error) {
+//     console.error('Failed to get default category ID:', error);
+//     // Emergency fallback - this should not happen in production
+//     return 'general_assistant';
+//   }
+// };
 
 // 临时的简化存储服务
 const tempStorageService = {
@@ -121,7 +121,7 @@ interface ChatState {
 
   // Actions
   addChat: (chat: Omit<ChatItem, 'id'>) => void;
-  selectChat: (chatId: string) => void;
+  selectChat: (chatId: string | null) => void;
   deleteChat: (chatId: string) => void;
   deleteChats: (chatIds: string[]) => void;
   updateChat: (chatId: string, updates: Partial<ChatItem>) => void;
@@ -146,6 +146,7 @@ interface ChatState {
 
   initiateAIResponse: (chatId: string, userMessage: string) => Promise<void>;
   triggerAIResponseOnly: (chatId: string) => Promise<void>;
+  handleAIToolCall: (chatId: string, aiResponse: string) => Promise<void>;
 }
 
 export const useChatStore = create<ChatState>((set, get) => ({

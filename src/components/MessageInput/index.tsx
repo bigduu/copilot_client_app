@@ -49,7 +49,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
   onSubmit,
   onRetry,
   isStreaming,
-  isCenteredLayout = false,
+  // isCenteredLayout = false,
   placeholder = "Send a message...",
   disabled = false,
   showRetryButton = true,
