@@ -13,9 +13,14 @@ import {
   theme,
   Flex,
 } from "antd";
-import { DeleteOutlined } from "@ant-design/icons";
+import {
+  DeleteOutlined,
+  ApiOutlined,
+  DesktopOutlined,
+} from "@ant-design/icons";
 import { useChats } from "../../hooks/useChats";
 import { useModels } from "../../hooks/useModels";
+import { useServiceMode } from "../../hooks/useServiceMode";
 import {
   isMermaidEnhancementEnabled,
   setMermaidEnhancementEnabled,
@@ -44,12 +49,33 @@ const ModelSelection = ({
   const modelOptions =
     models && models.length > 0 ? models : selectedModel ? [selectedModel] : [];
 
+  // 优雅处理没有模型的情况
   if (modelOptions.length === 0) {
-    throw new Error("没有可用的模型选项");
+    return (
+      <Space
+        direction="vertical"
+        size={token.marginXS}
+        style={{ width: "100%" }}
+      >
+        <Text strong>Model Selection</Text>
+        <Text type="warning">没有可用的模型选项，请检查服务连接</Text>
+      </Space>
+    );
   }
 
-  if (!selectedModel) {
-    throw new Error("未选择模型");
+  // 如果没有选择模型但有可用模型，自动选择第一个
+  if (!selectedModel && modelOptions.length > 0) {
+    onModelChange(modelOptions[0]);
+    return (
+      <Space
+        direction="vertical"
+        size={token.marginXS}
+        style={{ width: "100%" }}
+      >
+        <Text strong>Model Selection</Text>
+        <Spin size="small" />
+      </Space>
+    );
   }
 
   const value = selectedModel;
@@ -103,6 +129,7 @@ const SystemSettingsModal = ({
     selectedModel,
     setSelectedModel,
   } = useModels();
+  const { setServiceMode, isOpenAIMode } = useServiceMode();
 
   const handleDeleteAll = () => {
     deleteAllUnpinnedChats();
@@ -142,6 +169,35 @@ const SystemSettingsModal = ({
         size={token.marginSM}
         style={{ width: "100%" }}
       >
+        <Flex align="center" gap={token.marginSM}>
+          <Text strong>Service Mode</Text>
+          <Switch
+            checked={isOpenAIMode}
+            onChange={(checked) => {
+              const mode = checked ? "openai" : "tauri";
+              setServiceMode(mode);
+              msgApi.success(
+                `Switched to ${checked ? "OpenAI API" : "Tauri"} mode`
+              );
+            }}
+            checkedChildren={
+              <Flex align="center" gap={4}>
+                <ApiOutlined />
+                OpenAI
+              </Flex>
+            }
+            unCheckedChildren={
+              <Flex align="center" gap={4}>
+                <DesktopOutlined />
+                Tauri
+              </Flex>
+            }
+          />
+        </Flex>
+        <Text type="secondary" style={{ fontSize: token.fontSizeSM }}>
+          OpenAI mode uses standard HTTP API calls, Tauri mode uses native
+          commands
+        </Text>
         <Flex align="center" gap={token.marginSM}>
           <Text strong>Dark Mode</Text>
           <Switch

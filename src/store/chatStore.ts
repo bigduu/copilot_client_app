@@ -4,6 +4,7 @@ import { OptimizedStorageService, OptimizedChatItem } from '../services/Optimize
 // import { TauriService } from '../services/TauriService';
 // import { StorageService } from '../services/StorageService';
 import SystemPromptEnhancer from '../services/SystemPromptEnhancer';
+import { serviceFactory } from '../services/ServiceFactory';
 
 // Get default category ID from backend (highest priority category)
 // const getDefaultCategoryId = async (): Promise<string> => {
@@ -58,6 +59,7 @@ interface ChatState {
   systemPromptPresets: SystemPromptPreset[];
   favorites: FavoriteItem[];
   isProcessing: boolean;
+  streamingMessage: { chatId: string; content: string } | null;
 
   // Actions
   addChat: (chat: Omit<ChatItem, 'id'>) => void;
@@ -74,6 +76,7 @@ interface ChatState {
   
   loadChats: () => Promise<void>;
   saveChats: () => Promise<void>;
+  saveChatsDebounced?: () => void;
 
   loadSystemPromptPresets: () => Promise<void>;
   setSystemPromptPresets: (presets: SystemPromptPreset[]) => void;
@@ -98,6 +101,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   systemPromptPresets: [],
   favorites: [],
   isProcessing: false,
+  streamingMessage: null, // 当前正在流式传输的消息
 
   // Chat management actions
   addChat: (chatData) => {
@@ -214,8 +218,11 @@ export const useChatStore = create<ChatState>((set, get) => ({
       }
     }));
 
-    // Auto-save messages to storage
-    get().saveChats();
+    // 防抖保存 - 避免频繁保存导致性能问题
+    const store = get();
+    if (store.saveChatsDebounced) {
+      store.saveChatsDebounced();
+    }
   },
 
   updateMessage: (chatId, messageId, updates) => {
@@ -238,8 +245,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
       };
     });
 
-    // Auto-save messages to storage
-    get().saveChats();
+    // 暂时移除自动保存，避免在流式响应中频繁保存导致状态更新循环
+    // 保存将在流式响应完成时进行
   },
 
   deleteMessage: (chatId, messageId) => {
@@ -446,7 +453,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
   // AI interaction - 调用真正的 AI 服务
   initiateAIResponse: async (chatId, userMessage) => {
-    const { addMessage, messages, chats } = get();
+    const { addMessage } = get();
 
     // Add user message
     const userMsg: Message = {
@@ -459,9 +466,16 @@ export const useChatStore = create<ChatState>((set, get) => ({
     set({ isProcessing: true });
 
     try {
-      // 获取当前聊天的所有消息（包括刚添加的用户消息）
-      const chatMessages = messages[chatId] || [];
-      const currentChat = chats.find(chat => chat.id === chatId);
+      // 获取当前聊天的所有消息（不包括刚添加的用户消息，我们会手动添加）
+      const currentState = get();
+      const existingMessages = currentState.messages[chatId] || [];
+      const currentChat = currentState.chats.find(chat => chat.id === chatId);
+
+      // 手动构建包含新用户消息的消息列表
+      const chatMessages = [...existingMessages, userMsg];
+
+      console.log('[chatStore] Messages to send:', chatMessages.length, 'messages');
+      console.log('[chatStore] Last message:', chatMessages[chatMessages.length - 1]);
 
       // 构建发送给 AI 的消息列表，包含系统提示
       const messagesToSend: Message[] = [];
@@ -499,23 +513,42 @@ export const useChatStore = create<ChatState>((set, get) => ({
       // 添加所有聊天消息
       messagesToSend.push(...chatMessages);
 
-      // 调用 Tauri 后端的 execute_prompt 命令
-      const { invoke } = await import('@tauri-apps/api/core');
-      const { Channel } = await import('@tauri-apps/api/core');
-
-      // 创建流式响应通道
-      const channel = new Channel<string>();
+      // 使用 ServiceFactory 调用 AI 服务
       let assistantResponse = '';
 
       // Generate unique turn ID to avoid updating previous messages
       const turnId = Date.now();
-      let isStreamingComplete = false;
+      let lastUpdateTime = 0;
+      const UPDATE_THROTTLE_MS = 150; // 限制更新频率为150ms，提升UI流畅度
 
-      // 监听流式响应
-      channel.onmessage = async (rawMessage) => {
+      // 处理流式响应的回调函数
+      const handleStreamChunk = async (rawMessage: string) => {
         // 处理 [DONE] 信号
         if (rawMessage.trim() === '[DONE]') {
-          isStreamingComplete = true;
+
+          // 确保最后的内容显示在流式消息中
+          if (assistantResponse) {
+            set({ streamingMessage: { chatId, content: assistantResponse } });
+
+            // 短暂延迟后转换为正式消息，确保用户看到完整内容
+            setTimeout(() => {
+              const assistantMsg: Message = {
+                id: `assistant-${turnId}`,
+                content: assistantResponse,
+                role: 'assistant',
+              };
+              addMessage(chatId, assistantMsg);
+
+              // 清除流式消息状态
+              set({ streamingMessage: null });
+            }, 100);
+          } else {
+            // 没有内容时直接清除
+            set({ streamingMessage: null });
+          }
+
+          // 流式响应完成，保存聊天数据
+          get().saveChats();
 
           // 检查AI响应是否包含工具调用（仅在非严格模式下）
           try {
@@ -579,25 +612,13 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
                   // 实时更新 AI 响应消息
                   // Use the turn ID generated at the beginning to avoid updating previous messages
-                  const messageId = `ai-${chatId}-${turnId}`;
-                  const assistantMsg: Message = {
-                    id: messageId,
-                    content: assistantResponse,
-                    role: 'assistant',
-                  };
+                  // 使用节流来减少UI更新频率
+                  const now = Date.now();
+                  const timeSinceLastUpdate = now - lastUpdateTime;
 
-                  // 更新或添加 AI 消息 - only look for messages from this specific turn
-                  const currentMessages = get().messages[chatId] || [];
-                  const existingMsg = currentMessages.find(msg => msg.id === messageId);
-
-                  if (existingMsg) {
-                    // Only update if content has actually changed to prevent infinite loops
-                    if (existingMsg.content !== assistantResponse && !isStreamingComplete) {
-                      get().updateMessage(chatId, messageId, { content: assistantResponse });
-                    }
-                  } else {
-                    // 添加新消息
-                    addMessage(chatId, assistantMsg);
+                  if (timeSinceLastUpdate > UPDATE_THROTTLE_MS) {
+                    lastUpdateTime = now;
+                    set({ streamingMessage: { chatId, content: assistantResponse } });
                   }
                 }
               }
@@ -610,11 +631,11 @@ export const useChatStore = create<ChatState>((set, get) => ({
       };
 
       // 调用后端 AI 服务
-      await invoke('execute_prompt', {
-        messages: messagesToSend,
-        model: currentChat?.model || null,
-        channel,
-      });
+      await serviceFactory.executePrompt(
+        messagesToSend,
+        currentChat?.model || undefined,
+        handleStreamChunk
+      );
 
       set({ isProcessing: false });
     } catch (error) {
@@ -676,23 +697,42 @@ export const useChatStore = create<ChatState>((set, get) => ({
       // 添加所有聊天消息
       messagesToSend.push(...chatMessages);
 
-      // 调用 Tauri 后端的 execute_prompt 命令
-      const { invoke } = await import('@tauri-apps/api/core');
-      const { Channel } = await import('@tauri-apps/api/core');
-
-      // 创建流式响应通道
-      const channel = new Channel<string>();
+      // 使用 ServiceFactory 调用 AI 服务
       let assistantResponse = '';
 
       // Generate unique turn ID to avoid updating previous messages
       const turnId = Date.now();
-      let isStreamingComplete = false;
+      let lastUpdateTime = 0;
+      const UPDATE_THROTTLE_MS = 150; // 限制更新频率为150ms，提升UI流畅度
 
-      // 监听流式响应
-      channel.onmessage = async (rawMessage) => {
+      // 处理流式响应的回调函数
+      const handleStreamChunk = async (rawMessage: string) => {
         // 处理 [DONE] 信号
         if (rawMessage.trim() === '[DONE]') {
-          isStreamingComplete = true;
+
+          // 确保最后的内容显示在流式消息中
+          if (assistantResponse) {
+            set({ streamingMessage: { chatId, content: assistantResponse } });
+
+            // 短暂延迟后转换为正式消息，确保用户看到完整内容
+            setTimeout(() => {
+              const assistantMsg: Message = {
+                id: `assistant-${turnId}`,
+                content: assistantResponse,
+                role: 'assistant',
+              };
+              addMessage(chatId, assistantMsg);
+
+              // 清除流式消息状态
+              set({ streamingMessage: null });
+            }, 100);
+          } else {
+            // 没有内容时直接清除
+            set({ streamingMessage: null });
+          }
+
+          // 流式响应完成，保存聊天数据
+          get().saveChats();
 
           // 检查AI响应是否包含工具调用（仅在非严格模式下）
           try {
@@ -754,27 +794,13 @@ export const useChatStore = create<ChatState>((set, get) => ({
                   // 累积内容
                   assistantResponse += newContent;
 
-                  // 实时更新 AI 响应消息
-                  // Use the turn ID generated at the beginning to avoid updating previous messages
-                  const messageId = `ai-${chatId}-${turnId}`;
-                  const assistantMsg: Message = {
-                    id: messageId,
-                    content: assistantResponse,
-                    role: 'assistant',
-                  };
+                  // 使用节流来减少UI更新频率
+                  const now = Date.now();
+                  const timeSinceLastUpdate = now - lastUpdateTime;
 
-                  // 更新或添加 AI 消息 - only look for messages from this specific turn
-                  const currentMessages = get().messages[chatId] || [];
-                  const existingMsg = currentMessages.find(msg => msg.id === messageId);
-
-                  if (existingMsg) {
-                    // Only update if content has actually changed to prevent infinite loops
-                    if (existingMsg.content !== assistantResponse && !isStreamingComplete) {
-                      get().updateMessage(chatId, messageId, { content: assistantResponse });
-                    }
-                  } else {
-                    // 添加新消息
-                    addMessage(chatId, assistantMsg);
+                  if (timeSinceLastUpdate > UPDATE_THROTTLE_MS) {
+                    lastUpdateTime = now;
+                    set({ streamingMessage: { chatId, content: assistantResponse } });
                   }
                 }
               }
@@ -787,11 +813,11 @@ export const useChatStore = create<ChatState>((set, get) => ({
       };
 
       // 调用后端 AI 服务
-      await invoke('execute_prompt', {
-        messages: messagesToSend,
-        model: currentChat?.model || null,
-        channel,
-      });
+      await serviceFactory.executePrompt(
+        messagesToSend,
+        currentChat?.model || undefined,
+        handleStreamChunk
+      );
 
       set({ isProcessing: false });
     } catch (error) {
@@ -866,15 +892,11 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
       // Process the tool call
       const result = await processor.processToolCall(toolCall, undefined, async (messages) => {
-        // This is the sendLLMRequest function for AI parameter parsing
-        const { invoke } = await import('@tauri-apps/api/core');
-        const { Channel } = await import('@tauri-apps/api/core');
-
+        // This is the sendLLMRequest function for AI parameter parsing using ServiceFactory
         return new Promise((resolve, reject) => {
-          const tempChannel = new Channel<string>();
           let response = '';
 
-          tempChannel.onmessage = (rawMessage) => {
+          const handleChunk = (rawMessage: string) => {
             // Handle [DONE] signal
             if (rawMessage.trim() === '[DONE]') {
               resolve(response);
@@ -919,11 +941,10 @@ export const useChatStore = create<ChatState>((set, get) => ({
             }
           };
 
-          invoke("execute_prompt", {
-            messages,
-            channel: tempChannel,
-            model: null,
-          }).catch(reject);
+          // Use ServiceFactory to execute prompt
+          serviceFactory.executePrompt(messages, undefined, handleChunk)
+            .then(() => resolve(response))
+            .catch(reject);
         });
       });
 
@@ -950,6 +971,22 @@ export const useChatStore = create<ChatState>((set, get) => ({
     }
   },
 }));
+
+// 添加防抖保存功能
+let saveChatsTimeout: number | null = null;
+const SAVE_DEBOUNCE_MS = 500; // 500ms防抖
+
+// 在store创建后立即添加防抖函数
+const store = useChatStore.getState();
+store.saveChatsDebounced = () => {
+  if (saveChatsTimeout) {
+    clearTimeout(saveChatsTimeout);
+  }
+  saveChatsTimeout = setTimeout(() => {
+    store.saveChats();
+    saveChatsTimeout = null;
+  }, SAVE_DEBOUNCE_MS);
+};
 
 // Convenience hooks for specific data
 export const useChats = () => useChatStore(state => state.chats);

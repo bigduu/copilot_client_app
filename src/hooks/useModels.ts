@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { invoke } from '@tauri-apps/api/core';
+import { serviceFactory } from '../services/ServiceFactory';
 
 const SELECTED_MODEL_LS_KEY = 'copilot_selected_model_id';
 
@@ -13,7 +13,7 @@ export const useModels = () => {
         setIsLoading(true);
         setError(null);
         try {
-            const availableModels = await invoke<string[]>('get_models');
+            const availableModels = await serviceFactory.getModels();
             setModels(availableModels);
 
             const storedModelId = localStorage.getItem(SELECTED_MODEL_LS_KEY);
@@ -24,8 +24,9 @@ export const useModels = () => {
                 setSelectedModelState(availableModels[0]);
                 localStorage.setItem(SELECTED_MODEL_LS_KEY, availableModels[0]);
             } else {
-                // 严格模式：没有模型时抛出错误
-                throw new Error("没有可用模型，请检查后端配置");
+                // 没有模型时设置错误状态，但不抛出异常
+                setError("没有可用的模型选项");
+                console.warn("No models available from service");
             }
         } catch (err) {
             const errorMessage = err instanceof Error ? err.message : String(err);
@@ -39,9 +40,15 @@ export const useModels = () => {
                 if (models.length === 0) {
                     setModels([storedModelId]);
                 }
+                // 清除错误状态，因为我们有缓存的模型
+                setError(null);
             } else {
-                // 没有存储模型且获取失败时抛出错误
-                throw new Error("获取模型列表失败且没有缓存模型");
+                // 没有存储模型且获取失败时，设置默认模型避免崩溃
+                const fallbackModels = ['gpt-4.1', 'gpt-4', 'gpt-3.5-turbo'];
+                setModels(fallbackModels);
+                setSelectedModelState(fallbackModels[0]);
+                localStorage.setItem(SELECTED_MODEL_LS_KEY, fallbackModels[0]);
+                console.warn('Using fallback models due to service unavailability');
             }
         } finally {
             setIsLoading(false);
