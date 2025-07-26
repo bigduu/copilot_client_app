@@ -18,11 +18,20 @@ import {
   SettingOutlined,
   MenuFoldOutlined,
   MenuUnfoldOutlined,
+  DownOutlined,
+  RightOutlined,
+  DeleteOutlined,
+  CalendarOutlined,
 } from "@ant-design/icons";
 import { useChatStore } from "../../store/chatStore";
 import {
   groupChatsByToolCategory,
+  groupChatsByDateAndCategory,
+  getSortedDateKeys,
   getCategoryDisplayInfoAsync,
+  getChatIdsByDate,
+  getChatIdsByDateAndCategory,
+  getChatCountByDate,
 } from "../../utils/chatUtils";
 import { SystemSettingsModal } from "../SystemSettingsModal";
 import { ChatItem as ChatItemComponent } from "../ChatItem";
@@ -67,6 +76,7 @@ export const ChatSidebar: React.FC<{
   const [isSelectMode, setIsSelectMode] = useState(false);
   const [selectedChatIds, setSelectedChatIds] = useState<string[]>([]);
   const [footerHeight, setFooterHeight] = useState(0);
+
   // 添加类别信息缓存和loading状态
   const [categoryInfoCache, setCategoryInfoCache] = useState<
     Record<string, any>
@@ -74,6 +84,16 @@ export const ChatSidebar: React.FC<{
   const [loadingCategories, setLoadingCategories] = useState<Set<string>>(
     new Set()
   );
+
+  // 折叠/展开状态管理
+  const [expandedDates, setExpandedDates] = useState<Set<string>>(
+    new Set(["Today"]) // 默认展开今天
+  );
+  const [expandedCategories, setExpandedCategories] = useState<
+    Record<string, Set<string>>
+  >({
+    Today: new Set(), // 今天的所有categories默认展开，空Set表示全部展开
+  });
   const footerRef = useRef<HTMLDivElement>(null);
   const screens = useBreakpoint();
 
@@ -150,6 +170,52 @@ export const ChatSidebar: React.FC<{
     return Object.fromEntries(sortedEntries);
   };
 
+  // 折叠/展开辅助函数
+  const toggleDateExpansion = (dateKey: string) => {
+    setExpandedDates((prev) => {
+      const newSet = new Set(prev);
+      if (newSet.has(dateKey)) {
+        newSet.delete(dateKey);
+      } else {
+        newSet.add(dateKey);
+        // 当展开日期时，默认展开该日期下的所有categories
+        setExpandedCategories((prevCategories) => ({
+          ...prevCategories,
+          [dateKey]: new Set(), // 空Set表示全部展开
+        }));
+      }
+      return newSet;
+    });
+  };
+
+  const toggleCategoryExpansion = (dateKey: string, category: string) => {
+    setExpandedCategories((prev) => {
+      const dateCategories = prev[dateKey] || new Set();
+      const newDateCategories = new Set(dateCategories);
+
+      if (newDateCategories.has(category)) {
+        newDateCategories.delete(category);
+      } else {
+        newDateCategories.add(category);
+      }
+
+      return {
+        ...prev,
+        [dateKey]: newDateCategories,
+      };
+    });
+  };
+
+  const isDateExpanded = (dateKey: string): boolean => {
+    return expandedDates.has(dateKey);
+  };
+
+  const isCategoryExpanded = (dateKey: string, category: string): boolean => {
+    const dateCategories = expandedCategories[dateKey];
+    if (!dateCategories) return false; // 如果日期没有展开，category也不展开
+    return dateCategories.size === 0 || !dateCategories.has(category); // 空Set表示全部展开
+  };
+
   // Load system prompt presets on component mount
   useEffect(() => {
     loadSystemPromptPresets();
@@ -175,13 +241,29 @@ export const ChatSidebar: React.FC<{
     }
   }, [screens]);
 
-  // Group chats by tool category
+  // Group chats by date and category (new structure)
+  const groupedChatsByDate = groupChatsByDateAndCategory(chats);
+  const sortedDateKeys = getSortedDateKeys(groupedChatsByDate);
+
+  // Keep old grouping for collapsed view
   const groupedChats = sortGroupedChats(groupChatsByToolCategory(chats));
 
   // 预加载所有类别信息
   useEffect(() => {
     const loadCategoryInfo = async () => {
-      const categories = Object.keys(groupedChats);
+      // 从新的分组结构中收集所有类别
+      const categories = new Set<string>();
+      Object.values(groupedChatsByDate).forEach((dateGroup) => {
+        Object.keys(dateGroup).forEach((category) => {
+          categories.add(category);
+        });
+      });
+
+      // 也从旧的分组结构中收集类别（用于折叠视图）
+      Object.keys(groupedChats).forEach((category) => {
+        categories.add(category);
+      });
+
       for (const category of categories) {
         if (!categoryInfoCache[category] && !loadingCategories.has(category)) {
           try {
@@ -193,10 +275,13 @@ export const ChatSidebar: React.FC<{
       }
     };
 
-    if (Object.keys(groupedChats).length > 0) {
+    if (
+      Object.keys(groupedChatsByDate).length > 0 ||
+      Object.keys(groupedChats).length > 0
+    ) {
       loadCategoryInfo();
     }
-  }, [chats]); // 监听 chats 变化而不是 groupedChats
+  }, [chats]); // 监听 chats 变化
 
   const handleDelete = (chatId: string) => {
     Modal.confirm({
@@ -233,6 +318,42 @@ export const ChatSidebar: React.FC<{
     } catch (error) {
       console.error("Failed to generate title:", error);
     }
+  };
+
+  // 批量删除处理函数
+  const handleDeleteByDate = (dateKey: string) => {
+    const chatIds = getChatIdsByDate(groupedChatsByDate, dateKey);
+    const chatCount = getChatCountByDate(groupedChatsByDate, dateKey);
+
+    Modal.confirm({
+      title: `Delete all chats from ${dateKey}`,
+      content: `Are you sure you want to delete all ${chatCount} chats from ${dateKey}? This action cannot be undone.`,
+      okText: "Delete",
+      okType: "danger",
+      cancelText: "Cancel",
+      onOk: () => {
+        deleteChats(chatIds);
+      },
+    });
+  };
+
+  const handleDeleteByDateAndCategory = (dateKey: string, category: string) => {
+    const chatIds = getChatIdsByDateAndCategory(
+      groupedChatsByDate,
+      dateKey,
+      category
+    );
+
+    Modal.confirm({
+      title: `Delete chats from ${category}`,
+      content: `Are you sure you want to delete all ${chatIds.length} chats from ${category} in ${dateKey}? This action cannot be undone.`,
+      okText: "Delete",
+      okType: "danger",
+      cancelText: "Cancel",
+      onOk: () => {
+        deleteChats(chatIds);
+      },
+    });
   };
 
   const handleNewChat = () => {
@@ -355,70 +476,267 @@ export const ChatSidebar: React.FC<{
             background-color: rgba(22, 119, 255, 0.08);
             border: 1px solid #1677ff;
           }
+
+          /* Date and Category Group Styles */
+          .date-group-header:hover {
+            background-color: var(--ant-color-fill-tertiary) !important;
+          }
+          .date-group-header .date-delete-btn {
+            opacity: 0 !important;
+            transition: opacity 0.2s;
+          }
+          .date-group-header:hover .date-delete-btn {
+            opacity: 0.6 !important;
+          }
+          .date-delete-btn:hover {
+            opacity: 1 !important;
+            color: var(--ant-color-error) !important;
+          }
+
+          .category-group-header:hover {
+            background-color: var(--ant-color-fill-secondary) !important;
+          }
+          .category-group-header .category-delete-btn {
+            opacity: 0 !important;
+            transition: opacity 0.2s;
+          }
+          .category-group-header:hover .category-delete-btn {
+            opacity: 0.5 !important;
+          }
+          .category-delete-btn:hover {
+            opacity: 1 !important;
+            color: var(--ant-color-error) !important;
+          }
+
+          /* Smooth expand/collapse animations */
+          .date-group-content {
+            overflow: hidden;
+            transition: max-height 0.3s ease-in-out, opacity 0.2s ease-in-out;
+          }
+          .category-group-content {
+            overflow: hidden;
+            transition: max-height 0.2s ease-in-out, opacity 0.15s ease-in-out;
+          }
+
+          /* Empty state styles */
+          .empty-state {
+            text-align: center;
+            padding: 40px 20px;
+            color: var(--ant-color-text-tertiary);
+          }
+          .empty-state .empty-icon {
+            font-size: 48px;
+            margin-bottom: 16px;
+            opacity: 0.5;
+          }
         `}</style>
 
         {!collapsed ? (
           <Space direction="vertical" size="small" style={{ width: "100%" }}>
-            {Object.entries(groupedChats).map(
-              ([category, chatsInGroup], idx) => {
-                const categoryInfo = categoryInfoCache[category] || {
-                  name: category,
-                  icon: "🔧",
-                  description: "Loading...",
-                  color: "#666666",
-                };
+            {sortedDateKeys.length === 0 ? (
+              <div className="empty-state">
+                <div className="empty-icon">💬</div>
+                <Text type="secondary">No chats yet</Text>
+                <br />
+                <Text
+                  type="secondary"
+                  style={{ fontSize: "12px", opacity: 0.7 }}
+                >
+                  Click "New Chat" to get started
+                </Text>
+              </div>
+            ) : (
+              sortedDateKeys.map((dateKey, dateIdx) => {
+                const dateGroup = groupedChatsByDate[dateKey];
+                const isDateOpen = isDateExpanded(dateKey);
+                const totalChatsInDate = getChatCountByDate(
+                  groupedChatsByDate,
+                  dateKey
+                );
+
                 return (
-                  <div key={category}>
-                    {idx > 0 && (
+                  <div key={dateKey}>
+                    {dateIdx > 0 && (
                       <Divider style={{ margin: `${token.marginXS}px 0` }} />
                     )}
-                    <Text
-                      type="secondary"
+
+                    {/* Date Group Header */}
+                    <Flex
+                      align="center"
+                      justify="space-between"
                       style={{
-                        fontSize: 12,
-                        margin: "8px 0",
-                        display: "flex",
-                        alignItems: "center",
-                        paddingLeft: 8,
-                        color: categoryInfo.color,
-                        fontWeight: 500,
+                        padding: "8px",
+                        cursor: "pointer",
+                        borderRadius: "6px",
+                        transition: "background-color 0.2s",
+                        backgroundColor: isDateOpen
+                          ? "var(--ant-color-fill-quaternary)"
+                          : "transparent",
                       }}
+                      onClick={() => toggleDateExpansion(dateKey)}
+                      className="date-group-header"
                     >
-                      <span style={{ marginRight: 6 }}>
-                        {categoryInfo.icon}
-                      </span>
-                      {categoryInfo.name}
-                    </Text>
-                    <List
-                      itemLayout="horizontal"
-                      dataSource={chatsInGroup}
-                      split={false}
-                      renderItem={(chat: ChatItem) => (
-                        <ChatItemComponent
-                          key={chat.id}
-                          chat={chat}
-                          isSelected={chat.id === currentChatId}
-                          onSelect={(chatId) => selectChat(chatId)}
-                          onDelete={handleDelete}
-                          onPin={pinChat}
-                          onUnpin={unpinChat}
-                          onEdit={handleEditTitle}
-                          onGenerateTitle={handleGenerateTitle}
-                          SelectMode={isSelectMode}
-                          checked={selectedChatIds.includes(chat.id)}
-                          onCheck={(chatId, checked) => {
-                            setSelectedChatIds((prev) =>
-                              checked
-                                ? [...prev, chatId]
-                                : prev.filter((id) => id !== chatId)
-                            );
+                      <Flex align="center" gap="small">
+                        {isDateOpen ? <DownOutlined /> : <RightOutlined />}
+                        <CalendarOutlined />
+                        <Text
+                          strong
+                          style={{
+                            fontSize: 14,
+                            color:
+                              dateKey === "Today"
+                                ? token.colorPrimary
+                                : "inherit",
                           }}
-                        />
-                      )}
-                    />
+                        >
+                          {dateKey} ({totalChatsInDate})
+                        </Text>
+                      </Flex>
+
+                      {/* Date Group Delete Button */}
+                      <Button
+                        type="text"
+                        size="small"
+                        icon={<DeleteOutlined />}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDeleteByDate(dateKey);
+                        }}
+                        style={{ opacity: 0.6 }}
+                        className="date-delete-btn"
+                      />
+                    </Flex>
+
+                    {/* Categories within this date */}
+                    {isDateOpen && (
+                      <div style={{ marginLeft: "16px", marginTop: "8px" }}>
+                        {Object.entries(dateGroup).map(
+                          ([category, chatsInCategory]) => {
+                            const categoryInfo = categoryInfoCache[
+                              category
+                            ] || {
+                              name: category,
+                              icon: "🔧",
+                              description: "Loading...",
+                              color: "#666666",
+                            };
+                            const isCategoryOpen = isCategoryExpanded(
+                              dateKey,
+                              category
+                            );
+
+                            return (
+                              <div
+                                key={`${dateKey}-${category}`}
+                                style={{ marginBottom: "12px" }}
+                              >
+                                {/* Category Header */}
+                                <Flex
+                                  align="center"
+                                  justify="space-between"
+                                  style={{
+                                    padding: "6px 8px",
+                                    cursor: "pointer",
+                                    borderRadius: "4px",
+                                    transition: "background-color 0.2s",
+                                    backgroundColor: isCategoryOpen
+                                      ? "var(--ant-color-fill-tertiary)"
+                                      : "transparent",
+                                  }}
+                                  onClick={() =>
+                                    toggleCategoryExpansion(dateKey, category)
+                                  }
+                                  className="category-group-header"
+                                >
+                                  <Flex align="center" gap="small">
+                                    {isCategoryOpen ? (
+                                      <DownOutlined
+                                        style={{ fontSize: "10px" }}
+                                      />
+                                    ) : (
+                                      <RightOutlined
+                                        style={{ fontSize: "10px" }}
+                                      />
+                                    )}
+                                    <span style={{ marginRight: 4 }}>
+                                      {categoryInfo.icon}
+                                    </span>
+                                    <Text
+                                      type="secondary"
+                                      style={{
+                                        fontSize: 12,
+                                        color: categoryInfo.color,
+                                        fontWeight: 500,
+                                      }}
+                                    >
+                                      {categoryInfo.name} (
+                                      {chatsInCategory.length})
+                                    </Text>
+                                  </Flex>
+
+                                  {/* Category Delete Button */}
+                                  <Button
+                                    type="text"
+                                    size="small"
+                                    icon={<DeleteOutlined />}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleDeleteByDateAndCategory(
+                                        dateKey,
+                                        category
+                                      );
+                                    }}
+                                    style={{ opacity: 0.5, fontSize: "10px" }}
+                                    className="category-delete-btn"
+                                  />
+                                </Flex>
+
+                                {/* Chat Items */}
+                                {isCategoryOpen && (
+                                  <List
+                                    itemLayout="horizontal"
+                                    dataSource={chatsInCategory}
+                                    split={false}
+                                    style={{ marginTop: "4px" }}
+                                    renderItem={(chat: ChatItem) => (
+                                      <ChatItemComponent
+                                        key={chat.id}
+                                        chat={chat}
+                                        isSelected={chat.id === currentChatId}
+                                        onSelect={(chatId) =>
+                                          selectChat(chatId)
+                                        }
+                                        onDelete={handleDelete}
+                                        onPin={pinChat}
+                                        onUnpin={unpinChat}
+                                        onEdit={handleEditTitle}
+                                        onGenerateTitle={handleGenerateTitle}
+                                        SelectMode={isSelectMode}
+                                        checked={selectedChatIds.includes(
+                                          chat.id
+                                        )}
+                                        onCheck={(chatId, checked) => {
+                                          setSelectedChatIds((prev) =>
+                                            checked
+                                              ? [...prev, chatId]
+                                              : prev.filter(
+                                                  (id) => id !== chatId
+                                                )
+                                          );
+                                        }}
+                                      />
+                                    )}
+                                  />
+                                )}
+                              </div>
+                            );
+                          }
+                        )}
+                      </div>
+                    )}
                   </div>
                 );
-              }
+              })
             )}
           </Space>
         ) : (

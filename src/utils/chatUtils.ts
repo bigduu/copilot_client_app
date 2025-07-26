@@ -10,6 +10,60 @@ export const generateChatTitle = (chatNumber: number): string => {
   return `Chat ${chatNumber} - ${date}`;
 };
 
+// Date utility functions for chat grouping
+export const isToday = (date: Date): boolean => {
+  const today = new Date();
+  return date.toDateString() === today.toDateString();
+};
+
+export const isYesterday = (date: Date): boolean => {
+  const yesterday = new Date();
+  yesterday.setDate(yesterday.getDate() - 1);
+  return date.toDateString() === yesterday.toDateString();
+};
+
+export const isThisWeek = (date: Date): boolean => {
+  const today = new Date();
+  const startOfWeek = new Date(today);
+  startOfWeek.setDate(today.getDate() - today.getDay());
+  startOfWeek.setHours(0, 0, 0, 0);
+
+  const endOfWeek = new Date(startOfWeek);
+  endOfWeek.setDate(startOfWeek.getDate() + 6);
+  endOfWeek.setHours(23, 59, 59, 999);
+
+  return date >= startOfWeek && date <= endOfWeek;
+};
+
+export const isThisMonth = (date: Date): boolean => {
+  const today = new Date();
+  return date.getMonth() === today.getMonth() && date.getFullYear() === today.getFullYear();
+};
+
+export const getDateGroupKey = (date: Date): string => {
+  if (isToday(date)) return "Today";
+  if (isYesterday(date)) return "Yesterday";
+  if (isThisWeek(date)) return "This Week";
+  if (isThisMonth(date)) return "This Month";
+
+  // For older dates, group by month
+  return date.toLocaleDateString("en-US", {
+    year: "numeric",
+    month: "long",
+  });
+};
+
+export const getDateGroupWeight = (dateKey: string): number => {
+  const weights: Record<string, number> = {
+    "Today": 0,
+    "Yesterday": 1,
+    "This Week": 2,
+    "This Month": 3,
+  };
+
+  return weights[dateKey] ?? 4; // Older dates get weight 4+
+};
+
 export const groupChatsByDate = (
   chats: ChatItem[]
 ): Record<string, ChatItem[]> => {
@@ -74,6 +128,70 @@ export const groupChatsByToolCategory = (
   });
 
   return grouped;
+};
+
+/**
+ * Group chats by date and then by category within each date
+ * Returns a nested structure: { dateKey: { category: ChatItem[] } }
+ */
+export interface DateCategoryGroup {
+  [dateKey: string]: {
+    [category: string]: ChatItem[];
+  };
+}
+
+export const groupChatsByDateAndCategory = (
+  chats: ChatItem[]
+): DateCategoryGroup => {
+  const grouped: DateCategoryGroup = {};
+
+  // Handle pinned chats first - they go in a special "Pinned" section
+  const pinnedChats = chats.filter((chat) => chat.pinned);
+  if (pinnedChats.length > 0) {
+    grouped["Pinned"] = {
+      "Pinned": pinnedChats.sort((a, b) => b.createdAt - a.createdAt),
+    };
+  }
+
+  // Group non-pinned chats by date first, then by category
+  chats
+    .filter((chat) => !chat.pinned)
+    .forEach((chat) => {
+      const chatDate = new Date(chat.createdAt);
+      const dateKey = getDateGroupKey(chatDate);
+      const category = chat.toolCategory || "General";
+
+      if (!grouped[dateKey]) {
+        grouped[dateKey] = {};
+      }
+      if (!grouped[dateKey][category]) {
+        grouped[dateKey][category] = [];
+      }
+      grouped[dateKey][category].push(chat);
+    });
+
+  // Sort chats within each category by time (newest first)
+  Object.keys(grouped).forEach((dateKey) => {
+    Object.keys(grouped[dateKey]).forEach((category) => {
+      grouped[dateKey][category].sort((a, b) => b.createdAt - a.createdAt);
+    });
+  });
+
+  return grouped;
+};
+
+/**
+ * Get sorted date keys for consistent ordering
+ */
+export const getSortedDateKeys = (grouped: DateCategoryGroup): string[] => {
+  return Object.keys(grouped).sort((a, b) => {
+    // Pinned always comes first
+    if (a === "Pinned") return -1;
+    if (b === "Pinned") return 1;
+
+    // Sort by date group weight
+    return getDateGroupWeight(a) - getDateGroupWeight(b);
+  });
 };
 
 /**
@@ -164,6 +282,51 @@ export const getCategoryWeightAsync = async (category: string): Promise<number> 
     console.error('获取工具类别权重失败:', error);
     throw new Error(`工具类别 "${category}" 的排序权重未配置。请检查后端是否已注册该类别。`);
   }
+};
+
+/**
+ * Get all chat IDs from a specific date group
+ */
+export const getChatIdsByDate = (
+  grouped: DateCategoryGroup,
+  dateKey: string
+): string[] => {
+  if (!grouped[dateKey]) return [];
+
+  const chatIds: string[] = [];
+  Object.values(grouped[dateKey]).forEach((chats) => {
+    chats.forEach((chat) => chatIds.push(chat.id));
+  });
+
+  return chatIds;
+};
+
+/**
+ * Get all chat IDs from a specific date and category
+ */
+export const getChatIdsByDateAndCategory = (
+  grouped: DateCategoryGroup,
+  dateKey: string,
+  category: string
+): string[] => {
+  if (!grouped[dateKey] || !grouped[dateKey][category]) return [];
+
+  return grouped[dateKey][category].map((chat) => chat.id);
+};
+
+/**
+ * Get chat count for a date group
+ */
+export const getChatCountByDate = (
+  grouped: DateCategoryGroup,
+  dateKey: string
+): number => {
+  if (!grouped[dateKey]) return 0;
+
+  return Object.values(grouped[dateKey]).reduce(
+    (total, chats) => total + chats.length,
+    0
+  );
 };
 
 /**

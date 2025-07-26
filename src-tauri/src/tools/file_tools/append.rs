@@ -16,6 +16,12 @@ impl AppendFileTool {
     }
 }
 
+impl Default for AppendFileTool {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[async_trait]
 impl Tool for AppendFileTool {
     fn name(&self) -> String {
