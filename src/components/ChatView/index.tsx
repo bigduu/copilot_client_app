@@ -71,7 +71,7 @@ export const ChatView: React.FC = () => {
   // Responsive container width calculation
   const getContainerMaxWidth = () => {
     if (screens.xs) return "100%";
-    if (screens.sm) return "95%";
+    if (screens.sm) return "100%";
     if (screens.md) return "90%";
     if (screens.lg) return "85%";
     return "1024px"; // Increased from 768px to allow wider input

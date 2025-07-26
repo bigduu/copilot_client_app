@@ -3,9 +3,9 @@ import { message } from "antd";
 import { useChats } from "./useChats";
 import { useMessages } from "./useMessages";
 import { useChatStore } from "../store/chatStore";
-import { Message } from "../types/chat";
 import { ToolService } from "../services/ToolService";
 import { ImageFile, cleanupImagePreviews } from "../utils/imageUtils";
+import { getMessageText } from "../types/chat";
 
 /**
  * useChatInput - Manages chat input related state and logic
@@ -188,29 +188,54 @@ export function useChatInput() {
       const store = useChatStore.getState();
       const currentMessages = store.messages[currentChatId] || [];
 
-      // Find the last assistant message
-      const lastAssistantMessageIndex = currentMessages
-        .map((msg: Message, index: number) => ({ msg, index }))
-        .reverse()
-        .find(({ msg }: { msg: Message }) => msg.role === "assistant")?.index;
+      console.log("[handleRetry] Current chat ID:", currentChatId);
+      console.log("[handleRetry] Total messages:", currentMessages.length);
+      console.log("[handleRetry] Messages:", currentMessages.map((msg, index) => ({
+        index,
+        role: msg.role,
+        id: msg.id,
+        contentPreview: getMessageText(msg.content).substring(0, 50)
+      })));
 
-      if (lastAssistantMessageIndex === undefined) {
-        console.warn("No assistant message found to retry");
-        messageApi.warning("No AI response found to regenerate");
+      // Check if there are any messages to regenerate
+      if (currentMessages.length === 0) {
+        console.warn("[handleRetry] No messages found to retry");
+        messageApi.warning("No messages found to regenerate");
         return;
       }
 
-      const lastAssistantMessage = currentMessages[lastAssistantMessageIndex];
+      // Check if we have at least one user message to generate a response for
+      const lastMessage = currentMessages[currentMessages.length - 1];
+      console.log("[handleRetry] Last message:", {
+        role: lastMessage.role,
+        id: lastMessage.id,
+        contentPreview: getMessageText(lastMessage.content).substring(0, 50)
+      });
 
-      // Delete the last assistant message instead of clearing it
-      store.deleteMessage(currentChatId, lastAssistantMessage.id!);
+      // We can regenerate if:
+      // 1. Last message is from assistant (normal regeneration)
+      // 2. Last message is from user (user deleted AI response and wants to regenerate)
+      if (lastMessage.role !== "assistant" && lastMessage.role !== "user") {
+        console.warn("[handleRetry] Last message is neither from assistant nor user, role:", lastMessage.role);
+        messageApi.warning("Cannot regenerate response for this message type");
+        return;
+      }
 
-      // Trigger AI response only (without adding a new user message)
+      // Check if we have any user messages at all
+      const hasUserMessages = currentMessages.some(msg => msg.role === "user");
+      if (!hasUserMessages) {
+        console.warn("[handleRetry] No user messages found to generate response for");
+        messageApi.warning("No user messages found to generate response for");
+        return;
+      }
+
+      console.log("[handleRetry] Triggering AI response regeneration...");
+      // Trigger AI response only (triggerAIResponseOnly will handle removing the last assistant message)
       await store.triggerAIResponseOnly(currentChatId);
 
-      console.log("AI response retry initiated successfully");
+      console.log("[handleRetry] AI response retry initiated successfully");
     } catch (error) {
-      console.error("Error during retry:", error);
+      console.error("[handleRetry] Error during retry:", error);
       messageApi.error("Failed to regenerate AI response. Please try again.");
       throw error;
     }
