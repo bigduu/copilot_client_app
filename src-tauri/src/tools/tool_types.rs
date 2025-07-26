@@ -4,44 +4,15 @@
 
 use serde::{Deserialize, Serialize};
 
-/// Category type enumeration
+/// Category ID enumeration - provides type-safe category identifiers
 /// Used to identify the functional nature of different categories, frontend can display different icons, styles or functions based on this
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-pub enum CategoryType {
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
+pub enum CategoryId {
     /// File operations category
     FileOperations,
     /// Command execution category
     CommandExecution,
     /// General assistant category
-    GeneralAssistant,
-}
-
-impl CategoryType {
-    /// Get the string representation of the category type
-    pub fn as_str(&self) -> &'static str {
-        match self {
-            CategoryType::FileOperations => "file_operations",
-            CategoryType::CommandExecution => "command_execution",
-            CategoryType::GeneralAssistant => "general_assistant",
-        }
-    }
-
-    /// Create category type from string
-    pub fn from_str(s: &str) -> Option<Self> {
-        match s {
-            "file_operations" => Some(CategoryType::FileOperations),
-            "command_execution" => Some(CategoryType::CommandExecution),
-            "general_assistant" => Some(CategoryType::GeneralAssistant),
-            _ => None,
-        }
-    }
-}
-
-/// Category ID enumeration - provides type-safe category identifiers
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub enum CategoryId {
-    FileOperations,
-    CommandExecution,
     GeneralAssistant,
 }
 
@@ -65,13 +36,9 @@ impl CategoryId {
         }
     }
 
-    /// Convert to CategoryType
-    pub fn to_category_type(&self) -> CategoryType {
-        match self {
-            CategoryId::FileOperations => CategoryType::FileOperations,
-            CategoryId::CommandExecution => CategoryType::CommandExecution,
-            CategoryId::GeneralAssistant => CategoryType::GeneralAssistant,
-        }
+    /// Get the category type string (replaces CategoryType functionality)
+    pub fn category_type(&self) -> &'static str {
+        self.as_str()
     }
 }
 
@@ -131,7 +98,7 @@ pub struct ToolCategory {
     pub strict_tools_mode: bool, // Strict tools mode
     #[serde(default)]
     pub system_prompt: String, // System prompt
-    pub category_type: CategoryType, // Category type
+    pub category_type: CategoryId, // Category type
 }
 
 impl ToolCategory {
@@ -142,7 +109,7 @@ impl ToolCategory {
         description: String,
         icon: String,
         emoji_icon: String,
-        category_type: CategoryType,
+        category_type: CategoryId,
     ) -> Self {
         Self {
             id: name.clone(), // id is the same as name

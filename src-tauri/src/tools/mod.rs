@@ -6,13 +6,12 @@ use async_trait::async_trait;
 use std::fmt::Debug;
 
 // Core modules
+pub mod auto_registry;
 pub mod categories;
 pub mod category;
-pub mod category_factory;
 pub mod file_tools;
-pub mod registration_system;
-pub mod registry;
-pub mod tool_factory;
+pub mod macros;
+pub mod test_auto_registry;
 pub mod tool_manager;
 pub mod tool_types;
 
@@ -21,12 +20,9 @@ pub mod tool_types;
 mod tests;
 
 // Re-export core types
+pub use auto_registry::{AutoToolRegistry, ToolSystemError};
 pub use category::{Category, CategoryInfo};
-pub use category_factory::{
-    create_all_default_categories, create_categories_from_names, get_category_factory,
-    CategoryFactory,
-};
-pub use tool_factory::{create_category_tools, get_tool_factory, ToolFactory};
+pub use macros::{auto_register_category, auto_register_tool};
 pub use tool_manager::ToolManager;
 pub use tool_types::{ToolCategory, ToolConfig};
 
@@ -36,10 +32,6 @@ pub use categories::get_default_categories;
 // Re-export builder types
 pub use tool_manager::ToolManagerBuilder;
 
-// Re-export manager creation function (single entry point)
-pub use registration_system::create_registered_tool_manager;
-pub use tool_manager::create_default_tool_manager;
-
 /// 工具 trait 定义
 #[async_trait]
 pub trait Tool: Debug + Send + Sync {
@@ -48,9 +40,6 @@ pub trait Tool: Debug + Send + Sync {
     fn parameters(&self) -> Vec<Parameter>;
     fn required_approval(&self) -> bool;
     fn tool_type(&self) -> ToolType;
-
-    /// 返回工具所属的category列表（工具可以属于多个category）
-    fn categories(&self) -> Vec<tool_types::CategoryId>;
 
     /// 对于 RegexParameterExtraction 类型的工具，返回参数提取的正则表达式
     fn parameter_regex(&self) -> Option<String> {
@@ -88,6 +77,35 @@ pub enum ToolType {
 // Factory Functions
 // ============================================================================
 
+/// Create tool manager with zero configuration
+///
+/// This is the new main entry point that uses the automatic registration system.
+/// All tools and categories are automatically discovered at compile time.
+pub fn create_tool_manager() -> Result<ToolManager, ToolSystemError> {
+    // Get all automatically registered categories
+    let categories = AutoToolRegistry::get_all_categories();
+
+    // Validate that all required tools exist
+    validate_tool_dependencies(&categories)?;
+
+    Ok(ToolManager::new(categories))
+}
+
+/// Validate that all categories have their required tools registered
+fn validate_tool_dependencies(categories: &[Box<dyn Category>]) -> Result<(), ToolSystemError> {
+    for category in categories {
+        for tool_name in category.required_tools() {
+            if !AutoToolRegistry::has_tool(tool_name) {
+                return Err(ToolSystemError::MissingTool {
+                    tool_name: tool_name.to_string(),
+                    category_id: category.id(),
+                });
+            }
+        }
+    }
+    Ok(())
+}
+
 /// Create custom tool manager
 ///
 /// Allows users to customize category configuration
@@ -107,7 +125,7 @@ where
 
 #[cfg(test)]
 pub fn create_test_tool_manager() -> ToolManager {
-    create_default_tool_manager()
+    create_tool_manager().expect("Failed to create test tool manager")
 }
 
 #[cfg(test)]
@@ -116,7 +134,7 @@ mod module_tests {
 
     #[test]
     fn test_create_default_tool_manager() {
-        let manager = create_default_tool_manager();
+        let manager = create_tool_manager().expect("Failed to create tool manager");
 
         // 验证工具管理器能正常创建，默认包含 3 个类别
         assert_eq!(manager.category_count(), 3);
@@ -135,7 +153,7 @@ mod module_tests {
     #[test]
     fn test_get_available_categories() {
         // 测试通过 ToolManager 获取类别
-        let manager = create_default_tool_manager();
+        let manager = create_tool_manager().expect("Failed to create tool manager");
         let categories = manager.get_enabled_categories();
 
         // 验证能正常获取类别
@@ -156,7 +174,7 @@ mod module_tests {
     #[test]
     fn test_default_tool_manager() {
         // Test default tool manager creation
-        let manager = create_default_tool_manager();
+        let manager = create_tool_manager().expect("Failed to create tool manager");
 
         // The manager should be able to get tools
         assert!(manager.get_tool("read_file").is_some());
@@ -165,7 +183,7 @@ mod module_tests {
     #[test]
     fn test_module_structure() {
         // 验证模块导出的结构
-        let manager: ToolManager = create_default_tool_manager();
+        let manager: ToolManager = create_tool_manager().expect("Failed to create tool manager");
         let _: Vec<ToolCategory> = manager.get_enabled_categories();
 
         // 测试类型可用性
@@ -184,5 +202,30 @@ mod module_tests {
         };
 
         assert_eq!(tool_config.name, "test");
+    }
+
+    #[test]
+    fn test_auto_registration_system() {
+        // Test that tools are automatically registered
+        let tool_names = AutoToolRegistry::get_tool_names();
+        println!("Registered tools: {:?}", tool_names);
+        assert!(
+            !tool_names.is_empty(),
+            "No tools were automatically registered"
+        );
+
+        // Test that categories are automatically registered
+        let category_ids = AutoToolRegistry::get_category_ids();
+        println!("Registered categories: {:?}", category_ids);
+        assert!(
+            !category_ids.is_empty(),
+            "No categories were automatically registered"
+        );
+
+        // Test that we can create tools
+        if !tool_names.is_empty() {
+            let tool = AutoToolRegistry::create_tool(&tool_names[0]);
+            assert!(tool.is_some(), "Failed to create tool: {}", tool_names[0]);
+        }
     }
 }

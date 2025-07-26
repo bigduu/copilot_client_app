@@ -1,3 +1,4 @@
+use crate::auto_register_tool;
 use crate::tools::{Parameter, Tool, ToolType};
 use anyhow::Result;
 use async_trait::async_trait;
@@ -8,10 +9,18 @@ use walkdir::WalkDir;
 #[derive(Debug)]
 pub struct SearchFilesTool;
 
+impl SearchFilesTool {
+    pub const TOOL_NAME: &'static str = "search_files";
+
+    pub fn new() -> Self {
+        Self
+    }
+}
+
 #[async_trait]
 impl Tool for SearchFilesTool {
     fn name(&self) -> String {
-        "search_files".to_string()
+        Self::TOOL_NAME.to_string()
     }
 
     fn description(&self) -> String {
@@ -47,10 +56,6 @@ impl Tool for SearchFilesTool {
 
     fn tool_type(&self) -> ToolType {
         ToolType::AIParameterParsing
-    }
-
-    fn categories(&self) -> Vec<crate::tools::tool_types::CategoryId> {
-        vec![crate::tools::tool_types::CategoryId::FileOperations]
     }
 
     async fn execute(&self, parameters: Vec<Parameter>) -> Result<String> {
@@ -138,3 +143,6 @@ impl Tool for SearchFilesTool {
         }
     }
 }
+
+// Auto-register the tool
+auto_register_tool!(SearchFilesTool);

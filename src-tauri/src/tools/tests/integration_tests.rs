@@ -2,13 +2,13 @@
 
 #[cfg(test)]
 mod tests {
-    use crate::tools::tool_manager::create_default_tool_manager;
+    use crate::tools::create_tool_manager;
 
     /// 测试新建造者模式与现有 ToolManager API 的兼容性
     #[test]
     fn test_builder_pattern_compatibility_with_existing_apis() {
-        // 使用新的建造者模式创建 ToolManager
-        let tool_manager = create_default_tool_manager();
+        // 使用新的自动注册系统创建 ToolManager
+        let tool_manager = create_tool_manager().expect("Failed to create tool manager");
 
         // 测试基本 API 兼容性
         let tools_list = tool_manager.list_tools();
@@ -68,7 +68,7 @@ mod tests {
     /// 测试工具获取和执行兼容性
     #[tokio::test]
     async fn test_tool_execution_compatibility() {
-        let tool_manager = create_default_tool_manager();
+        let tool_manager = create_tool_manager().expect("Failed to create tool manager");
 
         // 测试工具名称列表
         let tools_for_ui = tool_manager.list_tools_for_ui();
@@ -91,7 +91,7 @@ mod tests {
     /// 测试配置更新兼容性
     #[test]
     fn test_config_update_compatibility() {
-        let tool_manager = create_default_tool_manager();
+        let tool_manager = create_tool_manager().expect("Failed to create tool manager");
 
         // 测试读取配置
         let categories = tool_manager.get_enabled_categories();
@@ -109,7 +109,7 @@ mod tests {
     /// 测试 Tauri 命令兼容的数据结构
     #[test]
     fn test_tauri_command_data_structures() {
-        let tool_manager = create_default_tool_manager();
+        let tool_manager = create_tool_manager().expect("Failed to create tool manager");
 
         // 测试 ToolUIInfo 兼容性
         let tools_for_ui = tool_manager.list_tools_for_ui();
@@ -146,7 +146,7 @@ mod tests {
     /// 测试向后兼容性 - 确保旧的 API 仍然工作
     #[test]
     fn test_backward_compatibility() {
-        let tool_manager = create_default_tool_manager();
+        let tool_manager = create_tool_manager().expect("Failed to create tool manager");
 
         // 测试旧的工具列表 API
         let tools_list = tool_manager.list_tools();
@@ -176,7 +176,7 @@ mod tests {
 
         // 测试 ToolManager 创建性能
         let start = Instant::now();
-        let _tool_manager = create_default_tool_manager();
+        let _tool_manager = create_tool_manager().expect("Failed to create tool manager");
         let creation_time = start.elapsed();
 
         println!("🚀 ToolManager 创建时间: {:?}", creation_time);
@@ -189,7 +189,7 @@ mod tests {
         );
 
         // 测试工具列表获取性能
-        let tool_manager = create_default_tool_manager();
+        let tool_manager = create_tool_manager().expect("Failed to create tool manager");
         let start = Instant::now();
         let _tools = tool_manager.list_tools_for_ui();
         let list_time = start.elapsed();

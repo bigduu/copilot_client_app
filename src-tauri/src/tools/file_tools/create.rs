@@ -1,3 +1,4 @@
+use crate::auto_register_tool;
 use crate::tools::{Parameter, Tool, ToolType};
 use anyhow::Result;
 use async_trait::async_trait;
@@ -8,10 +9,18 @@ use tokio::fs as tokio_fs;
 #[derive(Debug)]
 pub struct CreateFileTool;
 
+impl CreateFileTool {
+    pub const TOOL_NAME: &'static str = "create_file";
+
+    pub fn new() -> Self {
+        Self
+    }
+}
+
 #[async_trait]
 impl Tool for CreateFileTool {
     fn name(&self) -> String {
-        "create_file".to_string()
+        Self::TOOL_NAME.to_string()
     }
 
     fn description(&self) -> String {
@@ -43,10 +52,6 @@ impl Tool for CreateFileTool {
         ToolType::AIParameterParsing
     }
 
-    fn categories(&self) -> Vec<crate::tools::tool_types::CategoryId> {
-        vec![crate::tools::tool_types::CategoryId::FileOperations]
-    }
-
     async fn execute(&self, parameters: Vec<Parameter>) -> Result<String> {
         let mut path = String::new();
         let mut content = String::new();
@@ -76,3 +81,6 @@ impl Tool for CreateFileTool {
         Ok(format!("File created successfully: {}", path))
     }
 }
+
+// Auto-register the tool
+auto_register_tool!(CreateFileTool);

@@ -1,3 +1,4 @@
+use crate::auto_register_tool;
 use crate::tools::{Parameter, Tool, ToolType};
 use anyhow::{Context, Result};
 use async_trait::async_trait;
@@ -8,10 +9,18 @@ use tokio::fs as tokio_fs;
 #[derive(Debug)]
 pub struct UpdateFileTool;
 
+impl UpdateFileTool {
+    pub const TOOL_NAME: &'static str = "update_file";
+
+    pub fn new() -> Self {
+        Self
+    }
+}
+
 #[async_trait]
 impl Tool for UpdateFileTool {
     fn name(&self) -> String {
-        "update_file".to_string()
+        Self::TOOL_NAME.to_string()
     }
 
     fn description(&self) -> String {
@@ -47,10 +56,6 @@ impl Tool for UpdateFileTool {
 
     fn tool_type(&self) -> ToolType {
         ToolType::AIParameterParsing
-    }
-
-    fn categories(&self) -> Vec<crate::tools::tool_types::CategoryId> {
-        vec![crate::tools::tool_types::CategoryId::FileOperations]
     }
 
     async fn execute(&self, parameters: Vec<Parameter>) -> Result<String> {
@@ -112,3 +117,6 @@ impl Tool for UpdateFileTool {
         ))
     }
 }
+
+// Auto-register the tool
+auto_register_tool!(UpdateFileTool);

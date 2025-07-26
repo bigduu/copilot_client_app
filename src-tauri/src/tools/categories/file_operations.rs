@@ -2,11 +2,9 @@
 //!
 //! Contains all file-related tools: read, create, delete, update, search, etc.
 
+use crate::auto_register_category;
 use crate::tools::category::Category;
-use crate::tools::tool_types::CategoryType;
-use crate::tools::Tool;
-use std::collections::HashMap;
-use std::sync::Arc;
+use crate::tools::tool_types::CategoryId;
 
 /// File Operations Category
 #[derive(Debug)]
@@ -15,6 +13,8 @@ pub struct FileOperationsCategory {
 }
 
 impl FileOperationsCategory {
+    pub const CATEGORY_ID: &'static str = "file_operations";
+
     /// Create a new file operations category
     pub fn new() -> Self {
         Self { enabled: true }
@@ -35,7 +35,7 @@ impl Default for FileOperationsCategory {
 
 impl Category for FileOperationsCategory {
     fn id(&self) -> String {
-        "file_operations".to_string()
+        Self::CATEGORY_ID.to_string()
     }
 
     fn name(&self) -> String {
@@ -79,14 +79,22 @@ impl Category for FileOperationsCategory {
         self.enabled
     }
 
-    fn category_type(&self) -> CategoryType {
-        CategoryType::FileOperations
+    fn category_type(&self) -> CategoryId {
+        CategoryId::FileOperations
     }
 
-    fn tools(&self) -> HashMap<String, Arc<dyn Tool>> {
-        // Use ToolFactory to create tools for this category
-        crate::tools::tool_factory::create_category_tools(
-            &crate::tools::tool_types::CategoryId::FileOperations,
-        )
+    fn required_tools(&self) -> &'static [&'static str] {
+        &[
+            "read_file",
+            "create_file",
+            "delete_file",
+            "update_file",
+            "append_file",
+            "search_files",
+            "search",
+        ]
     }
 }
+
+// Auto-register the category
+auto_register_category!(FileOperationsCategory);

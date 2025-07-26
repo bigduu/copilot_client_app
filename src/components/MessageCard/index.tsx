@@ -42,11 +42,12 @@ const { Text } = Typography;
 const { useToken } = theme;
 const { useBreakpoint } = Grid;
 
-// Initialize Mermaid
+// Initialize Mermaid with proper error handling
 mermaid.initialize({
   startOnLoad: false,
   theme: "dark",
   securityLevel: "loose",
+  suppressErrorRendering: true, // Prevent automatic error diagram insertion
   // Global font size for better visibility
   fontSize: 16,
   // Configure responsive behavior - disable useMaxWidth for better scaling
@@ -97,6 +98,12 @@ mermaid.initialize({
   },
 });
 
+// Set up custom error handler to prevent default error rendering
+mermaid.parseError = function (err, _hash) {
+  console.warn("Mermaid parse error (handled gracefully):", err);
+  // Don't throw or display errors - let our component handle them
+};
+
 // Cache for rendered charts
 const mermaidCache = new Map<
   string,
@@ -107,6 +114,21 @@ const mermaidCache = new Map<
     svgHeight: number;
   }
 >();
+
+// Cache for error tracking to prevent duplicate error displays
+const errorCache = new Map<string, { count: number; lastSeen: number }>();
+
+// Clean up old error cache entries (older than 5 minutes)
+const cleanupErrorCache = () => {
+  const now = Date.now();
+  const fiveMinutes = 5 * 60 * 1000;
+
+  for (const [key, value] of errorCache.entries()) {
+    if (now - value.lastSeen > fiveMinutes) {
+      errorCache.delete(key);
+    }
+  }
+};
 
 // Mermaid Component
 interface MermaidProps {
@@ -154,6 +176,14 @@ const MermaidChart: React.FC<MermaidProps> = React.memo(
 
       const renderChart = async () => {
         try {
+          // First validate the syntax using mermaid.parse
+          const parseResult = await mermaid.parse(chart, {
+            suppressErrors: true,
+          });
+          if (!parseResult) {
+            throw new Error("Invalid Mermaid syntax");
+          }
+
           // Use unique ID to avoid conflicts
           const uniqueId = `mermaid-${Math.random()
             .toString(36)
@@ -204,9 +234,60 @@ const MermaidChart: React.FC<MermaidProps> = React.memo(
         } catch (err) {
           console.error("Mermaid rendering error:", err);
           if (isMounted) {
+            // Clean up old error cache entries periodically
+            cleanupErrorCache();
+
+            // Extract meaningful error message from Mermaid error
+            let errorMessage = "Failed to render Mermaid diagram";
+            if (err instanceof Error) {
+              // Check for common Mermaid error patterns
+              if (err.message.includes("Invalid Mermaid syntax")) {
+                errorMessage = "Invalid Mermaid diagram syntax";
+              } else if (err.message.includes("Syntax error")) {
+                errorMessage = "Mermaid syntax error - check diagram format";
+              } else if (err.message.includes("Parse error")) {
+                errorMessage =
+                  "Mermaid parse error - invalid diagram structure";
+              } else if (err.message.includes("Lexical error")) {
+                errorMessage = "Mermaid lexical error - invalid characters";
+              } else if (err.message.includes("Unknown diagram type")) {
+                errorMessage = "Unknown Mermaid diagram type";
+              } else if (err.message.trim()) {
+                // Use a cleaned version of the actual error message
+                const cleanMessage = err.message
+                  .replace(/^Error:\s*/i, "")
+                  .replace(/\s+/g, " ")
+                  .trim();
+                errorMessage = `Mermaid: ${cleanMessage.substring(0, 80)}${
+                  cleanMessage.length > 80 ? "..." : ""
+                }`;
+              }
+            }
+
+            // Track error frequency to prevent spam
+            const errorKey = `${chart.substring(0, 50)}-${errorMessage}`;
+            const now = Date.now();
+            const errorInfo = errorCache.get(errorKey) || {
+              count: 0,
+              lastSeen: 0,
+            };
+            errorInfo.count += 1;
+            errorInfo.lastSeen = now;
+            errorCache.set(errorKey, errorInfo);
+
+            // Rate limit: if too many errors in short time, show a simplified message
+            let finalErrorMessage = errorMessage;
+            if (errorInfo.count > 10) {
+              finalErrorMessage = `Mermaid error (${errorInfo.count}x) - syntax validation failed`;
+            } else if (errorInfo.count > 3) {
+              finalErrorMessage = `${errorMessage} (repeated ${errorInfo.count}x)`;
+            } else if (errorInfo.count > 1) {
+              finalErrorMessage = `${errorMessage} (${errorInfo.count}x)`;
+            }
+
             setRenderState((prev) => ({
               ...prev,
-              error: "Failed to render Mermaid diagram",
+              error: finalErrorMessage,
               isLoading: false,
             }));
           }
@@ -246,19 +327,46 @@ const MermaidChart: React.FC<MermaidProps> = React.memo(
         <div
           style={{
             color: token.colorError,
-            padding: token.paddingXS,
+            padding: `${token.paddingXS}px ${token.paddingSM}px`,
             fontSize: token.fontSizeSM,
             background: token.colorErrorBg,
             borderRadius: token.borderRadiusSM,
             border: `1px solid ${token.colorErrorBorder}`,
             margin: `${token.marginXS}px 0`,
-            height: "60px",
+            minHeight: "40px",
+            maxHeight: "60px", // Reduced max height to be more compact
             display: "flex",
             alignItems: "center",
-            justifyContent: "center",
+            justifyContent: "flex-start",
+            overflow: "hidden",
+            position: "relative",
+            // Ensure the error doesn't break layout
+            maxWidth: "100%",
+            boxSizing: "border-box",
           }}
+          title={error} // Show full error on hover
         >
-          {error}
+          <span
+            style={{
+              marginRight: token.marginXS,
+              fontSize: "14px",
+              flexShrink: 0,
+              lineHeight: 1,
+            }}
+          >
+            ⚠️
+          </span>
+          <span
+            style={{
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
+              flex: 1,
+              minWidth: 0, // Allow text to shrink
+            }}
+          >
+            {error}
+          </span>
         </div>
       );
     }

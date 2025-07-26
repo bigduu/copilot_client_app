@@ -2,11 +2,9 @@
 //!
 //! Contains general AI assistant tools
 
+use crate::auto_register_category;
 use crate::tools::category::Category;
-use crate::tools::tool_types::CategoryType;
-use crate::tools::Tool;
-use std::collections::HashMap;
-use std::sync::Arc;
+use crate::tools::tool_types::CategoryId;
 
 /// General Assistant Category
 #[derive(Debug)]
@@ -15,6 +13,8 @@ pub struct GeneralAssistantCategory {
 }
 
 impl GeneralAssistantCategory {
+    pub const CATEGORY_ID: &'static str = "general_assistant";
+
     /// Create a new general assistant category
     pub fn new() -> Self {
         Self { enabled: true }
@@ -35,7 +35,7 @@ impl Default for GeneralAssistantCategory {
 
 impl Category for GeneralAssistantCategory {
     fn id(&self) -> String {
-        "general_assistant".to_string()
+        Self::CATEGORY_ID.to_string()
     }
 
     fn name(&self) -> String {
@@ -79,16 +79,16 @@ impl Category for GeneralAssistantCategory {
         self.enabled
     }
 
-    fn category_type(&self) -> CategoryType {
-        CategoryType::GeneralAssistant
+    fn category_type(&self) -> CategoryId {
+        CategoryId::GeneralAssistant
     }
 
-    fn tools(&self) -> HashMap<String, Arc<dyn Tool>> {
+    fn required_tools(&self) -> &'static [&'static str] {
         // Currently, the general assistant category has no specific tool implementations
-        // This can serve as a placeholder for future extensions, such as:
-        // - Code generation tools
-        // - Document analysis tools
-        // - Intelligent Q&A tools
-        HashMap::new()
+        // This can serve as a placeholder for future extensions
+        &[]
     }
 }
+
+// Auto-register the category
+auto_register_category!(GeneralAssistantCategory);

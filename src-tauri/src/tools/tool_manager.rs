@@ -238,7 +238,7 @@ impl Default for ToolManagerBuilder {
 /// 创建默认的工具管理器
 /// 注册所有可用的工具类别
 pub fn create_default_tool_manager() -> ToolManager {
-    // 使用CategoryFactory获取所有默认类别
-    let categories = crate::tools::category_factory::create_all_default_categories();
+    // 使用自动注册系统获取所有类别
+    let categories = crate::tools::AutoToolRegistry::get_all_categories();
     ToolManager::new(categories)
 }

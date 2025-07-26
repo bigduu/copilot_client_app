@@ -46,6 +46,9 @@ arboard = "3"                                  # Clipboard handling
 anyhow = "1.0"
 dirs = "5.0"                                   # For config directory
 
+# Auto Registration System
+inventory = "0.3" # Compile-time registration collection
+
 # Logging and Debug
 log = { version = "0.4", features = ["std"] }
 env_logger = "0.11"

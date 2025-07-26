@@ -2,11 +2,9 @@
 //!
 //! Contains tools related to system command execution
 
+use crate::auto_register_category;
 use crate::tools::category::Category;
-use crate::tools::tool_types::CategoryType;
-use crate::tools::Tool;
-use std::collections::HashMap;
-use std::sync::Arc;
+use crate::tools::tool_types::CategoryId;
 
 /// Command Execution Category
 #[derive(Debug)]
@@ -15,6 +13,8 @@ pub struct CommandExecutionCategory {
 }
 
 impl CommandExecutionCategory {
+    pub const CATEGORY_ID: &'static str = "command_execution";
+
     /// Create a new command execution category
     pub fn new() -> Self {
         Self { enabled: true }
@@ -35,7 +35,7 @@ impl Default for CommandExecutionCategory {
 
 impl Category for CommandExecutionCategory {
     fn id(&self) -> String {
-        "command_execution".to_string()
+        Self::CATEGORY_ID.to_string()
     }
 
     fn name(&self) -> String {
@@ -80,14 +80,14 @@ impl Category for CommandExecutionCategory {
         self.enabled
     }
 
-    fn category_type(&self) -> CategoryType {
-        CategoryType::CommandExecution
+    fn category_type(&self) -> CategoryId {
+        CategoryId::CommandExecution
     }
 
-    fn tools(&self) -> HashMap<String, Arc<dyn Tool>> {
-        // Use ToolFactory to create tools for this category
-        crate::tools::tool_factory::create_category_tools(
-            &crate::tools::tool_types::CategoryId::CommandExecution,
-        )
+    fn required_tools(&self) -> &'static [&'static str] {
+        &["execute_command"]
     }
 }
+
+// Auto-register the category
+auto_register_category!(CommandExecutionCategory);
