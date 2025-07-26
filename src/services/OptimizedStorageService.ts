@@ -214,7 +214,9 @@ export class OptimizedStorageService {
     // Evict oldest if cache is full
     if (this.messageCache.size > this.maxCacheSize) {
       const firstKey = this.messageCache.keys().next().value;
-      this.messageCache.delete(firstKey);
+      if (firstKey !== undefined) {
+        this.messageCache.delete(firstKey);
+      }
     }
   }
 

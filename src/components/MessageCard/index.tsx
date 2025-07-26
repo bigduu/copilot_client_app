@@ -517,6 +517,7 @@ interface MessageCardProps {
   messageId?: string;
   images?: MessageImage[];
   onDelete?: (messageId: string) => void;
+  isStreaming?: boolean;
 }
 
 const MessageCard: React.FC<MessageCardProps> = ({
@@ -525,6 +526,7 @@ const MessageCard: React.FC<MessageCardProps> = ({
   processorUpdates,
   children,
   messageId,
+  isStreaming = false,
   images = [],
   onDelete,
 }) => {
@@ -1026,6 +1028,18 @@ const MessageCard: React.FC<MessageCardProps> = ({
                     ? formatUserToolCall(getMessageText(content))
                     : getMessageText(content)}
                 </ReactMarkdown>
+              )}
+
+              {/* 流式显示光标 */}
+              {isStreaming && role === "assistant" && (
+                <span
+                  className="blinking-cursor"
+                  style={{
+                    display: "inline-block",
+                    marginLeft: "0.2em",
+                    color: token.colorText,
+                  }}
+                />
               )}
             </div>
             {children}

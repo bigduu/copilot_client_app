@@ -2,6 +2,7 @@ import { useChatStore, useCurrentMessages } from '../store/chatStore';
 import { Message, MessageImage, getMessageText, createContentWithImages } from '../types/chat';
 import { ToolCallProcessor } from '../services/ToolCallProcessor';
 import { ImageFile } from '../utils/imageUtils';
+import { serviceFactory } from '../services/ServiceFactory';
 
 /**
  * Convert ImageFile to MessageImage format
@@ -139,15 +140,11 @@ export const useMessages = (): UseMessagesReturn => {
         // Process tool call
         try {
           const result = await toolProcessor.processToolCall(toolCall, undefined, async (messages) => {
-            // This is the sendLLMRequest function for AI parameter parsing
-            const { invoke } = await import('@tauri-apps/api/core');
-            const { Channel } = await import('@tauri-apps/api/core');
-
+            // This is the sendLLMRequest function for AI parameter parsing using ServiceFactory
             return new Promise((resolve, reject) => {
-              const tempChannel = new Channel<string>();
               let response = '';
 
-              tempChannel.onmessage = (rawMessage) => {
+              const handleChunk = (rawMessage: string) => {
                 // Handle [DONE] signal
                 if (rawMessage.trim() === '[DONE]') {
                   resolve(response);
@@ -192,11 +189,10 @@ export const useMessages = (): UseMessagesReturn => {
                 }
               };
 
-              invoke("execute_prompt", {
-                messages,
-                channel: tempChannel,
-                model: null,
-              }).catch(reject);
+              // Use ServiceFactory to execute prompt
+              serviceFactory.executePrompt(messages, undefined, handleChunk)
+                .then(() => resolve(response))
+                .catch(reject);
             });
           });
 
@@ -280,14 +276,10 @@ Requirements:
 
 Title:`;
 
-      const { invoke } = await import('@tauri-apps/api/core');
-      const { Channel } = await import('@tauri-apps/api/core');
-
       return new Promise((resolve, reject) => {
-        const tempChannel = new Channel<string>();
         let response = '';
 
-        tempChannel.onmessage = (rawMessage) => {
+        const handleChunk = (rawMessage: string) => {
           // Handle [DONE] signal
           if (rawMessage.trim() === '[DONE]') {
             // Clean up the response and return
@@ -348,11 +340,17 @@ Title:`;
           }
         ];
 
-        invoke("execute_prompt", {
-          messages: titleMessages,
-          channel: tempChannel,
-          model: null,
-        }).catch(reject);
+        // Use ServiceFactory to execute prompt
+        serviceFactory.executePrompt(titleMessages, undefined, handleChunk)
+          .then(() => {
+            // If no response received, resolve with empty string
+            const cleanTitle = response.trim()
+              .replace(/^["']|["']$/g, '') // Remove quotes
+              .replace(/^Title:\s*/i, '') // Remove "Title:" prefix
+              .substring(0, 50); // Max 50 chars
+            resolve(cleanTitle || 'New Chat');
+          })
+          .catch(reject);
       });
 
     } catch (error) {

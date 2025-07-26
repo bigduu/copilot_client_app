@@ -1,26 +1,21 @@
-import React, { useEffect, useRef, useState } from "react";
-import {
-  Layout,
-  Empty,
-  Typography,
-  Card,
-  Space,
-  theme,
-  Button,
-  Grid,
-  Flex,
-} from "antd";
+import React, {
+  useEffect,
+  useRef,
+  useState,
+  useMemo,
+  useCallback,
+} from "react";
+import { Layout, Empty, Space, theme, Button, Grid, Flex } from "antd";
 import { useChats } from "../../hooks/useChats";
 import { useMessages } from "../../hooks/useMessages";
+import { useChatStore } from "../../store/chatStore";
 import SystemMessage from "../SystemMessage";
-import StreamingMessageItem from "../StreamingMessageItem";
 import { DownOutlined } from "@ant-design/icons";
 import { InputContainer } from "../InputContainer";
 import "./styles.css"; // Import a new CSS file for animations and specific styles
 import MessageCard from "../MessageCard";
 
 const { Content } = Layout;
-const { Text } = Typography;
 const { useToken } = theme;
 const { useBreakpoint } = Grid;
 
@@ -28,18 +23,39 @@ export const ChatView: React.FC = () => {
   // 使用新的 Zustand hooks
   const { currentChatId, currentMessages, updateChat } = useChats();
   const { isProcessing, deleteMessage } = useMessages();
+  const streamingMessage = useChatStore((state) => state.streamingMessage);
 
-  // 暂时设置这些值，因为原组件依赖它们
+  // 流式响应现在完全在 chatStore 中处理，不再需要 StreamingMessageItem
   const isStreaming = isProcessing;
-  const activeChannel = null;
-  const addAssistantMessage = () => {}; // 这个功能现在在 Store 中处理
 
-  // Handle message deletion
-  const handleDeleteMessage = (messageId: string) => {
-    if (currentChatId) {
-      deleteMessage(currentChatId, messageId);
+  // 使用useMemo优化流式消息渲染
+  const streamingMessageComponent = useMemo(() => {
+    if (!streamingMessage || streamingMessage.chatId !== currentChatId) {
+      return null;
     }
-  };
+
+    return (
+      <Flex justify="flex-start" style={{ width: "100%" }}>
+        <MessageCard
+          role="assistant"
+          content={streamingMessage.content}
+          messageId="streaming"
+          onDelete={() => {}}
+          isStreaming={true}
+        />
+      </Flex>
+    );
+  }, [streamingMessage, currentChatId]);
+
+  // Handle message deletion - 使用useCallback优化
+  const handleDeleteMessage = useCallback(
+    (messageId: string) => {
+      if (currentChatId) {
+        deleteMessage(currentChatId, messageId);
+      }
+    },
+    [currentChatId, deleteMessage]
+  );
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesListRef = useRef<HTMLDivElement>(null);
   const { token } = useToken();
@@ -146,6 +162,13 @@ export const ChatView: React.FC = () => {
     }
   }, [currentMessages, isStreaming]);
 
+  // 为流式消息添加单独的滚动效果
+  useEffect(() => {
+    if (messagesEndRef.current && streamingMessage) {
+      messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
+    }
+  }, [streamingMessage]);
+
   // Handler to show/hide scroll-to-bottom button
   const handleMessagesScroll = () => {
     const el = messagesListRef.current;
@@ -166,11 +189,10 @@ export const ChatView: React.FC = () => {
   useEffect(() => {
     scrollToBottom();
     setShowScrollToBottom(false);
-  }, [currentMessages, isStreaming]);
+  }, [currentMessages, isStreaming, streamingMessage]);
 
   const hasMessages = currentMessages.length > 0;
-  const showMessagesView =
-    currentChatId && (hasMessages || (isStreaming && activeChannel));
+  const showMessagesView = currentChatId && (hasMessages || isStreaming);
 
   // Calculate scroll to bottom button position
   const getScrollButtonPosition = () => {
@@ -310,43 +332,8 @@ export const ChatView: React.FC = () => {
                   );
                 })}
 
-              {/* AI streaming message */}
-              {isStreaming && activeChannel && (
-                <Flex justify="flex-start" style={{ width: "100%" }}>
-                  <Card
-                    bordered={false}
-                    style={{
-                      maxWidth: "85%",
-                      background: token.colorBgLayout,
-                      borderRadius: token.borderRadiusLG,
-                      boxShadow: token.boxShadow,
-                    }}
-                    bodyStyle={{
-                      padding: token.paddingMD,
-                    }}
-                  >
-                    <Space
-                      direction="vertical"
-                      size={token.marginXS}
-                      style={{ width: "100%" }}
-                    >
-                      <Text
-                        type="secondary"
-                        strong
-                        style={{ fontSize: token.fontSizeSM }}
-                      >
-                        Assistant
-                      </Text>
-                      <div>
-                        <StreamingMessageItem
-                          channel={activeChannel}
-                          onComplete={addAssistantMessage}
-                        />
-                      </div>
-                    </Space>
-                  </Card>
-                </Flex>
-              )}
+              {/* 显示流式消息 - 使用useMemo优化渲染 */}
+              {streamingMessageComponent}
               <div ref={messagesEndRef} />
             </Space>
           )}
