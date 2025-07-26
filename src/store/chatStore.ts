@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { ChatItem, Message, SystemPromptPreset, FavoriteItem, createTextContent } from '../types/chat';
+import { ChatItem, Message, SystemPromptPreset, FavoriteItem, createTextContent, getMessageText } from '../types/chat';
 import { OptimizedStorageService, OptimizedChatItem } from '../services/OptimizedStorageService';
 // import { TauriService } from '../services/TauriService';
 // import { StorageService } from '../services/StorageService';
@@ -658,8 +658,33 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
     try {
       // 获取当前聊天的所有消息（用户消息应该已经存在）
-      const chatMessages = messages[chatId] || [];
+      let chatMessages = messages[chatId] || [];
       const currentChat = chats.find(chat => chat.id === chatId);
+
+      console.log('[triggerAIResponseOnly] Chat ID:', chatId);
+      console.log('[triggerAIResponseOnly] Original messages count:', chatMessages.length);
+      console.log('[triggerAIResponseOnly] Original messages:', chatMessages.map((msg, index) => ({
+        index,
+        role: msg.role,
+        id: msg.id,
+        contentPreview: getMessageText(msg.content).substring(0, 50)
+      })));
+
+      // 检查最后一条消息是否是assistant的回复，如果是则删除它
+      // 如果最后一条消息是用户消息，则保持不变（用户可能删除了AI回复想重新生成）
+      if (chatMessages.length > 0 && chatMessages[chatMessages.length - 1].role === 'assistant') {
+        console.log('[triggerAIResponseOnly] Removing last assistant message before regeneration');
+        console.log('[triggerAIResponseOnly] Last message to remove:', {
+          role: chatMessages[chatMessages.length - 1].role,
+          id: chatMessages[chatMessages.length - 1].id,
+          contentPreview: getMessageText(chatMessages[chatMessages.length - 1].content).substring(0, 50)
+        });
+        chatMessages = chatMessages.slice(0, -1);
+        console.log('[triggerAIResponseOnly] Messages after removal count:', chatMessages.length);
+      } else {
+        console.log('[triggerAIResponseOnly] No assistant message to remove. Last message role:',
+          chatMessages.length > 0 ? chatMessages[chatMessages.length - 1].role : 'no messages');
+      }
 
       // 构建发送给 AI 的消息列表，包含系统提示
       const messagesToSend: Message[] = [];
@@ -694,7 +719,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
         });
       }
 
-      // 添加所有聊天消息
+      // 添加处理后的聊天消息（已排除最后的assistant消息）
       messagesToSend.push(...chatMessages);
 
       // 使用 ServiceFactory 调用 AI 服务
