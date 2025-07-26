@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { ChatItem, Message, SystemPromptPreset, FavoriteItem, createTextContent } from '../types/chat';
+import { OptimizedStorageService, OptimizedChatItem } from '../services/OptimizedStorageService';
 // import { TauriService } from '../services/TauriService';
 // import { StorageService } from '../services/StorageService';
 import SystemPromptEnhancer from '../services/SystemPromptEnhancer';
@@ -24,72 +25,11 @@ import SystemPromptEnhancer from '../services/SystemPromptEnhancer';
 //   }
 // };
 
-// 临时的简化存储服务
-const tempStorageService = {
-  async loadChats(): Promise<ChatItem[]> {
-    try {
-      const stored = localStorage.getItem('copilot_chats');
-      if (!stored) return [];
-      const chats = JSON.parse(stored);
-      return chats.map((chat: any) => ({
-        ...chat,
-        createdAt: typeof chat.createdAt === 'number' ? chat.createdAt : Date.now(),
-        toolCategory: chat.toolCategory || 'general_assistant',
-      }));
-    } catch (error) {
-      console.error('Failed to load chats:', error);
-      return [];
-    }
-  },
+// Use optimized storage service
+const storageService = OptimizedStorageService.getInstance();
 
-  async saveChats(chats: ChatItem[]): Promise<void> {
-    try {
-      localStorage.setItem('copilot_chats', JSON.stringify(chats));
-    } catch (error) {
-      console.error('Failed to save chats:', error);
-    }
-  },
-
-  async loadMessages(): Promise<Record<string, Message[]>> {
-    try {
-      const stored = localStorage.getItem('copilot_messages');
-      return stored ? JSON.parse(stored) : {};
-    } catch (error) {
-      console.error('Failed to load messages:', error);
-      return {};
-    }
-  },
-
-  async saveMessages(messages: Record<string, Message[]>): Promise<void> {
-    try {
-      localStorage.setItem('copilot_messages', JSON.stringify(messages));
-    } catch (error) {
-      console.error('Failed to save messages:', error);
-    }
-  },
-
-  async loadLatestActiveChatId(): Promise<string | null> {
-    try {
-      const stored = localStorage.getItem('copilot_latest_active_chat_id');
-      return stored || null;
-    } catch (error) {
-      console.error('Failed to load latest active chat ID:', error);
-      return null;
-    }
-  },
-
-  async saveLatestActiveChatId(chatId: string | null): Promise<void> {
-    try {
-      if (chatId) {
-        localStorage.setItem('copilot_latest_active_chat_id', chatId);
-      } else {
-        localStorage.removeItem('copilot_latest_active_chat_id');
-      }
-    } catch (error) {
-      console.error('Failed to save latest active chat ID:', error);
-    }
-  },
-
+// Favorites storage service (keeping existing implementation for now)
+const favoritesStorageService = {
   async loadFavorites(): Promise<FavoriteItem[]> {
     try {
       const stored = localStorage.getItem('copilot_favorites');
@@ -327,9 +267,22 @@ export const useChatStore = create<ChatState>((set, get) => ({
   // Data persistence
   loadChats: async () => {
     try {
-      const chats = await tempStorageService.loadChats();
-      const messages = await tempStorageService.loadMessages();
-      const latestActiveChatId = await tempStorageService.loadLatestActiveChatId();
+      // Load optimized chats (without messages)
+      const optimizedChats = await storageService.loadChats();
+      const latestActiveChatId = await storageService.loadLatestActiveChatId();
+
+      // Convert optimized chats back to regular ChatItem format for compatibility
+      const chats: ChatItem[] = optimizedChats.map(chat => ({
+        ...chat,
+        messages: [], // Messages will be loaded on-demand
+      }));
+
+      // For now, load all messages to maintain compatibility
+      // TODO: Implement lazy loading in the future
+      const messages: Record<string, Message[]> = {};
+      for (const chat of optimizedChats) {
+        messages[chat.id] = await storageService.loadMessages(chat.id);
+      }
 
       // 为没有 systemPromptId 的现有聊天设置默认值
       const migratedChats = chats.map(chat => {
@@ -369,9 +322,33 @@ export const useChatStore = create<ChatState>((set, get) => ({
   saveChats: async () => {
     try {
       const { chats, messages, latestActiveChatId } = get();
-      await tempStorageService.saveChats(chats);
-      await tempStorageService.saveMessages(messages);
-      await tempStorageService.saveLatestActiveChatId(latestActiveChatId);
+
+      // Convert chats to optimized format
+      const optimizedChats: OptimizedChatItem[] = chats.map(chat => ({
+        id: chat.id,
+        title: chat.title,
+        createdAt: chat.createdAt,
+        systemPrompt: chat.systemPrompt,
+        systemPromptId: chat.systemPromptId,
+        toolCategory: chat.toolCategory || 'general_assistant',
+        pinned: chat.pinned || false,
+        model: chat.model,
+        messageCount: messages[chat.id]?.length || 0,
+        lastMessageAt: messages[chat.id]?.length > 0 ? Date.now() : undefined,
+      }));
+
+      // Save chats and messages separately
+      await storageService.saveChats(optimizedChats);
+
+      // Save messages for each chat
+      for (const chat of chats) {
+        const chatMessages = messages[chat.id] || [];
+        if (chatMessages.length > 0) {
+          await storageService.saveMessages(chat.id, chatMessages);
+        }
+      }
+
+      await storageService.saveLatestActiveChatId(latestActiveChatId);
     } catch (error) {
       console.error('Failed to save chats:', error);
     }
@@ -450,7 +427,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
   loadFavorites: async () => {
     try {
-      const favorites = await tempStorageService.loadFavorites();
+      const favorites = await favoritesStorageService.loadFavorites();
       set({ favorites });
     } catch (error) {
       console.error('Failed to load favorites:', error);
@@ -461,7 +438,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   saveFavorites: async () => {
     try {
       const { favorites } = get();
-      await tempStorageService.saveFavorites(favorites);
+      await favoritesStorageService.saveFavorites(favorites);
     } catch (error) {
       console.error('Failed to save favorites:', error);
     }
