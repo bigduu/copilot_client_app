@@ -2,7 +2,7 @@
 //!
 //! 基于新架构设计的简洁 Category trait，消除 Builder 模式，直接管理类别功能。
 
-use crate::tools::tool_types::{CategoryType, ToolCategory, ToolConfig};
+use crate::tools::tool_types::{CategoryId, ToolCategory, ToolConfig};
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -48,11 +48,23 @@ pub trait Category: Send + Sync + std::fmt::Debug {
 
     /// 获取类别类型
     /// 用于前端识别不同类别的功能性质
-    fn category_type(&self) -> CategoryType;
+    fn category_type(&self) -> CategoryId;
+
+    /// 声明该类别需要的工具名称列表
+    /// 返回该类别依赖的工具名称数组
+    fn required_tools(&self) -> &'static [&'static str];
 
     /// 获取该类别下的所有工具
-    /// 返回工具实例的映射
-    fn tools(&self) -> HashMap<String, Arc<dyn crate::tools::Tool>>;
+    /// 返回工具实例的映射，自动从注册表获取
+    fn tools(&self) -> HashMap<String, Arc<dyn crate::tools::Tool>> {
+        use crate::tools::AutoToolRegistry;
+        self.required_tools()
+            .iter()
+            .filter_map(|name| {
+                AutoToolRegistry::create_tool(name).map(|tool| (name.to_string(), tool))
+            })
+            .collect()
+    }
 
     /// 构建完整的类别信息
     /// 包含所有必需的元数据，供前端和工具管理器使用

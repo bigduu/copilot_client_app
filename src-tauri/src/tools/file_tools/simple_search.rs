@@ -1,3 +1,4 @@
+use crate::auto_register_tool;
 use crate::tools::{Parameter, Tool, ToolType};
 use anyhow::{Context, Result};
 use async_trait::async_trait;
@@ -8,10 +9,18 @@ use std::path::Path;
 #[derive(Debug)]
 pub struct SimpleSearchTool;
 
+impl SimpleSearchTool {
+    pub const TOOL_NAME: &'static str = "search";
+
+    pub fn new() -> Self {
+        Self
+    }
+}
+
 #[async_trait]
 impl Tool for SimpleSearchTool {
     fn name(&self) -> String {
-        "search".to_string()
+        Self::TOOL_NAME.to_string()
     }
 
     fn description(&self) -> String {
@@ -33,10 +42,6 @@ impl Tool for SimpleSearchTool {
 
     fn tool_type(&self) -> ToolType {
         ToolType::RegexParameterExtraction
-    }
-
-    fn categories(&self) -> Vec<crate::tools::tool_types::CategoryId> {
-        vec![crate::tools::tool_types::CategoryId::FileOperations]
     }
 
     fn parameter_regex(&self) -> Option<String> {
@@ -143,3 +148,6 @@ fn search_in_directory(
 
     Ok(())
 }
+
+// Auto-register the tool
+auto_register_tool!(SimpleSearchTool);

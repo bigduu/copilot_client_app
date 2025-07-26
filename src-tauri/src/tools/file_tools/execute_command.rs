@@ -1,3 +1,4 @@
+use crate::auto_register_tool;
 use crate::tools::{Parameter, Tool, ToolType};
 use anyhow::{Context, Result};
 use async_trait::async_trait;
@@ -6,10 +7,18 @@ use async_trait::async_trait;
 #[derive(Debug)]
 pub struct ExecuteCommandTool;
 
+impl ExecuteCommandTool {
+    pub const TOOL_NAME: &'static str = "execute_command";
+
+    pub fn new() -> Self {
+        Self
+    }
+}
+
 #[async_trait]
 impl Tool for ExecuteCommandTool {
     fn name(&self) -> String {
-        "execute_command".to_string()
+        Self::TOOL_NAME.to_string()
     }
 
     fn description(&self) -> String {
@@ -31,10 +40,6 @@ impl Tool for ExecuteCommandTool {
 
     fn tool_type(&self) -> ToolType {
         ToolType::AIParameterParsing
-    }
-
-    fn categories(&self) -> Vec<crate::tools::tool_types::CategoryId> {
-        vec![crate::tools::tool_types::CategoryId::CommandExecution]
     }
 
     async fn execute(&self, parameters: Vec<Parameter>) -> Result<String> {
@@ -69,3 +74,6 @@ impl Tool for ExecuteCommandTool {
         ))
     }
 }
+
+// Auto-register the tool
+auto_register_tool!(ExecuteCommandTool);
