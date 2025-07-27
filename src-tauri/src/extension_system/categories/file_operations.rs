@@ -2,7 +2,7 @@
 //!
 //! Contains all file-related tools: read, create, delete, update, search, etc.
 
-use crate::extension_system::{auto_register_category, Category, CategoryMetadata, CategoryId};
+use crate::extension_system::{auto_register_category, Category, CategoryId, CategoryMetadata};
 
 /// File Operations Category
 #[derive(Debug)]
@@ -13,9 +13,9 @@ pub struct FileOperationsCategory {
 impl FileOperationsCategory {
     pub const CATEGORY_ID: &'static str = "file_operations";
 
-    /// Create a new file operations category
+    /// Create a new file operations category (disabled by default)
     pub fn new() -> Self {
-        Self { enabled: true }
+        Self { enabled: false }
     }
 
     /// Set whether this category is enabled

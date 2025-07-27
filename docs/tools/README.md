@@ -1,16 +1,42 @@
-# 工具相关文档
+# 工具文档
 
-本目录包含项目工具配置、迁移和示例相关的文档。
+本目录包含项目工具相关的文档和使用指南。
+
+## 📋 当前可用工具
+
+### 文件操作工具 (5个)
+- **create_file**: 创建新文件
+- **read_file**: 读取文件内容
+- **update_file**: 更新文件内容
+- **append_file**: 向文件追加内容
+- **delete_file**: 删除文件
+
+### 命令执行工具 (1个)
+- **execute_command**: 执行shell命令
+
+### 搜索工具 (1个)
+- **search**: 文件和内容搜索
 
 ## 📋 文档列表
 
-- [`MERMAID_EXAMPLES.md`](./MERMAID_EXAMPLES.md) - Mermaid 图表示例和用法
-- [`TOOL_MIGRATION_GUIDE.md`](./TOOL_MIGRATION_GUIDE.md) - 工具迁移指南
-- [`TOOLS_CONFIG_REFACTOR_PLAN.md`](./TOOLS_CONFIG_REFACTOR_PLAN.md) - 工具配置重构计划
+- [`MERMAID_EXAMPLES.md`](./MERMAID_EXAMPLES.md) - Mermaid 图表使用示例和最佳实践
 
-## 📖 使用说明
+## 🔧 工具使用指南
 
-这些文档提供了项目中各种工具的使用指南、配置方法和迁移策略。对于项目维护和工具链优化具有重要参考价值。
+### 通过 General Assistant 使用工具
+General Assistant 类别拥有所有8个工具的访问权限，可以根据用户需求自动选择和调用相应的工具。
+
+### 工具调用流程
+1. **用户请求**: 用户描述需要完成的任务
+2. **AI分析**: General Assistant 分析任务并选择合适的工具
+3. **参数解析**: AI 解析用户请求并生成工具参数
+4. **工具执行**: 系统执行相应的工具
+5. **结果返回**: 将执行结果返回给用户
+
+### 最佳实践
+- **明确描述**: 清楚描述要完成的任务
+- **提供上下文**: 提供必要的文件路径或命令上下文
+- **验证结果**: 检查工具执行的结果是否符合预期
 
 ## 🛠️ 文档分类
 
