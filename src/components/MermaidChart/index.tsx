@@ -128,31 +128,87 @@ export const MermaidChart: React.FC<MermaidChartProps> = React.memo(
     useEffect(() => {
       // Use cache directly if available
       if (initialCached) {
+        console.log("✅ Using cached Mermaid chart");
         return;
       }
 
       // If current state is not loading, it means already rendered
       if (!renderState.isLoading) {
+        console.log("⏭️ Skipping render - already rendered");
         return;
       }
+
+      // Prevent duplicate renders by checking if we're already rendering this chart
+      const renderKey = `${chart.trim()}-${Date.now()}`;
+      console.log(
+        "🚀 Starting Mermaid render for:",
+        renderKey.substring(0, 50)
+      );
 
       let isMounted = true;
 
       const renderChart = async () => {
         try {
-          // First validate the syntax using mermaid.parse
-          const parseResult = await mermaid.parse(chart, {
-            suppressErrors: true,
-          });
-          if (!parseResult) {
-            throw new Error("Invalid Mermaid syntax");
+          console.log(
+            "🔍 Attempting to render Mermaid chart:",
+            chart.substring(0, 100) + "..."
+          );
+
+          // First validate the syntax using mermaid.parse with detailed error reporting
+          let parseResult;
+          try {
+            parseResult = await mermaid.parse(chart, {
+              suppressErrors: false, // Enable detailed error reporting
+            });
+          } catch (parseError) {
+            console.error("❌ Mermaid parse error details:", {
+              error: parseError,
+              message:
+                parseError instanceof Error
+                  ? parseError.message
+                  : String(parseError),
+              stack: parseError instanceof Error ? parseError.stack : undefined,
+              chart:
+                chart.substring(0, 200) + (chart.length > 200 ? "..." : ""),
+            });
+            throw parseError;
           }
+
+          if (!parseResult) {
+            const error = new Error(
+              "Invalid Mermaid syntax - parse returned false"
+            );
+            console.error("❌ Parse result is false for chart:", chart);
+            throw error;
+          }
+
+          console.log("✅ Mermaid parse successful, attempting render...");
 
           // Use unique ID to avoid conflicts
           const uniqueId = `mermaid-${Math.random()
             .toString(36)
             .substring(2, 11)}`;
-          const { svg: renderedSvg } = await mermaid.render(uniqueId, chart);
+
+          let renderedSvg;
+          try {
+            const renderResult = await mermaid.render(uniqueId, chart);
+            renderedSvg = renderResult.svg;
+            console.log("✅ Mermaid render successful");
+          } catch (renderError) {
+            console.error("❌ Mermaid render error details:", {
+              error: renderError,
+              message:
+                renderError instanceof Error
+                  ? renderError.message
+                  : String(renderError),
+              stack:
+                renderError instanceof Error ? renderError.stack : undefined,
+              uniqueId,
+              chart:
+                chart.substring(0, 200) + (chart.length > 200 ? "..." : ""),
+            });
+            throw renderError;
+          }
 
           if (isMounted) {
             // Create temporary element to measure dimensions
@@ -196,35 +252,120 @@ export const MermaidChart: React.FC<MermaidChartProps> = React.memo(
             });
           }
         } catch (err) {
-          console.error("Mermaid rendering error:", err);
+          console.error("❌ Mermaid rendering error:", {
+            error: err,
+            message: err instanceof Error ? err.message : String(err),
+            stack: err instanceof Error ? err.stack : undefined,
+            chart: chart.substring(0, 300) + (chart.length > 300 ? "..." : ""),
+            chartLength: chart.length,
+          });
+
           if (isMounted) {
             // Clean up old error cache entries periodically
             cleanupErrorCache();
 
-            // Extract meaningful error message from Mermaid error
+            // Extract meaningful error message from Mermaid error with more detail
             let errorMessage = "Failed to render Mermaid diagram";
+            let detailedError = "";
+            let specificSuggestion = "";
+
             if (err instanceof Error) {
-              // Check for common Mermaid error patterns
-              if (err.message.includes("Invalid Mermaid syntax")) {
-                errorMessage = "Invalid Mermaid diagram syntax";
-              } else if (err.message.includes("Syntax error")) {
-                errorMessage = "Mermaid syntax error - check diagram format";
-              } else if (err.message.includes("Parse error")) {
-                errorMessage =
-                  "Mermaid parse error - invalid diagram structure";
-              } else if (err.message.includes("Lexical error")) {
-                errorMessage = "Mermaid lexical error - invalid characters";
-              } else if (err.message.includes("Unknown diagram type")) {
-                errorMessage = "Unknown Mermaid diagram type";
-              } else if (err.message.trim()) {
-                // Use a cleaned version of the actual error message
-                const cleanMessage = err.message
-                  .replace(/^Error:\s*/i, "")
-                  .replace(/\s+/g, " ")
-                  .trim();
-                errorMessage = `Mermaid: ${cleanMessage.substring(0, 80)}${
-                  cleanMessage.length > 80 ? "..." : ""
-                }`;
+              const fullMessage = err.message || "";
+              console.log("🔍 Full error message:", fullMessage);
+
+              // Check for common bracket mixing errors first
+              if (
+                chart.includes("[") &&
+                chart.includes("(") &&
+                chart.includes(")") &&
+                chart.includes("]")
+              ) {
+                // Check for parentheses inside square brackets pattern
+                const bracketParenPattern = /\[([^[\]]*\([^)]*\)[^[\]]*)\]/g;
+                const matches = chart.match(bracketParenPattern);
+                if (matches) {
+                  errorMessage =
+                    "Bracket syntax error: parentheses inside square brackets";
+                  specificSuggestion = `Found: ${matches[0]}. Use either [Text] or (Text), never [Text (with parentheses)]`;
+                  detailedError = fullMessage;
+                }
+              }
+
+              // If no specific bracket error found, check other error patterns
+              if (!specificSuggestion) {
+                if (fullMessage.includes("Parse error on line")) {
+                  const lineMatch = fullMessage.match(
+                    /Parse error on line (\d+)/
+                  );
+                  const line = lineMatch ? lineMatch[1] : "unknown";
+                  errorMessage = `Syntax error on line ${line}`;
+
+                  // Check for common issues on that line
+                  const lines = chart.split("\n");
+                  const errorLine = lines[parseInt(line) - 1];
+                  if (
+                    errorLine &&
+                    errorLine.includes("[") &&
+                    errorLine.includes("(") &&
+                    errorLine.includes(")")
+                  ) {
+                    specificSuggestion =
+                      "Remove parentheses from inside square brackets. Use [Text] or (Text), not [Text (with parentheses)]";
+                  }
+
+                  detailedError = fullMessage;
+                } else if (fullMessage.includes("Expecting")) {
+                  const expectingMatch = fullMessage.match(
+                    /Expecting (.+?)(?:\.|$)/
+                  );
+                  const expecting = expectingMatch
+                    ? expectingMatch[1]
+                    : "valid syntax";
+                  errorMessage = `Syntax error: expecting ${expecting}`;
+                  detailedError = fullMessage;
+                } else if (fullMessage.includes("Lexical error")) {
+                  const lexMatch = fullMessage.match(
+                    /Lexical error on line (\d+)/
+                  );
+                  const line = lexMatch ? lexMatch[1] : "unknown";
+                  errorMessage = `Invalid character on line ${line}`;
+                  detailedError = fullMessage;
+                } else if (fullMessage.includes("Unknown diagram type")) {
+                  const typeMatch = fullMessage.match(
+                    /Unknown diagram type[:\s]+(.+?)(?:\.|$)/
+                  );
+                  const type = typeMatch ? typeMatch[1] : "unknown";
+                  errorMessage = `Unknown diagram type: ${type}`;
+                  detailedError = fullMessage;
+                } else if (fullMessage.includes("Invalid Mermaid syntax")) {
+                  errorMessage = "Invalid Mermaid diagram syntax";
+                  detailedError = fullMessage;
+                } else if (fullMessage.includes("Syntax error")) {
+                  errorMessage = "Mermaid syntax error - check diagram format";
+                  detailedError = fullMessage;
+                } else if (fullMessage.includes("Parse error")) {
+                  errorMessage =
+                    "Mermaid parse error - invalid diagram structure";
+                  detailedError = fullMessage;
+                } else if (fullMessage.trim()) {
+                  // Use a cleaned version of the actual error message
+                  const cleanMessage = fullMessage
+                    .replace(/^Error:\s*/i, "")
+                    .replace(/\s+/g, " ")
+                    .trim();
+                  errorMessage = `Mermaid: ${cleanMessage.substring(0, 100)}${
+                    cleanMessage.length > 100 ? "..." : ""
+                  }`;
+                  detailedError = fullMessage;
+                }
+              }
+
+              // Log the detailed error for debugging
+              if (detailedError) {
+                console.error("🔍 Detailed Mermaid error:", detailedError);
+              }
+              if (specificSuggestion) {
+                console.error("💡 Suggestion:", specificSuggestion);
               }
             }
 
@@ -241,17 +382,25 @@ export const MermaidChart: React.FC<MermaidChartProps> = React.memo(
 
             // Rate limit: if too many errors in short time, show a simplified message
             let finalErrorMessage = errorMessage;
+            let finalSuggestion = specificSuggestion;
+
             if (errorInfo.count > 10) {
               finalErrorMessage = `Mermaid error (${errorInfo.count}x) - syntax validation failed`;
+              finalSuggestion = "";
             } else if (errorInfo.count > 3) {
               finalErrorMessage = `${errorMessage} (repeated ${errorInfo.count}x)`;
             } else if (errorInfo.count > 1) {
               finalErrorMessage = `${errorMessage} (${errorInfo.count}x)`;
             }
 
+            // Combine error message with suggestion
+            const combinedError = finalSuggestion
+              ? `${finalErrorMessage}\n\n💡 ${finalSuggestion}`
+              : finalErrorMessage;
+
             setRenderState((prev) => ({
               ...prev,
-              error: finalErrorMessage,
+              error: combinedError,
               isLoading: false,
             }));
           }
@@ -262,8 +411,9 @@ export const MermaidChart: React.FC<MermaidChartProps> = React.memo(
 
       return () => {
         isMounted = false;
+        console.log("🧹 Cleaning up Mermaid render");
       };
-    }, [chart, initialCached]);
+    }, [chart.trim(), renderState.isLoading]); // Only re-render when chart content changes or loading state changes
 
     const { svg, height, svgWidth, error, isLoading } = renderState;
 
@@ -298,41 +448,89 @@ export const MermaidChart: React.FC<MermaidChartProps> = React.memo(
             borderRadius: token.borderRadiusSM,
             border: `1px solid ${token.colorErrorBorder}`,
             margin: `${token.marginXS}px 0`,
-            minHeight: "40px",
-            maxHeight: "60px", // Reduced max height to be more compact
+            minHeight: "60px", // Increased to show more error details
+            maxHeight: "120px", // Allow more space for detailed errors
             display: "flex",
-            alignItems: "center",
+            flexDirection: "column",
+            alignItems: "flex-start",
             justifyContent: "flex-start",
-            overflow: "hidden",
+            overflow: "auto", // Allow scrolling for long errors
             position: "relative",
             // Ensure the error doesn't break layout
             maxWidth: "100%",
             boxSizing: "border-box",
             ...style,
           }}
-          title={error} // Show full error on hover
+          title={`Mermaid Error: ${error}\n\nCheck browser console for detailed error information.`} // Show full error on hover
         >
-          <span
+          <div
             style={{
-              marginRight: token.marginXS,
-              fontSize: "14px",
-              flexShrink: 0,
-              lineHeight: 1,
+              display: "flex",
+              alignItems: "center",
+              marginBottom: token.marginXXS,
             }}
           >
-            ⚠️
-          </span>
-          <span
+            <span
+              style={{
+                marginRight: token.marginXS,
+                fontSize: "14px",
+                flexShrink: 0,
+                lineHeight: 1,
+              }}
+            >
+              ⚠️
+            </span>
+            <span
+              style={{
+                fontWeight: 600,
+                color: token.colorError,
+              }}
+            >
+              Mermaid Diagram Error
+            </span>
+          </div>
+          <div
             style={{
-              overflow: "hidden",
-              textOverflow: "ellipsis",
-              whiteSpace: "nowrap",
+              fontSize: token.fontSizeSM,
+              lineHeight: 1.4,
+              wordBreak: "break-word",
               flex: 1,
-              minWidth: 0, // Allow text to shrink
+              width: "100%",
             }}
           >
-            {error}
-          </span>
+            {error.split("\n\n").map((part, index) => (
+              <div
+                key={index}
+                style={{
+                  marginBottom:
+                    index < error.split("\n\n").length - 1 ? token.marginXS : 0,
+                  ...(part.startsWith("💡")
+                    ? {
+                        backgroundColor: token.colorInfoBg,
+                        border: `1px solid ${token.colorInfoBorder}`,
+                        borderRadius: token.borderRadiusSM,
+                        padding: token.paddingXS,
+                        marginTop: token.marginXS,
+                        color: token.colorInfo,
+                        fontWeight: 500,
+                      }
+                    : {}),
+                }}
+              >
+                {part}
+              </div>
+            ))}
+          </div>
+          <div
+            style={{
+              fontSize: token.fontSizeSM,
+              color: token.colorTextSecondary,
+              marginTop: token.marginXS,
+              fontStyle: "italic",
+            }}
+          >
+            💡 Check browser console (F12) for detailed error information
+          </div>
         </div>
       );
     }
