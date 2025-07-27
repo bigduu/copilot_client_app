@@ -1,6 +1,23 @@
-// 严格模式：移除所有硬编码默认值
-// 所有配置信息必须从后端API获取
-// 如果后端未提供配置，应用程序会抛出明确错误指导用户配置
+// Application constants
+// Add any frontend constants here that are not configuration-dependent
 
-// 注意：此文件现在为空，因为我们实现了"前端零硬编码"架构
-// 如果需要常量，应该从后端API动态获取
+export const APP_NAME = 'Copilot Chat';
+export const VERSION = '0.1.0';
+
+// UI Constants
+export const DEFAULT_THEME = 'light';
+export const SUPPORTED_THEMES = ['light', 'dark'] as const;
+
+// File size limits (in bytes)
+export const MAX_IMAGE_SIZE = 10 * 1024 * 1024; // 10MB
+export const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
+
+// Supported file types
+export const SUPPORTED_IMAGE_TYPES = [
+  'image/jpeg',
+  'image/png',
+  'image/gif',
+  'image/webp'
+] as const;
+
+export const SUPPORTED_EXPORT_FORMATS = ['markdown', 'pdf'] as const;

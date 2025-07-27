@@ -6,7 +6,7 @@ import {
 import { useChats } from "./useChats";
 import { useMessages } from "./useMessages";
 import { useModels } from "./useModels";
-import { createExportFavorites } from "../contexts/newExportFunction";
+import { ExportService } from "../services/ExportService";
 import { ChatItem, FavoriteItem, SystemPromptPresetList } from "../types/chat";
 
 /**
@@ -221,13 +221,30 @@ export function useChatManager() {
     return favoritesService.getChatFavorites(currentChatId, favorites);
   }, [favoritesService, currentChatId, favorites]);
 
-  // Export favorites functionality
-  const exportFavorites = useMemo(
-    () =>
-      createExportFavorites({
-        currentChatId,
-        getCurrentChatFavorites,
-      }),
+  // Export favorites functionality using unified ExportService
+  const exportFavorites = useCallback(
+    async (format: "markdown" | "pdf") => {
+      if (!currentChatId) {
+        throw new Error("No chat selected");
+      }
+
+      const chatFavorites = getCurrentChatFavorites();
+      if (chatFavorites.length === 0) {
+        throw new Error("No favorites to export");
+      }
+
+      const result = await ExportService.exportFavorites({
+        format,
+        data: chatFavorites,
+        chatId: currentChatId,
+      });
+
+      if (!result.success) {
+        throw new Error(result.error || "Export failed");
+      }
+
+      return result.filename;
+    },
     [currentChatId, getCurrentChatFavorites]
   );
 

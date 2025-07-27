@@ -7,10 +7,14 @@ import {
   Typography,
   Space,
   Collapse,
-  Button,
   Tag,
   Empty,
 } from "antd";
+import {
+  ModalFooter,
+  createCancelButton,
+  createOkButton,
+} from "../ModalFooter";
 import { ToolOutlined } from "@ant-design/icons";
 import { SystemPromptPreset, SystemPromptPresetList } from "../../types/chat";
 // SystemPromptService has been removed, now using backend configuration
@@ -233,21 +237,23 @@ const SystemPromptSelector: React.FC<SystemPromptSelectorProps> = ({
       onCancel={handleCancel}
       width={700}
       footer={
-        <Space>
-          {showCancelButton && <Button onClick={handleCancel}>Cancel</Button>}
-          <Button
-            type="primary"
-            disabled={!selectedId}
-            onClick={() => {
-              const preset = presets.find((p) => p.id === selectedId);
-              if (preset) {
-                handleSelect(preset);
+        <ModalFooter
+          buttons={[
+            ...(showCancelButton ? [createCancelButton(handleCancel)] : []),
+            createOkButton(
+              () => {
+                const preset = presets.find((p) => p.id === selectedId);
+                if (preset) {
+                  handleSelect(preset);
+                }
+              },
+              {
+                text: "Create New Chat",
+                disabled: !selectedId,
               }
-            }}
-          >
-            Create New Chat
-          </Button>
-        </Space>
+            ),
+          ]}
+        />
       }
       styles={{
         body: {
