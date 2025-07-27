@@ -13,10 +13,10 @@
    - 用途：ChatView组件的动画效果和特定样式
    - 导入状态：✅ 被 `ChatView/index.tsx` 导入使用
 
-2. **`src/components/SearchWindow/styles.css`**
-   - 文件大小：97行
-   - 用途：搜索窗口的定位和布局样式
-   - 导入状态：✅ 被 `SearchWindow/index.tsx` 导入使用
+2. **`src/layouts/styles.css`**
+   - 文件大小：适中
+   - 用途：主布局样式
+   - 导入状态：✅ 被布局组件导入使用
 
 ### 已删除的CSS文件
 以下CSS文件因为空白或只有占位符注释且未被使用而删除：

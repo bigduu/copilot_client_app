@@ -9,9 +9,13 @@ import {
   Space,
   Tag,
   Alert,
-  Button,
   Tooltip,
 } from "antd";
+import {
+  ModalFooter,
+  createCancelButton,
+  createApplyButton,
+} from "../ModalFooter";
 import {
   InfoCircleOutlined,
   ToolOutlined,
@@ -259,16 +263,15 @@ const SystemPromptModal: React.FC<SystemPromptModalProps> = ({
         onCancel={handleCancel}
         width={600}
         footer={
-          <Space>
-            <Button onClick={handleCancel}>Cancel</Button>
-            <Button
-              type="primary"
-              disabled={!selectedId}
-              onClick={() => selectedId && handleSelect(selectedId)}
-            >
-              Apply Selection
-            </Button>
-          </Space>
+          <ModalFooter
+            buttons={[
+              createCancelButton(handleCancel),
+              createApplyButton(() => selectedId && handleSelect(selectedId), {
+                text: "Apply Selection",
+                disabled: !selectedId,
+              }),
+            ]}
+          />
         }
         styles={{
           body: {
