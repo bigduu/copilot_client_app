@@ -1,4 +1,4 @@
-import React, { useRef, useState } from "react";
+import React, { useRef, useState, useMemo } from "react";
 import { Card, Space, Typography, theme, Dropdown, Collapse, Grid } from "antd";
 import {
   CopyOutlined,
@@ -9,9 +9,8 @@ import {
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import remarkBreaks from "remark-breaks";
-import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
-import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism";
-import { MermaidChart } from "../MermaidChart";
+import rehypeSanitize from "rehype-sanitize";
+import { createMarkdownComponents } from "./markdownComponents";
 import { ImageGrid } from "../ImageGrid";
 import {
   ActionButtonGroup,
@@ -68,26 +67,44 @@ const MessageCard: React.FC<MessageCardProps> = ({
   const [approvalProcessing, setApprovalProcessing] = useState<boolean>(false);
   const [approvalHandled, setApprovalHandled] = useState<boolean>(false);
 
+  // Memoize expensive operations for better performance
+  const messageText = useMemo(() => getMessageText(content), [content]);
+  const isApproval = useMemo(
+    () => role === "assistant" && isApprovalRequest(messageText),
+    [role, messageText]
+  );
+  const approvalData = useMemo(
+    () => (isApproval ? parseApprovalRequest(messageText) : null),
+    [isApproval, messageText]
+  );
+  const isUserToolCall = useMemo(
+    () => role === "user" && messageText.startsWith("/"),
+    [role, messageText]
+  );
+  const isApprovalResponse = useMemo(
+    () =>
+      role === "user" &&
+      isApprovalRequest(messageText) &&
+      parseApprovalRequest(messageText)?.approval !== undefined,
+    [role, messageText]
+  );
+
+  // Create markdown components with current theme
+  const markdownComponents = useMemo(
+    () => createMarkdownComponents(token),
+    [token]
+  );
+
+  // Standardized plugin configuration for consistency
+  const markdownPlugins = useMemo(() => [remarkGfm, remarkBreaks], []);
+  const rehypePlugins = useMemo(() => [rehypeSanitize], []);
+
   // Responsive calculation
   const getCardMaxWidth = () => {
     if (screens.xs) return "100%";
     if (screens.sm) return "95%";
     return "800px";
   };
-
-  // Check if this is an approval request
-  const messageText = getMessageText(content);
-  const isApproval = role === "assistant" && isApprovalRequest(messageText);
-  const approvalData = isApproval ? parseApprovalRequest(messageText) : null;
-
-  // Check if this is a user tool call
-  const isUserToolCall = role === "user" && messageText.startsWith("/");
-
-  // Check if this is an approval response (user's approval/rejection)
-  const isApprovalResponse =
-    role === "user" &&
-    isApprovalRequest(messageText) &&
-    parseApprovalRequest(messageText)?.approval !== undefined;
 
   // Function to format user tool call display
   const formatUserToolCall = (toolCall: string): string => {
@@ -149,7 +166,7 @@ const MessageCard: React.FC<MessageCardProps> = ({
       } else {
         addFavorite({
           chatId: currentChatId,
-          content: getMessageText(content),
+          content: messageText,
           role: role as "user" | "assistant",
           messageId,
         });
@@ -211,8 +228,7 @@ const MessageCard: React.FC<MessageCardProps> = ({
       });
       window.dispatchEvent(event);
     } else {
-      const textContent = getMessageText(content);
-      const referenceText = createReference(textContent);
+      const referenceText = createReference(messageText);
       const event = new CustomEvent("reference-text", {
         detail: { text: referenceText, chatId: currentChatId },
       });
@@ -230,7 +246,7 @@ const MessageCard: React.FC<MessageCardProps> = ({
         if (selectedText) {
           copyToClipboard(selectedText);
         } else {
-          copyToClipboard(getMessageText(content));
+          copyToClipboard(messageText);
         }
       },
     },
@@ -352,114 +368,13 @@ const MessageCard: React.FC<MessageCardProps> = ({
                 />
               ) : (
                 <ReactMarkdown
-                  remarkPlugins={
-                    role === "user" ? [remarkGfm, remarkBreaks] : [remarkGfm]
-                  }
-                  components={{
-                    p: ({ children }) => (
-                      <Text
-                        style={{
-                          marginBottom: token.marginSM,
-                          display: "block",
-                        }}
-                      >
-                        {children}
-                      </Text>
-                    ),
-                    ol: ({ children }) => (
-                      <ol
-                        style={{
-                          marginBottom: token.marginSM,
-                          paddingLeft: 20,
-                        }}
-                      >
-                        {children}
-                      </ol>
-                    ),
-                    ul: ({ children }) => (
-                      <ul
-                        style={{
-                          marginBottom: token.marginSM,
-                          paddingLeft: 20,
-                        }}
-                      >
-                        {children}
-                      </ul>
-                    ),
-                    li: ({ children }) => (
-                      <li
-                        style={{
-                          marginBottom: token.marginXS,
-                        }}
-                      >
-                        {children}
-                      </li>
-                    ),
-                    code({ className, children, ...props }) {
-                      const match = /language-(\w+)/.exec(className || "");
-                      const language = match ? match[1] : "";
-                      const isInline = !match && !className;
-                      const codeString = String(children).replace(/\n$/, "");
-
-                      if (isInline) {
-                        return (
-                          <Text code className={className} {...props}>
-                            {children}
-                          </Text>
-                        );
-                      }
-
-                      // Handle Mermaid diagrams
-                      if (language === "mermaid") {
-                        return <MermaidChart chart={codeString} />;
-                      }
-
-                      return (
-                        <div
-                          style={{
-                            position: "relative",
-                            maxWidth: "100%",
-                            overflow: "auto",
-                          }}
-                        >
-                          <SyntaxHighlighter
-                            style={oneDark}
-                            language={language || "text"}
-                            PreTag="div"
-                            customStyle={{
-                              margin: `${token.marginXS}px 0`,
-                              borderRadius: token.borderRadiusSM,
-                              fontSize: token.fontSizeSM,
-                              maxWidth: "100%",
-                            }}
-                          >
-                            {codeString}
-                          </SyntaxHighlighter>
-                        </div>
-                      );
-                    },
-                    blockquote: ({ children }) => (
-                      <div
-                        style={{
-                          borderLeft: `3px solid ${token.colorPrimary}`,
-                          background: token.colorPrimaryBg,
-                          padding: `${token.paddingXS}px ${token.padding}px`,
-                          margin: `${token.marginXS}px 0`,
-                          color: token.colorTextSecondary,
-                          fontStyle: "italic",
-                        }}
-                      >
-                        {children}
-                      </div>
-                    ),
-                    a: ({ children }) => (
-                      <Text style={{ color: token.colorLink }}>{children}</Text>
-                    ),
-                  }}
+                  remarkPlugins={markdownPlugins}
+                  rehypePlugins={rehypePlugins}
+                  components={markdownComponents}
                 >
                   {isUserToolCall
-                    ? formatUserToolCall(getMessageText(content))
-                    : getMessageText(content)}
+                    ? formatUserToolCall(messageText)
+                    : messageText}
                 </ReactMarkdown>
               )}
 
@@ -482,9 +397,7 @@ const MessageCard: React.FC<MessageCardProps> = ({
               isVisible={isHovering}
               position={{ bottom: token.paddingXS, right: token.paddingXS }}
               buttons={[
-                createCopyButton(() =>
-                  copyToClipboard(getMessageText(content))
-                ),
+                createCopyButton(() => copyToClipboard(messageText)),
                 createFavoriteButton(addMessageToFavorites),
                 createReferenceButton(referenceMessage),
               ]}
