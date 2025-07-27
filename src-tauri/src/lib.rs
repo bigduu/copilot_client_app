@@ -18,9 +18,6 @@ pub mod extension_system;
 pub mod mcp;
 pub mod web_service;
 
-// Internal company module
-pub mod internal;
-
 fn setup<R: Runtime>(app: &mut App<R>) -> std::result::Result<(), Box<dyn std::error::Error>> {
     let handle = app.handle();
     let app_data_dir = handle.path().app_data_dir().unwrap();
@@ -51,11 +48,6 @@ fn setup<R: Runtime>(app: &mut App<R>) -> std::result::Result<(), Box<dyn std::e
     tauri::async_runtime::spawn(async {
         let _ = init_all_clients().await;
     });
-
-    // Setup internal module with context
-    if let Err(e) = internal::setup_internal(app) {
-        log::error!("Failed to setup internal module: {}", e);
-    }
 
     Ok(())
 }
