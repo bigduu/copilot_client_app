@@ -20,7 +20,8 @@ export interface ChatService {
   executePrompt(
     messages: Message[],
     model?: string,
-    onChunk?: (chunk: string) => void
+    onChunk?: (chunk: string) => void,
+    abortSignal?: AbortSignal
   ): Promise<void>;
 
   /**

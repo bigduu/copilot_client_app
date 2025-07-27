@@ -60,6 +60,7 @@ interface ChatState {
   favorites: FavoriteItem[];
   isProcessing: boolean;
   streamingMessage: { chatId: string; content: string } | null;
+  currentRequestController: AbortController | null;
 
   // Actions
   addChat: (chat: Omit<ChatItem, 'id'>) => void;
@@ -90,6 +91,7 @@ interface ChatState {
   initiateAIResponse: (chatId: string, userMessage: string) => Promise<void>;
   triggerAIResponseOnly: (chatId: string) => Promise<void>;
   handleAIToolCall: (chatId: string, aiResponse: string) => Promise<void>;
+  cancelCurrentRequest: () => void;
 }
 
 export const useChatStore = create<ChatState>((set, get) => ({
@@ -102,6 +104,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   favorites: [],
   isProcessing: false,
   streamingMessage: null, // 当前正在流式传输的消息
+  currentRequestController: null, // 当前请求的取消控制器
 
   // Chat management actions
   addChat: (chatData) => {
@@ -463,7 +466,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
     };
     addMessage(chatId, userMsg);
 
-    set({ isProcessing: true });
+    // Create abort controller for this request
+    const abortController = new AbortController();
+    set({ isProcessing: true, currentRequestController: abortController });
 
     try {
       // 获取当前聊天的所有消息（不包括刚添加的用户消息，我们会手动添加）
@@ -523,6 +528,32 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
       // 处理流式响应的回调函数
       const handleStreamChunk = async (rawMessage: string) => {
+        // 处理 [CANCELLED] 信号
+        if (rawMessage.trim() === '[CANCELLED]') {
+          console.log('[chatStore] Request was cancelled');
+
+          // Convert streaming message to final message if exists
+          if (assistantResponse) {
+            const assistantMsg: Message = {
+              id: `assistant-${turnId}`,
+              content: assistantResponse,
+              role: 'assistant',
+            };
+            addMessage(chatId, assistantMsg);
+          }
+
+          // Clear states
+          set({
+            streamingMessage: null,
+            isProcessing: false,
+            currentRequestController: null
+          });
+
+          // Save chats
+          get().saveChats();
+          return;
+        }
+
         // 处理 [DONE] 信号
         if (rawMessage.trim() === '[DONE]') {
 
@@ -634,10 +665,11 @@ export const useChatStore = create<ChatState>((set, get) => ({
       await serviceFactory.executePrompt(
         messagesToSend,
         currentChat?.model || undefined,
-        handleStreamChunk
+        handleStreamChunk,
+        abortController.signal
       );
 
-      set({ isProcessing: false });
+      set({ isProcessing: false, currentRequestController: null });
     } catch (error) {
       console.error('AI response failed:', error);
       // Add error message
@@ -646,7 +678,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
         content: 'Sorry, I encountered an error while processing your request. Please try again.',
         role: 'assistant',
       });
-      set({ isProcessing: false });
+      set({ isProcessing: false, currentRequestController: null });
     }
   },
 
@@ -654,7 +686,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
   triggerAIResponseOnly: async (chatId) => {
     const { addMessage, messages, chats } = get();
 
-    set({ isProcessing: true });
+    // Create abort controller for this request
+    const abortController = new AbortController();
+    set({ isProcessing: true, currentRequestController: abortController });
 
     try {
       // 获取当前聊天的所有消息（用户消息应该已经存在）
@@ -732,6 +766,32 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
       // 处理流式响应的回调函数
       const handleStreamChunk = async (rawMessage: string) => {
+        // 处理 [CANCELLED] 信号
+        if (rawMessage.trim() === '[CANCELLED]') {
+          console.log('[chatStore] Request was cancelled');
+
+          // Convert streaming message to final message if exists
+          if (assistantResponse) {
+            const assistantMsg: Message = {
+              id: `assistant-${turnId}`,
+              content: assistantResponse,
+              role: 'assistant',
+            };
+            addMessage(chatId, assistantMsg);
+          }
+
+          // Clear states
+          set({
+            streamingMessage: null,
+            isProcessing: false,
+            currentRequestController: null
+          });
+
+          // Save chats
+          get().saveChats();
+          return;
+        }
+
         // 处理 [DONE] 信号
         if (rawMessage.trim() === '[DONE]') {
 
@@ -841,10 +901,11 @@ export const useChatStore = create<ChatState>((set, get) => ({
       await serviceFactory.executePrompt(
         messagesToSend,
         currentChat?.model || undefined,
-        handleStreamChunk
+        handleStreamChunk,
+        abortController.signal
       );
 
-      set({ isProcessing: false });
+      set({ isProcessing: false, currentRequestController: null });
     } catch (error) {
       console.error('AI response failed:', error);
       // Add error message
@@ -853,7 +914,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
         content: 'Sorry, I encountered an error while processing your request. Please try again.',
         role: 'assistant',
       });
-      set({ isProcessing: false });
+      set({ isProcessing: false, currentRequestController: null });
     }
   },
 
@@ -993,6 +1054,19 @@ export const useChatStore = create<ChatState>((set, get) => ({
         content: `I tried to use a tool but encountered an error: ${error}`,
         id: crypto.randomUUID(),
       });
+    }
+  },
+
+  // Cancel current request
+  cancelCurrentRequest: () => {
+    const { currentRequestController } = get();
+
+    if (currentRequestController) {
+      console.log('[chatStore] Cancelling current request');
+      currentRequestController.abort();
+
+      // Don't save message here - let handleStreamChunk handle the [CANCELLED] signal
+      // This prevents duplicate messages
     }
   },
 }));

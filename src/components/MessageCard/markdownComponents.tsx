@@ -156,9 +156,24 @@ const CodeBlockWithCopy: React.FC<{
 // Enhanced code block renderer with error handling
 const renderCodeBlock = (language: string, codeString: string, token: any) => {
   try {
+    // Validate input
+    if (!codeString || typeof codeString !== "string") {
+      console.warn(
+        "Invalid codeString provided to renderCodeBlock:",
+        codeString
+      );
+      return null;
+    }
+
     // Handle Mermaid diagrams
     if (language === "mermaid") {
-      return <MermaidChart chart={codeString} />;
+      // Additional validation for Mermaid content
+      const trimmedChart = codeString.trim();
+      if (!trimmedChart) {
+        console.warn("Empty Mermaid chart content");
+        return null;
+      }
+      return <MermaidChart chart={trimmedChart} />;
     }
 
     return (
@@ -284,7 +299,9 @@ export const createMarkdownComponents = (token: any): Components => ({
     const match = /language-(\w+)/.exec(className || "");
     const language = match ? match[1] : "";
     const isInline = !match && !className;
-    const codeString = String(children).replace(/\n$/, "");
+
+    // Safely handle children that might be undefined or null
+    const codeString = children ? String(children).replace(/\n$/, "") : "";
 
     if (isInline) {
       return (
@@ -292,6 +309,11 @@ export const createMarkdownComponents = (token: any): Components => ({
           {children}
         </Text>
       );
+    }
+
+    // Don't render empty code blocks
+    if (!codeString.trim()) {
+      return null;
     }
 
     return renderCodeBlock(language, codeString, token);

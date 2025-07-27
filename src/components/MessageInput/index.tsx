@@ -5,6 +5,7 @@ import {
   SyncOutlined,
   PictureOutlined,
   CloseOutlined,
+  StopOutlined,
 } from "@ant-design/icons";
 
 const { Text } = Typography;
@@ -27,6 +28,7 @@ interface MessageInputProps {
   onChange: (value: string) => void;
   onSubmit: (content: string, images?: ImageFile[]) => void;
   onRetry?: () => void;
+  onCancel?: () => void;
   isStreaming: boolean;
   isCenteredLayout?: boolean;
   placeholder?: string;
@@ -48,6 +50,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
   onChange,
   onSubmit,
   onRetry,
+  onCancel,
   isStreaming,
   // isCenteredLayout = false,
   placeholder = "Send a message...",
@@ -529,21 +532,22 @@ export const MessageInput: React.FC<MessageInputProps> = ({
 
             <Button
               type="primary"
-              icon={<SendOutlined />}
-              onClick={handleSubmit}
+              icon={isStreaming ? <StopOutlined /> : <SendOutlined />}
+              onClick={isStreaming ? onCancel : handleSubmit}
               disabled={
-                (!value.trim() && images.length === 0) ||
-                isStreaming ||
-                disabled
+                isStreaming
+                  ? !onCancel || disabled
+                  : (!value.trim() && images.length === 0) || disabled
               }
               size="small"
+              danger={isStreaming}
               style={{
                 minWidth: "auto",
                 padding: "4px 6px",
                 height: 32,
                 width: 40,
               }}
-              title="Send message"
+              title={isStreaming ? "Cancel request" : "Send message"}
             />
           </div>
         </div>
