@@ -2,7 +2,7 @@
 //!
 //! Contains tools related to system command execution
 
-use crate::extension_system::{auto_register_category, Category, CategoryMetadata, CategoryId};
+use crate::extension_system::{auto_register_category, Category, CategoryId, CategoryMetadata};
 
 /// Command Execution Category
 #[derive(Debug)]
@@ -13,9 +13,9 @@ pub struct CommandExecutionCategory {
 impl CommandExecutionCategory {
     pub const CATEGORY_ID: &'static str = "command_execution";
 
-    /// Create a new command execution category
+    /// Create a new command execution category (disabled by default)
     pub fn new() -> Self {
-        Self { enabled: true }
+        Self { enabled: false }
     }
 
     /// Set whether this category is enabled

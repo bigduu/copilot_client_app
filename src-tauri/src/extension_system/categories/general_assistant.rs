@@ -2,7 +2,7 @@
 //!
 //! Contains general AI assistant tools
 
-use crate::extension_system::{auto_register_category, Category, CategoryMetadata, CategoryId};
+use crate::extension_system::{auto_register_category, Category, CategoryId, CategoryMetadata};
 
 /// General Assistant Category
 #[derive(Debug)]
@@ -42,16 +42,50 @@ impl Category for GeneralAssistantCategory {
             emoji_icon: "🤖".to_string(),
             enabled: self.enabled,
             strict_tools_mode: false, // General assistant requires natural language interaction
-            system_prompt: "You are an intelligent general AI assistant capable of understanding various user needs and providing useful help. You can answer questions, provide suggestions, assist in problem-solving, and interact with users in a friendly and professional manner. Please provide accurate and useful information and suggestions based on users' specific needs, maintaining professionalism and a friendly attitude.".to_string(),
+            system_prompt: "You are an intelligent AI assistant with expertise in software development and financial technology. You specialize in:
+
+TECHNICAL EXPERTISE:
+- Java & Spring Boot: microservices, REST APIs, dependency injection, Spring Security, enterprise patterns
+- Cloud Platforms: Google Cloud Platform (GCP), Amazon Web Services (AWS), serverless architectures
+- Rust: memory safety, ownership model, async programming, cargo ecosystem, performance optimization
+- Message Systems: Solace messaging, Apache Kafka, Google Pub/Sub, event-driven architectures, stream processing
+- Data Engineering: Google Dataflow, Apache Airflow, ETL/ELT pipelines, data orchestration, real-time analytics
+- Databases: BigQuery (data warehouse), BigTable (NoSQL), MongoDB (document), PostgreSQL (relational), Redis (cache/session)
+- Infrastructure: Terraform (Infrastructure as Code), cloud resource management, scalable architectures
+- DevOps: Jenkins CI/CD, automated deployment, containerization, monitoring, reliability engineering
+
+FINANCIAL DOMAIN:
+- Trading systems and market data processing
+- Financial terminology and concepts (as supplementary knowledge)
+- Risk management and compliance considerations
+
+CAPABILITIES:
+- Architectural Design: System design, scalability patterns, microservices architecture, distributed systems
+- Rapid Prototyping: Quick understanding of requirements, fast implementation strategies, MVP development
+- Technical Leadership: Code reviews, best practices, performance optimization, security considerations
+- Problem Solving: Root cause analysis, debugging strategies, performance tuning, capacity planning
+- Cross-functional: Bridge business requirements with technical implementation, stakeholder communication
+
+You combine architect-level strategic thinking with hands-on development expertise. You can quickly understand new requirements, provide architectural guidance, suggest implementation approaches, help with troubleshooting, and deliver practical solutions. You excel at translating business needs into technical solutions and can rapidly adapt to new technologies and domains. When discussing financial topics, treat them as enriching domain knowledge rather than primary expertise.".to_string(),
             category_type: CategoryId::GeneralAssistant,
             priority: 1, // General assistant has the lowest priority, serving as a fallback function
         }
     }
 
     fn required_tools(&self) -> &'static [&'static str] {
-        // Currently, the general assistant category has no specific tool implementations
-        // This can serve as a placeholder for future extensions
-        &[]
+        // General assistant has access to all available tools
+        &[
+            // File operations
+            "create_file",
+            "read_file",
+            "update_file",
+            "append_file",
+            "delete_file",
+            // Command execution
+            "execute_command",
+            // Search functionality
+            "search",
+        ]
     }
 
     fn enable(&self) -> bool {
