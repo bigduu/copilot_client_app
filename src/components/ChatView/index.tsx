@@ -61,8 +61,7 @@ export const ChatView: React.FC = () => {
   const { token } = useToken();
   const screens = useBreakpoint();
 
-  // SystemMessage expand/collapse state
-  const [systemMsgExpanded, setSystemMsgExpanded] = useState(true);
+  // Removed SystemMessage expand/collapse state since it's no longer collapsible
   // Track last chatId to detect chat change
   const lastChatIdRef = useRef<string | null>(null);
   // Scroll-to-bottom button state
@@ -139,22 +138,12 @@ export const ChatView: React.FC = () => {
     };
   }, [currentMessages]);
 
-  // Auto-expand on new chat, auto-collapse after first user message
+  // Track chat changes (SystemMessage no longer needs expand/collapse management)
   useEffect(() => {
     if (currentChatId !== lastChatIdRef.current) {
-      if (currentMessages.length === 0) {
-        setSystemMsgExpanded(true);
-      } else {
-        setSystemMsgExpanded(false);
-      }
       lastChatIdRef.current = currentChatId;
-    } else if (
-      currentMessages.length === 1 &&
-      currentMessages[0]?.role === "user"
-    ) {
-      setSystemMsgExpanded(false);
     }
-  }, [currentChatId, currentMessages]);
+  }, [currentChatId]);
 
   useEffect(() => {
     if (messagesEndRef.current && currentMessages.length > 0) {
@@ -242,11 +231,7 @@ export const ChatView: React.FC = () => {
                 maxWidth: showMessagesView ? getContainerMaxWidth() : "100%",
               }}
             >
-              <SystemMessage
-                isExpandedView={!showMessagesView}
-                expanded={systemMsgExpanded}
-                onExpandChange={setSystemMsgExpanded}
-              />
+              <SystemMessage />
               {!showMessagesView && !hasMessages && (
                 <Empty
                   description="Send a message to start the conversation."

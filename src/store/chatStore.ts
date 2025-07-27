@@ -561,18 +561,96 @@ export const useChatStore = create<ChatState>((set, get) => ({
           if (assistantResponse) {
             set({ streamingMessage: { chatId, content: assistantResponse } });
 
-            // 短暂延迟后转换为正式消息，确保用户看到完整内容
-            setTimeout(() => {
-              const assistantMsg: Message = {
-                id: `assistant-${turnId}`,
-                content: assistantResponse,
-                role: 'assistant',
-              };
-              addMessage(chatId, assistantMsg);
+            // 检查AI响应是否包含工具调用（仅在非严格模式下）
+            let isToolCall = false;
+            try {
+              console.log('[chatStore] ===== STREAM COMPLETED DEBUG =====');
+              console.log('[chatStore] Stream completed, checking for tool calls...');
+              console.log('[chatStore] Current chat systemPromptId:', currentChat?.systemPromptId);
+              console.log('[chatStore] Assistant response length:', assistantResponse.length);
+              console.log('[chatStore] Assistant response preview:', assistantResponse.substring(0, 200));
+              console.log('[chatStore] Full assistant response:', assistantResponse);
 
-              // 清除流式消息状态
+              if (currentChat?.systemPromptId && assistantResponse.trim()) {
+                const enhancer = SystemPromptEnhancer.getInstance();
+                const isStrictMode = await enhancer.isStrictMode(currentChat.systemPromptId);
+
+                console.log('[chatStore] Category strict mode:', isStrictMode);
+
+                if (!isStrictMode) {
+                  console.log('[chatStore] Non-strict mode detected, checking for AI tool calls...');
+                  console.log('[chatStore] Full assistant response for analysis:', assistantResponse);
+
+                  // Check if response contains tool call and create approval request
+                  // Use the same JSON extraction logic as handleAIToolCall
+                  let jsonStr = '';
+
+                  // First try to find JSON in code blocks
+                  const codeBlockMatch = assistantResponse.match(/```json\s*(\{[\s\S]*?\})\s*```/);
+                  if (codeBlockMatch) {
+                    jsonStr = codeBlockMatch[1];
+                    console.log('[chatStore] Found JSON in code block:', jsonStr.substring(0, 100));
+                  } else {
+                    // Try to find JSON without code blocks - look for complete JSON objects
+                    const jsonMatch = assistantResponse.match(/\{[\s\S]*?"tool_call"[\s\S]*?\}/);
+                    if (jsonMatch) {
+                      jsonStr = jsonMatch[0];
+                      console.log('[chatStore] Found JSON in mixed content:', jsonStr.substring(0, 100));
+                    } else {
+                      // Try direct JSON parsing for pure JSON responses
+                      try {
+                        const parsed = JSON.parse(assistantResponse.trim());
+                        if (parsed && typeof parsed === 'object' && parsed.tool_call && Array.isArray(parsed.parameters)) {
+                          jsonStr = assistantResponse.trim();
+                          console.log('[chatStore] Found pure JSON response:', jsonStr.substring(0, 100));
+                        }
+                      } catch (directParseError) {
+                        console.log('[chatStore] No tool call JSON found in response');
+                      }
+                    }
+                  }
+
+                  if (jsonStr.trim()) {
+                    try {
+                      const parsed = JSON.parse(jsonStr);
+                      if (parsed && typeof parsed === 'object' && parsed.tool_call && Array.isArray(parsed.parameters)) {
+                        console.log('[chatStore] Tool call detected, will create approval request instead of saving message');
+                        isToolCall = true;
+                        await get().handleAIToolCall(chatId, assistantResponse);
+                      }
+                    } catch (parseError) {
+                      console.log('[chatStore] Failed to parse extracted JSON:', parseError);
+                    }
+                  } else {
+                    console.log('[chatStore] No tool call JSON found, continue with normal processing');
+                  }
+                } else {
+                  console.log('[chatStore] Strict mode detected, skipping AI tool call check');
+                }
+              } else {
+                console.log('[chatStore] Skipping tool call check - missing systemPromptId or empty response');
+              }
+            } catch (error) {
+              console.error('[chatStore] Failed to handle AI tool call:', error);
+            }
+
+            // 只有在不是工具调用时才保存 assistant 消息
+            if (!isToolCall) {
+              setTimeout(() => {
+                const assistantMsg: Message = {
+                  id: `assistant-${turnId}`,
+                  content: assistantResponse,
+                  role: 'assistant',
+                };
+                addMessage(chatId, assistantMsg);
+
+                // 清除流式消息状态
+                set({ streamingMessage: null });
+              }, 100);
+            } else {
+              // 如果是工具调用，直接清除流式消息状态
               set({ streamingMessage: null });
-            }, 100);
+            }
           } else {
             // 没有内容时直接清除
             set({ streamingMessage: null });
@@ -580,32 +658,6 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
           // 流式响应完成，保存聊天数据
           get().saveChats();
-
-          // 检查AI响应是否包含工具调用（仅在非严格模式下）
-          try {
-            console.log('[chatStore] Stream completed, checking for tool calls...');
-            console.log('[chatStore] Current chat systemPromptId:', currentChat?.systemPromptId);
-            console.log('[chatStore] Assistant response length:', assistantResponse.length);
-            console.log('[chatStore] Assistant response preview:', assistantResponse.substring(0, 200));
-
-            if (currentChat?.systemPromptId && assistantResponse.trim()) {
-              const enhancer = SystemPromptEnhancer.getInstance();
-              const isStrictMode = await enhancer.isStrictMode(currentChat.systemPromptId);
-
-              console.log('[chatStore] Category strict mode:', isStrictMode);
-
-              if (!isStrictMode) {
-                console.log('[chatStore] Non-strict mode detected, checking for AI tool calls...');
-                await get().handleAIToolCall(chatId, assistantResponse);
-              } else {
-                console.log('[chatStore] Strict mode detected, skipping AI tool call check');
-              }
-            } else {
-              console.log('[chatStore] Skipping tool call check - missing systemPromptId or empty response');
-            }
-          } catch (error) {
-            console.error('[chatStore] Failed to handle AI tool call:', error);
-          }
 
           return;
         }
@@ -707,12 +759,23 @@ export const useChatStore = create<ChatState>((set, get) => ({
       // 检查最后一条消息是否是assistant的回复，如果是则删除它
       // 如果最后一条消息是用户消息，则保持不变（用户可能删除了AI回复想重新生成）
       if (chatMessages.length > 0 && chatMessages[chatMessages.length - 1].role === 'assistant') {
+        const lastMessage = chatMessages[chatMessages.length - 1];
         console.log('[triggerAIResponseOnly] Removing last assistant message before regeneration');
         console.log('[triggerAIResponseOnly] Last message to remove:', {
-          role: chatMessages[chatMessages.length - 1].role,
-          id: chatMessages[chatMessages.length - 1].id,
-          contentPreview: getMessageText(chatMessages[chatMessages.length - 1].content).substring(0, 50)
+          role: lastMessage.role,
+          id: lastMessage.id,
+          contentPreview: getMessageText(lastMessage.content).substring(0, 50)
         });
+
+        // 从 store 中删除最后一条 assistant 消息
+        set(state => ({
+          messages: {
+            ...state.messages,
+            [chatId]: state.messages[chatId]?.slice(0, -1) || []
+          }
+        }));
+
+        // 更新本地变量以反映删除后的状态
         chatMessages = chatMessages.slice(0, -1);
         console.log('[triggerAIResponseOnly] Messages after removal count:', chatMessages.length);
       } else {
@@ -1035,12 +1098,40 @@ export const useChatStore = create<ChatState>((set, get) => ({
       });
 
       // Add tool execution result as a new assistant message
-      const { addMessage } = get();
-      addMessage(chatId, {
-        role: "assistant",
-        content: result.content,
-        id: crypto.randomUUID(),
-      });
+      const { addMessage, messages } = get();
+      const currentMessages = messages[chatId] || [];
+
+      // 检查是否已经存在相同内容的 approval request，避免重复
+      const isDuplicateApproval = currentMessages.some(msg =>
+        msg.role === 'assistant' &&
+        msg.content === result.content
+      );
+
+      if (!isDuplicateApproval) {
+        console.log('[chatStore] Adding approval request message');
+
+        // 首先删除上一条包含工具调用JSON的Assistant消息
+        const lastAssistantIndex = currentMessages.length - 1;
+        if (lastAssistantIndex >= 0 && currentMessages[lastAssistantIndex].role === 'assistant') {
+          console.log('[chatStore] Removing previous assistant message with tool call JSON');
+          set(state => ({
+            messages: {
+              ...state.messages,
+              [chatId]: state.messages[chatId]?.slice(0, -1) || []
+            }
+          }));
+        }
+
+        // 然后添加approval request消息
+        addMessage(chatId, {
+          role: "assistant",
+          content: result.content,
+          id: crypto.randomUUID(),
+        });
+        console.log('[chatStore] Added new approval request message');
+      } else {
+        console.log('[chatStore] Skipped duplicate approval request message');
+      }
 
       console.log('[chatStore] AI tool call executed successfully');
 
