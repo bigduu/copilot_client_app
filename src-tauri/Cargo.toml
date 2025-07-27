@@ -85,3 +85,11 @@ rmcp = { version = "0.1", features = ["transport-child-process", "client"] }
 once_cell = "1.19"
 
 rfd = "0.15"
+
+# Date and time handling (for internal auth service)
+chrono = { version = "0.4", features = ["serde"] }
+
+[features]
+default = []
+# Internal company features - only enable in company environment
+internal = []

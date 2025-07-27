@@ -5,8 +5,8 @@ use crate::command::chat::{execute_prompt, get_models};
 use crate::command::copy::copy_to_clipboard;
 use crate::command::web_service::{get_web_service_status, WebServiceState};
 use crate::copilot::{Config, CopilotClient};
+use crate::extension_system::create_tools_manager;
 use crate::mcp::client::init_all_clients;
-use crate::tools::create_tool_manager;
 use crate::web_service::WebService;
 use command::mcp::{get_mcp_client_status, get_mcp_servers, set_mcp_servers};
 use log::LevelFilter;
@@ -14,9 +14,12 @@ use tauri::{App, Manager, Runtime};
 
 pub mod command;
 pub mod copilot;
+pub mod extension_system;
 pub mod mcp;
-pub mod tools;
 pub mod web_service;
+
+// Internal company module
+pub mod internal;
 
 fn setup<R: Runtime>(app: &mut App<R>) -> std::result::Result<(), Box<dyn std::error::Error>> {
     let handle = app.handle();
@@ -28,8 +31,8 @@ fn setup<R: Runtime>(app: &mut App<R>) -> std::result::Result<(), Box<dyn std::e
     let web_service: WebServiceState = Arc::new(Mutex::new(WebService::new()));
     app.manage(web_service.clone());
 
-    // Create tool manager using the new registration-based architecture
-    let tool_manager = Arc::new(create_tool_manager().expect("Failed to create tool manager"));
+    // Create tool manager using the new extension system
+    let tool_manager = Arc::new(create_tools_manager());
 
     // Register tool manager with Tauri state management
     app.manage(tool_manager.clone());
@@ -48,6 +51,11 @@ fn setup<R: Runtime>(app: &mut App<R>) -> std::result::Result<(), Box<dyn std::e
     tauri::async_runtime::spawn(async {
         let _ = init_all_clients().await;
     });
+
+    // Setup internal module with context
+    if let Err(e) = internal::setup_internal(app) {
+        log::error!("Failed to setup internal module: {}", e);
+    }
 
     Ok(())
 }
