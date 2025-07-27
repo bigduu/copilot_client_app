@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tauri::State;
 
-use crate::tools::{Parameter, ToolCategory, ToolConfig, ToolManager};
+use crate::extension_system::{Parameter, ToolCategory, ToolConfig, ToolsManager};
 
 #[derive(Serialize)]
 pub struct ParameterInfo {
@@ -37,15 +37,15 @@ pub struct ParameterValue {
 
 #[tauri::command]
 pub fn get_available_tools(
-    tool_manager: State<'_, std::sync::Arc<ToolManager>>,
+    tool_manager: State<'_, std::sync::Arc<ToolsManager>>,
 ) -> Result<String, String> {
-    let tools_list = tool_manager.list_tools();
-    Ok(tools_list)
+    let tool_names = tool_manager.get_tool_names();
+    Ok(format!("Available tools: {}", tool_names.join(", ")))
 }
 
 #[tauri::command]
 pub fn get_tools_for_ui(
-    tool_manager: State<'_, Arc<ToolManager>>,
+    tool_manager: State<'_, Arc<ToolsManager>>,
     category_id: Option<String>,
 ) -> Result<Vec<ToolUIInfo>, String> {
     // 如果指定了类别ID，检查是否为严格模式
@@ -55,10 +55,8 @@ pub fn get_tools_for_ui(
                 // 严格模式：只返回该类别允许的工具
                 let category_tools = tool_manager.get_category_tools(&category_id);
 
-                let allowed_tool_names: std::collections::HashSet<String> = category_tools
-                    .iter()
-                    .map(|tool| tool.name.clone())
-                    .collect();
+                let allowed_tool_names: std::collections::HashSet<String> =
+                    category_tools.iter().map(|tool| tool.name()).collect();
 
                 let all_tools = tool_manager.list_tools_for_ui();
 
@@ -80,7 +78,7 @@ pub fn get_tools_for_ui(
 #[tauri::command(async)]
 pub async fn execute_tool(
     request: ToolExecutionRequest,
-    tool_manager: State<'_, Arc<ToolManager>>,
+    tool_manager: State<'_, Arc<ToolsManager>>,
 ) -> Result<String, String> {
     // Get the tool
     let tool = tool_manager
@@ -109,7 +107,7 @@ pub async fn execute_tool(
 // not for actual tool execution (that's handled by the processor)
 #[tauri::command]
 pub fn get_tools_documentation(
-    tool_manager: State<'_, Arc<ToolManager>>,
+    tool_manager: State<'_, Arc<ToolsManager>>,
 ) -> Result<String, String> {
     let mut documentation = String::from("Available Tools:\n\n");
 
@@ -143,7 +141,7 @@ pub fn get_tools_documentation(
 /// Get all available tool categories (sorted by priority)
 #[tauri::command]
 pub fn get_tool_categories(
-    tool_manager: State<'_, Arc<ToolManager>>,
+    tool_manager: State<'_, Arc<ToolsManager>>,
 ) -> Result<Vec<ToolCategory>, String> {
     let category_infos = tool_manager.get_all_category_info();
     let categories = category_infos
@@ -157,9 +155,9 @@ pub fn get_tool_categories(
 #[tauri::command]
 pub fn get_category_tools(
     category_id: String,
-    tool_manager: State<'_, Arc<ToolManager>>,
+    tool_manager: State<'_, Arc<ToolsManager>>,
 ) -> Result<Vec<ToolConfig>, String> {
-    let tools = tool_manager.get_category_tools(&category_id);
+    let tools = tool_manager.get_category_tool_configs(&category_id);
     Ok(tools)
 }
 
@@ -167,7 +165,7 @@ pub fn get_category_tools(
 #[tauri::command]
 pub fn get_tool_category_info(
     category_id: String,
-    tool_manager: State<'_, Arc<ToolManager>>,
+    tool_manager: State<'_, Arc<ToolsManager>>,
 ) -> Result<Option<ToolCategory>, String> {
     let category = tool_manager.get_category_by_id(&category_id);
     Ok(category)
@@ -178,7 +176,7 @@ pub fn get_tool_category_info(
 /// Get tool manager statistics
 #[tauri::command]
 pub fn get_tool_manager_stats(
-    tool_manager: State<'_, Arc<ToolManager>>,
+    tool_manager: State<'_, Arc<ToolsManager>>,
 ) -> Result<serde_json::Value, String> {
     let stats = serde_json::json!({
         "total_categories": tool_manager.category_count(),
@@ -192,7 +190,7 @@ pub fn get_tool_manager_stats(
 #[tauri::command]
 pub fn is_category_enabled(
     category_id: String,
-    tool_manager: State<'_, Arc<ToolManager>>,
+    tool_manager: State<'_, Arc<ToolsManager>>,
 ) -> Result<bool, String> {
     let category = tool_manager.get_category_by_id(&category_id);
     Ok(category.is_some_and(|cat| cat.enabled))
@@ -202,7 +200,7 @@ pub fn is_category_enabled(
 #[tauri::command]
 pub fn get_category_system_prompt(
     category_id: String,
-    tool_manager: State<'_, Arc<ToolManager>>,
+    tool_manager: State<'_, Arc<ToolsManager>>,
 ) -> Result<Option<String>, String> {
     let category = tool_manager.get_category_by_id(&category_id);
     Ok(category.map(|cat| cat.system_prompt))
