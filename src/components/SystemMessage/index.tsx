@@ -8,17 +8,10 @@ const { Text } = Typography;
 const { useToken } = theme;
 
 interface SystemMessageProps {
-  isExpandedView?: boolean;
-  expanded?: boolean;
-  onExpandChange?: (expanded: boolean) => void;
+  // Removed collapsible props since we're not using them anymore
 }
 
-const SystemMessage: React.FC<SystemMessageProps> = ({
-  isExpandedView = false,
-  expanded: controlledExpanded,
-  onExpandChange,
-}) => {
-  // console.log("SystemMessage component rendering");
+const SystemMessage: React.FC<SystemMessageProps> = () => {
   const { token } = useToken();
 
   // Get the current chat context
@@ -104,37 +97,14 @@ const SystemMessage: React.FC<SystemMessageProps> = ({
     throw new Error("System prompt format error");
   }, [categoryDescription, currentChat?.systemPrompt, systemPrompt]);
 
-  // Local state for expand/collapse
-  const [uncontrolledExpanded, setUncontrolledExpanded] =
-    useState(isExpandedView);
-  const expanded =
-    controlledExpanded !== undefined
-      ? controlledExpanded
-      : uncontrolledExpanded;
-
-  // Get summary (first line or truncated)
-  const summary =
-    promptToDisplay.split("\n")[0].slice(0, 80) +
-    (promptToDisplay.length > 80 ? "..." : "");
-
   return (
     <Card
       style={{
         position: "relative",
         width: "100%",
         maxWidth: "100%",
-        maxHeight: expanded ? "80vh" : "8vh",
-        overflowY: expanded ? "auto" : "hidden",
         borderRadius: token.borderRadiusLG,
         boxShadow: token.boxShadow,
-        cursor: "pointer",
-      }}
-      onClick={() => {
-        if (onExpandChange) {
-          onExpandChange(!expanded);
-        } else {
-          setUncontrolledExpanded((prev) => !prev);
-        }
       }}
     >
       <Space
@@ -153,52 +123,44 @@ const SystemMessage: React.FC<SystemMessageProps> = ({
           }}
         >
           <div style={{ flex: 1 }}>
-            {expanded ? (
-              <ReactMarkdown
-                components={{
-                  p: ({ children }) => (
-                    <Text
-                      style={{ marginBottom: token.marginSM, display: "block" }}
-                    >
-                      {children}
-                    </Text>
-                  ),
-                  ol: ({ children }) => (
-                    <ol
-                      style={{ marginBottom: token.marginSM, paddingLeft: 20 }}
-                    >
-                      {children}
-                    </ol>
-                  ),
-                  ul: ({ children }) => (
-                    <ul
-                      style={{ marginBottom: token.marginSM, paddingLeft: 20 }}
-                    >
-                      {children}
-                    </ul>
-                  ),
-                  li: ({ children }) => (
-                    <li style={{ marginBottom: token.marginXS }}>{children}</li>
-                  ),
-                  h1: ({ children }) => (
-                    <Text
-                      strong
-                      style={{
-                        fontSize: token.fontSizeHeading3,
-                        marginBottom: token.marginSM,
-                        display: "block",
-                      }}
-                    >
-                      {children}
-                    </Text>
-                  ),
-                }}
-              >
-                {promptToDisplay}
-              </ReactMarkdown>
-            ) : (
-              <Text style={{ color: token.colorTextSecondary }}>{summary}</Text>
-            )}
+            <ReactMarkdown
+              components={{
+                p: ({ children }) => (
+                  <Text
+                    style={{ marginBottom: token.marginSM, display: "block" }}
+                  >
+                    {children}
+                  </Text>
+                ),
+                ol: ({ children }) => (
+                  <ol style={{ marginBottom: token.marginSM, paddingLeft: 20 }}>
+                    {children}
+                  </ol>
+                ),
+                ul: ({ children }) => (
+                  <ul style={{ marginBottom: token.marginSM, paddingLeft: 20 }}>
+                    {children}
+                  </ul>
+                ),
+                li: ({ children }) => (
+                  <li style={{ marginBottom: token.marginXS }}>{children}</li>
+                ),
+                h1: ({ children }) => (
+                  <Text
+                    strong
+                    style={{
+                      fontSize: token.fontSizeHeading3,
+                      marginBottom: token.marginSM,
+                      display: "block",
+                    }}
+                  >
+                    {children}
+                  </Text>
+                ),
+              }}
+            >
+              {promptToDisplay}
+            </ReactMarkdown>
           </div>
         </div>
       </Space>

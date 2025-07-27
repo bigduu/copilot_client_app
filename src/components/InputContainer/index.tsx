@@ -1,19 +1,17 @@
-import React, { useState, useMemo, useEffect } from "react";
-import { Button, Space, Tooltip, theme, Tag, Alert, Typography } from "antd";
-import { SettingOutlined, ToolOutlined, LockOutlined } from "@ant-design/icons";
+import React, { useState, useMemo } from "react";
+import { Space, theme, Tag, Alert } from "antd";
+import { ToolOutlined } from "@ant-design/icons";
 import { MessageInput } from "../MessageInput";
-import SystemPromptModal from "../SystemPromptModal";
 import InputPreview from "./InputPreview";
 import ToolSelector from "../ToolSelector";
 import { useChats } from "../../hooks/useChats";
 import { useChatInput } from "../../hooks/useChatInput";
 import { useToolCategoryValidation } from "../../hooks/useToolCategoryValidation";
 import { useSystemPrompt } from "../../hooks/useSystemPrompt";
-import { getCategoryDisplayInfoAsync } from "../../utils/chatUtils";
+// Removed getCategoryDisplayInfoAsync import since lock functionality is removed
 import { useChatStore } from "../../store/chatStore";
 
 const { useToken } = theme;
-const { Text } = Typography;
 
 interface InputContainerProps {
   isStreaming: boolean;
@@ -24,7 +22,6 @@ export const InputContainer: React.FC<InputContainerProps> = ({
   isStreaming,
   isCenteredLayout = false,
 }) => {
-  const [isPromptModalOpen, setPromptModalOpen] = React.useState(false);
   const [showToolSelector, setShowToolSelector] = useState(false);
   const [toolSearchText, setToolSearchText] = useState("");
   const { token } = useToken();
@@ -44,36 +41,7 @@ export const InputContainer: React.FC<InputContainerProps> = ({
   const allowedTools = currentSystemPromptInfo?.allowedTools || [];
   const autoToolPrefix = currentSystemPromptInfo?.autoToolPrefix;
 
-  // Check if System Prompt is locked
-  const isSystemPromptLocked = Boolean(currentChat?.systemPromptId);
-
-  // Get locked mode display information
-  const [lockedModeInfo, setLockedModeInfo] = useState<any>(null);
-
-  useEffect(() => {
-    const loadLockedModeInfo = async () => {
-      if (!isSystemPromptLocked || !currentSystemPromptInfo) {
-        setLockedModeInfo(null);
-        return;
-      }
-
-      try {
-        const categoryInfo = await getCategoryDisplayInfoAsync(
-          currentSystemPromptInfo.category
-        );
-        setLockedModeInfo({
-          ...categoryInfo,
-          presetName: currentSystemPromptInfo.name,
-          presetDescription: currentSystemPromptInfo.description,
-        });
-      } catch (error) {
-        console.error("Failed to load locked mode category info:", error);
-        setLockedModeInfo(null);
-      }
-    };
-
-    loadLockedModeInfo();
-  }, [isSystemPromptLocked, currentSystemPromptInfo]);
+  // Removed lock functionality since everything is controlled by categories
 
   // Tool category validation logic
   const {
@@ -248,91 +216,22 @@ export const InputContainer: React.FC<InputContainerProps> = ({
       )}
 
       <div style={{ position: "relative" }}>
-        <div
-          style={{
-            display: "flex",
-            gap: token.marginXS,
-            alignItems: "center",
-            width: "100%",
-          }}
-        >
-          {isSystemPromptLocked && lockedModeInfo ? (
-            // Display locked mode information
-            <Tooltip
-              title={
-                <div>
-                  <div style={{ fontWeight: "bold", marginBottom: 4 }}>
-                    🔒 Mode Locked
-                  </div>
-                  <div style={{ marginBottom: 4 }}>
-                    {lockedModeInfo.presetDescription}
-                  </div>
-                  <div style={{ fontSize: "12px", opacity: 0.8 }}>
-                    To switch modes, create a new chat
-                  </div>
-                </div>
-              }
-            >
-              <Button
-                icon={<LockOutlined />}
-                size="large"
-                style={{
-                  cursor: "default",
-                  minWidth: "auto",
-                  flexShrink: 0,
-                  maxWidth: "120px",
-                }}
-                disabled
-              >
-                <span style={{ fontSize: "12px", marginRight: "4px" }}>
-                  {lockedModeInfo.icon}
-                </span>
-                <Text
-                  ellipsis
-                  style={{
-                    color: token.colorTextSecondary,
-                    fontSize: "11px",
-                    fontWeight: 500,
-                    maxWidth: "60px",
-                  }}
-                >
-                  {lockedModeInfo.presetName}
-                </Text>
-              </Button>
-            </Tooltip>
-          ) : (
-            // Display settings button (unlocked state)
-            <Tooltip title="Customize System Prompt">
-              <Button
-                icon={<SettingOutlined />}
-                onClick={() => setPromptModalOpen(true)}
-                aria-label="Customize System Prompt"
-                size="large"
-                style={{
-                  minWidth: "auto",
-                  flexShrink: 0,
-                  width: "40px",
-                }}
-              />
-            </Tooltip>
-          )}
-          <MessageInput
-            value={content}
-            onChange={handleInputChange}
-            onSubmit={handleSubmit}
-            onRetry={handleRetry}
-            onCancel={cancelCurrentRequest}
-            isStreaming={isStreaming}
-            isCenteredLayout={isCenteredLayout}
-            placeholder={placeholder}
-            hasMessages={currentMessages.length > 0}
-            images={images}
-            onImagesChange={setImages}
-            allowImages={true}
-            isToolSelectorVisible={showToolSelector}
-            validateMessage={validateMessage}
-          />
-        </div>
+        <MessageInput
+          value={content}
+          onChange={handleInputChange}
+          onSubmit={handleSubmit}
+          onRetry={handleRetry}
+          onCancel={cancelCurrentRequest}
+          isStreaming={isStreaming}
+          isCenteredLayout={isCenteredLayout}
+          placeholder={placeholder}
+          hasMessages={currentMessages.length > 0}
+          images={images}
+          onImagesChange={setImages}
+          allowImages={true}
+          isToolSelectorVisible={showToolSelector}
+          validateMessage={validateMessage}
+        />
 
         <ToolSelector
           visible={showToolSelector}
@@ -351,14 +250,6 @@ export const InputContainer: React.FC<InputContainerProps> = ({
           }
         />
       </div>
-
-      {/* Only show SystemPromptModal when not locked */}
-      {!isSystemPromptLocked && (
-        <SystemPromptModal
-          open={isPromptModalOpen}
-          onClose={() => setPromptModalOpen(false)}
-        />
-      )}
     </div>
   );
 };
