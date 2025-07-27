@@ -66,9 +66,10 @@ export class ServiceFactory {
   async executePrompt(
     messages: any[],
     model?: string,
-    onChunk?: (chunk: string) => void
+    onChunk?: (chunk: string) => void,
+    abortSignal?: AbortSignal
   ): Promise<void> {
-    return this.getChatService().executePrompt(messages, model, onChunk);
+    return this.getChatService().executePrompt(messages, model, onChunk, abortSignal);
   }
 
   async getModels(): Promise<string[]> {

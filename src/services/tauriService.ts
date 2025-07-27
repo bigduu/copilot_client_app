@@ -9,21 +9,50 @@ export class TauriChatService implements ChatService {
   async executePrompt(
     messages: Message[],
     model?: string,
-    onChunk?: (chunk: string) => void
+    onChunk?: (chunk: string) => void,
+    abortSignal?: AbortSignal
   ): Promise<void> {
     const channel = new Channel<string>();
+    let cancelled = false;
+
+    // Handle abort signal
+    if (abortSignal) {
+      abortSignal.addEventListener('abort', () => {
+        cancelled = true;
+        console.log('[Tauri] Request was cancelled');
+
+        // Immediately send cancellation signal
+        if (onChunk) {
+          onChunk('[CANCELLED]');
+        }
+      });
+    }
 
     if (onChunk) {
       channel.onmessage = (message) => {
+        // Check if request was cancelled before processing message
+        if (cancelled) {
+          console.log('[Tauri] Ignoring message due to cancellation');
+          return;
+        }
         onChunk(message);
       };
     }
 
-    await invoke('execute_prompt', {
-      messages,
-      model,
-      channel,
-    });
+    try {
+      await invoke('execute_prompt', {
+        messages,
+        model,
+        channel,
+      });
+    } catch (error) {
+      if (cancelled) {
+        console.log('[Tauri] Request was cancelled during execution');
+        // Don't send [CANCELLED] here as it's already sent in abort listener
+        return; // Don't throw for cancelled requests
+      }
+      throw error;
+    }
   }
 
   /**

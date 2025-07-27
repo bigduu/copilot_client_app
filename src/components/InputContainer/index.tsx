@@ -1,14 +1,5 @@
 import React, { useState, useMemo, useEffect } from "react";
-import {
-  Button,
-  Space,
-  Tooltip,
-  Spin,
-  theme,
-  Tag,
-  Alert,
-  Typography,
-} from "antd";
+import { Button, Space, Tooltip, theme, Tag, Alert, Typography } from "antd";
 import { SettingOutlined, ToolOutlined, LockOutlined } from "@ant-design/icons";
 import { MessageInput } from "../MessageInput";
 import SystemPromptModal from "../SystemPromptModal";
@@ -19,6 +10,7 @@ import { useChatInput } from "../../hooks/useChatInput";
 import { useToolCategoryValidation } from "../../hooks/useToolCategoryValidation";
 import { useSystemPrompt } from "../../hooks/useSystemPrompt";
 import { getCategoryDisplayInfoAsync } from "../../utils/chatUtils";
+import { useChatStore } from "../../store/chatStore";
 
 const { useToken } = theme;
 const { Text } = Typography;
@@ -37,6 +29,7 @@ export const InputContainer: React.FC<InputContainerProps> = ({
   const [toolSearchText, setToolSearchText] = useState("");
   const { token } = useToken();
   const { currentMessages, currentChat } = useChats();
+  const { cancelCurrentRequest } = useChatStore();
   // TODO: selectedSystemPromptPresetId 需要从新的 store 中获取
   const selectedSystemPromptPresetId = null;
 
@@ -328,6 +321,7 @@ export const InputContainer: React.FC<InputContainerProps> = ({
             onChange={handleInputChange}
             onSubmit={handleSubmit}
             onRetry={handleRetry}
+            onCancel={cancelCurrentRequest}
             isStreaming={isStreaming}
             isCenteredLayout={isCenteredLayout}
             placeholder={placeholder}
@@ -357,20 +351,6 @@ export const InputContainer: React.FC<InputContainerProps> = ({
           }
         />
       </div>
-
-      {isStreaming && (
-        <Space
-          style={{
-            marginTop: token.marginSM,
-            fontSize: token.fontSizeSM,
-            color: token.colorTextSecondary,
-          }}
-          size={token.marginXS}
-        >
-          <Spin size="small" />
-          <span>AI is thinking...</span>
-        </Space>
-      )}
 
       {/* Only show SystemPromptModal when not locked */}
       {!isSystemPromptLocked && (

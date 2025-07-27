@@ -15,7 +15,8 @@ export class OpenAIService implements ChatService {
   async executePrompt(
     messages: Message[],
     model?: string,
-    onChunk?: (chunk: string) => void
+    onChunk?: (chunk: string) => void,
+    abortSignal?: AbortSignal
   ): Promise<void> {
     try {
       // Convert our message format to OpenAI format
@@ -48,9 +49,17 @@ export class OpenAIService implements ChatService {
           model: model || 'gpt-4.1',
           messages: openaiMessages as any,
           stream: true,
+        }, {
+          signal: abortSignal,
         });
 
         for await (const chunk of stream) {
+          // Check if request was cancelled
+          if (abortSignal?.aborted) {
+            console.log('[OpenAI] Request was cancelled');
+            break;
+          }
+
           const content = chunk.choices[0]?.delta?.content;
           const finishReason = chunk.choices[0]?.finish_reason;
 
@@ -84,9 +93,20 @@ export class OpenAIService implements ChatService {
           model: model || 'gpt-4.1',
           messages: openaiMessages as any,
           stream: false,
+        }, {
+          signal: abortSignal,
         });
       }
     } catch (error) {
+      // Handle abort errors gracefully
+      if (error instanceof Error && error.name === 'AbortError') {
+        console.log('[OpenAI] Request was aborted');
+        if (onChunk) {
+          onChunk('[CANCELLED]');
+        }
+        return; // Don't throw for cancelled requests
+      }
+
       console.error('OpenAI Service Error:', error);
       if (onChunk) {
         onChunk(`Error: ${error instanceof Error ? error.message : 'Unknown error'}`);
