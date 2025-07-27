@@ -244,19 +244,28 @@ impl CopilotClient {
         let status = response.status();
         info!("Processing response with status: {}", status);
 
-        // If we get a bad request, log the response body for debugging
+        // If we get a bad request, forward the original error response
         if !status.is_success() {
             error!("Received error response with status: {}", status);
             match response.text().await {
                 Ok(body) => {
                     error!("Error response body: {}", body);
-                    let error_msg = format!("HTTP {} error: {}", status, body);
-                    let _ = tx.send(Err(anyhow::anyhow!(error_msg))).await;
+
+                    // Try to preserve the original error format
+                    // First check if the body is already valid JSON
+                    if serde_json::from_str::<serde_json::Value>(&body).is_ok() {
+                        // If it's valid JSON, forward it as-is
+                        let _ = tx.send(Err(anyhow::anyhow!(body))).await;
+                    } else {
+                        // If not JSON, wrap it with HTTP status info for handlers to parse
+                        let error_msg = format!("HTTP {status} error: {body}");
+                        let _ = tx.send(Err(anyhow::anyhow!(error_msg))).await;
+                    }
                     return Ok(());
                 }
                 Err(e) => {
-                    error!("Failed to read error response body: {}", e);
-                    let error_msg = format!("HTTP {} error (could not read body)", status);
+                    error!("Failed to read error response body: {e}");
+                    let error_msg = format!("HTTP {status} error (could not read body)");
                     let _ = tx.send(Err(anyhow::anyhow!(error_msg))).await;
                     return Ok(());
                 }

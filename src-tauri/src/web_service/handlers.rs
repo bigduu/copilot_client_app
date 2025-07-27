@@ -1,4 +1,5 @@
 use actix_web::{web, HttpResponse, Result};
+use anyhow;
 use log::{error, info};
 use serde_json::json;
 use std::sync::Arc;
@@ -10,6 +11,87 @@ use super::models::{
     OpenAIStreamChunk, OpenAIUsage,
 };
 use crate::copilot::CopilotClient;
+
+/// Helper function to create error response while preserving original error format
+fn create_error_response(error: &anyhow::Error, fallback_message: &str) -> HttpResponse {
+    let error_str = error.to_string();
+
+    // Check if the error contains structured JSON error information
+    if let Ok(parsed_error) = serde_json::from_str::<serde_json::Value>(&error_str) {
+        // If it's already valid JSON, return it as-is with proper HTTP status
+        return HttpResponse::BadRequest().json(parsed_error);
+    }
+
+    // Check if it's an HTTP error with embedded JSON
+    if error_str.contains("HTTP") && error_str.contains("error:") {
+        if let Some(body_start) = error_str.find("error: ") {
+            let body_part = &error_str[body_start + 7..];
+            if let Ok(parsed_body) = serde_json::from_str::<serde_json::Value>(body_part) {
+                // Extract HTTP status code if available
+                let status_code = if error_str.contains("HTTP 400") {
+                    400
+                } else if error_str.contains("HTTP 401") {
+                    401
+                } else if error_str.contains("HTTP 403") {
+                    403
+                } else if error_str.contains("HTTP 404") {
+                    404
+                } else if error_str.contains("HTTP 429") {
+                    429
+                } else if error_str.contains("HTTP 500") {
+                    500
+                } else {
+                    400 // Default to bad request
+                };
+
+                return HttpResponse::build(
+                    actix_web::http::StatusCode::from_u16(status_code)
+                        .unwrap_or(actix_web::http::StatusCode::BAD_REQUEST),
+                )
+                .json(parsed_body);
+            }
+        }
+    }
+
+    // Fallback to standard error format
+    HttpResponse::InternalServerError().json(OpenAIError {
+        error: OpenAIErrorDetail {
+            message: format!("{}: {}", fallback_message, error_str),
+            error_type: "forwarded_error".to_string(),
+            code: None,
+        },
+    })
+}
+
+/// Helper function to create error JSON for streaming responses
+fn create_stream_error_json(error: &anyhow::Error) -> serde_json::Value {
+    let error_str = error.to_string();
+
+    // Try to parse the error as JSON first to preserve original error format
+    if let Ok(parsed_json) = serde_json::from_str::<serde_json::Value>(&error_str) {
+        // If it's already valid JSON, forward it as-is
+        return parsed_json;
+    }
+
+    // Check if it contains structured error information
+    if error_str.contains("HTTP") && error_str.contains("error:") {
+        // Try to extract the original error body from HTTP error messages
+        if let Some(body_start) = error_str.find("error: ") {
+            let body_part = &error_str[body_start + 7..];
+            if let Ok(parsed_body) = serde_json::from_str::<serde_json::Value>(body_part) {
+                return parsed_body;
+            }
+        }
+    }
+
+    // Fallback to simple error format
+    json!({
+        "error": {
+            "message": error_str,
+            "type": "forwarded_error"
+        }
+    })
+}
 
 pub async fn chat_completions(
     req: web::Json<OpenAIChatCompletionRequest>,
@@ -80,12 +162,8 @@ async fn handle_stream_request(
                 }
                 Err(e) => {
                     error!("Stream error: {}", e);
-                    let error_chunk = json!({
-                        "error": {
-                            "message": e.to_string(),
-                            "type": "internal_error"
-                        }
-                    });
+
+                    let error_chunk = create_stream_error_json(&e);
                     yield Ok::<_, actix_web::Error>(web::Bytes::from(format!("data: {}\n\n", error_chunk)));
                     break;
                 }
@@ -145,27 +223,17 @@ async fn handle_non_stream_request(
             }
             Err(e) => {
                 error!("Non-stream error: {}", e);
-                return Ok(HttpResponse::InternalServerError().json(OpenAIError {
-                    error: OpenAIErrorDetail {
-                        message: e.to_string(),
-                        error_type: "internal_error".to_string(),
-                        code: None,
-                    },
-                }));
+                return Ok(create_error_response(&e, "Non-stream request failed"));
             }
         }
     }
 
     // Wait for handle to complete
     if let Err(e) = handle.await {
-        error!("Non-stream handle error: {}", e);
-        return Ok(HttpResponse::InternalServerError().json(OpenAIError {
-            error: OpenAIErrorDetail {
-                message: format!("Request failed: {}", e),
-                error_type: "internal_error".to_string(),
-                code: None,
-            },
-        }));
+        error!("Non-stream handle error: {e}");
+
+        let anyhow_error = anyhow::anyhow!("Request failed: {e}");
+        return Ok(create_error_response(&anyhow_error, "Request failed"));
     }
 
     let request_id = Uuid::new_v4().to_string();
@@ -222,14 +290,9 @@ pub async fn models(copilot_client: web::Data<Arc<CopilotClient>>) -> Result<Htt
             Ok(HttpResponse::Ok().json(response))
         }
         Err(e) => {
-            error!("Failed to get models: {}", e);
-            Ok(HttpResponse::InternalServerError().json(OpenAIError {
-                error: OpenAIErrorDetail {
-                    message: format!("Failed to get models: {}", e),
-                    error_type: "internal_error".to_string(),
-                    code: None,
-                },
-            }))
+            error!("Failed to get models: {e}");
+
+            Ok(create_error_response(&e, "Failed to get models"))
         }
     }
 }
