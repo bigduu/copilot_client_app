@@ -67,7 +67,7 @@ export class ExportService {
 
     favorites.forEach((fav, index) => {
       content += `## ${fav.role === "user" ? "👤 You" : "🤖 Assistant"} (${index + 1})\n\n`;
-      content += `**Created:** ${this.formatDate(fav.createdAt)}\n\n`;
+      content += `**Created:** ${this.formatDate(fav.createdAt.toString())}\n\n`;
       content += fav.content + "\n\n";
       
       if (fav.note) {
@@ -184,8 +184,8 @@ export class ExportService {
     defaultFilename: string
   ): Promise<string> {
     const filters = format === 'markdown'
-      ? FileOperationsService.FILTERS.MARKDOWN
-      : FileOperationsService.FILTERS.PDF;
+      ? FileOperationsService.FILTERS.MARKDOWN.map(f => ({ name: f.name, extensions: Array.from(f.extensions) }))
+      : FileOperationsService.FILTERS.PDF.map(f => ({ name: f.name, extensions: Array.from(f.extensions) }));
 
     const result = await FileOperationsService.saveBinaryFile(
       content,

@@ -42,7 +42,7 @@ SyntaxHighlighter.registerLanguage("markdown", markdown);
 SyntaxHighlighter.registerLanguage("md", markdown);
 
 // Create theme-aware syntax highlighting
-const getSyntaxTheme = (token: any) => {
+const getSyntaxTheme = () => {
   // For now, use the original oneDark theme to ensure highlighting works
   // TODO: Integrate with Ant Design theme properly
   return oneDark;
@@ -103,7 +103,7 @@ const CodeBlockWithCopy: React.FC<{
       onMouseLeave={() => setIsHovered(false)}
     >
       <SyntaxHighlighter
-        style={getSyntaxTheme(token)}
+        style={getSyntaxTheme()}
         language={isSupported ? normalizedLanguage : "text"}
         PreTag="div"
         customStyle={{
