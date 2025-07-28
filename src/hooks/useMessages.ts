@@ -1,23 +1,8 @@
 import { useChatStore, useCurrentMessages } from '../store/chatStore';
-import { Message, MessageImage, getMessageText, createContentWithImages } from '../types/chat';
-import { ToolCallProcessor } from '../services/ToolCallProcessor';
+import { Message, getMessageText } from '../types/chat';
 import { ImageFile } from '../utils/imageUtils';
 import { serviceFactory } from '../services/ServiceFactory';
-
-/**
- * Convert ImageFile to MessageImage format
- */
-const convertImageFileToMessageImage = (imageFile: ImageFile): MessageImage => {
-  return {
-    id: imageFile.id,
-    base64: imageFile.base64,
-    name: imageFile.name,
-    size: imageFile.size,
-    type: imageFile.type,
-    width: undefined, // Could be extracted from image if needed
-    height: undefined, // Could be extracted from image if needed
-  };
-};
+import { MessageHandler } from '../services/MessageHandler';
 
 /**
  * Hook for managing messages within the current chat
@@ -77,173 +62,18 @@ export const useMessages = (): UseMessagesReturn => {
       return;
     }
 
-    // Check if this is a tool call or approval request
-    const toolProcessor = ToolCallProcessor.getInstance();
-    const isToolCall = toolProcessor.isToolCall(content);
-    const isApprovalRequest = toolProcessor.isApprovalRequest(content);
+    // Create message handler with required dependencies
+    const messageHandler = new MessageHandler(
+      currentChatId,
+      addMessageToCurrentChat,
+      updateMessageInCurrentChat,
+      initiateAIResponse,
+      triggerAIResponseOnly,
+      autoUpdateChatTitle
+    );
 
-    if (isApprovalRequest) {
-      // Handle approval request
-      console.log("[useMessages] Handling approval request:", content);
-
-      // Add user message first
-      const userMessage: Message = {
-        role: "user",
-        content,
-        id: crypto.randomUUID(),
-        images: images ? images.map(convertImageFileToMessageImage) : undefined,
-      };
-      addMessageToCurrentChat(userMessage);
-
-      // Process approval request
-      try {
-        const result = await toolProcessor.processApprovalRequest(content);
-
-        // Add assistant response
-        const assistantMessage: Message = {
-          role: "assistant",
-          content: result.content,
-          id: crypto.randomUUID(),
-        };
-        addMessageToCurrentChat(assistantMessage);
-
-        // Auto-update chat title after approval processing
-        if (currentChatId) {
-          setTimeout(() => autoUpdateChatTitle(currentChatId), 500);
-        }
-
-      } catch (error) {
-        console.error("Approval request failed:", error);
-        const errorMessage: Message = {
-          role: "assistant",
-          content: `Approval processing failed: ${error}`,
-          id: crypto.randomUUID(),
-        };
-        addMessageToCurrentChat(errorMessage);
-      }
-      return;
-    } else if (isToolCall) {
-      // Handle tool call
-      const toolCall = toolProcessor.parseToolCall(content);
-      if (toolCall) {
-        console.log("[useMessages] Handling tool call:", toolCall);
-
-        // Add user message first
-        const userMessage: Message = {
-          role: "user",
-          content,
-          id: crypto.randomUUID(),
-          images: images ? images.map(convertImageFileToMessageImage) : undefined,
-        };
-        addMessageToCurrentChat(userMessage);
-
-        // Process tool call
-        try {
-          const result = await toolProcessor.processToolCall(toolCall, undefined, async (messages) => {
-            // This is the sendLLMRequest function for AI parameter parsing using ServiceFactory
-            return new Promise((resolve, reject) => {
-              let response = '';
-
-              const handleChunk = (rawMessage: string) => {
-                // Handle [DONE] signal
-                if (rawMessage.trim() === '[DONE]') {
-                  resolve(response);
-                  return;
-                }
-
-                // Skip empty messages
-                if (!rawMessage || rawMessage.trim() === '') {
-                  return;
-                }
-
-                // Split multiple JSON objects and process each
-                const jsonObjects = rawMessage.split(/(?<=})\s*(?={)/);
-
-                for (const jsonStr of jsonObjects) {
-                  if (!jsonStr.trim()) continue;
-
-                  try {
-                    const data = JSON.parse(jsonStr);
-
-                    // Handle streaming response format
-                    if (data.choices && data.choices.length > 0) {
-                      const choice = data.choices[0];
-
-                      // Check if finished
-                      if (choice.finish_reason === 'stop') {
-                        resolve(response);
-                        return;
-                      }
-
-                      // Handle delta content
-                      if (choice.delta && typeof choice.delta.content !== 'undefined') {
-                        if (choice.delta.content !== null && typeof choice.delta.content === 'string') {
-                          response += choice.delta.content;
-                        }
-                      }
-                    }
-                  } catch (error) {
-                    console.error('Error parsing AI response JSON:', error);
-                    console.error('JSON string:', jsonStr);
-                  }
-                }
-              };
-
-              // Use ServiceFactory to execute prompt
-              serviceFactory.executePrompt(messages, undefined, handleChunk)
-                .then(() => resolve(response))
-                .catch(reject);
-            });
-          });
-
-          // Add assistant response
-          const assistantMessage: Message = {
-            role: "assistant",
-            content: result.content,
-            id: crypto.randomUUID(),
-          };
-          addMessageToCurrentChat(assistantMessage);
-
-          // Auto-update chat title after tool call completion
-          if (currentChatId) {
-            setTimeout(() => autoUpdateChatTitle(currentChatId), 500);
-          }
-
-        } catch (error) {
-          console.error("Tool call failed:", error);
-          const errorMessage: Message = {
-            role: "assistant",
-            content: `Tool execution failed: ${error}`,
-            id: crypto.randomUUID(),
-          };
-          addMessageToCurrentChat(errorMessage);
-        }
-        return;
-      }
-    }
-
-    // Regular message - handle with or without images
-    if (images && images.length > 0) {
-      // Handle message with images - custom implementation
-      const messageImages = images.map(convertImageFileToMessageImage);
-      const userMessage: Message = {
-        role: "user",
-        content: createContentWithImages(content, messageImages),
-        id: crypto.randomUUID(),
-        images: messageImages, // Keep for backward compatibility
-      };
-      addMessageToCurrentChat(userMessage);
-
-      // TODO: Implement AI response with image support
-      // For now, we'll trigger AI response without creating duplicate user message
-      await triggerAIResponseOnly(currentChatId);
-    } else {
-      // Regular message without images - use store's AI response handling
-      await initiateAIResponse(currentChatId, content);
-    }
-
-    // Auto-update chat title after AI response (with delay to ensure response is complete)
-    setTimeout(() => autoUpdateChatTitle(currentChatId), 2000);
+    // Handle the message using the new MessageHandler
+    await messageHandler.handleMessage(content, images);
   };
 
   const generateChatTitle = async (chatId: string): Promise<string> => {
