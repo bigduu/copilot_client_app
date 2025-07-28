@@ -26,6 +26,12 @@ pub trait Tool: Debug + Send + Sync {
         None
     }
 
+    /// Whether this tool should be hidden from the tool selector UI
+    /// Hidden tools can only be called by AI, not directly by users through the selector
+    fn hide_in_selector(&self) -> bool {
+        true
+    }
+
     async fn execute(&self, parameters: Vec<Parameter>) -> anyhow::Result<String>;
 }
 
@@ -43,6 +49,7 @@ pub struct ToolConfig {
     pub tool_type: String,
     pub parameter_regex: Option<String>,
     pub custom_prompt: Option<String>,
+    pub hide_in_selector: bool,
 }
 
 impl ToolConfig {

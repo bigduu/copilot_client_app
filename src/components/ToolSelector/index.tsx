@@ -15,6 +15,7 @@ interface ToolUIInfo {
   name: string;
   description: string;
   parameters: ParameterInfo[];
+  hide_in_selector: boolean;
 }
 
 interface ToolSelectorProps {

@@ -14,7 +14,7 @@ pub struct ConfluenceTool;
 
 impl ConfluenceTool {
     pub const TOOL_NAME: &'static str = "confluence";
-    
+
     pub fn new() -> Self {
         Self
     }
@@ -25,16 +25,18 @@ impl Tool for ConfluenceTool {
     fn name(&self) -> String {
         Self::TOOL_NAME.to_string()
     }
-    
+
     fn description(&self) -> String {
         "Search and access company Confluence documentation, knowledge base articles, and team spaces".to_string()
     }
-    
+
     fn parameters(&self) -> Vec<Parameter> {
         vec![
             Parameter {
                 name: "action".to_string(),
-                description: "The action to perform (search, get_page, list_spaces, get_space_content)".to_string(),
+                description:
+                    "The action to perform (search, get_page, list_spaces, get_space_content)"
+                        .to_string(),
                 required: true,
                 value: "".to_string(),
             },
@@ -58,21 +60,25 @@ impl Tool for ConfluenceTool {
             },
         ]
     }
-    
+
     fn required_approval(&self) -> bool {
         false // Read-only operations don't require approval
     }
-    
+
     fn tool_type(&self) -> ToolType {
         ToolType::AIParameterParsing
     }
-    
+
+    fn hide_in_selector(&self) -> bool {
+        true // Hide internal company tools from user selector
+    }
+
     async fn execute(&self, parameters: Vec<Parameter>) -> Result<String> {
         let mut action = String::new();
         let mut query = String::new();
         let mut space = String::new();
         let mut page_id = String::new();
-        
+
         for param in parameters {
             match param.name.as_str() {
                 "action" => action = param.value,
@@ -82,11 +88,11 @@ impl Tool for ConfluenceTool {
                 _ => (),
             }
         }
-        
+
         if action.is_empty() {
             return Err(anyhow::anyhow!("Action parameter is required"));
         }
-        
+
         match action.as_str() {
             "search" => self.search_content(&query).await,
             "get_page" => self.get_page(&page_id).await,
@@ -122,10 +128,13 @@ impl ConfluenceTool {
                 }
             ]
         });
-        
-        Ok(format!("Search results:\n{}", serde_json::to_string_pretty(&result)?))
+
+        Ok(format!(
+            "Search results:\n{}",
+            serde_json::to_string_pretty(&result)?
+        ))
     }
-    
+
     async fn get_page(&self, page_id: &str) -> Result<String> {
         let result = json!({
             "action": "get_page",
@@ -138,10 +147,13 @@ impl ConfluenceTool {
             "last_modified": "2024-01-15T10:00:00Z",
             "url": "https://confluence.company.com/display/DEV/API+Documentation"
         });
-        
-        Ok(format!("Page content:\n{}", serde_json::to_string_pretty(&result)?))
+
+        Ok(format!(
+            "Page content:\n{}",
+            serde_json::to_string_pretty(&result)?
+        ))
     }
-    
+
     async fn list_spaces(&self) -> Result<String> {
         let result = json!({
             "action": "list_spaces",
@@ -166,10 +178,13 @@ impl ConfluenceTool {
                 }
             ]
         });
-        
-        Ok(format!("Available spaces:\n{}", serde_json::to_string_pretty(&result)?))
+
+        Ok(format!(
+            "Available spaces:\n{}",
+            serde_json::to_string_pretty(&result)?
+        ))
     }
-    
+
     async fn get_space_content(&self, space: &str) -> Result<String> {
         let result = json!({
             "action": "get_space_content",
@@ -189,8 +204,11 @@ impl ConfluenceTool {
                 }
             ]
         });
-        
-        Ok(format!("Space content:\n{}", serde_json::to_string_pretty(&result)?))
+
+        Ok(format!(
+            "Space content:\n{}",
+            serde_json::to_string_pretty(&result)?
+        ))
     }
 }
 

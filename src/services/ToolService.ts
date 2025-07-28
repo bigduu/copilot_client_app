@@ -24,6 +24,7 @@ export interface ToolUIInfo {
   tool_type: string;
   parameter_regex?: string;
   ai_response_template?: string;
+  hide_in_selector: boolean;
 }
 
 export interface ParameterInfo {

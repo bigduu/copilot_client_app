@@ -46,6 +46,7 @@ impl ToolsManager {
                     tool_type: tool_config.tool_type,
                     parameter_regex: tool_config.parameter_regex,
                     ai_response_template: tool_config.custom_prompt,
+                    hide_in_selector: tool_config.hide_in_selector,
                 });
             }
         }
