@@ -13,8 +13,8 @@ pub struct CategoryMetadata {
     pub name: String,
     pub display_name: String,
     pub description: String,
-    pub icon: String,         // Frontend icon name (e.g., "FileTextOutlined")
-    pub emoji_icon: String,   // Emoji icon (e.g., "📁")
+    pub icon: String,       // Frontend icon name (e.g., "FileTextOutlined")
+    pub emoji_icon: String, // Emoji icon (e.g., "📁")
     pub enabled: bool,
     pub strict_tools_mode: bool,
     pub system_prompt: String,
@@ -26,29 +26,33 @@ pub struct CategoryMetadata {
 pub trait Category: Send + Sync + std::fmt::Debug {
     /// Get category metadata
     fn metadata(&self) -> CategoryMetadata;
-    
+
     /// Declare required tool names for this category
     fn required_tools(&self) -> &'static [&'static str];
-    
+
     /// Dynamic enable check (can be overridden for permission control)
     fn enable(&self) -> bool {
         true
     }
-    
+
     /// Build category info with tools (receives tools MAP from manager)
     fn build_info(&self, tools: &HashMap<String, Arc<dyn Tool>>) -> CategoryInfo {
         let metadata = self.metadata();
         let tool_configs = self.build_tool_configs(tools, &metadata.id);
-        
+
         CategoryInfo {
             category: ToolCategory::from_metadata(metadata),
             tools: tool_configs,
             priority: self.metadata().priority,
         }
     }
-    
+
     /// Build tool configurations for this category
-    fn build_tool_configs(&self, tools: &HashMap<String, Arc<dyn Tool>>, category_id: &str) -> Vec<ToolConfig> {
+    fn build_tool_configs(
+        &self,
+        tools: &HashMap<String, Arc<dyn Tool>>,
+        category_id: &str,
+    ) -> Vec<ToolConfig> {
         self.required_tools()
             .iter()
             .filter_map(|tool_name| tools.get(*tool_name))
@@ -62,11 +66,16 @@ pub trait Category: Send + Sync + std::fmt::Debug {
                 auto_prefix: Some(format!("/{}", tool.name())),
                 permissions: vec![],
                 tool_type: match tool.tool_type() {
-                    crate::extension_system::types::ToolType::AIParameterParsing => "AIParameterParsing".to_string(),
-                    crate::extension_system::types::ToolType::RegexParameterExtraction => "RegexParameterExtraction".to_string(),
+                    crate::extension_system::types::ToolType::AIParameterParsing => {
+                        "AIParameterParsing".to_string()
+                    }
+                    crate::extension_system::types::ToolType::RegexParameterExtraction => {
+                        "RegexParameterExtraction".to_string()
+                    }
                 },
                 parameter_regex: tool.parameter_regex(),
                 custom_prompt: tool.custom_prompt(),
+                hide_in_selector: tool.hide_in_selector(),
             })
             .collect()
     }

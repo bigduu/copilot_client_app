@@ -14,7 +14,7 @@ pub struct BitbucketTool;
 
 impl BitbucketTool {
     pub const TOOL_NAME: &'static str = "bitbucket";
-    
+
     pub fn new() -> Self {
         Self
     }
@@ -25,11 +25,11 @@ impl Tool for BitbucketTool {
     fn name(&self) -> String {
         Self::TOOL_NAME.to_string()
     }
-    
+
     fn description(&self) -> String {
         "Access company Bitbucket repositories, search code, view pull requests, and manage repository operations".to_string()
     }
-    
+
     fn parameters(&self) -> Vec<Parameter> {
         vec![
             Parameter {
@@ -58,21 +58,25 @@ impl Tool for BitbucketTool {
             },
         ]
     }
-    
+
     fn required_approval(&self) -> bool {
         false // Read-only operations don't require approval
     }
-    
+
     fn tool_type(&self) -> ToolType {
         ToolType::AIParameterParsing
     }
-    
+
+    fn hide_in_selector(&self) -> bool {
+        true // Hide internal company tools from user selector
+    }
+
     async fn execute(&self, parameters: Vec<Parameter>) -> Result<String> {
         let mut action = String::new();
         let mut query = String::new();
         let mut repository = String::new();
         let mut pr_id = String::new();
-        
+
         for param in parameters {
             match param.name.as_str() {
                 "action" => action = param.value,
@@ -82,11 +86,11 @@ impl Tool for BitbucketTool {
                 _ => (),
             }
         }
-        
+
         if action.is_empty() {
             return Err(anyhow::anyhow!("Action parameter is required"));
         }
-        
+
         match action.as_str() {
             "search_repos" => self.search_repositories(&query).await,
             "search_code" => self.search_code(&query, &repository).await,
@@ -119,10 +123,13 @@ impl BitbucketTool {
                 }
             ]
         });
-        
-        Ok(format!("Repository search results:\n{}", serde_json::to_string_pretty(&result)?))
+
+        Ok(format!(
+            "Repository search results:\n{}",
+            serde_json::to_string_pretty(&result)?
+        ))
     }
-    
+
     async fn search_code(&self, query: &str, repository: &str) -> Result<String> {
         let result = json!({
             "action": "search_code",
@@ -137,10 +144,13 @@ impl BitbucketTool {
                 }
             ]
         });
-        
-        Ok(format!("Code search results:\n{}", serde_json::to_string_pretty(&result)?))
+
+        Ok(format!(
+            "Code search results:\n{}",
+            serde_json::to_string_pretty(&result)?
+        ))
     }
-    
+
     async fn get_pull_request(&self, repository: &str, pr_id: &str) -> Result<String> {
         let result = json!({
             "action": "get_pull_request",
@@ -152,10 +162,13 @@ impl BitbucketTool {
             "created": "2024-01-15T10:00:00Z",
             "description": "This PR adds new functionality to the application..."
         });
-        
-        Ok(format!("Pull request details:\n{}", serde_json::to_string_pretty(&result)?))
+
+        Ok(format!(
+            "Pull request details:\n{}",
+            serde_json::to_string_pretty(&result)?
+        ))
     }
-    
+
     async fn list_pull_requests(&self, repository: &str) -> Result<String> {
         let result = json!({
             "action": "list_pull_requests",
@@ -175,10 +188,13 @@ impl BitbucketTool {
                 }
             ]
         });
-        
-        Ok(format!("Pull requests:\n{}", serde_json::to_string_pretty(&result)?))
+
+        Ok(format!(
+            "Pull requests:\n{}",
+            serde_json::to_string_pretty(&result)?
+        ))
     }
-    
+
     async fn get_repository_info(&self, repository: &str) -> Result<String> {
         let result = json!({
             "action": "get_repository_info",
@@ -190,8 +206,11 @@ impl BitbucketTool {
             "branches": ["main", "develop", "feature/new-ui"],
             "contributors": 12
         });
-        
-        Ok(format!("Repository information:\n{}", serde_json::to_string_pretty(&result)?))
+
+        Ok(format!(
+            "Repository information:\n{}",
+            serde_json::to_string_pretty(&result)?
+        ))
     }
 }
 
