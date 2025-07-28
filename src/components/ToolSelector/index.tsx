@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import { theme } from "antd";
 import { invoke } from "@tauri-apps/api/core";
 
@@ -40,6 +40,8 @@ const ToolSelector: React.FC<ToolSelectorProps> = ({
   const [filteredTools, setFilteredTools] = useState<ToolUIInfo[]>([]);
   const [selectedIndex, setSelectedIndex] = useState(0);
   const { token } = useToken();
+  const containerRef = useRef<HTMLDivElement>(null);
+  const selectedItemRef = useRef<HTMLDivElement>(null);
 
   // Fetch tools when component becomes visible
   useEffect(() => {
@@ -71,6 +73,26 @@ const ToolSelector: React.FC<ToolSelectorProps> = ({
     setFilteredTools(filtered);
     setSelectedIndex(0);
   }, [tools, searchText, allowedTools]);
+
+  // Auto-scroll to keep selected item visible
+  useEffect(() => {
+    if (selectedItemRef.current && containerRef.current) {
+      const container = containerRef.current;
+      const selectedItem = selectedItemRef.current;
+
+      const containerRect = container.getBoundingClientRect();
+      const selectedRect = selectedItem.getBoundingClientRect();
+
+      // Check if selected item is above the visible area
+      if (selectedRect.top < containerRect.top) {
+        selectedItem.scrollIntoView({ block: "start", behavior: "smooth" });
+      }
+      // Check if selected item is below the visible area
+      else if (selectedRect.bottom > containerRect.bottom) {
+        selectedItem.scrollIntoView({ block: "end", behavior: "smooth" });
+      }
+    }
+  }, [selectedIndex, filteredTools]);
 
   // Handle keyboard navigation
   useEffect(() => {
@@ -167,6 +189,7 @@ const ToolSelector: React.FC<ToolSelectorProps> = ({
 
   return (
     <div
+      ref={containerRef}
       style={{
         position: "absolute",
         bottom: "100%",
@@ -198,6 +221,7 @@ const ToolSelector: React.FC<ToolSelectorProps> = ({
       {filteredTools.map((tool, index) => (
         <div
           key={tool.name}
+          ref={index === selectedIndex ? selectedItemRef : null}
           style={{
             padding: `${token.paddingSM}px ${token.paddingMD}px`,
             cursor: "pointer",
