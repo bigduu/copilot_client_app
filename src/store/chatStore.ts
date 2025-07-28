@@ -5,6 +5,8 @@ import { OptimizedStorageService, OptimizedChatItem } from '../services/Optimize
 // import { StorageService } from '../services/StorageService';
 import SystemPromptEnhancer from '../services/SystemPromptEnhancer';
 import { serviceFactory } from '../services/ServiceFactory';
+import { StreamingResponseHandler } from '../services/StreamingResponseHandler';
+import { AIParameterParser } from '../services/AIParameterParser';
 
 // Get default category ID from backend (highest priority category)
 // const getDefaultCategoryId = async (): Promise<string> => {
@@ -523,42 +525,23 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
       // Generate unique turn ID to avoid updating previous messages
       const turnId = Date.now();
-      let lastUpdateTime = 0;
       const UPDATE_THROTTLE_MS = 150; // 限制更新频率为150ms，提升UI流畅度
 
       // 处理流式响应的回调函数
       const handleStreamChunk = async (rawMessage: string) => {
-        // 处理 [CANCELLED] 信号
-        if (rawMessage.trim() === '[CANCELLED]') {
-          console.log('[chatStore] Request was cancelled');
+        const responseAccumulator = { content: assistantResponse };
+        const throttledUpdater = StreamingResponseHandler.createThrottledUpdater(
+          (content) => set({ streamingMessage: { chatId, content } }),
+          UPDATE_THROTTLE_MS
+        );
 
-          // Convert streaming message to final message if exists
-          if (assistantResponse) {
-            const assistantMsg: Message = {
-              id: `assistant-${turnId}`,
-              content: assistantResponse,
-              role: 'assistant',
-            };
-            addMessage(chatId, assistantMsg);
-          }
-
-          // Clear states
-          set({
-            streamingMessage: null,
-            isProcessing: false,
-            currentRequestController: null
-          });
-
-          // Save chats
-          get().saveChats();
-          return;
-        }
-
-        // 处理 [DONE] 信号
-        if (rawMessage.trim() === '[DONE]') {
-
-          // 确保最后的内容显示在流式消息中
-          if (assistantResponse) {
+        const callbacks = {
+          onContent: (newContent: string) => {
+            assistantResponse += newContent;
+            throttledUpdater(assistantResponse);
+          },
+          onComplete: async (fullResponse: string) => {
+            assistantResponse = fullResponse;
             set({ streamingMessage: { chatId, content: assistantResponse } });
 
             // 检查AI响应是否包含工具调用（仅在非严格模式下）
@@ -569,7 +552,6 @@ export const useChatStore = create<ChatState>((set, get) => ({
               console.log('[chatStore] Current chat systemPromptId:', currentChat?.systemPromptId);
               console.log('[chatStore] Assistant response length:', assistantResponse.length);
               console.log('[chatStore] Assistant response preview:', assistantResponse.substring(0, 200));
-              console.log('[chatStore] Full assistant response:', assistantResponse);
 
               if (currentChat?.systemPromptId && assistantResponse.trim()) {
                 const enhancer = SystemPromptEnhancer.getInstance();
@@ -579,47 +561,14 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
                 if (!isStrictMode) {
                   console.log('[chatStore] Non-strict mode detected, checking for AI tool calls...');
-                  console.log('[chatStore] Full assistant response for analysis:', assistantResponse);
 
-                  // Check if response contains tool call and create approval request
-                  // Use the same JSON extraction logic as handleAIToolCall
-                  let jsonStr = '';
-
-                  // First try to find JSON in code blocks
-                  const codeBlockMatch = assistantResponse.match(/```json\s*(\{[\s\S]*?\})\s*```/);
-                  if (codeBlockMatch) {
-                    jsonStr = codeBlockMatch[1];
-                    console.log('[chatStore] Found JSON in code block:', jsonStr.substring(0, 100));
-                  } else {
-                    // Try to find JSON without code blocks - look for complete JSON objects
-                    const jsonMatch = assistantResponse.match(/\{[\s\S]*?"tool_call"[\s\S]*?\}/);
-                    if (jsonMatch) {
-                      jsonStr = jsonMatch[0];
-                      console.log('[chatStore] Found JSON in mixed content:', jsonStr.substring(0, 100));
-                    } else {
-                      // Try direct JSON parsing for pure JSON responses
-                      try {
-                        const parsed = JSON.parse(assistantResponse.trim());
-                        if (parsed && typeof parsed === 'object' && parsed.tool_call && Array.isArray(parsed.parameters)) {
-                          jsonStr = assistantResponse.trim();
-                          console.log('[chatStore] Found pure JSON response:', jsonStr.substring(0, 100));
-                        }
-                      } catch (directParseError) {
-                        console.log('[chatStore] No tool call JSON found in response');
-                      }
-                    }
-                  }
-
-                  if (jsonStr.trim()) {
-                    try {
-                      const parsed = JSON.parse(jsonStr);
-                      if (parsed && typeof parsed === 'object' && parsed.tool_call && Array.isArray(parsed.parameters)) {
-                        console.log('[chatStore] Tool call detected, will create approval request instead of saving message');
-                        isToolCall = true;
-                        await get().handleAIToolCall(chatId, assistantResponse);
-                      }
-                    } catch (parseError) {
-                      console.log('[chatStore] Failed to parse extracted JSON:', parseError);
+                  const jsonStr = StreamingResponseHandler.extractToolCallJson(assistantResponse);
+                  if (jsonStr) {
+                    const toolCallData = StreamingResponseHandler.validateToolCallJson(jsonStr);
+                    if (toolCallData) {
+                      console.log('[chatStore] Tool call detected, will create approval request instead of saving message');
+                      isToolCall = true;
+                      await get().handleAIToolCall(chatId, assistantResponse);
                     }
                   } else {
                     console.log('[chatStore] No tool call JSON found, continue with normal processing');
@@ -643,74 +592,43 @@ export const useChatStore = create<ChatState>((set, get) => ({
                   role: 'assistant',
                 };
                 addMessage(chatId, assistantMsg);
-
-                // 清除流式消息状态
                 set({ streamingMessage: null });
               }, 100);
             } else {
-              // 如果是工具调用，直接清除流式消息状态
               set({ streamingMessage: null });
             }
-          } else {
-            // 没有内容时直接清除
-            set({ streamingMessage: null });
-          }
 
-          // 流式响应完成，保存聊天数据
-          get().saveChats();
+            // 流式响应完成，保存聊天数据
+            get().saveChats();
+          },
+          onCancel: (partialResponse: string) => {
+            console.log('[chatStore] Request was cancelled');
+            assistantResponse = partialResponse;
 
-          return;
-        }
-
-        // 跳过空消息
-        if (!rawMessage || rawMessage.trim() === '') {
-          return;
-        }
-
-        // 分割多个 JSON 对象并处理每个
-        const jsonObjects = rawMessage.split(/(?<=})\s*(?={)/);
-
-        for (const jsonStr of jsonObjects) {
-          if (!jsonStr.trim()) continue;
-
-          try {
-            const response = JSON.parse(jsonStr);
-
-            // 处理正常的流式响应
-            if (response.choices && response.choices.length > 0) {
-              const choice = response.choices[0];
-
-              // 检查是否是完成信号
-              if (choice.finish_reason === 'stop') {
-                return;
-              }
-
-              // 处理增量内容
-              if (choice.delta && typeof choice.delta.content !== 'undefined') {
-                if (choice.delta.content !== null && typeof choice.delta.content === 'string') {
-                  const newContent = choice.delta.content;
-
-                  // 累积内容
-                  assistantResponse += newContent;
-
-                  // 实时更新 AI 响应消息
-                  // Use the turn ID generated at the beginning to avoid updating previous messages
-                  // 使用节流来减少UI更新频率
-                  const now = Date.now();
-                  const timeSinceLastUpdate = now - lastUpdateTime;
-
-                  if (timeSinceLastUpdate > UPDATE_THROTTLE_MS) {
-                    lastUpdateTime = now;
-                    set({ streamingMessage: { chatId, content: assistantResponse } });
-                  }
-                }
-              }
+            if (assistantResponse) {
+              const assistantMsg: Message = {
+                id: `assistant-${turnId}`,
+                content: assistantResponse,
+                role: 'assistant',
+              };
+              addMessage(chatId, assistantMsg);
             }
-          } catch (parseError) {
-            console.error('[chatStore] Failed to parse JSON:', parseError);
-            console.error('[chatStore] JSON string:', jsonStr);
+
+            set({
+              streamingMessage: null,
+              isProcessing: false,
+              currentRequestController: null
+            });
+
+            get().saveChats();
+          },
+          onError: (error: Error) => {
+            console.error('[chatStore] Streaming error:', error);
           }
-        }
+        };
+
+        StreamingResponseHandler.handleStreamChunk(rawMessage, callbacks, responseAccumulator);
+        assistantResponse = responseAccumulator.content;
       };
 
       // 调用后端 AI 服务
@@ -824,42 +742,23 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
       // Generate unique turn ID to avoid updating previous messages
       const turnId = Date.now();
-      let lastUpdateTime = 0;
       const UPDATE_THROTTLE_MS = 150; // 限制更新频率为150ms，提升UI流畅度
 
       // 处理流式响应的回调函数
       const handleStreamChunk = async (rawMessage: string) => {
-        // 处理 [CANCELLED] 信号
-        if (rawMessage.trim() === '[CANCELLED]') {
-          console.log('[chatStore] Request was cancelled');
+        const responseAccumulator = { content: assistantResponse };
+        const throttledUpdater = StreamingResponseHandler.createThrottledUpdater(
+          (content) => set({ streamingMessage: { chatId, content } }),
+          UPDATE_THROTTLE_MS
+        );
 
-          // Convert streaming message to final message if exists
-          if (assistantResponse) {
-            const assistantMsg: Message = {
-              id: `assistant-${turnId}`,
-              content: assistantResponse,
-              role: 'assistant',
-            };
-            addMessage(chatId, assistantMsg);
-          }
-
-          // Clear states
-          set({
-            streamingMessage: null,
-            isProcessing: false,
-            currentRequestController: null
-          });
-
-          // Save chats
-          get().saveChats();
-          return;
-        }
-
-        // 处理 [DONE] 信号
-        if (rawMessage.trim() === '[DONE]') {
-
-          // 确保最后的内容显示在流式消息中
-          if (assistantResponse) {
+        const callbacks = {
+          onContent: (newContent: string) => {
+            assistantResponse += newContent;
+            throttledUpdater(assistantResponse);
+          },
+          onComplete: async (fullResponse: string) => {
+            assistantResponse = fullResponse;
             set({ streamingMessage: { chatId, content: assistantResponse } });
 
             // 短暂延迟后转换为正式消息，确保用户看到完整内容
@@ -870,94 +769,66 @@ export const useChatStore = create<ChatState>((set, get) => ({
                 role: 'assistant',
               };
               addMessage(chatId, assistantMsg);
-
-              // 清除流式消息状态
               set({ streamingMessage: null });
             }, 100);
-          } else {
-            // 没有内容时直接清除
-            set({ streamingMessage: null });
-          }
 
-          // 流式响应完成，保存聊天数据
-          get().saveChats();
+            // 流式响应完成，保存聊天数据
+            get().saveChats();
 
-          // 检查AI响应是否包含工具调用（仅在非严格模式下）
-          try {
-            console.log('[chatStore] Stream completed (triggerAIResponseOnly), checking for tool calls...');
-            console.log('[chatStore] Current chat systemPromptId:', currentChat?.systemPromptId);
-            console.log('[chatStore] Assistant response length:', assistantResponse.length);
-            console.log('[chatStore] Assistant response preview:', assistantResponse.substring(0, 200));
+            // 检查AI响应是否包含工具调用（仅在非严格模式下）
+            try {
+              console.log('[chatStore] Stream completed (triggerAIResponseOnly), checking for tool calls...');
+              console.log('[chatStore] Current chat systemPromptId:', currentChat?.systemPromptId);
+              console.log('[chatStore] Assistant response length:', assistantResponse.length);
+              console.log('[chatStore] Assistant response preview:', assistantResponse.substring(0, 200));
 
-            if (currentChat?.systemPromptId && assistantResponse.trim()) {
-              const enhancer = SystemPromptEnhancer.getInstance();
-              const isStrictMode = await enhancer.isStrictMode(currentChat.systemPromptId);
+              if (currentChat?.systemPromptId && assistantResponse.trim()) {
+                const enhancer = SystemPromptEnhancer.getInstance();
+                const isStrictMode = await enhancer.isStrictMode(currentChat.systemPromptId);
 
-              console.log('[chatStore] Category strict mode:', isStrictMode);
+                console.log('[chatStore] Category strict mode:', isStrictMode);
 
-              if (!isStrictMode) {
-                console.log('[chatStore] Non-strict mode detected, checking for AI tool calls...');
-                await get().handleAIToolCall(chatId, assistantResponse);
-              } else {
-                console.log('[chatStore] Strict mode detected, skipping AI tool call check');
-              }
-            } else {
-              console.log('[chatStore] Skipping tool call check - missing systemPromptId or empty response');
-            }
-          } catch (error) {
-            console.error('[chatStore] Failed to handle AI tool call:', error);
-          }
-
-          return;
-        }
-
-        // 跳过空消息
-        if (!rawMessage || rawMessage.trim() === '') {
-          return;
-        }
-
-        // 分割多个 JSON 对象并处理每个
-        const jsonObjects = rawMessage.split(/(?<=})\s*(?={)/);
-
-        for (const jsonStr of jsonObjects) {
-          if (!jsonStr.trim()) continue;
-
-          try {
-            const response = JSON.parse(jsonStr);
-
-            // 处理正常的流式响应
-            if (response.choices && response.choices.length > 0) {
-              const choice = response.choices[0];
-
-              // 检查是否是完成信号
-              if (choice.finish_reason === 'stop') {
-                return;
-              }
-
-              // 处理增量内容
-              if (choice.delta && typeof choice.delta.content !== 'undefined') {
-                if (choice.delta.content !== null && typeof choice.delta.content === 'string') {
-                  const newContent = choice.delta.content;
-
-                  // 累积内容
-                  assistantResponse += newContent;
-
-                  // 使用节流来减少UI更新频率
-                  const now = Date.now();
-                  const timeSinceLastUpdate = now - lastUpdateTime;
-
-                  if (timeSinceLastUpdate > UPDATE_THROTTLE_MS) {
-                    lastUpdateTime = now;
-                    set({ streamingMessage: { chatId, content: assistantResponse } });
-                  }
+                if (!isStrictMode) {
+                  console.log('[chatStore] Non-strict mode detected, checking for AI tool calls...');
+                  await get().handleAIToolCall(chatId, assistantResponse);
+                } else {
+                  console.log('[chatStore] Strict mode detected, skipping AI tool call check');
                 }
+              } else {
+                console.log('[chatStore] Skipping tool call check - missing systemPromptId or empty response');
               }
+            } catch (error) {
+              console.error('[chatStore] Failed to handle AI tool call:', error);
             }
-          } catch (parseError) {
-            console.error('[chatStore] Failed to parse JSON:', parseError);
-            console.error('[chatStore] JSON string:', jsonStr);
+          },
+          onCancel: (partialResponse: string) => {
+            console.log('[chatStore] Request was cancelled');
+            assistantResponse = partialResponse;
+
+            if (assistantResponse) {
+              const assistantMsg: Message = {
+                id: `assistant-${turnId}`,
+                content: assistantResponse,
+                role: 'assistant',
+              };
+              addMessage(chatId, assistantMsg);
+            }
+
+            set({
+              streamingMessage: null,
+              isProcessing: false,
+              currentRequestController: null
+            });
+
+            get().saveChats();
+          },
+          onError: (error: Error) => {
+            console.error('[chatStore] Streaming error:', error);
           }
-        }
+        };
+
+        StreamingResponseHandler.handleStreamChunk(rawMessage, callbacks, responseAccumulator);
+        assistantResponse = responseAccumulator.content;
       };
 
       // 调用后端 AI 服务
@@ -986,43 +857,16 @@ export const useChatStore = create<ChatState>((set, get) => ({
     try {
       console.log('[chatStore] handleAIToolCall called with response:', aiResponse.substring(0, 300));
 
-      // Try to extract tool call from AI response
-      let jsonStr = '';
-
-      // First try to find JSON in code blocks
-      const codeBlockMatch = aiResponse.match(/```json\s*(\{[\s\S]*?\})\s*```/);
-      if (codeBlockMatch) {
-        jsonStr = codeBlockMatch[1];
-        console.log('[chatStore] Found JSON in code block:', jsonStr.substring(0, 100));
-      } else {
-        // Try to find JSON without code blocks - look for complete JSON objects
-        const jsonMatch = aiResponse.match(/\{[\s\S]*?"tool_call"[\s\S]*?\}/);
-        if (jsonMatch) {
-          jsonStr = jsonMatch[0];
-          console.log('[chatStore] Found JSON without code block:', jsonStr.substring(0, 100));
-        } else {
-          console.log('[chatStore] No tool call JSON found in response');
-          return; // No tool call found
-        }
-      }
-
-      if (!jsonStr.trim()) {
-        console.log('[chatStore] Empty JSON string');
+      // Try to extract tool call from AI response using StreamingResponseHandler
+      const jsonStr = StreamingResponseHandler.extractToolCallJson(aiResponse);
+      if (!jsonStr) {
+        console.log('[chatStore] No tool call JSON found in response');
         return;
       }
 
-      let toolCallData;
-      try {
-        toolCallData = JSON.parse(jsonStr);
-        console.log('[chatStore] Successfully parsed JSON:', toolCallData);
-      } catch (parseError) {
-        console.error('[chatStore] JSON parse error:', parseError);
-        console.error('[chatStore] Failed to parse JSON string:', jsonStr);
-        return;
-      }
-
-      // Validate tool call format
-      if (!toolCallData.tool_call || !toolCallData.parameters) {
+      // Validate tool call format using StreamingResponseHandler
+      const toolCallData = StreamingResponseHandler.validateToolCallJson(jsonStr);
+      if (!toolCallData) {
         console.log('[chatStore] Invalid tool call format in AI response');
         return;
       }
@@ -1039,63 +883,12 @@ export const useChatStore = create<ChatState>((set, get) => ({
         user_description: `AI requested: ${toolCallData.tool_call} with parameters: ${JSON.stringify(toolCallData.parameters)}`
       };
 
-      // Process the tool call
-      const result = await processor.processToolCall(toolCall, undefined, async (messages) => {
-        // This is the sendLLMRequest function for AI parameter parsing using ServiceFactory
-        return new Promise((resolve, reject) => {
-          let response = '';
-
-          const handleChunk = (rawMessage: string) => {
-            // Handle [DONE] signal
-            if (rawMessage.trim() === '[DONE]') {
-              resolve(response);
-              return;
-            }
-
-            // Skip empty messages
-            if (!rawMessage || rawMessage.trim() === '') {
-              return;
-            }
-
-            // Split multiple JSON objects and process each
-            const jsonObjects = rawMessage.split(/(?<=})\s*(?={)/);
-
-            for (const jsonStr of jsonObjects) {
-              if (!jsonStr.trim()) continue;
-
-              try {
-                const data = JSON.parse(jsonStr);
-
-                // Handle streaming response format
-                if (data.choices && data.choices.length > 0) {
-                  const choice = data.choices[0];
-
-                  // Check if finished
-                  if (choice.finish_reason === 'stop') {
-                    resolve(response);
-                    return;
-                  }
-
-                  // Handle delta content
-                  if (choice.delta && typeof choice.delta.content !== 'undefined') {
-                    if (choice.delta.content !== null && typeof choice.delta.content === 'string') {
-                      response += choice.delta.content;
-                    }
-                  }
-                }
-              } catch (error) {
-                console.error('Error parsing AI response JSON:', error);
-                console.error('JSON string:', jsonStr);
-              }
-            }
-          };
-
-          // Use ServiceFactory to execute prompt
-          serviceFactory.executePrompt(messages, undefined, handleChunk)
-            .then(() => resolve(response))
-            .catch(reject);
-        });
-      });
+      // Process the tool call using AIParameterParser
+      const result = await processor.processToolCall(
+        toolCall,
+        undefined,
+        AIParameterParser.createSendLLMRequestFunction()
+      );
 
       // Add tool execution result as a new assistant message
       const { addMessage, messages } = get();

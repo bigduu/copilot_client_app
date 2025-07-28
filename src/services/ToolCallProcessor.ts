@@ -6,6 +6,7 @@ import {
   ToolUIInfo,
 } from "./ToolService";
 import { isApprovalRequest, parseApprovalRequest, createApprovalRequest } from "../utils/approvalUtils";
+import { StreamingToolResultProcessor } from './StreamingToolResultProcessor';
 
 export enum ToolType {
   AIParameterParsing = "AIParameterParsing",
@@ -136,6 +137,116 @@ export class ToolCallProcessor {
         content: `Tool execution failed: ${error}`,
         toolName: approvalData.tool_call,
         parameters,
+      };
+    }
+  }
+
+  /**
+   * Process approval request with streaming AI response
+   * This method provides real-time streaming of tool execution results and AI analysis
+   */
+  async processApprovalRequestWithStreaming(
+    content: string,
+    onStreamingUpdate: (content: string, isComplete: boolean) => void,
+    sendLLMRequest: (messages: Message[], onChunk?: (chunk: string) => void) => Promise<string>
+  ): Promise<ToolCallResult> {
+    const approvalData = parseApprovalRequest(content);
+
+    if (!approvalData) {
+      onStreamingUpdate("Invalid approval request format", true);
+      return {
+        success: false,
+        content: "Invalid approval request format",
+        toolName: "unknown",
+        parameters: [],
+      };
+    }
+
+    // Check if approved
+    if (approvalData.approval !== true) {
+      const rejectionMessage = `Tool execution rejected: ${approvalData.tool_call}`;
+      onStreamingUpdate(rejectionMessage, true);
+      return {
+        success: true,
+        content: rejectionMessage,
+        toolName: approvalData.tool_call,
+        parameters: approvalData.parameters,
+      };
+    }
+
+    try {
+      // Execute the approved tool
+      const toolCall: ToolCallRequest = {
+        tool_name: approvalData.tool_call,
+        user_description: approvalData.parameters.map(p => p.value).join(' '),
+      };
+
+      // Show initial processing message
+      onStreamingUpdate(`Executing tool: ${approvalData.tool_call}...`, false);
+
+      // Execute tool and get result
+      const executionResult = await this.executeToolAndGetResult(toolCall);
+
+      if (!executionResult.success) {
+        onStreamingUpdate(executionResult.error || "Tool execution failed", true);
+        return {
+          success: false,
+          content: executionResult.error || "Tool execution failed",
+          toolName: approvalData.tool_call,
+          parameters: approvalData.parameters,
+        };
+      }
+
+      // For regex tools, use streaming AI summarization
+      if (this.isRegexTool(executionResult.toolInfo)) {
+        const result = await StreamingToolResultProcessor.processWithImmediateDisplay(
+          toolCall,
+          executionResult.toolInfo,
+          executionResult.parameters,
+          executionResult.toolResult,
+          onStreamingUpdate,
+          sendLLMRequest
+        );
+
+        return {
+          success: result.success,
+          content: result.content,
+          toolName: approvalData.tool_call,
+          parameters: approvalData.parameters,
+        };
+      } else {
+        // For non-regex tools, format result directly
+        const formattedResult = await this.toolService.formatToolResult(
+          approvalData.tool_call,
+          executionResult.parameters,
+          executionResult.toolResult
+        );
+
+        const finalContent = `**Tool:** ${approvalData.tool_call}
+
+**Result:**
+${formattedResult}`;
+
+        onStreamingUpdate(finalContent, true);
+
+        return {
+          success: true,
+          content: finalContent,
+          toolName: approvalData.tool_call,
+          parameters: approvalData.parameters,
+        };
+      }
+
+    } catch (error) {
+      console.error("Streaming approval processing failed:", error);
+      const errorMessage = `Tool execution failed: ${error}`;
+      onStreamingUpdate(errorMessage, true);
+
+      return {
+        success: false,
+        content: errorMessage,
+        toolName: approvalData.tool_call,
+        parameters: approvalData.parameters,
       };
     }
   }
