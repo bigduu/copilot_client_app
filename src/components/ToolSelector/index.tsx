@@ -40,6 +40,7 @@ const ToolSelector: React.FC<ToolSelectorProps> = ({
   const [tools, setTools] = useState<ToolUIInfo[]>([]);
   const [filteredTools, setFilteredTools] = useState<ToolUIInfo[]>([]);
   const [selectedIndex, setSelectedIndex] = useState(0);
+  const [isStrictMode, setIsStrictMode] = useState(false);
   const { token } = useToken();
   const containerRef = useRef<HTMLDivElement>(null);
   const selectedItemRef = useRef<HTMLDivElement>(null);
@@ -47,9 +48,26 @@ const ToolSelector: React.FC<ToolSelectorProps> = ({
   // Fetch tools when component becomes visible
   useEffect(() => {
     if (visible) {
-      invoke<ToolUIInfo[]>("get_tools_for_ui", { categoryId })
-        .then((toolsList) => {
+      // Fetch tools
+      const fetchTools = invoke<ToolUIInfo[]>("get_tools_for_ui", {
+        category_id: categoryId,
+      });
+
+      // Fetch category info to check strict mode if categoryId is provided
+      const fetchCategoryInfo = categoryId
+        ? invoke<any>("get_tool_category_info", { category_id: categoryId })
+        : Promise.resolve(null);
+
+      Promise.all([fetchTools, fetchCategoryInfo])
+        .then(([toolsList, categoryInfo]) => {
+          console.log("Fetched tools:", toolsList);
+          console.log("Category info:", categoryInfo);
+          console.log(
+            "Is strict mode:",
+            categoryInfo?.strict_tools_mode || false
+          );
           setTools(toolsList);
+          setIsStrictMode(categoryInfo?.strict_tools_mode || false);
           setSelectedIndex(0);
         })
         .catch((error) => {
@@ -71,9 +89,25 @@ const ToolSelector: React.FC<ToolSelectorProps> = ({
       filtered = filtered.filter((tool) => allowedTools.includes(tool.name));
     }
 
+    // 在非严格模式下，过滤掉隐藏的工具
+    if (!isStrictMode) {
+      console.log(
+        "Before hide_in_selector filter:",
+        filtered.map((t) => ({
+          name: t.name,
+          hide_in_selector: t.hide_in_selector,
+        }))
+      );
+      filtered = filtered.filter((tool) => !tool.hide_in_selector);
+      console.log(
+        "After hide_in_selector filter:",
+        filtered.map((t) => t.name)
+      );
+    }
+
     setFilteredTools(filtered);
     setSelectedIndex(0);
-  }, [tools, searchText, allowedTools]);
+  }, [tools, searchText, allowedTools, isStrictMode]);
 
   // Auto-scroll to keep selected item visible
   useEffect(() => {
