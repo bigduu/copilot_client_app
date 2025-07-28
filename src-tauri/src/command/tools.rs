@@ -63,9 +63,7 @@ pub fn get_tools_for_ui(
 
                 let filtered_tools: Vec<ToolUIInfo> = all_tools
                     .into_iter()
-                    .filter(|tool| {
-                        allowed_tool_names.contains(&tool.name) && !tool.hide_in_selector
-                    })
+                    .filter(|tool| allowed_tool_names.contains(&tool.name))
                     .collect();
 
                 return Ok(filtered_tools);
@@ -73,13 +71,9 @@ pub fn get_tools_for_ui(
         }
     }
 
-    // 非严格模式或未指定类别：返回所有工具，但过滤掉隐藏的工具
-    let all_tools = tool_manager.list_tools_for_ui();
-    let visible_tools: Vec<ToolUIInfo> = all_tools
-        .into_iter()
-        .filter(|tool| !tool.hide_in_selector)
-        .collect();
-    Ok(visible_tools)
+    // 非严格模式或未指定类别：返回所有工具
+    let tools = tool_manager.list_tools_for_ui();
+    Ok(tools)
 }
 
 #[tauri::command(async)]
