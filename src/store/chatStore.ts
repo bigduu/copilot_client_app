@@ -8,6 +8,22 @@ import { serviceFactory } from '../services/ServiceFactory';
 import { StreamingResponseHandler } from '../services/StreamingResponseHandler';
 import { AIParameterParser } from '../services/AIParameterParser';
 
+const SELECTED_MODEL_LS_KEY = 'copilot_selected_model_id';
+
+/**
+ * Helper function to get the currently selected model from localStorage
+ * This is used in Zustand store where React hooks cannot be used
+ */
+const getCurrentSelectedModel = (): string | undefined => {
+  try {
+    const storedModel = localStorage.getItem(SELECTED_MODEL_LS_KEY);
+    return storedModel && storedModel.trim().length > 0 ? storedModel : undefined;
+  } catch (error) {
+    console.warn('[chatStore] Failed to get selected model from localStorage:', error);
+    return undefined;
+  }
+};
+
 // Get default category ID from backend (highest priority category)
 // const getDefaultCategoryId = async (): Promise<string> => {
 //   try {
@@ -632,9 +648,11 @@ export const useChatStore = create<ChatState>((set, get) => ({
       };
 
       // 调用后端 AI 服务
+      // 优先使用聊天的模型，如果没有则使用全局选中的模型
+      const modelToUse = currentChat?.model || getCurrentSelectedModel();
       await serviceFactory.executePrompt(
         messagesToSend,
-        currentChat?.model || undefined,
+        modelToUse,
         handleStreamChunk,
         abortController.signal
       );
@@ -832,9 +850,11 @@ export const useChatStore = create<ChatState>((set, get) => ({
       };
 
       // 调用后端 AI 服务
+      // 优先使用聊天的模型，如果没有则使用全局选中的模型
+      const modelToUse = currentChat?.model || getCurrentSelectedModel();
       await serviceFactory.executePrompt(
         messagesToSend,
-        currentChat?.model || undefined,
+        modelToUse,
         handleStreamChunk,
         abortController.signal
       );
@@ -884,10 +904,12 @@ export const useChatStore = create<ChatState>((set, get) => ({
       };
 
       // Process the tool call using AIParameterParser
+      // 使用全局选中的模型进行AI参数解析
+      const modelForAI = getCurrentSelectedModel();
       const result = await processor.processToolCall(
         toolCall,
         undefined,
-        AIParameterParser.createSendLLMRequestFunction()
+        AIParameterParser.createSendLLMRequestFunction(modelForAI)
       );
 
       // Add tool execution result as a new assistant message
