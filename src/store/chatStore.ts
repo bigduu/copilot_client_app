@@ -504,12 +504,15 @@ export const useChatStore = create<ChatState>((set, get) => ({
       const messagesToSend: Message[] = [];
 
       // 添加系统消息（如果存在）
-      if (currentChat?.systemPrompt) {
+      const systemPromptPreset = currentState.systemPromptPresets.find(p => p.id === currentChat?.systemPromptId);
+      const systemPrompt = currentChat?.systemPrompt || systemPromptPreset?.content;
+
+      if (systemPrompt) {
         // 动态增强系统提示词（如果category不是strict mode）
-        let systemPromptContent = currentChat.systemPrompt;
+        let systemPromptContent = systemPrompt;
 
         try {
-          if (currentChat.systemPromptId) {
+          if (currentChat?.systemPromptId) {
             const enhancer = SystemPromptEnhancer.getInstance();
             const isStrictMode = await enhancer.isStrictMode(currentChat.systemPromptId);
 
@@ -723,12 +726,15 @@ export const useChatStore = create<ChatState>((set, get) => ({
       const messagesToSend: Message[] = [];
 
       // 添加系统消息（如果存在）
-      if (currentChat?.systemPrompt) {
+      const systemPromptPreset = currentState.systemPromptPresets.find(p => p.id === currentChat?.systemPromptId);
+      const systemPrompt = currentChat?.systemPrompt || systemPromptPreset?.content;
+
+      if (systemPrompt) {
         // 动态增强系统提示词（如果category不是strict mode）
-        let systemPromptContent = currentChat.systemPrompt;
+        let systemPromptContent = systemPrompt;
 
         try {
-          if (currentChat.systemPromptId) {
+          if (currentChat?.systemPromptId) {
             const enhancer = SystemPromptEnhancer.getInstance();
             const isStrictMode = await enhancer.isStrictMode(currentChat.systemPromptId);
 
