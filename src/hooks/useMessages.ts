@@ -3,7 +3,6 @@ import { Message, getMessageText } from '../types/chat';
 import { ImageFile } from '../utils/imageUtils';
 import { serviceFactory } from '../services/ServiceFactory';
 import { MessageHandler } from '../services/MessageHandler';
-import { useModels } from './useModels';
 
 /**
  * Hook for managing messages within the current chat
@@ -37,9 +36,6 @@ export const useMessages = (): UseMessagesReturn => {
   const messages = useCurrentMessages(); // 使用便捷 hook 获取当前聊天的消息
   const isProcessing = useChatStore(state => state.isProcessing);
 
-  // 获取全局选中的模型
-  const { selectedModel } = useModels();
-  
   // 从 Zustand Store 获取操作方法 (Hook → Store)
   const addMessage = useChatStore(state => state.addMessage);
   const updateMessage = useChatStore(state => state.updateMessage);
@@ -174,8 +170,18 @@ Title:`;
           }
         ];
 
-        // Use ServiceFactory to execute prompt with selected model
-        serviceFactory.executePrompt(titleMessages, selectedModel, handleChunk)
+        // Get the latest model state directly from the store
+        const chatStoreState = useChatStore.getState();
+        const modelToUse = chatStoreState.selectedModel || (chatStoreState.models.length > 0 ? chatStoreState.models[0] : undefined);
+
+        if (!modelToUse) {
+          console.error("No model available for title generation.");
+          reject(new Error("No model available to generate title."));
+          return;
+        }
+
+        // Use ServiceFactory to execute prompt with the selected model
+        serviceFactory.executePrompt(titleMessages, modelToUse, handleChunk)
           .then(() => {
             // If no response received, resolve with empty string
             const cleanTitle = response.trim()
