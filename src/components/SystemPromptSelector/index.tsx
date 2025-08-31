@@ -17,6 +17,7 @@ import {
 } from "../ModalFooter";
 import { ToolOutlined } from "@ant-design/icons";
 import { SystemPromptPreset, SystemPromptPresetList } from "../../types/chat";
+import { useChatStore } from "../../store/chatStore";
 // SystemPromptService has been removed, now using backend configuration
 
 const { Text, Title } = Typography;
@@ -41,7 +42,13 @@ const SystemPromptSelector: React.FC<SystemPromptSelectorProps> = ({
   showCancelButton = true,
 }) => {
   const { token } = useToken();
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const lastSelectedPromptId = useChatStore((state) => state.lastSelectedPromptId);
+  const setLastSelectedPromptId = useChatStore(
+    (state) => state.setLastSelectedPromptId
+  );
+  const [selectedId, setSelectedId] = useState<string | null>(
+    lastSelectedPromptId
+  );
   const [categoryInfoCache, setCategoryInfoCache] = useState<
     Record<string, { icon: string; displayName: string; color: string }>
   >({});
@@ -123,6 +130,7 @@ const SystemPromptSelector: React.FC<SystemPromptSelectorProps> = ({
 
   const handleSelect = (preset: SystemPromptPreset) => {
     setSelectedId(preset.id);
+    setLastSelectedPromptId(preset.id);
     onSelect(preset);
     onClose();
   };

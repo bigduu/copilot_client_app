@@ -9,6 +9,7 @@ import { StreamingResponseHandler } from '../services/StreamingResponseHandler';
 import { AIParameterParser } from '../services/AIParameterParser';
 
 const SELECTED_MODEL_LS_KEY = 'copilot_selected_model_id';
+const LAST_SELECTED_PROMPT_ID_LS_KEY = 'copilot_last_selected_prompt_id';
 
 /**
  * Helper function to get the currently selected model from localStorage
@@ -79,6 +80,7 @@ interface ChatState {
   isProcessing: boolean;
   streamingMessage: { chatId: string; content: string } | null;
   currentRequestController: AbortController | null;
+  lastSelectedPromptId: string | null;
 
   // Actions
   addChat: (chat: Omit<ChatItem, 'id'>) => void;
@@ -106,6 +108,8 @@ interface ChatState {
   loadFavorites: () => Promise<void>;
   saveFavorites: () => Promise<void>;
 
+  setLastSelectedPromptId: (promptId: string) => void;
+
   initiateAIResponse: (chatId: string, userMessage: string) => Promise<void>;
   triggerAIResponseOnly: (chatId: string) => Promise<void>;
   handleAIToolCall: (chatId: string, aiResponse: string) => Promise<void>;
@@ -123,6 +127,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   isProcessing: false,
   streamingMessage: null, // 当前正在流式传输的消息
   currentRequestController: null, // 当前请求的取消控制器
+  lastSelectedPromptId: localStorage.getItem(LAST_SELECTED_PROMPT_ID_LS_KEY) || null,
 
   // Chat management actions
   addChat: (chatData) => {
@@ -726,6 +731,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       const messagesToSend: Message[] = [];
 
       // 添加系统消息（如果存在）
+      const currentState = get();
       const systemPromptPreset = currentState.systemPromptPresets.find(p => p.id === currentChat?.systemPromptId);
       const systemPrompt = currentChat?.systemPrompt || systemPromptPreset?.content;
 
@@ -966,6 +972,15 @@ export const useChatStore = create<ChatState>((set, get) => ({
         content: `I tried to use a tool but encountered an error: ${error}`,
         id: crypto.randomUUID(),
       });
+    }
+  },
+
+  setLastSelectedPromptId: (promptId) => {
+    set({ lastSelectedPromptId: promptId });
+    try {
+      localStorage.setItem(LAST_SELECTED_PROMPT_ID_LS_KEY, promptId);
+    } catch (error) {
+      console.error('Failed to save last selected prompt ID:', error);
     }
   },
 
