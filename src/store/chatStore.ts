@@ -82,7 +82,15 @@ interface ChatState {
   currentRequestController: AbortController | null;
   lastSelectedPromptId: string | null;
 
+  // Model Management State
+  models: string[];
+  selectedModel: string | undefined;
+  isLoadingModels: boolean;
+  modelsError: string | null;
+
   // Actions
+  fetchModels: () => Promise<void>;
+  setSelectedModel: (modelId: string) => void;
   addChat: (chat: Omit<ChatItem, 'id'>) => void;
   selectChat: (chatId: string | null) => void;
   deleteChat: (chatId: string) => void;
@@ -128,6 +136,60 @@ export const useChatStore = create<ChatState>((set, get) => ({
   streamingMessage: null, // 当前正在流式传输的消息
   currentRequestController: null, // 当前请求的取消控制器
   lastSelectedPromptId: localStorage.getItem(LAST_SELECTED_PROMPT_ID_LS_KEY) || null,
+
+  // Model Management State
+  models: [],
+  selectedModel: undefined,
+  isLoadingModels: false,
+  modelsError: null,
+
+  // Model Management Actions
+  setSelectedModel: (modelId) => {
+    set({ selectedModel: modelId });
+    try {
+      localStorage.setItem(SELECTED_MODEL_LS_KEY, modelId);
+    } catch (error) {
+      console.error('Failed to save selected model to localStorage:', error);
+    }
+  },
+
+  fetchModels: async () => {
+    set({ isLoadingModels: true, modelsError: null });
+    try {
+      const availableModels = await serviceFactory.getModels();
+      set({ models: availableModels });
+
+      const storedModelId = localStorage.getItem(SELECTED_MODEL_LS_KEY);
+      const currentSelected = get().selectedModel;
+
+      if (currentSelected && availableModels.includes(currentSelected)) {
+        // Do nothing, current selection is valid
+      } else if (storedModelId && availableModels.includes(storedModelId)) {
+        set({ selectedModel: storedModelId });
+      } else if (availableModels.length > 0) {
+        set({ selectedModel: availableModels[0] });
+        localStorage.setItem(SELECTED_MODEL_LS_KEY, availableModels[0]);
+      } else {
+        set({ modelsError: "没有可用的模型选项" });
+        console.warn("No models available from service");
+      }
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : String(err);
+      set({ modelsError: errorMessage });
+      console.error('Failed to fetch models:', err);
+      const storedModelId = localStorage.getItem(SELECTED_MODEL_LS_KEY);
+      if (storedModelId) {
+        set({ selectedModel: storedModelId, models: [storedModelId], modelsError: null });
+      } else {
+        const fallbackModels = ['gpt-4.1', 'gpt-4', 'gpt-3.5-turbo'];
+        set({ models: fallbackModels, selectedModel: fallbackModels[0] });
+        localStorage.setItem(SELECTED_MODEL_LS_KEY, fallbackModels[0]);
+        console.warn('Using fallback models due to service unavailability');
+      }
+    } finally {
+      set({ isLoadingModels: false });
+    }
+  },
 
   // Chat management actions
   addChat: (chatData) => {
