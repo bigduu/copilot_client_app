@@ -69,7 +69,52 @@ export class ServiceFactory {
     onChunk?: (chunk: string) => void,
     abortSignal?: AbortSignal
   ): Promise<void> {
-    return this.getChatService().executePrompt(messages, model, onChunk, abortSignal);
+    // If no model is provided, fall back to globally selected model from useModels
+    // We intentionally avoid importing the hook here to prevent hook misuse.
+    // Instead, we read the same localStorage key managed by useModels.
+    let finalModel = (typeof model === 'string' && model.trim().length > 0) ? model : undefined;
+
+    if (!finalModel) {
+      try {
+        const SELECTED_MODEL_LS_KEY = 'copilot_selected_model_id';
+        const storedModel = localStorage.getItem(SELECTED_MODEL_LS_KEY);
+        if (storedModel && storedModel.trim().length > 0) {
+          finalModel = storedModel;
+          console.log('[ServiceFactory] Using stored model from localStorage:', finalModel);
+        }
+
+        // If still not available, fetch models and pick the first one
+        if (!finalModel) {
+          console.log('[ServiceFactory] No stored model found, fetching available models...');
+          const availableModels = await this.getModels().catch((error) => {
+            console.error('[ServiceFactory] Failed to fetch models:', error);
+            return [] as string[];
+          });
+
+          if (Array.isArray(availableModels) && availableModels.length > 0) {
+            finalModel = availableModels[0];
+            console.log('[ServiceFactory] Using first available model:', finalModel);
+            try {
+              localStorage.setItem(SELECTED_MODEL_LS_KEY, finalModel);
+            } catch (error) {
+              console.warn('[ServiceFactory] Failed to save model to localStorage:', error);
+            }
+          } else {
+            console.warn('[ServiceFactory] No models available from service');
+          }
+        }
+      } catch (error) {
+        console.error('[ServiceFactory] Error in model fallback logic:', error);
+      }
+    } else {
+      console.log('[ServiceFactory] Using provided model:', finalModel);
+    }
+
+    if (!finalModel) {
+      console.warn('[ServiceFactory] No model available, proceeding with undefined (backend should handle this)');
+    }
+
+    return this.getChatService().executePrompt(messages, finalModel, onChunk, abortSignal);
   }
 
   async getModels(): Promise<string[]> {
