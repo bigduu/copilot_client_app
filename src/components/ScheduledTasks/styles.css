@@ -1,0 +1,88 @@
+.scheduled-tasks-container {
+  padding: 20px;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  background-color: var(--bg-color, #fff);
+  color: var(--text-color, #000);
+}
+
+.tasks-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+  border-bottom: 1px solid var(--border-color, #eee);
+  padding-bottom: 10px;
+}
+
+.tasks-header h2 {
+  margin: 0;
+}
+
+.create-task-btn {
+  padding: 8px 16px;
+  font-size: 14px;
+  background-color: #1677ff;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.create-task-btn:hover {
+  background-color: #4096ff;
+}
+
+.tasks-list {
+  flex-grow: 1;
+  overflow-y: auto;
+}
+
+.task-item {
+  background-color: var(--item-bg-color, #f9f9f9);
+  padding: 15px;
+  border-radius: 6px;
+  margin-bottom: 10px;
+  border: 1px solid var(--border-color, #eee);
+}
+
+.task-item-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.task-item-header span {
+  font-family: monospace;
+  background-color: var(--code-bg-color, #eef);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 12px;
+}
+
+.task-item code {
+  display: block;
+  background-color: var(--code-bg-color, #eef);
+  padding: 10px;
+  border-radius: 4px;
+  margin: 10px 0;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+.task-item-actions {
+  margin-top: 15px;
+  display: flex;
+  gap: 10px;
+}
+
+.task-item-actions button {
+  padding: 4px 12px;
+  font-size: 12px;
+  border: 1px solid var(--border-color, #ccc);
+  background-color: transparent;
+  border-radius: 4px;
+  cursor: pointer;
+}

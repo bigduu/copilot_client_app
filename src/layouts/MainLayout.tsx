@@ -3,6 +3,7 @@ import { Layout } from "antd";
 import { ChatSidebar } from "../components/ChatSidebar";
 import { ChatView } from "../components/ChatView";
 import { FavoritesPanel } from "../components/FavoritesPanel";
+import { ScheduledTasks } from "../components/ScheduledTasks";
 import { listen } from "@tauri-apps/api/event";
 import { useChatStore, useCurrentMessages } from "../store/chatStore";
 import { getMessageText } from "../types/chat";
@@ -21,6 +22,7 @@ export const MainLayout: React.FC<{
   const currentChatId = useChatStore((state) => state.currentChatId);
   const pendingAIRef = useRef(false);
   const [showFavorites, setShowFavorites] = useState(true);
+  const [activeView, setActiveView] = useState<"chat" | "tasks">("chat");
 
   useEffect(() => {
     const unlisten = listen<{ message: string }>(
@@ -102,9 +104,11 @@ export const MainLayout: React.FC<{
       <ChatSidebar
         themeMode={themeMode}
         onThemeModeChange={onThemeModeChange}
+        activeView={activeView}
+        setActiveView={setActiveView}
       />
       <Layout className="content-layout">
-        <ChatView />
+        {activeView === "chat" ? <ChatView /> : <ScheduledTasks />}
       </Layout>
       {/* Favorites Panel */}
       {showFavorites && currentChatId && currentMessages.length > 0 && (

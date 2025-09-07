@@ -22,6 +22,8 @@ import {
   RightOutlined,
   DeleteOutlined,
   CalendarOutlined,
+  MessageOutlined,
+  ClockCircleOutlined,
 } from "@ant-design/icons";
 import { useChatStore } from "../../store/chatStore";
 import {
@@ -48,7 +50,9 @@ const { useToken } = theme;
 export const ChatSidebar: React.FC<{
   themeMode: "light" | "dark";
   onThemeModeChange: (mode: "light" | "dark") => void;
-}> = ({ themeMode, onThemeModeChange }) => {
+  activeView: "chat" | "tasks";
+  setActiveView: (view: "chat" | "tasks") => void;
+}> = ({ themeMode, onThemeModeChange, activeView, setActiveView }) => {
   const { token } = useToken();
   // Direct access to Zustand store - much simpler!
   const chats = useChatStore((state) => state.chats);
@@ -850,6 +854,26 @@ export const ChatSidebar: React.FC<{
           borderTop: "1px solid var(--ant-color-border)",
         }}
       >
+        {!collapsed && (
+          <Flex gap="small" style={{ marginBottom: 8 }}>
+            <Button
+              type={activeView === 'chat' ? 'primary' : 'default'}
+              icon={<MessageOutlined />}
+              block
+              onClick={() => setActiveView('chat')}
+            >
+              Chat
+            </Button>
+            <Button
+              type={activeView === 'tasks' ? 'primary' : 'default'}
+              icon={<ClockCircleOutlined />}
+              block
+              onClick={() => setActiveView('tasks')}
+            >
+              Tasks
+            </Button>
+          </Flex>
+        )}
         <Tooltip placement={collapsed ? "right" : "top"} title="New Chat">
           <Button
             type="primary"

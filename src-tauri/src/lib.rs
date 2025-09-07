@@ -86,6 +86,11 @@ pub fn run() {
             command::tools::get_tool_manager_stats,
             command::tools::is_category_enabled,
             command::tools::get_category_system_prompt,
+            // Scheduled Task Commands
+            command::scheduled_task::fs_read_file,
+            command::scheduled_task::fs_write_file,
+            command::scheduled_task::fs_list_dir,
+            command::scheduled_task::fs_delete,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
