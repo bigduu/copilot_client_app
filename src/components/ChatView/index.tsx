@@ -8,7 +8,7 @@ import React, {
 import { Layout, Empty, Space, theme, Button, Grid, Flex } from "antd";
 import { useChats } from "../../hooks/useChats";
 import { useMessages } from "../../hooks/useMessages";
-import { useChatStore } from "../../store/chatStore";
+import { useAppStore } from "../../store";
 import SystemMessage from "../SystemMessage";
 import { DownOutlined } from "@ant-design/icons";
 import { InputContainer } from "../InputContainer";
@@ -23,7 +23,7 @@ export const ChatView: React.FC = () => {
   // 使用新的 Zustand hooks
   const { currentChatId, currentMessages, updateChat } = useChats();
   const { isProcessing, deleteMessage } = useMessages();
-  const streamingMessage = useChatStore((state) => state.streamingMessage);
+  const streamingMessage = useAppStore((state) => state.streamingMessage);
 
   // 流式响应现在完全在 chatStore 中处理，不再需要 StreamingMessageItem
   const isStreaming = isProcessing;

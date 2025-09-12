@@ -31,7 +31,7 @@ import {
 import { useChats } from "../../hooks/useChats";
 import { useMessages } from "../../hooks/useMessages";
 import { FavoriteItem } from "../../types/chat";
-import { useChatStore } from "../../store/chatStore";
+import { useAppStore } from "../../store";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
@@ -52,9 +52,9 @@ export const FavoritesPanel: React.FC = () => {
   const { sendMessage } = useMessages();
 
   // Get favorites functionality from Zustand store
-  const allFavorites = useChatStore((state) => state.favorites);
-  const removeFavorite = useChatStore((state) => state.removeFavorite);
-  const updateFavorite = useChatStore((state) => state.updateFavorite);
+  const allFavorites = useAppStore((state) => state.favorites);
+  const removeFavorite = useAppStore((state) => state.removeFavorite);
+  const updateFavorite = useAppStore((state) => state.updateFavorite);
 
   // Get current chat favorites
   const getCurrentChatFavorites = () => {

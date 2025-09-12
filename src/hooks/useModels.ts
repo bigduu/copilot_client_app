@@ -1,16 +1,16 @@
 import { useEffect } from 'react';
-import { useChatStore } from '../store/chatStore';
+import { useAppStore } from '../store';
 
 export const useModels = () => {
   // 从全局 Zustand store 中选择模型相关的状态
-  const models = useChatStore(state => state.models);
-  const selectedModel = useChatStore(state => state.selectedModel);
-  const isLoading = useChatStore(state => state.isLoadingModels);
-  const error = useChatStore(state => state.modelsError);
+  const models = useAppStore(state => state.models);
+  const selectedModel = useAppStore(state => state.selectedModel);
+  const isLoading = useAppStore(state => state.isLoadingModels);
+  const error = useAppStore(state => state.modelsError);
 
   // 从 store 中获取 actions
-  const fetchModels = useChatStore(state => state.fetchModels);
-  const setSelectedModel = useChatStore(state => state.setSelectedModel);
+  const fetchModels = useAppStore(state => state.fetchModels);
+  const setSelectedModel = useAppStore(state => state.setSelectedModel);
 
   // 在 hook 挂载时触发一次模型加载
   useEffect(() => {

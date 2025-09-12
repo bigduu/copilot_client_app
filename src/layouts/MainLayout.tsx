@@ -4,7 +4,8 @@ import { ChatSidebar } from "../components/ChatSidebar";
 import { ChatView } from "../components/ChatView";
 import { FavoritesPanel } from "../components/FavoritesPanel";
 import { listen } from "@tauri-apps/api/event";
-import { useChatStore, useCurrentMessages } from "../store/chatStore";
+import { useAppStore } from "../store";
+import { useCurrentMessages } from "../store/hooks";
 import { getMessageText } from "../types/chat";
 
 import "./styles.css";
@@ -14,11 +15,11 @@ export const MainLayout: React.FC<{
   onThemeModeChange: (mode: "light" | "dark") => void;
 }> = ({ themeMode, onThemeModeChange }) => {
   // Direct access to Zustand store
-  const addChat = useChatStore((state) => state.addChat);
-  const selectChat = useChatStore((state) => state.selectChat);
-  const initiateAIResponse = useChatStore((state) => state.initiateAIResponse);
+  const addChat = useAppStore((state) => state.addChat);
+  const selectChat = useAppStore((state) => state.selectChat);
+  const initiateAIResponse = useAppStore((state) => state.initiateAIResponse);
   const currentMessages = useCurrentMessages();
-  const currentChatId = useChatStore((state) => state.currentChatId);
+  const currentChatId = useAppStore((state) => state.currentChatId);
   const pendingAIRef = useRef(false);
   const [showFavorites, setShowFavorites] = useState(true);
 
@@ -41,7 +42,7 @@ export const MainLayout: React.FC<{
         });
 
         // Get the current chat ID (addChat automatically selects the new chat)
-        const currentChatId = useChatStore.getState().currentChatId;
+        const currentChatId = useAppStore.getState().currentChatId;
         console.log(
           "[MainLayout] New chat ID created with initial message:",
           currentChatId
@@ -73,7 +74,7 @@ export const MainLayout: React.FC<{
       }
       pendingAIRef.current = false;
     }
-  }, [currentMessages, initiateAIResponse]);
+  }, [currentMessages, initiateAIResponse, currentChatId]);
 
   // Add keyboard shortcut for toggling favorites
   useEffect(() => {

@@ -11,28 +11,18 @@ export interface StreamingCallbacks {
 }
 
 export class StreamingResponseHandler {
-  /**
-   * Handle streaming response with unified JSON parsing logic
-   * @param rawMessage Raw message from streaming response
-   * @param callbacks Callback functions for different events
-   * @param responseAccumulator Accumulator object to store response content
-   */
-  static handleStreamChunk(
-    rawMessage: string,
-    callbacks: StreamingCallbacks,
-    responseAccumulator: { content: string }
-  ): void {
-    // Handle [CANCELLED] signal
-    if (rawMessage.trim() === '[CANCELLED]') {
-      console.log('[StreamingResponseHandler] Request was cancelled');
-      callbacks.onCancel?.(responseAccumulator.content);
-      return;
-    }
+  private onContent: (content: string) => void;
+  private onComplete: () => void;
+  private responseAccumulator = { content: '' };
 
-    // Handle [DONE] signal
+  constructor(onContent: (content: string) => void, onComplete: () => void) {
+    this.onContent = onContent;
+    this.onComplete = onComplete;
+  }
+
+  public handleChunk(rawMessage: string): void {
     if (rawMessage.trim() === '[DONE]') {
-      console.log('[StreamingResponseHandler] Stream completed');
-      callbacks.onComplete?.(responseAccumulator.content);
+      this.onComplete();
       return;
     }
 
@@ -41,39 +31,19 @@ export class StreamingResponseHandler {
       return;
     }
 
-    // Split multiple JSON objects and process each
-    const jsonObjects = rawMessage.split(/(?<=})\s*(?={)/);
-
-    for (const jsonStr of jsonObjects) {
-      if (!jsonStr.trim()) continue;
-
-      try {
-        const data = JSON.parse(jsonStr);
-
-        // Handle streaming response format
-        if (data.choices && data.choices.length > 0) {
-          const choice = data.choices[0];
-
-          // Check if finished
-          if (choice.finish_reason === 'stop') {
-            callbacks.onComplete?.(responseAccumulator.content);
-            return;
-          }
-
-          // Handle delta content
-          if (choice.delta && typeof choice.delta.content !== 'undefined') {
-            if (choice.delta.content !== null && typeof choice.delta.content === 'string') {
-              const newContent = choice.delta.content;
-              responseAccumulator.content += newContent;
-              callbacks.onContent?.(newContent);
-            }
-          }
+    try {
+      const data = JSON.parse(rawMessage);
+      if (data.choices && data.choices.length > 0) {
+        const content = data.choices[0]?.delta?.content;
+        if (content) {
+          this.responseAccumulator.content += content;
+          this.onContent(content);
         }
-      } catch (error) {
-        console.error('[StreamingResponseHandler] Error parsing JSON:', error);
-        console.error('[StreamingResponseHandler] JSON string:', jsonStr);
-        callbacks.onError?.(error as Error);
       }
+    } catch (e) {
+      // Not a JSON, treat as plain text
+      this.responseAccumulator.content += rawMessage;
+      this.onContent(rawMessage);
     }
   }
 

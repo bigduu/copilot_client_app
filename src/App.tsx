@@ -4,7 +4,7 @@ import "./App.css";
 // ChatProvider no longer needed - using Zustand store directly
 import { MainLayout } from "./layouts/MainLayout";
 import { SystemSettingsModal } from "./components/SystemSettingsModal";
-import { useChatStore } from "./store/chatStore";
+import { useAppStore } from "./store";
 
 const DARK_MODE_KEY = "copilot_dark_mode";
 
@@ -13,12 +13,7 @@ function App() {
     return (localStorage.getItem(DARK_MODE_KEY) as "light" | "dark") || "light";
   });
 
-  // 初始化 Zustand store 数据
-  const loadChats = useChatStore((state) => state.loadChats);
-  const loadSystemPromptPresets = useChatStore(
-    (state) => state.loadSystemPromptPresets
-  );
-  const loadFavorites = useChatStore((state) => state.loadFavorites);
+  // The initialization logic is now in `src/store/index.ts`
 
   useEffect(() => {
     document.body.setAttribute("data-theme", themeMode);
@@ -26,10 +21,8 @@ function App() {
 
   // 在应用启动时加载数据
   useEffect(() => {
-    loadChats();
-    loadSystemPromptPresets();
-    loadFavorites();
-  }, [loadChats, loadSystemPromptPresets, loadFavorites]);
+    // Store is initialized in `src/store/index.ts`
+  }, []);
 
   // Control the display of settings modal (can be adjusted according to actual project logic)
   const [settingsOpen, setSettingsOpen] = useState(false);

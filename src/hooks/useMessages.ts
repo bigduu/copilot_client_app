@@ -1,4 +1,5 @@
-import { useChatStore, useCurrentMessages } from '../store/chatStore';
+import { useAppStore } from '../store';
+import { useCurrentMessages } from '../store/hooks';
 import { Message, getMessageText } from '../types/chat';
 import { ImageFile } from '../utils/imageUtils';
 import { serviceFactory } from '../services/ServiceFactory';
@@ -32,16 +33,16 @@ interface UseMessagesReturn {
 
 export const useMessages = (): UseMessagesReturn => {
   // 从 Zustand Store 获取数据 (Hook → Store)
-  const currentChatId = useChatStore(state => state.currentChatId);
+  const currentChatId = useAppStore(state => state.currentChatId);
   const messages = useCurrentMessages(); // 使用便捷 hook 获取当前聊天的消息
-  const isProcessing = useChatStore(state => state.isProcessing);
+  const isProcessing = useAppStore(state => state.isProcessing);
 
   // 从 Zustand Store 获取操作方法 (Hook → Store)
-  const addMessage = useChatStore(state => state.addMessage);
-  const updateMessage = useChatStore(state => state.updateMessage);
-  const deleteMessage = useChatStore(state => state.deleteMessage);
-  const initiateAIResponse = useChatStore(state => state.initiateAIResponse);
-  const triggerAIResponseOnly = useChatStore(state => state.triggerAIResponseOnly);
+  const addMessage = useAppStore(state => state.addMessage);
+  const updateMessage = useAppStore(state => state.updateMessage);
+  const deleteMessage = useAppStore(state => state.deleteMessage);
+  const initiateAIResponse = useAppStore(state => state.initiateAIResponse);
+  const triggerAIResponseOnly = useAppStore(state => state.triggerAIResponseOnly);
 
   // 便捷操作方法 (针对当前聊天)
   const addMessageToCurrentChat = (message: Message) => {
@@ -78,7 +79,7 @@ export const useMessages = (): UseMessagesReturn => {
 
   const generateChatTitle = async (chatId: string): Promise<string> => {
     // Get messages for the specific chat
-    const allMessages = useChatStore.getState().messages;
+    const allMessages = useAppStore.getState().messages;
     const chatMessages = allMessages[chatId] || [];
 
     // Need at least one user message to generate title
@@ -167,11 +168,12 @@ Title:`;
             role: "user",
             content: titlePrompt,
             id: crypto.randomUUID(),
+            createdAt: new Date().toISOString(),
           }
         ];
 
         // Get the latest model state directly from the store
-        const chatStoreState = useChatStore.getState();
+        const chatStoreState = useAppStore.getState();
         const modelToUse = chatStoreState.selectedModel || (chatStoreState.models.length > 0 ? chatStoreState.models[0] : undefined);
 
         if (!modelToUse) {
@@ -209,7 +211,7 @@ Title:`;
   const autoUpdateChatTitle = async (chatId: string): Promise<void> => {
     try {
       // Get chat info
-      const { chats } = useChatStore.getState();
+      const { chats } = useAppStore.getState();
       const chat = chats.find(c => c.id === chatId);
 
       if (!chat) return;
@@ -225,7 +227,7 @@ Title:`;
       const newTitle = await generateChatTitle(chatId);
 
       // Update chat title
-      const updateChat = useChatStore.getState().updateChat;
+      const updateChat = useAppStore.getState().updateChat;
       updateChat(chatId, { title: newTitle });
 
       console.log(`[useMessages] Auto-updated chat title: "${chat.title}" → "${newTitle}"`);

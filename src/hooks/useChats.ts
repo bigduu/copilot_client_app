@@ -1,4 +1,4 @@
-import { useChatStore } from '../store/chatStore';
+import { useAppStore } from '../store';
 import { ChatItem, Message, SystemPromptPreset } from '../types/chat';
 
 /**
@@ -39,20 +39,20 @@ interface UseChatsReturn {
 
 export const useChats = (): UseChatsReturn => {
   // 从 Zustand Store 获取数据 (Hook → Store)
-  const chats = useChatStore(state => state.chats);
-  const currentChatId = useChatStore(state => state.currentChatId);
-  const messages = useChatStore(state => state.messages);
+  const chats = useAppStore(state => state.chats);
+  const currentChatId = useAppStore(state => state.currentChatId);
+  const messages = useAppStore(state => state.messages);
 
   // 从 Zustand Store 获取操作方法 (Hook → Store)
-  const addChat = useChatStore(state => state.addChat);
-  const selectChat = useChatStore(state => state.selectChat);
-  const deleteChat = useChatStore(state => state.deleteChat);
-  const deleteChats = useChatStore(state => state.deleteChats);
-  const updateChat = useChatStore(state => state.updateChat);
-  const pinChat = useChatStore(state => state.pinChat);
-  const unpinChat = useChatStore(state => state.unpinChat);
-  const loadChats = useChatStore(state => state.loadChats);
-  const saveChats = useChatStore(state => state.saveChats);
+  const addChat = useAppStore(state => state.addChat);
+  const selectChat = useAppStore(state => state.selectChat);
+  const deleteChat = useAppStore(state => state.deleteChat);
+  const deleteChats = useAppStore(state => state.deleteChats);
+  const updateChat = useAppStore(state => state.updateChat);
+  const pinChat = useAppStore(state => state.pinChat);
+  const unpinChat = useAppStore(state => state.unpinChat);
+  const loadChats = useAppStore(state => state.loadChats);
+  const saveChats = useAppStore(state => state.saveChats);
 
   // 计算派生状态 (从 Store 数据计算得出)
   const currentChat = chats.find(chat => chat.id === currentChatId) || null;

@@ -2,7 +2,7 @@ import { useState, useCallback, useEffect, useRef } from "react";
 import { message } from "antd";
 import { useChats } from "./useChats";
 import { useMessages } from "./useMessages";
-import { useChatStore } from "../store/chatStore";
+import { useAppStore } from "../store";
 import { ToolService } from "../services/ToolService";
 import { ImageFile, cleanupImagePreviews } from "../utils/imageUtils";
 import { getMessageText } from "../types/chat";
@@ -185,7 +185,7 @@ export function useChatInput() {
 
     try {
       // Get current chat messages using the store directly
-      const store = useChatStore.getState();
+      const store = useAppStore.getState();
       const currentMessages = store.messages[currentChatId] || [];
 
       console.log("[handleRetry] Current chat ID:", currentChatId);
@@ -212,25 +212,13 @@ export function useChatInput() {
         contentPreview: getMessageText(lastMessage.content).substring(0, 50)
       });
 
-      // We can regenerate if:
-      // 1. Last message is from assistant (normal regeneration)
-      // 2. Last message is from user (user deleted AI response and wants to regenerate)
-      if (lastMessage.role !== "assistant" && lastMessage.role !== "user") {
-        console.warn("[handleRetry] Last message is neither from assistant nor user, role:", lastMessage.role);
-        messageApi.warning("Cannot regenerate response for this message type");
-        return;
-      }
-
-      // Check if we have any user messages at all
-      const hasUserMessages = currentMessages.some(msg => msg.role === "user");
-      if (!hasUserMessages) {
-        console.warn("[handleRetry] No user messages found to generate response for");
-        messageApi.warning("No user messages found to generate response for");
-        return;
+      // If the last message is from the assistant, remove it before retrying
+      if (lastMessage.role === "assistant") {
+        console.log("[handleRetry] Removing last assistant message before retry...");
+        store.deleteMessage(currentChatId, lastMessage.id);
       }
 
       console.log("[handleRetry] Triggering AI response regeneration...");
-      // Trigger AI response only (triggerAIResponseOnly will handle removing the last assistant message)
       await store.triggerAIResponseOnly(currentChatId);
 
       console.log("[handleRetry] AI response retry initiated successfully");

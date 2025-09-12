@@ -121,6 +121,18 @@ export class ServiceFactory {
     return this.getChatService().getModels();
   }
 
+  async getCompletion(
+    modelId: string,
+    messages: any[],
+    systemPrompt: string,
+    onChunk: (chunk: string) => void,
+    abortSignal: AbortSignal
+  ): Promise<void> {
+    // Simplified for now, assuming the main chat service handles system prompt
+    const allMessages = [{ role: 'system', content: systemPrompt }, ...messages];
+    return this.executePrompt(allMessages, modelId, onChunk, abortSignal);
+  }
+
   async copyToClipboard(text: string): Promise<void> {
     return this.getUtilityService().copyToClipboard(text);
   }

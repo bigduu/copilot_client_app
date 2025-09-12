@@ -13,18 +13,20 @@ export interface MessageImage {
 export type MessageContent =
   | string
   | Array<{
-      type: "text" | "image_url";
+      type: "text" | "image_url" | "tool_code";
       text?: string;
       image_url?: {
         url: string;
         detail?: "low" | "high" | "auto";
       };
+      tool_code?: string;
     }>;
 
 export interface Message {
+  id: string; // Unique identifier for the message
   role: "system" | "user" | "assistant";
   content: MessageContent;
-  id?: string; // Unique identifier for the message
+  createdAt: string;
   processorUpdates?: string[]; // Optional: To store processor update strings
   images?: MessageImage[]; // Optional: Array of attached images (for internal use)
 }

@@ -19,7 +19,7 @@ import {
   createReferenceButton,
 } from "../ActionButtonGroup";
 import { useChats } from "../../hooks/useChats";
-import { useChatStore } from "../../store/chatStore";
+import { useAppStore } from "../../store";
 import { MessageImage, MessageContent, getMessageText } from "../../types/chat";
 import { useMessages } from "../../hooks/useMessages";
 import ApprovalCard from "./ApprovalCard";
@@ -60,7 +60,7 @@ const MessageCard: React.FC<MessageCardProps> = ({
   const screens = useBreakpoint();
   const { currentChatId } = useChats();
   const { sendMessage } = useMessages();
-  const addFavorite = useChatStore((state) => state.addFavorite);
+  const addFavorite = useAppStore((state) => state.addFavorite);
   const cardRef = useRef<HTMLDivElement>(null);
   const [selectedText, setSelectedText] = useState<string>("");
   const [isHovering, setIsHovering] = useState<boolean>(false);

@@ -23,7 +23,7 @@ import {
   DeleteOutlined,
   CalendarOutlined,
 } from "@ant-design/icons";
-import { useChatStore } from "../../store/chatStore";
+import { useAppStore } from "../../store";
 import {
   groupChatsByToolCategory,
   groupChatsByDateAndCategory,
@@ -51,20 +51,20 @@ export const ChatSidebar: React.FC<{
 }> = ({ themeMode, onThemeModeChange }) => {
   const { token } = useToken();
   // Direct access to Zustand store - much simpler!
-  const chats = useChatStore((state) => state.chats);
-  const addChat = useChatStore((state) => state.addChat);
-  const selectChat = useChatStore((state) => state.selectChat);
-  const currentChatId = useChatStore((state) => state.currentChatId);
-  const deleteChat = useChatStore((state) => state.deleteChat);
-  const deleteChats = useChatStore((state) => state.deleteChats);
-  const pinChat = useChatStore((state) => state.pinChat);
-  const unpinChat = useChatStore((state) => state.unpinChat);
-  const updateChat = useChatStore((state) => state.updateChat);
-  const systemPromptPresets = useChatStore(
+  const chats = useAppStore((state) => state.chats);
+  const addChat = useAppStore((state) => state.addChat);
+  const selectChat = useAppStore((state) => state.selectChat);
+  const currentChatId = useAppStore((state) => state.currentChatId);
+  const deleteChat = useAppStore((state) => state.deleteChat);
+  const deleteChats = useAppStore((state) => state.deleteChats);
+  const pinChat = useAppStore((state) => state.pinChat);
+  const unpinChat = useAppStore((state) => state.unpinChat);
+  const updateChat = useAppStore((state) => state.updateChat);
+  const systemPromptPresets = useAppStore(
     (state) => state.systemPromptPresets
   );
 
-  const loadSystemPromptPresets = useChatStore(
+  const loadSystemPromptPresets = useAppStore(
     (state) => state.loadSystemPromptPresets
   );
 

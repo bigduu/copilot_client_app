@@ -4,6 +4,12 @@ use tauri::State;
 
 use crate::extension_system::{Parameter, ToolCategory, ToolConfig, ToolsManager};
 
+#[derive(Serialize, Deserialize, Debug)]
+pub struct ApprovalConfig {
+    #[serde(rename = "autoApprovedTools")]
+    pub auto_approved_tools: Vec<String>,
+}
+
 #[derive(Serialize)]
 pub struct ParameterInfo {
     pub name: String,

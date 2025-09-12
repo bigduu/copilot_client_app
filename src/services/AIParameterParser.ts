@@ -7,23 +7,22 @@ import { StreamingResponseHandler } from './StreamingResponseHandler';
  * Extracts the common AI parameter parsing logic used in both useMessages and chatStore
  */
 export class AIParameterParser {
-  /**
-   * Parse tool call parameters using AI
-   * @param messages Messages to send to AI for parameter parsing
-   * @param model Optional model to use
-   * @returns Promise that resolves with the AI response
-   */
-  static async parseParameters(
-    messages: Message[],
-    model?: string
-  ): Promise<string> {
-    console.log('[AIParameterParser] Starting parameter parsing with', messages.length, 'messages');
-
-    return StreamingResponseHandler.createParameterParsingHandler(
-      serviceFactory.executePrompt.bind(serviceFactory),
-      messages,
-      model
-    );
+  public parse(response: string): { toolName: string; parameters: any } | null {
+    try {
+      const jsonMatch = response.match(/```json\s*(\{[\s\S]*?\})\s*```/);
+      if (jsonMatch && jsonMatch[1]) {
+        const parsed = JSON.parse(jsonMatch[1]);
+        if (parsed.tool_call && parsed.parameters) {
+          return {
+            toolName: parsed.tool_call,
+            parameters: parsed.parameters,
+          };
+        }
+      }
+    } catch (e) {
+      console.error("Failed to parse AI parameters", e);
+    }
+    return null;
   }
 
   /**

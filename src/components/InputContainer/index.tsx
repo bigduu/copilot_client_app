@@ -9,7 +9,7 @@ import { useChatInput } from "../../hooks/useChatInput";
 import { useToolCategoryValidation } from "../../hooks/useToolCategoryValidation";
 import { useSystemPrompt } from "../../hooks/useSystemPrompt";
 // Removed getCategoryDisplayInfoAsync import since lock functionality is removed
-import { useChatStore } from "../../store/chatStore";
+import { useAppStore } from "../../store";
 
 const { useToken } = theme;
 
@@ -26,7 +26,7 @@ export const InputContainer: React.FC<InputContainerProps> = ({
   const [toolSearchText, setToolSearchText] = useState("");
   const { token } = useToken();
   const { currentMessages, currentChat } = useChats();
-  const { cancelCurrentRequest } = useChatStore();
+  const { cancelCurrentRequest } = useAppStore();
   // TODO: selectedSystemPromptPresetId 需要从新的 store 中获取
   const selectedSystemPromptPresetId = null;
 
