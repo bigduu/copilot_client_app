@@ -77,7 +77,7 @@ export const ChatSidebar: React.FC<{
   const [selectedChatIds, setSelectedChatIds] = useState<string[]>([]);
   const [footerHeight, setFooterHeight] = useState(0);
 
-  // 添加类别信息缓存和loading状态
+  // Add category info cache and loading state
   const [categoryInfoCache, setCategoryInfoCache] = useState<
     Record<string, any>
   >({});
@@ -85,26 +85,26 @@ export const ChatSidebar: React.FC<{
     new Set()
   );
 
-  // 折叠/展开状态管理
+  // Collapse/expand state management
   const [expandedDates, setExpandedDates] = useState<Set<string>>(
-    new Set(["Today"]) // 默认展开今天
+    new Set(["Today"]) // Expand Today by default
   );
   const [expandedCategories, setExpandedCategories] = useState<
     Record<string, Set<string>>
   >({
-    Today: new Set(), // 今天的所有categories默认展开，空Set表示全部展开
+    Today: new Set(), // All categories for Today are expanded by default, an empty Set means all are expanded
   });
   const footerRef = useRef<HTMLDivElement>(null);
   const screens = useBreakpoint();
 
-  // 异步获取类别信息的辅助函数
+  // Async helper function to get category info
   const getCategoryInfo = async (category: string) => {
-    // 如果已经在缓存中，直接返回
+    // If already in cache, return directly
     if (categoryInfoCache[category]) {
       return categoryInfoCache[category];
     }
 
-    // 如果正在加载，返回默认值
+    // If loading, return default value
     if (loadingCategories.has(category)) {
       return {
         name: category,
@@ -115,13 +115,13 @@ export const ChatSidebar: React.FC<{
     }
 
     try {
-      // 标记为加载中
+      // Mark as loading
       setLoadingCategories((prev) => new Set(prev).add(category));
 
-      // 获取类别信息
+      // Get category info
       const categoryInfo = await getCategoryDisplayInfoAsync(category);
 
-      // 存储到缓存
+      // Store in cache
       setCategoryInfoCache((prev) => ({
         ...prev,
         [category]: categoryInfo,
@@ -129,8 +129,8 @@ export const ChatSidebar: React.FC<{
 
       return categoryInfo;
     } catch (error) {
-      console.error(`获取类别 ${category} 信息失败:`, error);
-      // 返回默认信息
+      console.error(`Failed to get info for category ${category}:`, error);
+      // Return default info
       const defaultInfo = {
         name: category,
         icon: "❌",
@@ -138,7 +138,7 @@ export const ChatSidebar: React.FC<{
         color: "#ff4d4f",
       };
 
-      // 即使失败也要存储默认信息到缓存
+      // Store default info in cache even on failure
       setCategoryInfoCache((prev) => ({
         ...prev,
         [category]: defaultInfo,
@@ -146,7 +146,7 @@ export const ChatSidebar: React.FC<{
 
       return defaultInfo;
     } finally {
-      // 移除加载标记
+      // Remove loading flag
       setLoadingCategories((prev) => {
         const newSet = new Set(prev);
         newSet.delete(category);
@@ -155,11 +155,11 @@ export const ChatSidebar: React.FC<{
     }
   };
 
-  // 简单的分组排序函数（避免使用硬编码的权重）
+  // Simple grouping and sorting function (avoids hardcoded weights)
   const sortGroupedChats = (
     grouped: Record<string, ChatItem[]>
   ): Record<string, ChatItem[]> => {
-    // 将 Pinned 放在最前面，其他按字母顺序排序
+    // Put Pinned at the top, sort others alphabetically
     const sortedEntries = Object.entries(grouped).sort(
       ([categoryA], [categoryB]) => {
         if (categoryA === "Pinned") return -1;
@@ -170,7 +170,7 @@ export const ChatSidebar: React.FC<{
     return Object.fromEntries(sortedEntries);
   };
 
-  // 折叠/展开辅助函数
+  // Collapse/expand helper functions
   const toggleDateExpansion = (dateKey: string) => {
     setExpandedDates((prev) => {
       const newSet = new Set(prev);
@@ -178,10 +178,10 @@ export const ChatSidebar: React.FC<{
         newSet.delete(dateKey);
       } else {
         newSet.add(dateKey);
-        // 当展开日期时，默认展开该日期下的所有categories
+        // When expanding a date, expand all its categories by default
         setExpandedCategories((prevCategories) => ({
           ...prevCategories,
-          [dateKey]: new Set(), // 空Set表示全部展开
+          [dateKey]: new Set(), // Empty Set means all are expanded
         }));
       }
       return newSet;
@@ -212,8 +212,8 @@ export const ChatSidebar: React.FC<{
 
   const isCategoryExpanded = (dateKey: string, category: string): boolean => {
     const dateCategories = expandedCategories[dateKey];
-    if (!dateCategories) return false; // 如果日期没有展开，category也不展开
-    return dateCategories.size === 0 || !dateCategories.has(category); // 空Set表示全部展开
+    if (!dateCategories) return false; // If date is not expanded, category is not expanded either
+    return dateCategories.size === 0 || !dateCategories.has(category); // Empty Set means all are expanded
   };
 
   // Load system prompt presets on component mount
@@ -248,10 +248,10 @@ export const ChatSidebar: React.FC<{
   // Keep old grouping for collapsed view
   const groupedChats = sortGroupedChats(groupChatsByToolCategory(chats));
 
-  // 预加载所有类别信息
+  // Preload all category info
   useEffect(() => {
     const loadCategoryInfo = async () => {
-      // 从新的分组结构中收集所有类别
+      // Collect all categories from the new grouped structure
       const categories = new Set<string>();
       Object.values(groupedChatsByDate).forEach((dateGroup) => {
         Object.keys(dateGroup).forEach((category) => {
@@ -259,7 +259,7 @@ export const ChatSidebar: React.FC<{
         });
       });
 
-      // 也从旧的分组结构中收集类别（用于折叠视图）
+      // Also collect categories from the old grouped structure (for collapsed view)
       Object.keys(groupedChats).forEach((category) => {
         categories.add(category);
       });
@@ -269,7 +269,7 @@ export const ChatSidebar: React.FC<{
           try {
             await getCategoryInfo(category);
           } catch (error) {
-            console.error(`预加载类别 ${category} 信息失败:`, error);
+            console.error(`Failed to preload category ${category}:`, error);
           }
         }
       }
@@ -281,7 +281,7 @@ export const ChatSidebar: React.FC<{
     ) {
       loadCategoryInfo();
     }
-  }, [chats]); // 监听 chats 变化
+  }, [chats]); // Listen for changes in chats
 
   const handleDelete = (chatId: string) => {
     Modal.confirm({
@@ -320,7 +320,7 @@ export const ChatSidebar: React.FC<{
     }
   };
 
-  // 批量删除处理函数
+  // Batch delete handler
   const handleDeleteByDate = (dateKey: string) => {
     const chatIds = getChatIdsByDate(groupedChatsByDate, dateKey);
     const chatCount = getChatCountByDate(groupedChatsByDate, dateKey);

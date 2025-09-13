@@ -9,8 +9,8 @@ import {
 } from '../types/unified-chat';
 
 /**
- * 附件处理器
- * 处理图像、文件等附件的预处理和流程集成
+ * Attachment Processor
+ * Handles preprocessing and flow integration for attachments like images and files
  */
 export class AttachmentProcessor implements IAttachmentProcessor {
   private initialized = false;
@@ -22,26 +22,26 @@ export class AttachmentProcessor implements IAttachmentProcessor {
   constructor() {}
 
   /**
-   * 批量处理附件
+   * Process attachments in batch
    */
   async processAttachments(attachments: Attachment[]): Promise<OperationResult<AttachmentResult[]>> {
     try {
       if (!this.initialized) {
-        throw new Error('AttachmentProcessor 未初始化');
+        throw new Error('AttachmentProcessor is not initialized');
       }
 
       if (!attachments || attachments.length === 0) {
         return {
           success: true,
           data: [],
-          message: '没有附件需要处理'
+          message: 'No attachments to process'
         };
       }
 
       const results: AttachmentResult[] = [];
       const errors: string[] = [];
 
-      // 并行处理所有附件
+      // Process all attachments in parallel
       await Promise.allSettled(
         attachments.map(async (attachment) => {
           try {
@@ -59,10 +59,10 @@ export class AttachmentProcessor implements IAttachmentProcessor {
             if (result.success && result.data) {
               results.push(result.data);
             } else {
-              errors.push(`处理附件 ${attachment.name} 失败: ${result.error || '未知错误'}`);
+              errors.push(`Failed to process attachment ${attachment.name}: ${result.error || 'Unknown error'}`);
             }
           } catch (error) {
-            errors.push(`处理附件 ${attachment.name} 异常: ${error instanceof Error ? error.message : String(error)}`);
+            errors.push(`Exception processing attachment ${attachment.name}: ${error instanceof Error ? error.message : String(error)}`);
           }
         })
       );
@@ -71,119 +71,119 @@ export class AttachmentProcessor implements IAttachmentProcessor {
         return {
           success: false,
           error: errors.join('; '),
-          message: '所有附件处理失败'
+          message: 'Failed to process all attachments'
         };
       }
 
       return {
         success: true,
         data: results,
-        message: `成功处理 ${results.length} 个附件${errors.length > 0 ? `，${errors.length} 个失败` : ''}`
+        message: `Successfully processed ${results.length} attachments${errors.length > 0 ? `, ${errors.length} failed` : ''}`
       };
     } catch (error) {
-      console.error('批量处理附件失败:', error);
+      console.error('Failed to process attachments in batch:', error);
       return {
         success: false,
         error: error instanceof Error ? error.message : String(error),
-        message: '批量处理附件失败'
+        message: 'Failed to process attachments in batch'
       };
     }
   }
 
   /**
-   * 处理单个附件
+   * Process single attachment
    */
   async processAttachment(request: AttachmentRequest): Promise<OperationResult<AttachmentResult>> {
     try {
       if (!this.initialized) {
-        throw new Error('AttachmentProcessor 未初始化');
+        throw new Error('AttachmentProcessor is not initialized');
       }
 
-      // 生成缓存键
+      // Generate cache key
       const cacheKey = this.generateCacheKey(request);
       
-      // 检查缓存
+      // Check cache
       if (this.cache.has(cacheKey)) {
         const cachedResult = this.cache.get(cacheKey)!;
         return {
           success: true,
           data: cachedResult,
-          message: '从缓存获取处理结果'
+          message: 'Get processing result from cache'
         };
       }
 
-      // 检查是否正在处理
+      // Check if it is being processed
       if (this.processingQueue.has(cacheKey)) {
         const result = await this.processingQueue.get(cacheKey)!;
         return {
           success: true,
           data: result,
-          message: '等待处理队列完成'
+          message: 'Wait for the processing queue to complete'
         };
       }
 
-      // 开始处理
+      // Start processing
       const processingPromise = this.performProcessing(request);
       this.processingQueue.set(cacheKey, processingPromise);
 
       try {
         const result = await processingPromise;
         
-        // 缓存结果
+        // Cache result
         this.addToCache(cacheKey, result);
         
         return {
           success: true,
           data: result,
-          message: '附件处理完成'
+          message: 'Attachment processing complete'
         };
       } finally {
-        // 从处理队列移除
+        // Remove from processing queue
         this.processingQueue.delete(cacheKey);
       }
     } catch (error) {
-      console.error('处理附件失败:', error);
+      console.error('Failed to process attachment:', error);
       return {
         success: false,
         error: error instanceof Error ? error.message : String(error),
-        message: '附件处理失败'
+        message: 'Failed to process attachment'
       };
     }
   }
 
   /**
-   * 获取处理结果
+   * Get processing result
    */
   async getResult(attachmentId: string): Promise<OperationResult<any>> {
     try {
-      // 从缓存中查找结果
+      // Find result in cache
       for (const [, result] of this.cache.entries()) {
         if (result.attachment.id === attachmentId) {
           return {
             success: true,
             data: result,
-            message: '找到附件处理结果'
+            message: 'Found attachment processing result'
           };
         }
       }
 
       return {
         success: false,
-        error: '未找到附件处理结果',
-        message: `附件 ${attachmentId} 的处理结果不存在`
+        error: 'Attachment processing result not found',
+        message: `Processing result for attachment ${attachmentId} does not exist`
       };
     } catch (error) {
-      console.error('获取处理结果失败:', error);
+      console.error('Failed to get processing result:', error);
       return {
         success: false,
         error: error instanceof Error ? error.message : String(error),
-        message: '获取处理结果失败'
+        message: 'Failed to get processing result'
       };
     }
   }
 
   /**
-   * 合并附件摘要到内容中
+   * Merge attachment summaries into content
    */
   mergeAttachmentSummaries(content: string, results: AttachmentResult[]): string {
     try {
@@ -193,28 +193,28 @@ export class AttachmentProcessor implements IAttachmentProcessor {
 
       const summaries = results
         .filter(result => result.summary && result.summary.trim())
-        .map(result => `[附件: ${result.attachment.name}]\n${result.summary}`)
+        .map(result => `[Attachment: ${result.attachment.name}]\n${result.summary}`)
         .join('\n\n');
 
       if (!summaries) {
         return content;
       }
 
-      // 如果内容为空，只返回摘要
+      // If content is empty, only return the summary
       if (!content || !content.trim()) {
         return summaries;
       }
 
-      // 将摘要添加到内容前面
+      // Add the summary to the beginning of the content
       return `${summaries}\n\n${content}`;
     } catch (error) {
-      console.error('合并附件摘要失败:', error);
+      console.error('Failed to merge attachment summaries:', error);
       return content;
     }
   }
 
   /**
-   * 生成附件提示词
+   * Generate attachment prompt
    */
   generateAttachmentPrompt(attachment: Attachment): string {
     try {
@@ -222,35 +222,35 @@ export class AttachmentProcessor implements IAttachmentProcessor {
       const name = attachment.name;
       const size = this.formatFileSize(attachment.size);
 
-      let prompt = `处理附件：${name} (${size})`;
+      let prompt = `Processing attachment: ${name} (${size})`;
 
       switch (type) {
         case 'image':
-          prompt += `\n这是一张图片，请分析图片内容并提供详细描述。`;
+          prompt += `\nThis is an image, please analyze its content and provide a detailed description.`;
           break;
         case 'file':
           if (attachment.mimeType.includes('text')) {
-            prompt += `\n这是一个文本文件，请分析文件内容并提供摘要。`;
+            prompt += `\nThis is a text file, please analyze its content and provide a summary.`;
           } else {
-            prompt += `\n这是一个文件，类型：${attachment.mimeType}。`;
+            prompt += `\nThis is a file, type: ${attachment.mimeType}.`;
           }
           break;
         case 'screenshot':
-          prompt += `\n这是一张截图，请分析截图内容并提供详细描述。`;
+          prompt += `\nThis is a screenshot, please analyze its content and provide a detailed description.`;
           break;
         default:
-          prompt += `\n请分析此附件的内容。`;
+          prompt += `\nPlease analyze the content of this attachment.`;
       }
 
       return prompt;
     } catch (error) {
-      console.error('生成附件提示词失败:', error);
-      return `处理附件：${attachment.name}`;
+      console.error('Failed to generate attachment prompt:', error);
+      return `Processing attachment: ${attachment.name}`;
     }
   }
 
   /**
-   * 初始化
+   * Initialize
    */
   async initialize(): Promise<void> {
     if (this.initialized) {
@@ -258,46 +258,46 @@ export class AttachmentProcessor implements IAttachmentProcessor {
     }
 
     try {
-      // 清理缓存和队列
+      // Clear cache and queue
       this.cache.clear();
       this.processingQueue.clear();
 
       this.initialized = true;
-      console.log('AttachmentProcessor 初始化完成');
+      console.log('AttachmentProcessor initialized successfully');
     } catch (error) {
-      throw new Error(`AttachmentProcessor 初始化失败: ${error instanceof Error ? error.message : String(error)}`);
+      throw new Error(`AttachmentProcessor initialization failed: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
 
   /**
-   * 销毁
+   * Dispose
    */
   async dispose(): Promise<void> {
     try {
-      // 等待所有处理完成
+      // Wait for all processing to complete
       if (this.processingQueue.size > 0) {
         await Promise.allSettled(Array.from(this.processingQueue.values()));
       }
 
-      // 清理资源
+      // Clean up resources
       this.cache.clear();
       this.processingQueue.clear();
       
       this.initialized = false;
-      console.log('AttachmentProcessor 已销毁');
+      console.log('AttachmentProcessor has been disposed');
     } catch (error) {
-      console.error('AttachmentProcessor 销毁失败:', error);
+      console.error('AttachmentProcessor disposal failed:', error);
     }
   }
 
   /**
-   * 执行实际处理
+   * Perform actual processing
    */
   private async performProcessing(request: AttachmentRequest): Promise<AttachmentResult> {
     const startTime = Date.now();
 
     try {
-      // 验证附件类型
+      // Validate attachment type
       this.validateAttachmentRequest(request);
 
       let summary = '';
@@ -314,17 +314,17 @@ export class AttachmentProcessor implements IAttachmentProcessor {
           ({ summary, originalContent } = await this.processUrl(request));
           break;
         default:
-          throw new Error(`不支持的附件类型: ${request.type}`);
+          throw new Error(`Unsupported attachment type: ${request.type}`);
       }
 
       const processingTime = Date.now() - startTime;
 
-      // 创建附件对象
+      // Create attachment object
       const attachment: Attachment = {
         id: this.generateAttachmentId(),
         type: request.type as 'image' | 'file' | 'screenshot',
         url: typeof request.content === 'string' ? request.content : '',
-        name: request.metadata?.name || `附件_${Date.now()}`,
+        name: request.metadata?.name || `Attachment_${Date.now()}`,
         size: request.metadata?.size || 0,
         mimeType: request.metadata?.mimeType || 'application/octet-stream'
       };
@@ -336,27 +336,27 @@ export class AttachmentProcessor implements IAttachmentProcessor {
         processingTime
       };
     } catch (error) {
-      throw new Error(`附件处理失败: ${error instanceof Error ? error.message : String(error)}`);
+      throw new Error(`Attachment processing failed: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
 
   /**
-   * 处理图片
+   * Process image
    */
   private async processImage(request: AttachmentRequest): Promise<{ summary: string; originalContent: string }> {
     try {
-      // 这里应该调用图像分析服务，暂时返回模拟结果
-      const summary = `图片分析结果：${request.metadata?.name || '未知图片'}`;
-      const originalContent = typeof request.content === 'string' ? request.content : '[图片内容]';
+      // Image analysis service should be called here, for now returning mock results
+      const summary = `Image analysis result: ${request.metadata?.name || 'Unknown image'}`;
+      const originalContent = typeof request.content === 'string' ? request.content : '[Image Content]';
 
       return { summary, originalContent };
     } catch (error) {
-      throw new Error(`图片处理失败: ${error instanceof Error ? error.message : String(error)}`);
+      throw new Error(`Image processing failed: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
 
   /**
-   * 处理文件
+   * Process file
    */
   private async processFile(request: AttachmentRequest): Promise<{ summary: string; originalContent: string }> {
     try {
@@ -367,34 +367,34 @@ export class AttachmentProcessor implements IAttachmentProcessor {
       } else if (request.content instanceof File) {
         originalContent = await this.readFileContent(request.content);
       } else {
-        originalContent = '[文件内容]';
+        originalContent = '[File Content]';
       }
 
-      const summary = `文件摘要：${request.metadata?.name || '未知文件'} - ${originalContent.substring(0, 200)}${originalContent.length > 200 ? '...' : ''}`;
+      const summary = `File summary: ${request.metadata?.name || 'Unknown file'} - ${originalContent.substring(0, 200)}${originalContent.length > 200 ? '...' : ''}`;
 
       return { summary, originalContent };
     } catch (error) {
-      throw new Error(`文件处理失败: ${error instanceof Error ? error.message : String(error)}`);
+      throw new Error(`File processing failed: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
 
   /**
-   * 处理URL
+   * Process URL
    */
   private async processUrl(request: AttachmentRequest): Promise<{ summary: string; originalContent: string }> {
     try {
       const url = typeof request.content === 'string' ? request.content : '';
-      const summary = `URL内容摘要：${url}`;
+      const summary = `URL content summary:${url}`;
       const originalContent = url;
 
       return { summary, originalContent };
     } catch (error) {
-      throw new Error(`URL处理失败: ${error instanceof Error ? error.message : String(error)}`);
+      throw new Error(`URL processing failed: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
 
   /**
-   * 读取文件内容
+   * Read file content
    */
   private async readFileContent(file: File): Promise<string> {
     return new Promise((resolve, reject) => {
@@ -405,10 +405,10 @@ export class AttachmentProcessor implements IAttachmentProcessor {
       };
       
       reader.onerror = () => {
-        reject(new Error('读取文件失败'));
+        reject(new Error('Failed to read file'));
       };
 
-      // 根据文件类型选择读取方式
+      // Select read method based on file type
       if (file.type.startsWith('text/') || file.type === 'application/json') {
         reader.readAsText(file);
       } else {
@@ -418,32 +418,32 @@ export class AttachmentProcessor implements IAttachmentProcessor {
   }
 
   /**
-   * 验证附件请求
+   * Validate attachment request
    */
   private validateAttachmentRequest(request: AttachmentRequest): void {
     if (!request.type) {
-      throw new Error('附件类型不能为空');
+      throw new Error('Attachment type cannot be empty');
     }
 
     if (!request.content) {
-      throw new Error('附件内容不能为空');
+      throw new Error('Attachment content cannot be empty');
     }
 
-    // 检查MIME类型支持
+    // Check MIME type support
     const mimeType = request.metadata?.mimeType;
     if (mimeType && !this.supportedTypes.has(mimeType)) {
-      console.warn(`不支持的MIME类型: ${mimeType}`);
+      console.warn(`Unsupported MIME type: ${mimeType}`);
     }
 
-    // 检查文件大小限制 (10MB)
+    // Check file size limit (10MB)
     const size = request.metadata?.size;
     if (size && size > 10 * 1024 * 1024) {
-      throw new Error('文件大小超过限制 (10MB)');
+      throw new Error('File size exceeds limit (10MB)');
     }
   }
 
   /**
-   * 生成缓存键
+   * Generate cache key
    */
   private generateCacheKey(request: AttachmentRequest): string {
     const contentHash = typeof request.content === 'string' 
@@ -454,10 +454,10 @@ export class AttachmentProcessor implements IAttachmentProcessor {
   }
 
   /**
-   * 添加到缓存
+   * Add to cache
    */
   private addToCache(key: string, result: AttachmentResult): void {
-    // 如果缓存已满，删除最旧的条目
+    // If the cache is full, delete the oldest entry
     if (this.cache.size >= this.maxCacheSize) {
       const firstKey = this.cache.keys().next().value;
       if (firstKey) {
@@ -469,14 +469,14 @@ export class AttachmentProcessor implements IAttachmentProcessor {
   }
 
   /**
-   * 生成附件ID
+   * Generate attachment ID
    */
   private generateAttachmentId(): string {
     return `attachment_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
   }
 
   /**
-   * 格式化文件大小
+   * Format file size
    */
   private formatFileSize(bytes: number): string {
     if (bytes === 0) return '0 B';

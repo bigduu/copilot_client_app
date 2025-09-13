@@ -1,6 +1,6 @@
 import { ChatItem, Message } from './chat';
 
-// 统一的结果类型
+// Unified result type
 export interface OperationResult<T> {
   success: boolean;
   data?: T;
@@ -9,7 +9,7 @@ export interface OperationResult<T> {
   message?: string;
 }
 
-// 聊天操作选项
+// Chat operation options
 export interface CreateChatOptions {
   title?: string;
   systemPrompt?: string;
@@ -17,10 +17,10 @@ export interface CreateChatOptions {
   toolCategory?: string;
   model?: string;
   initialMessage?: string;
-  autoApproval?: boolean; // 自动审批设置
+  autoApproval?: boolean; // Auto-approval setting
 }
 
-// 更新聊天选项
+// Update chat options
 export interface UpdateChatOptions {
   title?: string;
   systemPrompt?: string;
@@ -30,7 +30,7 @@ export interface UpdateChatOptions {
   autoApproval?: boolean;
 }
 
-// 创建消息选项
+// Create message options
 export interface CreateMessageOptions {
   content: string;
   role: 'user' | 'assistant' | 'system';
@@ -42,7 +42,7 @@ export interface CreateMessageOptions {
   approvalConfig?: ApprovalConfig;
 }
 
-// 更新消息选项
+// Update message options
 export interface UpdateMessageOptions {
   content?: string;
   role?: 'system' | 'user' | 'assistant';
@@ -54,7 +54,7 @@ export interface UpdateMessageOptions {
   updatedAt?: Date;
 }
 
-// 审批配置
+// Approval configuration
 export interface ApprovalConfig {
   autoApprove: boolean;
   approvalTimeout?: number;
@@ -62,14 +62,14 @@ export interface ApprovalConfig {
   requiredApprovers?: string[];
 }
 
-// 附件请求
+// Attachment request
 export interface AttachmentRequest {
   type: 'image' | 'file' | 'url';
   content: string | File | Blob;
   metadata?: Record<string, any>;
 }
 
-// 聊天会话
+// Chat session
 export interface ChatSession {
   chatId: string;
   isActive: boolean;
@@ -79,7 +79,7 @@ export interface ChatSession {
   flowState?: string;
 }
 
-// 状态更新类型
+// State update types
 export interface ChatUpdates {
   title?: string;
   systemPrompt?: string;
@@ -97,21 +97,21 @@ export interface MessageUpdates {
   attachmentSummary?: string;
 }
 
-// 扩展的消息类型
+// Extended message type
 export interface ExtendedMessage extends Message {
-  isHidden?: boolean; // 控制消息是否在GUI中显示
+  isHidden?: boolean; // Controls whether the message is displayed in the GUI
   messageType?: 'normal' | 'attachment_processing' | 'approval_request' | 'approval_response';
-  attachmentSummary?: string; // 附件处理结果
-  parentMessageId?: string; // 关联关系
-  metadata?: MessageMetadata; // 元数据
-  timestamp: Date; // 兼容现有代码
-  createdAt?: Date; // 创建时间
-  updatedAt?: Date; // 更新时间
-  chatId?: string; // 所属聊天ID
-  attachments?: AttachmentResult[]; // 附件列表
+  attachmentSummary?: string; // Attachment processing result
+  parentMessageId?: string; // Association
+  metadata?: MessageMetadata; // Metadata
+  timestamp: Date; // Compatible with existing code
+  createdAt: string; // Creation time
+  updatedAt?: Date; // Update time
+  chatId?: string; // ID of the chat it belongs to
+  attachments?: AttachmentResult[]; // List of attachments
 }
 
-// 消息元数据
+// Message Metadata
 export interface MessageMetadata {
   attachments?: Attachment[];
   approvalRequired?: boolean;
@@ -119,7 +119,7 @@ export interface MessageMetadata {
   processingSteps?: ProcessingStep[];
 }
 
-// 附件类型
+// Attachment type
 export interface Attachment {
   id: string;
   type: 'image' | 'file' | 'screenshot';
@@ -129,7 +129,7 @@ export interface Attachment {
   mimeType: string;
 }
 
-// 图片附件类型 (专门用于聊天消息中的图片)
+// Image Attachment type (specifically for images in chat messages)
 export interface ImageAttachment extends Attachment {
   type: 'image';
   base64: string; // Base64 encoded image data
@@ -138,7 +138,7 @@ export interface ImageAttachment extends Attachment {
   preview?: string; // Preview URL for display
 }
 
-// 处理步骤
+// Processing step
 export interface ProcessingStep {
   id: string;
   step: string;
@@ -147,7 +147,7 @@ export interface ProcessingStep {
   details?: any;
 }
 
-// 审批动作类型
+// Approval action type
 export interface ApprovalAction {
   id: string;
   type: 'tool_execution' | 'file_operation' | 'system_change';
@@ -156,7 +156,16 @@ export interface ApprovalAction {
   riskLevel: 'low' | 'medium' | 'high';
 }
 
-// 流程控制结果
+// Approval action type
+export interface ApprovalAction {
+  action: 'approve' | 'reject' | 'request';
+  messageId?: string;
+  reason?: string;
+  automatic?: boolean;
+  metadata?: any;
+}
+
+// Flow control result
 export interface ChatFlow {
   chatId: string;
   status: 'created' | 'ready' | 'error';
@@ -191,22 +200,13 @@ export interface ApprovalFlow {
   details?: any;
 }
 
-// 审批操作类型
-export interface ApprovalAction {
-  action: 'approve' | 'reject' | 'request';
-  messageId?: string;
-  reason?: string;
-  automatic?: boolean;
-  metadata?: any;
-}
-
-// 批量操作类型
+// Batch operation type
 export interface Operation {
   type: 'addChat' | 'updateChat' | 'deleteChat' | 'addMessage' | 'updateMessage' | 'deleteMessage';
   chatId?: string;
   messageId?: string;
   data: any;
-  options?: any; // 操作选项
+  options?: any; // Operation options
 }
 
 export interface BatchResult {
@@ -220,7 +220,7 @@ export interface BatchResult {
 
 export interface TransactionOperation extends Operation {
   rollback?: () => Promise<void>;
-  options?: any; // 事务操作选项
+  options?: any; // Transaction operation options
 }
 
 export interface TransactionResult {
@@ -233,7 +233,7 @@ export interface TransactionResult {
   error?: string;
 }
 
-// 状态管理类型
+// State management types
 export interface ChatState {
   chats: Map<string, ChatItem>;
   currentChatId: string | null;
@@ -257,7 +257,7 @@ export interface Transaction {
 export type StateListener = (state: ChatState) => void;
 export type Unsubscribe = () => void;
 
-// 删除结果类型
+// Delete result type
 export interface DeleteResult {
   success: boolean;
   deletedId: string;
@@ -265,7 +265,7 @@ export interface DeleteResult {
   message?: string;
 }
 
-// 工具流程结果
+// Tool flow result
 export interface ToolFlow {
   toolId: string;
   status: 'pending' | 'approved' | 'rejected' | 'completed' | 'error';
@@ -273,7 +273,7 @@ export interface ToolFlow {
   error?: string;
 }
 
-// AI流程结果
+// AI flow result
 export interface AIFlow {
   responseId: string;
   status: 'generating' | 'completed' | 'error';

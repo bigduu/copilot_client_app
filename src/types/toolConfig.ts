@@ -70,7 +70,7 @@ export class ToolConfigService {
   }
 
   /**
-   * 更新工具配置 (新架构中不支持动态更新，工具配置由categories管理)
+   * Update tool configuration (dynamic updates are not supported in the new architecture; tool configuration is managed by categories)
    */
   async updateToolConfig(_toolName: string, _config: ToolConfig): Promise<void> {
     console.warn("Tool config updates are not supported in the new category-based architecture");
@@ -78,7 +78,7 @@ export class ToolConfigService {
   }
 
   /**
-   * 获取工具分类列表
+   * Get tool category list
    */
   async getToolCategories(): Promise<ToolCategoryInfo[]> {
     try {
@@ -90,7 +90,7 @@ export class ToolConfigService {
   }
 
   /**
-   * 根据分类获取工具
+   * Get tools by category
    */
   async getToolsByCategory(categoryId: string): Promise<ToolConfig[]> {
     try {
@@ -104,7 +104,7 @@ export class ToolConfigService {
   }
 
   /**
-   * 检查工具是否启用 (通过检查工具是否存在于categories中)
+   * Check if a tool is enabled (by checking if the tool exists in the categories)
    */
   async isToolEnabled(toolName: string): Promise<boolean> {
     try {
@@ -117,7 +117,7 @@ export class ToolConfigService {
   }
 
   /**
-   * 检查工具是否需要审批
+   * Check if a tool requires approval
    */
   async toolRequiresApproval(toolName: string): Promise<boolean> {
     try {
@@ -125,12 +125,12 @@ export class ToolConfigService {
       return toolConfig?.requires_approval || false;
     } catch (error) {
       console.error("Failed to check if tool requires approval:", error);
-      return true; // 默认需要审批
+      return true; // default to requiring approval
     }
   }
 
   /**
-   * 获取工具权限列表
+   * Get tool permission list
    */
   async getToolPermissions(toolName: string): Promise<string[]> {
     try {
@@ -146,11 +146,11 @@ export class ToolConfigService {
   // Tool configurations are managed through categories and cannot be modified at runtime
 
   /**
-   * 获取分类的显示名称（动态从后端数据获取）
-   * 如果后端数据不可用，提供默认映射
+   * Get the display name for a category (dynamically fetched from backend data)
+   * If backend data is unavailable, provide a default mapping
    */
   getCategoryDisplayName(categoryId: string, categoriesData?: ToolCategoryInfo[]): string {
-    // 必须从后端数据获取显示名称
+    // The display name must be obtained from the backend data
     if (categoriesData) {
       const category = categoriesData.find(cat => cat.id === categoryId);
       if (category) {
@@ -158,16 +158,16 @@ export class ToolConfigService {
       }
     }
     
-    // 前端不提供任何默认映射，必须从后端获取
-    throw new Error(`工具类别 "${categoryId}" 的显示名称必须从后端配置获取，前端不提供默认值`);
+    // The frontend does not provide any default mapping; it must be obtained from the backend
+    throw new Error(`The display name for tool category "${categoryId}" must be obtained from the backend configuration; no default value is provided on the frontend`);
   }
 
   /**
-   * 根据工具名称推断类别（动态处理，不硬编码类别列表）
-   * 这个方法应该逐步废弃，改为完全依赖后端分类
+   * Infer category from tool name (dynamic handling, no hardcoded category list)
+   * This method should be gradually deprecated in favor of relying entirely on backend classification
    */
   inferCategoryFromToolName(toolName: string): string {
-    // 此方法已废弃 - 工具分类必须完全由后端提供
-    throw new Error(`工具 "${toolName}" 的类别分类必须从后端获取，前端不提供推断逻辑`);
+    // This method is deprecated - tool classification must be provided entirely by the backend
+    throw new Error(`The category for tool "${toolName}" must be obtained from the backend; the frontend does not provide inference logic`);
   }
 }

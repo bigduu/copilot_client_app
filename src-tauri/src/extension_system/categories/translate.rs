@@ -58,19 +58,19 @@ TECHNICAL & FINANCIAL EXPERTISE:
 - Prioritize technology and financial context when translating abbreviations and technical terms
 
 TECHNOLOGY STACK:
-- Java/Spring Boot: microservices (微服务), dependency injection (依赖注入), REST API (REST接口)
-- Cloud Platforms: GCP (谷歌云平台), AWS (亚马逊云服务), serverless (无服务器)
-- Rust: memory safety (内存安全), ownership (所有权), cargo (包管理器)
-- Message Systems: Solace (消息中间件), Kafka (消息队列), Pub/Sub (发布订阅), event streaming (事件流)
-- Data Engineering: Dataflow (数据流), Airflow (工作流编排), ETL (数据提取转换加载), pipeline (数据管道)
-- Databases: BigQuery (大数据仓库), BigTable (大表), MongoDB (文档数据库), PostgreSQL (关系数据库), Redis (缓存)
-- Infrastructure: Terraform (基础设施即代码), IaC (基础设施即代码)
-- DevOps: Jenkins (持续集成), CI/CD (持续集成/持续部署), deployment (部署)
+- Java/Spring Boot: microservices, dependency injection, REST API
+- Cloud Platforms: GCP, AWS, serverless
+- Rust: memory safety, ownership, cargo
+- Message Systems: Solace, Kafka, Pub/Sub, event streaming
+- Data Engineering: Dataflow, Airflow, ETL, pipeline
+- Databases: BigQuery, BigTable, MongoDB, PostgreSQL, Redis
+- Infrastructure: Terraform, IaC
+- DevOps: Jenkins, CI/CD, deployment
 
 FINANCIAL TERMS:
-- Common abbreviations: P&L (盈亏), ROI (投资回报率), IPO (首次公开募股), M&A (并购)
-- Trading terms: long position (多头), short position (空头), bull market (牛市), bear market (熊市)
-- Market data: bid (买价), ask (卖价), spread (价差), volume (成交量), volatility (波动率)
+- Common abbreviations: P&L, ROI, IPO, M&A
+- Trading terms: long position, short position, bull market, bear market
+- Market data: bid, ask, spread, volume, volatility
 
 - Use standard terminology that developers and financial professionals commonly use
 

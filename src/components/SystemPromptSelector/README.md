@@ -1,15 +1,15 @@
-# SystemPromptSelector 组件文档
+# SystemPromptSelector Component Documentation
 
-本组件的详细文档已移动到统一的文档目录中。
+The detailed documentation for this component has been moved to a unified documentation directory.
 
-📖 **请查看完整文档**: [`docs/development/components/SystemPromptSelector.md`](../../../docs/development/components/SystemPromptSelector.md)
+📖 **Please see the full documentation**: [`docs/development/components/SystemPromptSelector.md`](../../../docs/development/components/SystemPromptSelector.md)
 
-## 快速导航
+## Quick Navigation
 
-- [组件概述](../../../docs/development/components/SystemPromptSelector.md#概述)
-- [使用方法](../../../docs/development/components/SystemPromptSelector.md#使用方法)
-- [属性说明](../../../docs/development/components/SystemPromptSelector.md#属性说明)
-- [数据结构](../../../docs/development/components/SystemPromptSelector.md#数据结构)
+- [Component Overview](../../../docs/development/components/SystemPromptSelector.md#overview)
+- [Usage](../../../docs/development/components/SystemPromptSelector.md#usage)
+- [Props](../../../docs/development/components/SystemPromptSelector.md#props)
+- [Data Structure](../../../docs/development/components/SystemPromptSelector.md#data-structure)
 
 ---
-> 📁 文档整合说明：为了更好地组织项目文档，组件文档已统一移动到 `docs/` 目录下进行集中管理。
+> 📁 Documentation Consolidation Note: To better organize project documentation, component documents have been moved to the `docs/` directory for centralized management.

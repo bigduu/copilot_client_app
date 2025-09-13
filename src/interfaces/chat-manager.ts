@@ -27,24 +27,24 @@ import {
 } from '../types/unified-chat';
 import { ChatItem, Message } from '../types/chat';
 
-// 原子操作接口
+// Atomic Operations Interface
 export interface AtomicOperations {
-  // 聊天操作
+  // Chat Operations
   addChat(options: CreateChatOptions): Promise<OperationResult<string>>;
   updateChat(chatId: string, updates: UpdateChatOptions): Promise<OperationResult<void>>;
   deleteChat(chatId: string): Promise<DeleteResult>;
 
-  // 消息操作
+  // Message Operations
   addMessage(chatId: string, options: CreateMessageOptions): Promise<OperationResult<string>>;
   updateMessage(messageId: string, updates: UpdateMessageOptions): Promise<OperationResult<void>>;
   deleteMessage(messageId: string): Promise<DeleteResult>;
 
-  // 批量操作
+  // Batch Operations
   batchOperation(operations: Operation[]): Promise<BatchResult>;
   transactionOperations(operations: TransactionOperation[]): Promise<TransactionResult>;
 }
 
-// 流程控制器接口
+// Chat Flow Controller Interface
 export interface ChatFlowController {
   initiateChat(options: CreateChatOptions): Promise<ChatFlow>;
   sendMessage(chatId: string, content: string): Promise<MessageFlow>;
@@ -53,32 +53,32 @@ export interface ChatFlowController {
   processAIResponse(chatId: string, messages: Message[]): Promise<AIFlow>;
   handleApprovalFlow(chatId: string, action: ApprovalAction): Promise<ApprovalFlow>;
   
-  // 流程控制方法
+  // Flow Control Methods
   startFlow(chatId: string, flowType: string): Promise<OperationResult<void>>;
   pauseFlow(chatId: string): Promise<OperationResult<void>>;
   resumeFlow(chatId: string): Promise<OperationResult<void>>;
   stopFlow(chatId: string): Promise<OperationResult<void>>;
   subscribe(callback: (event: any) => void): () => void;
   
-  // 生命周期
+  // Lifecycle
   initialize(): Promise<void>;
   dispose(): Promise<void>;
 }
 
-// 状态管理器接口
+// State Manager Interface
 export interface StateManager {
   getState(): ChatState;
   updateState(updates: StateUpdates): void;
   subscribe(listener: StateListener): Unsubscribe;
   
-  // 聊天相关
+  // Chat-related
   getChat(chatId: string): ChatItem | null;
   getAllChats(): ChatItem[];
   addChat(chat: ChatItem): Promise<void>;
   updateChat(chatId: string, chat: ChatItem): Promise<void>;
   removeChat(chatId: string): Promise<void>;
   
-  // 消息相关
+  // Message-related
   getMessage(chatId: string, messageId: string): ExtendedMessage | null;
   getVisibleMessages(chatId: string): ExtendedMessage[];
   getHiddenMessages(chatId: string): ExtendedMessage[];
@@ -87,7 +87,7 @@ export interface StateManager {
   updateMessage(chatId: string, messageId: string, message: ExtendedMessage): Promise<void>;
   removeMessage(chatId: string, messageId: string): Promise<void>;
   
-  // 便利方法
+  // Convenience Methods
   chatExists(chatId: string): Promise<boolean>;
   messageExists(messageId: string): Promise<boolean>;
   createChat(chat: any): Promise<string>;
@@ -95,20 +95,20 @@ export interface StateManager {
   deleteMessage(messageId: string): Promise<void>;
   resetState(): Promise<void>;
   
-  // 事务管理
+  // Transaction Management
   beginTransaction(transactionId?: string): Promise<void>;
   commitTransaction(transactionId?: string): Promise<void>;
   rollbackTransaction(transactionId?: string): Promise<void>;
   
-  // 状态验证
+  // State Validation
   validateState(): boolean;
   
-  // 生命周期
+  // Lifecycle
   initialize(): Promise<void>;
   dispose(): Promise<void>;
 }
 
-// 附件处理器接口
+// Attachment Processor Interface
 export interface AttachmentProcessor {
   processAttachments(attachments: Attachment[]): Promise<OperationResult<AttachmentResult[]>>;
   processAttachment(request: AttachmentRequest): Promise<OperationResult<AttachmentResult>>;
@@ -116,12 +116,12 @@ export interface AttachmentProcessor {
   mergeAttachmentSummaries(content: string, results: AttachmentResult[]): string;
   generateAttachmentPrompt(attachment: Attachment): string;
   
-  // 生命周期
+  // Lifecycle
   initialize(): Promise<void>;
   dispose(): Promise<void>;
 }
 
-// 审批管理器接口
+// Approval Manager Interface
 export interface ApprovalManager {
   requestApproval(messageId: string, config?: ApprovalConfig): Promise<OperationResult<void>>;
   configure(config: ApprovalConfig): Promise<OperationResult<void>>;
@@ -129,12 +129,12 @@ export interface ApprovalManager {
   reject(operationId: string, reason?: string): Promise<OperationResult<void>>;
   subscribe(callback: (event: any) => void): () => void;
   
-  // 生命周期
+  // Lifecycle
   initialize(): Promise<void>;
   dispose(): Promise<void>;
 }
 
-// 错误处理器接口
+// Error Handler Interface
 export interface ErrorHandler {
   processError(error: Error): Promise<never>;
   retryWithBackoff(operation: () => Promise<any>, maxRetries?: number): Promise<any>;
@@ -143,12 +143,12 @@ export interface ErrorHandler {
   createErrorResult(message: string): OperationResult<any>;
   handleError(error: any, operation: string): OperationResult<any>;
   
-  // 生命周期
+  // Lifecycle
   initialize(): Promise<void>;
   dispose(): Promise<void>;
 }
 
-// 持久化层接口
+// Persistence Layer Interface
 export interface PersistenceLayer {
   saveChat(chat: ChatItem): Promise<void>;
   loadChats(): Promise<ChatItem[]>;
@@ -158,21 +158,21 @@ export interface PersistenceLayer {
   deleteMessage(chatId: string, messageId: string): Promise<void>;
 }
 
-// 性能监控接口
+// Performance Monitor Interface
 export interface PerformanceMonitor {
   trackOperation(operationName: string, duration: number): void;
   withTracking<T>(operationName: string, operation: () => Promise<T>): Promise<T>;
   recordOperation(operation: string, duration: number): void;
   getMetrics(): Record<string, any>;
   
-  // 生命周期
+  // Lifecycle
   initialize(): Promise<void>;
   dispose(): Promise<void>;
 }
 
-// 主要的ChatManager接口
+// Main ChatManager interface
 export interface ChatManager extends AtomicOperations {
-  // 核心组件
+  // Core Components
   flowController: ChatFlowController;
   stateManager: StateManager;
   attachmentProcessor: AttachmentProcessor;
@@ -181,20 +181,20 @@ export interface ChatManager extends AtomicOperations {
   persistenceLayer: PersistenceLayer;
   performanceMonitor: PerformanceMonitor;
 
-  // 高级操作
+  // Advanced Operations
   sendMessageWithAttachments(chatId: string, content: string, attachments: Attachment[]): Promise<MessageFlow>;
   handleApprovalFlow(chatId: string, action: ApprovalAction): Promise<OperationResult<ApprovalFlow>>;
   
-  // 状态查询
+  // State Query
   getCurrentChat(): ChatItem | null;
   getCurrentMessages(): ExtendedMessage[];
   isProcessing(): boolean;
   
-  // 事务操作
+  // Transaction Operations
   transaction<T>(operation: () => Promise<T>): Promise<T>;
   transactionOperations(operations: TransactionOperation[]): Promise<TransactionResult>;
   
-  // 生命周期
+  // Lifecycle
   initialize(): Promise<void>;
   dispose(): Promise<void>;
 }

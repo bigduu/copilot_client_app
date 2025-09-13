@@ -183,6 +183,6 @@ export interface SystemPromptPreset {
 
 export type SystemPromptPresetList = SystemPromptPreset[];
 
-// 注意：硬编码的 TOOL_CATEGORIES 枚举已被移除
-// 现在所有类别信息都从后端动态获取
-// ToolCategoryInfo 接口已移至 src/types/toolCategory.ts
+// Note: The hardcoded TOOL_CATEGORIES enum has been removed
+// All category information is now dynamically fetched from the backend
+// The ToolCategoryInfo interface has been moved to src/types/toolCategory.ts

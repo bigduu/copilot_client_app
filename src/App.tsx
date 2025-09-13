@@ -4,7 +4,6 @@ import "./App.css";
 // ChatProvider no longer needed - using Zustand store directly
 import { MainLayout } from "./layouts/MainLayout";
 import { SystemSettingsModal } from "./components/SystemSettingsModal";
-import { useAppStore } from "./store";
 
 const DARK_MODE_KEY = "copilot_dark_mode";
 
@@ -19,7 +18,7 @@ function App() {
     document.body.setAttribute("data-theme", themeMode);
   }, [themeMode]);
 
-  // 在应用启动时加载数据
+  // Load data on app startup
   useEffect(() => {
     // Store is initialized in `src/store/index.ts`
   }, []);

@@ -58,7 +58,7 @@ export const createModelSlice: StateCreator<AppState, [], [], ModelSlice> = (set
           ...state,
           models: availableModels,
           selectedModel: newSelectedModel,
-          modelsError: availableModels.length > 0 ? null : "没有可用的模型选项",
+          modelsError: availableModels.length > 0 ? null : "No available model options",
         };
       });
 

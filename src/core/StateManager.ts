@@ -12,8 +12,8 @@ import {
 import { ChatItem } from '../types/chat';
 
 /**
- * 统一状态管理器
- * 集中管理所有聊天状态，提供状态变更通知
+ * Unified State Manager
+ * Centralizes management of all chat states and provides state change notifications
  */
 export class StateManager implements IStateManager {
   private state: ChatState;
@@ -43,115 +43,115 @@ export class StateManager implements IStateManager {
   }
 
   /**
-   * 获取当前状态
+   * Get current state
    */
   getState(): ChatState {
     return { ...this.state };
   }
 
   /**
-   * 更新状态并通知监听器
+   * Update state and notify listeners
    */
   updateState(updates: StateUpdates): void {
     try {
-      // 深度合并状态更新
+      // Deep merge state updates
       this.state = this.mergeState(this.state, updates);
       
-      // 通知所有监听器
+      // Notify all listeners
       this.notifyListeners();
     } catch (error) {
-      console.error('状态更新失败:', error);
-      throw new Error(`状态更新失败: ${error instanceof Error ? error.message : String(error)}`);
+      console.error('State update failed:', error);
+      throw new Error(`State update failed: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
 
   /**
-   * 订阅状态变更
+   * Subscribe to state changes
    */
   subscribe(listener: StateListener): Unsubscribe {
     this.listeners.add(listener);
     
-    // 立即发送当前状态
+    // Immediately send the current state
     try {
       listener(this.getState());
     } catch (error) {
-      console.error('监听器执行失败:', error);
+      console.error('Listener execution failed:', error);
     }
 
-    // 返回取消订阅函数
+    // Return unsubscribe function
     return () => {
       this.listeners.delete(listener);
     };
   }
 
   /**
-   * 获取指定聊天
+   * Get specific chat
    */
   getChat(chatId: string): ChatItem | null {
     return this.state.chats.get(chatId) || null;
   }
 
   /**
-   * 获取所有聊天
+   * Get all chats
    */
   getAllChats(): ChatItem[] {
     return Array.from(this.state.chats.values());
   }
 
   /**
-   * 添加聊天
+   * Add chat
    */
   async addChat(chat: ChatItem): Promise<void> {
     try {
       this.state.chats.set(chat.id, chat);
       this.notifyListeners();
     } catch (error) {
-      throw new Error(`添加聊天失败: ${error instanceof Error ? error.message : String(error)}`);
+      throw new Error(`Failed to add chat: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
 
   /**
-   * 更新聊天
+   * Update chat
    */
   async updateChat(chatId: string, chat: ChatItem): Promise<void> {
     try {
       if (!this.state.chats.has(chatId)) {
-        throw new Error(`聊天不存在: ${chatId}`);
+        throw new Error(`Chat does not exist: ${chatId}`);
       }
       
       this.state.chats.set(chatId, chat);
       this.notifyListeners();
     } catch (error) {
-      throw new Error(`更新聊天失败: ${error instanceof Error ? error.message : String(error)}`);
+      throw new Error(`Failed to update chat: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
 
   /**
-   * 移除聊天
+   * Remove chat
    */
   async removeChat(chatId: string): Promise<void> {
     try {
       if (!this.state.chats.has(chatId)) {
-        throw new Error(`聊天不存在: ${chatId}`);
+        throw new Error(`Chat does not exist: ${chatId}`);
       }
 
-      // 删除聊天及其所有消息
+      // Delete chat and all its messages
       this.state.chats.delete(chatId);
       this.messages.delete(chatId);
       
-      // 如果是当前聊天，重置当前聊天ID
+      // If it is the current chat, reset the current chat ID
       if (this.state.currentChatId === chatId) {
         this.state.currentChatId = null;
       }
 
       this.notifyListeners();
     } catch (error) {
-      throw new Error(`移除聊天失败: ${error instanceof Error ? error.message : String(error)}`);
+      throw new Error(`Failed to remove chat: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
 
   /**
-   * 获取指定消息
+   * Get specific message
    */
   getMessage(chatId: string, messageId: string): ExtendedMessage | null {
     const chatMessages = this.messages.get(chatId);
@@ -161,7 +161,7 @@ export class StateManager implements IStateManager {
   }
 
   /**
-   * 获取可见消息
+   * Get visible messages
    */
   getVisibleMessages(chatId: string): ExtendedMessage[] {
     const chatMessages = this.messages.get(chatId) || [];
@@ -169,7 +169,7 @@ export class StateManager implements IStateManager {
   }
 
   /**
-   * 获取隐藏消息
+   * Get hidden messages
    */
   getHiddenMessages(chatId: string): ExtendedMessage[] {
     const chatMessages = this.messages.get(chatId) || [];
@@ -177,14 +177,14 @@ export class StateManager implements IStateManager {
   }
 
   /**
-   * 获取所有消息
+   * Get all messages
    */
   getAllMessages(chatId: string): ExtendedMessage[] {
     return this.messages.get(chatId) || [];
   }
 
   /**
-   * 添加消息
+   * Add message
    */
   async addMessage(chatId: string, message: ExtendedMessage): Promise<void> {
     try {
@@ -195,68 +195,68 @@ export class StateManager implements IStateManager {
       this.messages.get(chatId)!.push(message);
       this.notifyListeners();
     } catch (error) {
-      throw new Error(`添加消息失败: ${error instanceof Error ? error.message : String(error)}`);
+      throw new Error(`Failed to add message: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
 
   /**
-   * 更新消息
+   * Update message
    */
   async updateMessage(chatId: string, messageId: string, message: ExtendedMessage): Promise<void> {
     try {
       const chatMessages = this.messages.get(chatId);
       if (!chatMessages) {
-        throw new Error(`聊天不存在: ${chatId}`);
+        throw new Error(`Chat does not exist: ${chatId}`);
       }
 
       const messageIndex = chatMessages.findIndex((msg: ExtendedMessage) => msg.id === messageId);
       if (messageIndex === -1) {
-        throw new Error(`消息不存在: ${messageId}`);
+        throw new Error(`Message does not exist: ${messageId}`);
       }
 
       chatMessages[messageIndex] = message;
       this.notifyListeners();
     } catch (error) {
-      throw new Error(`更新消息失败: ${error instanceof Error ? error.message : String(error)}`);
+      throw new Error(`Failed to update message: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
 
   /**
-   * 移除消息
+   * Remove message
    */
   async removeMessage(chatId: string, messageId: string): Promise<void> {
     try {
       const chatMessages = this.messages.get(chatId);
       if (!chatMessages) {
-        throw new Error(`聊天不存在: ${chatId}`);
+        throw new Error(`Chat does not exist: ${chatId}`);
       }
 
       const messageIndex = chatMessages.findIndex((msg: ExtendedMessage) => msg.id === messageId);
       if (messageIndex === -1) {
-        throw new Error(`消息不存在: ${messageId}`);
+        throw new Error(`Message does not exist: ${messageId}`);
       }
 
       chatMessages.splice(messageIndex, 1);
       this.hiddenMessages.delete(messageId);
       
-      // 从选中消息中移除
+      // Remove from selected messages
       this.selectedMessages = this.selectedMessages.filter((id: string) => id !== messageId);
       
       this.notifyListeners();
     } catch (error) {
-      throw new Error(`移除消息失败: ${error instanceof Error ? error.message : String(error)}`);
+      throw new Error(`Failed to remove message: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
 
   /**
-   * 检查聊天是否存在
+   * Check if chat exists
    */
   async chatExists(chatId: string): Promise<boolean> {
     return this.state.chats.has(chatId);
   }
 
   /**
-   * 检查消息是否存在
+   * Check if message exists
    */
   async messageExists(messageId: string): Promise<boolean> {
     for (const chatMessages of this.messages.values()) {
@@ -268,14 +268,14 @@ export class StateManager implements IStateManager {
   }
 
   /**
-   * 创建聊天
+   * Create chat
    */
   async createChat(chat: any): Promise<string> {
     try {
       const chatId = chat.id || this.generateId();
       const chatItem: ChatItem = {
         id: chatId,
-        title: chat.title || '新聊天',
+        title: chat.title || 'New Chat',
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
         systemPrompt: chat.systemPrompt || '',
@@ -285,19 +285,19 @@ export class StateManager implements IStateManager {
       await this.addChat(chatItem);
       return chatId;
     } catch (error) {
-      throw new Error(`创建聊天失败: ${error instanceof Error ? error.message : String(error)}`);
+      throw new Error(`Failed to create chat: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
 
   /**
-   * 删除聊天
+   * Delete chat
    */
   async deleteChat(chatId: string): Promise<void> {
     await this.removeChat(chatId);
   }
 
   /**
-   * 删除消息
+   * Delete message
    */
   async deleteMessage(messageId: string): Promise<void> {
     for (const [chatId, messagesList] of this.messages.entries()) {
@@ -307,11 +307,11 @@ export class StateManager implements IStateManager {
         return;
       }
     }
-    throw new Error(`消息不存在: ${messageId}`);
+    throw new Error(`Message does not exist: ${messageId}`);
   }
 
   /**
-   * 重置状态
+   * Reset state
    */
   async resetState(): Promise<void> {
     try {
@@ -328,12 +328,12 @@ export class StateManager implements IStateManager {
       this.metadata = {};
       this.notifyListeners();
     } catch (error) {
-      throw new Error(`重置状态失败: ${error instanceof Error ? error.message : String(error)}`);
+      throw new Error(`Failed to reset state: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
 
   /**
-   * 开始事务
+   * Start transaction
    */
   async beginTransaction(transactionId?: string): Promise<void> {
     const id = transactionId || this.generateId();
@@ -360,17 +360,17 @@ export class StateManager implements IStateManager {
   }
 
   /**
-   * 提交事务
+   * Commit transaction
    */
   async commitTransaction(transactionId?: string): Promise<void> {
     if (this.transactionStack.length === 0) {
-      throw new Error('没有活跃的事务');
+      throw new Error('No active transaction');
     }
 
     if (transactionId) {
       const index = this.transactionStack.findIndex(t => t.id === transactionId);
       if (index === -1) {
-        throw new Error(`事务不存在: ${transactionId}`);
+        throw new Error(`Transaction does not exist: ${transactionId}`);
       }
       this.transactionStack.splice(index, 1);
     } else {
@@ -379,18 +379,18 @@ export class StateManager implements IStateManager {
   }
 
   /**
-   * 回滚事务
+   * Rollback transaction
    */
   async rollbackTransaction(transactionId?: string): Promise<void> {
     if (this.transactionStack.length === 0) {
-      throw new Error('没有活跃的事务');
+      throw new Error('No active transaction');
     }
 
     let transaction;
     if (transactionId) {
       const index = this.transactionStack.findIndex(t => t.id === transactionId);
       if (index === -1) {
-        throw new Error(`事务不存在: ${transactionId}`);
+        throw new Error(`Transaction does not exist: ${transactionId}`);
       }
       transaction = this.transactionStack[index];
       this.transactionStack.splice(index, 1);
@@ -409,16 +409,16 @@ export class StateManager implements IStateManager {
   }
 
   /**
-   * 验证状态
+   * Validate state
    */
   validateState(): boolean {
     try {
-      // 验证基本结构
+      // Validate basic structure
       if (!this.state || typeof this.state !== 'object') {
         return false;
       }
 
-      // 验证必需字段
+      // Validate required fields
       const requiredFields = ['chats', 'messages', 'selectedMessages', 'hiddenMessages'];
       for (const field of requiredFields) {
         if (!(field in this.state)) {
@@ -426,15 +426,15 @@ export class StateManager implements IStateManager {
         }
       }
 
-      // 验证消息引用完整性
+      // Validate message reference integrity
       for (const [chatId, messagesList] of this.messages.entries()) {
         if (!this.state.chats.has(chatId)) {
-          console.warn(`发现孤立消息，聊天不存在: ${chatId}`);
+          console.warn(`Found orphaned messages, Chat does not exist: ${chatId}`);
         }
         
         for (const message of messagesList) {
           if (!message.id) {
-            console.warn('发现没有ID的消息');
+            console.warn('Found message with no ID');
             return false;
           }
         }
@@ -442,13 +442,13 @@ export class StateManager implements IStateManager {
 
       return true;
     } catch (error) {
-      console.error('状态验证失败:', error);
+      console.error('State validation failed:', error);
       return false;
     }
   }
 
   /**
-   * 初始化
+   * Initialize
    */
   async initialize(): Promise<void> {
     if (this.initialized) {
@@ -456,41 +456,41 @@ export class StateManager implements IStateManager {
     }
 
     try {
-      // 验证初始状态
+      // Validate initial state
       if (!this.validateState()) {
-        throw new Error('初始状态验证失败');
+        throw new Error('Initial state validation failed');
       }
 
       this.initialized = true;
-      console.log('StateManager 初始化完成');
+      console.log('StateManager initialized successfully');
     } catch (error) {
-      throw new Error(`StateManager 初始化失败: ${error instanceof Error ? error.message : String(error)}`);
+      throw new Error(`StateManager initialization failed: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
 
   /**
-   * 销毁
+   * Dispose
    */
   async dispose(): Promise<void> {
     try {
-      // 清理监听器
+      // Clean up listeners
       this.listeners.clear();
       
-      // 清理事务栈
+      // Clean up transaction stack
       this.transactionStack = [];
       
-      // 重置状态
+      // Reset state
       await this.resetState();
       
       this.initialized = false;
-      console.log('StateManager 已销毁');
+      console.log('StateManager has been disposed');
     } catch (error) {
-      console.error('StateManager 销毁失败:', error);
+      console.error('StateManager disposal failed:', error);
     }
   }
 
   /**
-   * 深度合并状态
+   * Deep merge state
    */
   private mergeState(current: ChatState, updates: StateUpdates): ChatState {
     const merged = { ...current };
@@ -509,7 +509,7 @@ export class StateManager implements IStateManager {
   }
 
   /**
-   * 通知所有监听器
+   * Notify all listeners
    */
   private notifyListeners(): void {
     const currentState = this.getState();
@@ -518,13 +518,13 @@ export class StateManager implements IStateManager {
       try {
         listener(currentState);
       } catch (error) {
-        console.error('监听器执行失败:', error);
+        console.error('Listener execution failed:', error);
       }
     }
   }
 
   /**
-   * 生成唯一ID
+   * Generate unique ID
    */
   private generateId(): string {
     return `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;

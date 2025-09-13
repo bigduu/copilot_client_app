@@ -84,12 +84,12 @@ const ToolSelector: React.FC<ToolSelectorProps> = ({
         tool.description.toLowerCase().includes(searchText.toLowerCase())
     );
 
-    // 如果有工具权限限制，则只显示允许的工具
+    // If there are tool permission restrictions, only show allowed tools
     if (allowedTools && allowedTools.length > 0) {
       filtered = filtered.filter((tool) => allowedTools.includes(tool.name));
     }
 
-    // 在非严格模式下，过滤掉隐藏的工具
+    // In non-strict mode, filter out hidden tools
     if (!isStrictMode) {
       console.log(
         "Before hide_in_selector filter:",

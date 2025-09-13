@@ -30,12 +30,12 @@ export class SystemPromptService {
     try {
       const storedPrompt = localStorage.getItem(SYSTEM_PROMPT_KEY);
       if (!storedPrompt) {
-        throw new Error("系统提示词未配置，请先配置系统提示词");
+        throw new Error("System prompt not configured, please configure it first");
       }
       return storedPrompt;
     } catch (error) {
       console.error("Error loading global system prompt:", error);
-      throw new Error("系统提示词未配置，请先配置系统提示词");
+      throw new Error("System prompt not configured, please configure it first");
     }
   }
 
@@ -45,7 +45,7 @@ export class SystemPromptService {
   updateGlobalSystemPrompt(prompt: string): void {
     try {
       if (!prompt || !prompt.trim()) {
-        throw new Error("系统提示词不能为空");
+        throw new Error("System prompt cannot be empty");
       }
       localStorage.setItem(SYSTEM_PROMPT_KEY, prompt.trim());
       console.log("Global system prompt updated successfully");
@@ -61,12 +61,12 @@ export class SystemPromptService {
     try {
       const id = localStorage.getItem(SYSTEM_PROMPT_SELECTED_ID_KEY);
       if (!id) {
-        throw new Error("未设置系统提示预设ID，必须先从后端配置");
+        throw new Error("System prompt preset ID not set, must be configured from the backend first");
       }
       return id;
     } catch (error) {
       console.error("Error loading selected system prompt preset ID:", error);
-      throw new Error("系统提示预设ID配置缺失，前端不提供默认值");
+      throw new Error("System prompt preset ID configuration is missing, no frontend default is provided");
     }
   }
 
@@ -95,7 +95,7 @@ export class SystemPromptService {
           name: category.name,
           content: category.system_prompt,
           description: category.description,
-          category: category.id, // 直接使用后端的类别 ID，不再进行映射
+          category: category.id, // Directly use the category ID from the backend, no longer mapping
           mode: category.restrict_conversation ? "tool_specific" : "general",
           autoToolPrefix: category.auto_prefix,
           allowedTools: category.tools || [],
@@ -106,13 +106,13 @@ export class SystemPromptService {
       return presets;
     } catch (error) {
       console.error("Failed to get categories from backend:", error);
-      throw new Error("无法从后端获取系统提示预设配置，前端不提供默认配置");
+      throw new Error("Cannot get system prompt preset configuration from the backend, no default configuration is provided on the frontend");
     }
   }
 
   /**
-   * 已删除默认预设配置 - 前端完全依赖后端提供配置
-   * 不再提供任何硬编码的默认值
+   * Default preset configuration has been removed - frontend relies entirely on backend for configuration
+   * No longer provides any hardcoded default values
    */
 
 

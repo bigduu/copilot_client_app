@@ -45,11 +45,11 @@ const ModelSelection = ({
   onModelChange: (model: string) => void;
 }) => {
   const { token } = useToken();
-  // 确保模型选项始终包含当前选中的模型（如果模型列表为空）
+  // Ensure model options always include the currently selected model (if the model list is empty)
   const modelOptions =
     models && models.length > 0 ? models : selectedModel ? [selectedModel] : [];
 
-  // 优雅处理没有模型的情况
+  // Handle cases where no models are available gracefully
   if (modelOptions.length === 0) {
     return (
       <Space
@@ -58,12 +58,12 @@ const ModelSelection = ({
         style={{ width: "100%" }}
       >
         <Text strong>Model Selection</Text>
-        <Text type="warning">没有可用的模型选项，请检查服务连接</Text>
+        <Text type="warning">No model options available, please check service connection</Text>
       </Space>
     );
   }
 
-  // 如果没有选择模型但有可用模型，自动选择第一个
+  // If no model is selected but models are available, automatically select the first one
   if (!selectedModel && modelOptions.length > 0) {
     onModelChange(modelOptions[0]);
     return (

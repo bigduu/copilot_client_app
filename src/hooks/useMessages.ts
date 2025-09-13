@@ -13,17 +13,17 @@ import { MessageHandler } from '../services/MessageHandler';
  * Component → useMessages Hook → Zustand Store → Services → External APIs
  */
 interface UseMessagesReturn {
-  // 数据状态
+  // Data State
   messages: Message[];
   isProcessing: boolean;
   currentChatId: string | null;
   
-  // 基础操作 (直接映射到 Store)
+  // Basic Operations (Directly mapped to Store)
   addMessage: (chatId: string, message: Message) => void;
   updateMessage: (chatId: string, messageId: string, updates: Partial<Message>) => void;
   deleteMessage: (chatId: string, messageId: string) => void;
   
-  // 便捷操作 (针对当前聊天)
+  // Convenience Operations (for the current chat)
   addMessageToCurrentChat: (message: Message) => void;
   updateMessageInCurrentChat: (messageId: string, updates: Partial<Message>) => void;
   sendMessage: (content: string, images?: ImageFile[]) => Promise<void>;
@@ -32,19 +32,19 @@ interface UseMessagesReturn {
 }
 
 export const useMessages = (): UseMessagesReturn => {
-  // 从 Zustand Store 获取数据 (Hook → Store)
+  // Get data from Zustand Store (Hook → Store)
   const currentChatId = useAppStore(state => state.currentChatId);
-  const messages = useCurrentMessages(); // 使用便捷 hook 获取当前聊天的消息
+  const messages = useCurrentMessages(); // Use convenience hook to get messages for the current chat
   const isProcessing = useAppStore(state => state.isProcessing);
 
-  // 从 Zustand Store 获取操作方法 (Hook → Store)
+  // Get action methods from Zustand Store (Hook → Store)
   const addMessage = useAppStore(state => state.addMessage);
   const updateMessage = useAppStore(state => state.updateMessage);
   const deleteMessage = useAppStore(state => state.deleteMessage);
   const initiateAIResponse = useAppStore(state => state.initiateAIResponse);
   const triggerAIResponseOnly = useAppStore(state => state.triggerAIResponseOnly);
 
-  // 便捷操作方法 (针对当前聊天)
+  // Convenience method for the current chat
   const addMessageToCurrentChat = (message: Message) => {
     if (currentChatId) {
       addMessage(currentChatId, message);
@@ -238,17 +238,17 @@ Title:`;
   };
 
   return {
-    // 数据状态
+    // Data State
     messages,
     isProcessing,
     currentChatId,
     
-    // 基础操作 (直接映射到 Store)
+    // Basic Operations (Directly mapped to Store)
     addMessage,
     updateMessage,
     deleteMessage,
     
-    // 便捷操作 (针对当前聊天)
+    // Convenience Operations (for the current chat)
     addMessageToCurrentChat,
     updateMessageInCurrentChat,
     sendMessage,

@@ -6,7 +6,7 @@ import {
 } from '../types/unified-chat';
 
 /**
- * 错误类型枚举
+ * Error Type Enum
  */
 enum ErrorType {
   NETWORK = 'NETWORK',
@@ -18,7 +18,7 @@ enum ErrorType {
 }
 
 /**
- * 扩展的错误类
+ * Extended Error Class
  */
 class ExtendedError extends Error {
   public readonly type: ErrorType;
@@ -43,7 +43,7 @@ class ExtendedError extends Error {
 }
 
 /**
- * 重试配置
+ * Retry Configuration
  */
 interface RetryConfig {
   maxRetries: number;
@@ -54,8 +54,8 @@ interface RetryConfig {
 }
 
 /**
- * 错误处理器
- * 统一的错误处理和恢复机制
+ * Error Handler
+ * Unified error handling and recovery mechanism
  */
 export class ErrorHandler implements IErrorHandler {
   private initialized = false;
@@ -73,32 +73,32 @@ export class ErrorHandler implements IErrorHandler {
   }
 
   /**
-   * 处理错误并抛出
+   * Process and throw error
    */
   async processError(error: Error): Promise<never> {
     try {
       const enrichedError = this.enrichError(error);
       
-      // 记录错误
-      console.error('处理错误:', enrichedError);
+      // Log error
+      console.error('Handle error:', enrichedError);
       
-      // 通知订阅者
+      // Notify subscribers
       this.notifyErrorSubscribers(enrichedError);
       
-      // 根据错误类型决定处理方式
+      // Determine handling based on error type
       if (enrichedError instanceof ExtendedError) {
         await this.handleErrorByType(enrichedError);
       }
       
       throw enrichedError;
     } catch (err) {
-      // 确保总是抛出错误
+      // Ensure an error is always thrown
       throw err instanceof Error ? err : new Error(String(err));
     }
   }
 
   /**
-   * 带退避重试的操作执行
+   * Execute operation with backoff and retry
    */
   async retryWithBackoff(
     operation: () => Promise<any>,
@@ -113,39 +113,39 @@ export class ErrorHandler implements IErrorHandler {
       } catch (error) {
         lastError = error instanceof Error ? error : new Error(String(error));
         
-        // 如果是最后一次尝试，直接抛出错误
+        // If it's the last attempt, throw the error directly
         if (attempt === retries) {
           throw this.enrichError(lastError);
         }
 
-        // 计算延迟时间
+        // Calculate delay time
         const delay = this.calculateDelay(attempt);
         
-        console.warn(`操作失败，第 ${attempt + 1} 次重试，${delay}ms 后重试:`, lastError.message);
+        console.warn(`Operation failed, retrying for the ${attempt + 1} time, retrying after ${delay}ms:`, lastError.message);
         
-        // 等待延迟
+        // Wait for delay
         await this.sleep(delay);
       }
     }
 
-    // 理论上不应该到达这里
-    throw this.enrichError(lastError || new Error('重试失败'));
+    // Should not be reached in theory
+    throw this.enrichError(lastError || new Error('Retry failed'));
   }
 
   /**
-   * 回滚并通知
+   * Rollback and notify
    */
   async rollbackAndNotify(error: Error): Promise<never> {
     try {
       const enrichedError = this.enrichError(error);
       
-      console.error('执行回滚操作:', enrichedError);
+      console.error('Executing rollback operation:', enrichedError);
       
-      // 通知订阅者
+      // Notify subscribers
       this.notifyErrorSubscribers(enrichedError);
       
-      // 这里可以执行具体的回滚逻辑
-      // 例如：清理临时数据、恢复状态等
+      // Specific rollback logic can be executed here
+      // e.g., clean up temporary data, restore state, etc.
       
       throw enrichedError;
     } catch (err) {
@@ -154,22 +154,22 @@ export class ErrorHandler implements IErrorHandler {
   }
 
   /**
-   * 丰富错误信息
+   * Enrich error information
    */
   enrichError(error: Error): Error {
     try {
-      // 如果已经是扩展错误，直接返回
+      // If it is already an extended error, return directly
       if (error instanceof ExtendedError) {
         return error;
       }
 
-      // 确定错误类型
+      // Determine error type
       const errorType = this.determineErrorType(error);
       
-      // 生成错误代码
+      // Generate error code
       const errorCode = this.generateErrorCode(error, errorType);
       
-      // 收集上下文信息
+      // Collect context information
       const context = this.collectErrorContext(error);
 
       return new ExtendedError(
@@ -179,25 +179,25 @@ export class ErrorHandler implements IErrorHandler {
         context
       );
     } catch (enrichError) {
-      console.error('丰富错误信息失败:', enrichError);
-      return error; // 返回原始错误
+      console.error('Failed to enrich error information:', enrichError);
+      return error; // Return original error
     }
   }
 
   /**
-   * 创建错误结果
+   * Create error result
    */
   createErrorResult(message: string): OperationResult<any> {
     return {
       success: false,
       error: message,
-      message: '操作失败',
+      message: 'Operation failed',
       errorCode: 'OPERATION_FAILED'
     };
   }
 
   /**
-   * 处理错误
+   * Handle error
    */
   handleError(error: any, operation: string): OperationResult<any> {
     try {
@@ -208,31 +208,31 @@ export class ErrorHandler implements IErrorHandler {
       const result: OperationResult<any> = {
         success: false,
         error: enrichedError.message,
-        message: `操作失败: ${operation}`,
+        message: `Operation failed: ${operation}`,
         errorCode: enrichedError instanceof ExtendedError ? enrichedError.code : 'UNKNOWN_ERROR'
       };
 
-      // 记录错误
-      console.error(`操作 ${operation} 失败:`, enrichedError);
+      // Log error
+      console.error(`Operation ${operation} failed:`, enrichedError);
       
-      // 通知订阅者
+      // Notify subscribers
       this.notifyErrorSubscribers(enrichedError);
 
       return result;
     } catch (handlingError) {
-      console.error('处理错误时发生异常:', handlingError);
+      console.error('Exception occurred while handling error:', handlingError);
       
       return {
         success: false,
-        error: '错误处理失败',
-        message: `操作失败: ${operation}`,
+        error: 'Failed to handle error',
+        message: `Operation failed: ${operation}`,
         errorCode: 'ERROR_HANDLING_FAILED'
       };
     }
   }
 
   /**
-   * 初始化
+   * Initialize
    */
   async initialize(): Promise<void> {
     if (this.initialized) {
@@ -240,36 +240,36 @@ export class ErrorHandler implements IErrorHandler {
     }
 
     try {
-      // 设置全局错误处理器
+      // Set up global error handlers
       this.setupGlobalErrorHandlers();
       
       this.initialized = true;
-      console.log('ErrorHandler 初始化完成');
+      console.log('ErrorHandler initialized successfully');
     } catch (error) {
-      throw new Error(`ErrorHandler 初始化失败: ${error instanceof Error ? error.message : String(error)}`);
+      throw new Error(`ErrorHandler initialization failed: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
 
   /**
-   * 销毁
+   * Dispose
    */
   async dispose(): Promise<void> {
     try {
-      // 清理订阅者
+      // Clean up subscribers
       this.errorSubscribers.clear();
       
-      // 移除全局错误处理器
+      // Remove global error handlers
       this.removeGlobalErrorHandlers();
       
       this.initialized = false;
-      console.log('ErrorHandler 已销毁');
+      console.log('ErrorHandler has been disposed');
     } catch (error) {
-      console.error('ErrorHandler 销毁失败:', error);
+      console.error('ErrorHandler disposal failed:', error);
     }
   }
 
   /**
-   * 订阅错误事件
+   * Subscribe to error events
    */
   subscribe(callback: (error: Error) => void): () => void {
     this.errorSubscribers.add(callback);
@@ -280,21 +280,21 @@ export class ErrorHandler implements IErrorHandler {
   }
 
   /**
-   * 设置重试配置
+   * Set Retry Configuration
    */
   setRetryConfig(config: Partial<RetryConfig>): void {
     this.retryConfig = { ...this.retryConfig, ...config };
   }
 
   /**
-   * 获取重试配置
+   * Get Retry Configuration
    */
   getRetryConfig(): RetryConfig {
     return { ...this.retryConfig };
   }
 
   /**
-   * 确定错误类型
+   * Determine error type
    */
   private determineErrorType(error: Error): ErrorType {
     const message = error.message.toLowerCase();
@@ -323,7 +323,7 @@ export class ErrorHandler implements IErrorHandler {
   }
 
   /**
-   * 生成错误代码
+   * Generate error code
    */
   private generateErrorCode(error: Error, type: ErrorType): string {
     const timestamp = Date.now().toString(36);
@@ -332,7 +332,7 @@ export class ErrorHandler implements IErrorHandler {
   }
 
   /**
-   * 收集错误上下文
+   * Collect error context
    */
   private collectErrorContext(error: Error): any {
     return {
@@ -345,58 +345,58 @@ export class ErrorHandler implements IErrorHandler {
   }
 
   /**
-   * 根据错误类型处理
+   * Handle by error type
    */
   private async handleErrorByType(error: ExtendedError): Promise<void> {
     switch (error.type) {
       case ErrorType.NETWORK:
-        // 网络错误处理
-        console.warn('网络错误，可能需要重试');
+        // Network error handling
+        console.warn('Network error, may need to retry');
         break;
       case ErrorType.VALIDATION:
-        // 验证错误处理
-        console.warn('验证错误，检查输入数据');
+        // Validation error handling
+        console.warn('Validation error, check input data');
         break;
       case ErrorType.AUTHENTICATION:
-        // 认证错误处理
-        console.warn('认证错误，可能需要重新登录');
+        // Authentication error handling
+        console.warn('Authentication error, may need to log in again');
         break;
       case ErrorType.PERMISSION:
-        // 权限错误处理
-        console.warn('权限不足，无法执行操作');
+        // Permission error handling
+        console.warn('Insufficient permissions, cannot perform operation');
         break;
       case ErrorType.SYSTEM:
-        // 系统错误处理
-        console.warn('系统错误，联系管理员');
+        // System error handling
+        console.warn('System error, contact administrator');
         break;
       default:
-        console.warn('未知错误类型');
+        console.warn('Unknown error type');
     }
   }
 
   /**
-   * 通知错误订阅者
+   * Notify error subscribers
    */
   private notifyErrorSubscribers(error: Error): void {
     for (const subscriber of this.errorSubscribers) {
       try {
         subscriber(error);
       } catch (subscriberError) {
-        console.error('错误订阅者执行失败:', subscriberError);
+        console.error('Error subscriber execution failed:', subscriberError);
       }
     }
   }
 
   /**
-   * 计算延迟时间
+   * Calculate delay time
    */
   private calculateDelay(attempt: number): number {
     let delay = this.retryConfig.baseDelay * Math.pow(this.retryConfig.exponentialBase, attempt);
     
-    // 限制最大延迟
+    // Limit maximum delay
     delay = Math.min(delay, this.retryConfig.maxDelay);
     
-    // 添加抖动
+    // Add jitter
     if (this.retryConfig.jitter) {
       delay += Math.random() * 1000;
     }
@@ -405,14 +405,14 @@ export class ErrorHandler implements IErrorHandler {
   }
 
   /**
-   * 睡眠函数
+   * Sleep function
    */
   private sleep(ms: number): Promise<void> {
     return new Promise(resolve => setTimeout(resolve, ms));
   }
 
   /**
-   * 简单哈希函数
+   * Simple hash function
    */
   private simpleHash(str: string): string {
     let hash = 0;
@@ -425,17 +425,17 @@ export class ErrorHandler implements IErrorHandler {
   }
 
   /**
-   * 设置全局错误处理器
+   * Set up global error handlers
    */
   private setupGlobalErrorHandlers(): void {
     if (typeof window !== 'undefined') {
-      // 处理未捕获的错误
+      // Handle uncaught errors
       window.addEventListener('error', (event) => {
         const error = event.error || new Error(event.message);
         this.handleError(error, 'global_error');
       });
 
-      // 处理未捕获的Promise拒绝
+      // Handle unhandled Promise rejections
       window.addEventListener('unhandledrejection', (event) => {
         const error = event.reason instanceof Error ? event.reason : new Error(String(event.reason));
         this.handleError(error, 'unhandled_rejection');
@@ -444,10 +444,10 @@ export class ErrorHandler implements IErrorHandler {
   }
 
   /**
-   * 移除全局错误处理器
+   * Remove global error handlers
    */
   private removeGlobalErrorHandlers(): void {
-    // 在实际应用中，这里应该移除之前添加的事件监听器
-    // 但由于我们不能直接引用之前的处理函数，这里只是占位
+    // In a real application, the previously added event listeners should be removed here
+    // but since we can't directly reference the previous handler functions, this is just a placeholder
   }
 }

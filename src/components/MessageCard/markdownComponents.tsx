@@ -81,10 +81,10 @@ const CodeBlockWithCopy: React.FC<{
   const handleCopy = async () => {
     try {
       await navigator.clipboard.writeText(codeString);
-      message.success("代码已复制到剪贴板");
+      message.success("Code copied to clipboard");
     } catch (error) {
-      console.error("复制失败:", error);
-      message.error("复制失败");
+      console.error("Copy failed:", error);
+      message.error("Copy failed");
     }
   };
 
@@ -227,10 +227,10 @@ const renderCodeBlock = (language: string, codeString: string, token: any) => {
           onClick={async () => {
             try {
               await navigator.clipboard.writeText(codeString);
-              message.success("代码已复制到剪贴板");
+              message.success("Code copied to clipboard");
             } catch (error) {
-              console.error("复制失败:", error);
-              message.error("复制失败");
+              console.error("Copy failed:", error);
+              message.error("Copy failed");
             }
           }}
           style={{

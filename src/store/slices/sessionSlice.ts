@@ -3,7 +3,7 @@ import type { AppState } from '..';
 import { serviceFactory } from '../../services/ServiceFactory';
 import { StreamingResponseHandler } from '../../services/StreamingResponseHandler';
 import { AIParameterParser } from '../../services/AIParameterParser';
-import { createTextContent, Message, MessageContent } from '../../types/chat';
+import { createTextContent,  MessageContent } from '../../types/chat';
 import SystemPromptEnhancer from '../../services/SystemPromptEnhancer';
 
 export interface SessionSlice {

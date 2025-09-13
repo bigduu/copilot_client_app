@@ -3,13 +3,13 @@ import { ChatItem, Message, SystemPromptPreset } from '../types/chat';
 
 /**
  * Hook for managing chat list operations
- * 遵循 Hook → Store → Service 架构模式
+ * Follows Hook → Store → Service architecture pattern
  *
- * 数据流向：
+ * Data Flow:
  * Component → useChats Hook → Zustand Store → Services → External APIs
  */
 interface UseChatsReturn {
-  // 数据状态
+  // Data State
   chats: ChatItem[];
   currentChatId: string | null;
   currentChat: ChatItem | null;
@@ -18,7 +18,7 @@ interface UseChatsReturn {
   unpinnedChats: ChatItem[];
   chatCount: number;
 
-  // 基础操作 (直接映射到 Store)
+  // Basic Operations (Directly mapped to Store)
   selectChat: (chatId: string | null) => void;
   deleteChat: (chatId: string) => void;
   deleteChats: (chatIds: string[]) => void;
@@ -28,7 +28,7 @@ interface UseChatsReturn {
   loadChats: () => Promise<void>;
   saveChats: () => Promise<void>;
 
-  // 便捷操作 (组合多个 Store 操作)
+  // Convenience Operations (Combining multiple Store operations)
   createNewChat: (title?: string, options?: Partial<ChatItem>) => void;
   createChatWithSystemPrompt: (preset: SystemPromptPreset) => void;
   toggleChatPin: (chatId: string) => void;
@@ -38,12 +38,12 @@ interface UseChatsReturn {
 }
 
 export const useChats = (): UseChatsReturn => {
-  // 从 Zustand Store 获取数据 (Hook → Store)
+  // Get data from Zustand Store (Hook → Store)
   const chats = useAppStore(state => state.chats);
   const currentChatId = useAppStore(state => state.currentChatId);
   const messages = useAppStore(state => state.messages);
 
-  // 从 Zustand Store 获取操作方法 (Hook → Store)
+  // Get action methods from Zustand Store (Hook → Store)
   const addChat = useAppStore(state => state.addChat);
   const selectChat = useAppStore(state => state.selectChat);
   const deleteChat = useAppStore(state => state.deleteChat);
@@ -54,21 +54,21 @@ export const useChats = (): UseChatsReturn => {
   const loadChats = useAppStore(state => state.loadChats);
   const saveChats = useAppStore(state => state.saveChats);
 
-  // 计算派生状态 (从 Store 数据计算得出)
+  // Calculate derived state (computed from Store data)
   const currentChat = chats.find(chat => chat.id === currentChatId) || null;
   const currentMessages = currentChatId ? messages[currentChatId] || [] : [];
   const pinnedChats = chats.filter(chat => chat.pinned);
   const unpinnedChats = chats.filter(chat => !chat.pinned);
   const chatCount = chats.length;
 
-  // 便捷操作方法 (组合 Store 操作)
+  // Convenience action methods (combining Store operations)
   const createNewChat = (title?: string, options?: Partial<ChatItem>) => {
     addChat({
       title: title || 'New Chat',
       messages: [],
       createdAt: Date.now(),
-      systemPromptId: 'general_assistant', // TODO: 从后端动态获取默认category
-      toolCategory: 'general_assistant', // TODO: 从后端动态获取默认category
+      systemPromptId: 'general_assistant', // TODO: Dynamically get default category from backend
+      toolCategory: 'general_assistant', // TODO: Dynamically get default category from backend
       ...options,
     });
   };
@@ -115,7 +115,7 @@ export const useChats = (): UseChatsReturn => {
   };
 
   return {
-    // 数据状态
+    // Data State
     chats,
     currentChatId,
     currentChat,
@@ -124,7 +124,7 @@ export const useChats = (): UseChatsReturn => {
     unpinnedChats,
     chatCount,
 
-    // 基础操作 (直接映射到 Store)
+    // Basic Operations (Directly mapped to Store)
     selectChat,
     deleteChat,
     deleteChats,
@@ -134,7 +134,7 @@ export const useChats = (): UseChatsReturn => {
     loadChats,
     saveChats,
 
-    // 便捷操作 (组合多个 Store 操作)
+    // Convenience Operations (Combining multiple Store operations)
     createNewChat,
     createChatWithSystemPrompt,
     toggleChatPin,

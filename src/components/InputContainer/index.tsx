@@ -27,7 +27,7 @@ export const InputContainer: React.FC<InputContainerProps> = ({
   const { token } = useToken();
   const { currentMessages, currentChat } = useChats();
   const { cancelCurrentRequest } = useAppStore();
-  // TODO: selectedSystemPromptPresetId 需要从新的 store 中获取
+  // TODO: selectedSystemPromptPresetId needs to be retrieved from the new store
   const selectedSystemPromptPresetId = null;
 
   // Use system prompt hook instead of direct service

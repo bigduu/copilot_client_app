@@ -20,15 +20,15 @@ const { useToken } = theme;
 const { useBreakpoint } = Grid;
 
 export const ChatView: React.FC = () => {
-  // 使用新的 Zustand hooks
+  // Use new Zustand hooks
   const { currentChatId, currentMessages, updateChat } = useChats();
   const { isProcessing, deleteMessage } = useMessages();
   const streamingMessage = useAppStore((state) => state.streamingMessage);
 
-  // 流式响应现在完全在 chatStore 中处理，不再需要 StreamingMessageItem
+  // Streaming responses are now fully handled in chatStore, no longer need StreamingMessageItem
   const isStreaming = isProcessing;
 
-  // 使用useMemo优化流式消息渲染
+  // Use useMemo to optimize streaming message rendering
   const streamingMessageComponent = useMemo(() => {
     if (!streamingMessage || streamingMessage.chatId !== currentChatId) {
       return null;
@@ -47,7 +47,7 @@ export const ChatView: React.FC = () => {
     );
   }, [streamingMessage, currentChatId]);
 
-  // Handle message deletion - 使用useCallback优化
+  // Handle message deletion - optimized with useCallback
   const handleDeleteMessage = useCallback(
     (messageId: string) => {
       if (currentChatId) {
@@ -151,7 +151,7 @@ export const ChatView: React.FC = () => {
     }
   }, [currentMessages, isStreaming]);
 
-  // 为流式消息添加单独的滚动效果
+  // Add separate scroll effect for streaming messages
   useEffect(() => {
     if (messagesEndRef.current && streamingMessage) {
       messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
@@ -317,7 +317,7 @@ export const ChatView: React.FC = () => {
                   );
                 })}
 
-              {/* 显示流式消息 - 使用useMemo优化渲染 */}
+              {/* Display streaming message - optimized with useMemo */}
               {streamingMessageComponent}
               <div ref={messagesEndRef} />
             </Space>

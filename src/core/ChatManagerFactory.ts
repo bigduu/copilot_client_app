@@ -8,7 +8,7 @@ import { ChatFlowController } from '../interfaces/chat-manager';
 import { CreateChatOptions } from '../types/unified-chat';
 
 /**
- * 配置预设类型
+ * Configuration preset type
  */
 export interface ChatManagerConfig {
   enablePerformanceMonitoring?: boolean;
@@ -20,7 +20,7 @@ export interface ChatManagerConfig {
 }
 
 /**
- * 预定义配置场景
+ * Predefined configuration scenarios
  */
 export enum ConfigurationScenario {
   DEVELOPMENT = 'development',
@@ -31,13 +31,13 @@ export enum ConfigurationScenario {
 }
 
 /**
- * ChatManager工厂类
- * 提供预配置的ChatManager实例创建，简化初始化过程
+ * ChatManager Factory Class
+ * Provides creation of pre-configured ChatManager instances to simplify initialization
  */
 export class ChatManagerFactory {
   
   /**
-   * 根据场景创建预配置的ChatManager实例
+   * Create a pre-configured ChatManager instance based on the scenario
    */
   static createForScenario(scenario: ConfigurationScenario): UnifiedChatManager {
     const config = this.getConfigForScenario(scenario);
@@ -45,16 +45,16 @@ export class ChatManagerFactory {
   }
 
   /**
-   * 使用自定义配置创建ChatManager实例
+   * Create a ChatManager instance with custom configuration
    */
   static createWithConfig(config: ChatManagerConfig): UnifiedChatManager {
-    // 创建状态管理器
+    // Create state manager
     const stateManager = new (StateManager as any)({
       maxConcurrentOperations: config.maxConcurrentOperations || 10,
       persistenceEnabled: config.persistenceEnabled || false
     });
 
-    // 创建流控制器的默认实现
+    // Create default implementation of flow controller
     const flowController: ChatFlowController = {
       async initialize() {},
       async dispose() {},
@@ -138,25 +138,25 @@ export class ChatManagerFactory {
       }
     };
 
-    // 创建附件处理器
+    // Create attachment processor
     const attachmentProcessor = new (AttachmentProcessor as any)({
       maxSize: config.attachmentMaxSize || 10 * 1024 * 1024, // 10MB
       enablePreview: true
     });
 
-    // 创建审批管理器
+    // Create approval manager
     const approvalManager = new (ApprovalManager as any)({
       autoApproval: config.enableAutoApproval || false,
       defaultTimeout: 30000
     });
 
-    // 创建错误处理器
+    // Create error handler
     const errorHandler = new (ErrorHandler as any)({
       retryCount: config.defaultErrorRetryCount || 3,
       enableLogging: true
     });
 
-    // 创建性能监控器
+    // Create performance monitor
     const performanceMonitor = new (PerformanceMonitor as any)({
       enabled: config.enablePerformanceMonitoring || true,
       sampleRate: 1.0
@@ -173,42 +173,42 @@ export class ChatManagerFactory {
   }
 
   /**
-   * 创建开发环境的ChatManager实例
+   * Create a ChatManager instance for the development environment
    */
   static createForDevelopment(): UnifiedChatManager {
     return this.createForScenario(ConfigurationScenario.DEVELOPMENT);
   }
 
   /**
-   * 创建生产环境的ChatManager实例
+   * Create a ChatManager instance for the production environment
    */
   static createForProduction(): UnifiedChatManager {
     return this.createForScenario(ConfigurationScenario.PRODUCTION);
   }
 
   /**
-   * 创建测试环境的ChatManager实例
+   * Create a ChatManager instance for the test environment
    */
   static createForTesting(): UnifiedChatManager {
     return this.createForScenario(ConfigurationScenario.TESTING);
   }
 
   /**
-   * 创建高性能场景的ChatManager实例
+   * Create a ChatManager instance for high-performance scenarios
    */
   static createForHighPerformance(): UnifiedChatManager {
     return this.createForScenario(ConfigurationScenario.HIGH_PERFORMANCE);
   }
 
   /**
-   * 创建安全场景的ChatManager实例
+   * Create a ChatManager instance for secure scenarios
    */
   static createForSecure(): UnifiedChatManager {
     return this.createForScenario(ConfigurationScenario.SECURE);
   }
 
   /**
-   * 根据场景获取配置
+   * Get configuration based on the scenario
    */
   private static getConfigForScenario(scenario: ConfigurationScenario): ChatManagerConfig {
     switch (scenario) {
@@ -268,7 +268,7 @@ export class ChatManagerFactory {
   }
 
   /**
-   * 创建带有默认选项的聊天
+   * Create chat with default options
    */
   static async createChatWithDefaults(
     manager: UnifiedChatManager,
@@ -287,7 +287,7 @@ export class ChatManagerFactory {
 }
 
 /**
- * 便捷创建函数
+ * Convenience creation function
  */
 export const createChatManager = ChatManagerFactory.createForDevelopment;
 export const createProductionChatManager = ChatManagerFactory.createForProduction;

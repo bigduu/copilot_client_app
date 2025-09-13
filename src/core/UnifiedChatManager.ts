@@ -29,8 +29,8 @@ import {
 } from '../types/unified-chat';
 
 /**
- * 统一聊天管理器 - 核心实现类
- * 集中管理所有聊天操作，提供统一的API接口
+ * Unified Chat Manager - Core Implementation Class
+ * Centralizes all chat operations and provides a unified API interface
  */
 export class UnifiedChatManager implements ChatManager {
   public stateManager: StateManager;
@@ -43,8 +43,8 @@ export class UnifiedChatManager implements ChatManager {
   private initialized = false;
   private subscribers = new Set<(state: ChatState) => void>();
   
-  // 添加缺失的属性以满足ChatManager接口
-  public persistenceLayer: any; // 暂时使用any，后续实现具体类型
+  // Add missing properties to satisfy the ChatManager interface
+  public persistenceLayer: any; // Temporarily use any, will implement a specific type later
 
   constructor(
     stateManager: StateManager,
@@ -64,12 +64,12 @@ export class UnifiedChatManager implements ChatManager {
     this.persistenceLayer = persistenceLayer;
   }
 
-  // ========== 初始化和生命周期 ==========
+  // ========== Initialization and Lifecycle ==========
   async initialize(): Promise<void> {
     if (this.initialized) return;
 
     try {
-      // 初始化各个组件
+      // Initialize each component
       await this.stateManager.initialize();
       await this.flowController.initialize();
       await this.attachmentProcessor.initialize();
@@ -77,19 +77,19 @@ export class UnifiedChatManager implements ChatManager {
       await this.errorHandler.initialize();
       await this.performanceMonitor.initialize();
 
-      // 设置事件监听
+      // Set up event listeners
       this.setupEventListeners();
       
       this.initialized = true;
     } catch (error) {
-      throw new Error(`ChatManager初始化失败: ${error}`);
+      throw new Error(`ChatManager initialization failed: ${error}`);
     }
   }
 
   async dispose(): Promise<void> {
     if (!this.initialized) return;
 
-    // 清理资源
+    // Clean up resources
     await this.stateManager.dispose();
     await this.flowController.dispose();
     await this.attachmentProcessor.dispose();
@@ -101,17 +101,17 @@ export class UnifiedChatManager implements ChatManager {
     this.initialized = false;
   }
 
-  // ========== 原子操作接口 ==========
+  // ========== Atomic Operation Interface ==========
   async addChat(options: CreateChatOptions): Promise<OperationResult<string>> {
     const startTime = performance.now();
     
     try {
-      // 验证输入
+      // Validate input
       if (!options.title?.trim()) {
-        return this.errorHandler.createErrorResult('聊天标题不能为空');
+        return this.errorHandler.createErrorResult('Chat title cannot be empty');
       }
 
-      // 执行创建操作
+      // Execute creation operation
       const chatId = await this.stateManager.createChat({
         ...options,
         id: crypto.randomUUID(),
@@ -120,16 +120,16 @@ export class UnifiedChatManager implements ChatManager {
         messages: []
       });
 
-      // 触发状态更新
+      // Trigger state update
       await this.notifyStateChange();
 
-      // 记录性能
+      // Record performance
       this.performanceMonitor.recordOperation('addChat', performance.now() - startTime);
 
       return {
         success: true,
         data: chatId,
-        message: '聊天创建成功'
+        message: 'Chat created successfully'
       };
     } catch (error) {
       return this.errorHandler.handleError(error, 'addChat');
@@ -140,19 +140,19 @@ export class UnifiedChatManager implements ChatManager {
     const startTime = performance.now();
     
     try {
-      // 获取现有聊天
+      // Get existing chat
       const existingChat = this.stateManager.getChat(chatId);
       if (!existingChat) {
-        return this.errorHandler.createErrorResult('聊天不存在');
+        return this.errorHandler.createErrorResult('Chat does not exist');
       }
 
-      // 创建更新后的聊天对象
+      // Create updated chat object
       const updatedChat = {
         ...existingChat,
         ...options
       };
 
-      // 执行更新操作
+      // Execute update operation
       await this.stateManager.updateChat(chatId, updatedChat);
 
       await this.notifyStateChange();
@@ -160,7 +160,7 @@ export class UnifiedChatManager implements ChatManager {
 
       return {
         success: true,
-        message: '聊天更新成功'
+        message: 'Chat updated successfully'
       };
     } catch (error) {
       return this.errorHandler.handleError(error, 'updateChat');
@@ -176,7 +176,7 @@ export class UnifiedChatManager implements ChatManager {
         return {
           success: false,
           deletedId: chatId,
-          message: '聊天不存在'
+          message: 'Chat does not exist'
         };
       }
 
@@ -187,13 +187,13 @@ export class UnifiedChatManager implements ChatManager {
       return {
         success: true,
         deletedId: chatId,
-        message: '聊天删除成功'
+        message: 'Chat deleted successfully'
       };
     } catch (error) {
       return {
         success: false,
         deletedId: chatId,
-        message: `聊天删除失败: ${error}`
+        message: `Failed to delete chat: ${error}`
       };
     }
   }
@@ -202,13 +202,13 @@ export class UnifiedChatManager implements ChatManager {
     const startTime = performance.now();
     
     try {
-      // 检查聊天是否存在
+      // Check if chat exists
       const exists = await this.stateManager.chatExists(chatId);
       if (!exists) {
-        return this.errorHandler.createErrorResult('聊天不存在');
+        return this.errorHandler.createErrorResult('Chat does not exist');
       }
 
-      // 处理附件（如果有）
+      // Process attachments (if any)
       if (options.attachments?.length) {
         const attachmentResult = await this.attachmentProcessor.processAttachments(options.attachments);
         if (!attachmentResult.success) {
@@ -221,14 +221,14 @@ export class UnifiedChatManager implements ChatManager {
         options.processedAttachments = attachmentResult.data;
       }
 
-      // 创建消息
+      // Create message
       const messageId = crypto.randomUUID();
       const message: ExtendedMessage = {
         id: messageId,
         content: options.content,
         role: options.role,
         timestamp: new Date(),
-        createdAt: new Date(),
+        createdAt: new Date().toISOString(),
         attachments: options.processedAttachments,
         isHidden: options.isHidden || false,
         metadata: options.metadata
@@ -236,7 +236,7 @@ export class UnifiedChatManager implements ChatManager {
 
       await this.stateManager.addMessage(chatId, message);
 
-      // 如果需要审批且不是隐藏消息
+      // If approval is required and the message is not hidden
       if (options.requiresApproval && !options.isHidden) {
         await this.approvalManager.requestApproval(messageId, options.approvalConfig);
       }
@@ -247,7 +247,7 @@ export class UnifiedChatManager implements ChatManager {
       return {
         success: true,
         data: messageId,
-        message: '消息添加成功'
+        message: 'Message added successfully'
       };
     } catch (error) {
       return this.errorHandler.handleError(error, 'addMessage');
@@ -260,13 +260,13 @@ export class UnifiedChatManager implements ChatManager {
     try {
       const exists = await this.stateManager.messageExists(messageId);
       if (!exists) {
-        return this.errorHandler.createErrorResult('消息不存在');
+        return this.errorHandler.createErrorResult('Message does not exist');
       }
 
-      // 需要先获取消息所属的chatId
+      // Need to get the chatId of the message first
       const message = await this.stateManager.getMessage('', messageId);
       if (!message || !message.chatId) {
-        return this.errorHandler.createErrorResult('无法找到消息或消息缺少chatId');
+        return this.errorHandler.createErrorResult('Cannot find message or message is missing chatId');
       }
       
       await this.stateManager.updateMessage(message.chatId, messageId, {
@@ -280,7 +280,7 @@ export class UnifiedChatManager implements ChatManager {
 
       return {
         success: true,
-        message: '消息更新成功'
+        message: 'Message updated successfully'
       };
     } catch (error) {
       return this.errorHandler.handleError(error, 'updateMessage');
@@ -296,7 +296,7 @@ export class UnifiedChatManager implements ChatManager {
         return {
           success: false,
           deletedId: messageId,
-          message: '消息不存在'
+          message: 'Message does not exist'
         };
       }
 
@@ -307,18 +307,18 @@ export class UnifiedChatManager implements ChatManager {
       return {
         success: true,
         deletedId: messageId,
-        message: '消息删除成功'
+        message: 'Message deleted successfully'
       };
     } catch (error) {
       return {
         success: false,
         deletedId: messageId,
-        message: `消息删除失败: ${error}`
+        message: `Failed to delete message: ${error}`
       };
     }
   }
 
-  // ========== 批量操作 ==========
+  // ========== Batch Operations ==========
   async batchOperation(operations: Operation[]): Promise<BatchResult> {
     const startTime = performance.now();
     const results: OperationResult<any>[] = [];
@@ -349,7 +349,7 @@ export class UnifiedChatManager implements ChatManager {
             result = await this.deleteMessage(operation.messageId!);
             break;
           default:
-            result = this.errorHandler.createErrorResult('不支持的操作类型');
+            result = this.errorHandler.createErrorResult('Unsupported operation type');
         }
 
         results.push(result);
@@ -367,7 +367,7 @@ export class UnifiedChatManager implements ChatManager {
         results,
         successCount,
         failureCount,
-        message: `批量操作完成: 成功${successCount}个，失败${failureCount}个`
+        message: `Batch operation completed: ${successCount} successful, ${failureCount} failed`
       };
     } catch (error) {
       return {
@@ -375,7 +375,7 @@ export class UnifiedChatManager implements ChatManager {
         results,
         successCount,
         failureCount,
-        message: `批量操作失败: ${error}`
+        message: `Batch operation failed: ${error}`
       };
     }
   }
@@ -384,7 +384,7 @@ export class UnifiedChatManager implements ChatManager {
     const startTime = performance.now();
     
     try {
-      // 开始事务
+      // Begin transaction
       await this.stateManager.beginTransaction();
       
       const results: OperationResult<any>[] = [];
@@ -394,18 +394,18 @@ export class UnifiedChatManager implements ChatManager {
         results.push(result);
         
         if (!result.success) {
-          // 回滚事务
+          // Rollback transaction
           await this.stateManager.rollbackTransaction();
           return {
             success: false,
             results,
             rolledBack: true,
-            message: '事务执行失败，已回滚'
+            message: 'Transaction failed and has been rolled back'
           };
         }
       }
       
-      // 提交事务
+      // Commit transaction
       await this.stateManager.commitTransaction();
       await this.notifyStateChange();
       
@@ -415,7 +415,7 @@ export class UnifiedChatManager implements ChatManager {
         success: true,
         results,
         rolledBack: false,
-        message: '事务执行成功'
+        message: 'Transaction executed successfully'
       };
     } catch (error) {
       await this.stateManager.rollbackTransaction();
@@ -423,12 +423,12 @@ export class UnifiedChatManager implements ChatManager {
         success: false,
         results: [],
         rolledBack: true,
-        message: `事务执行异常: ${error}`
+        message: `Transaction exception: ${error}`
       };
     }
   }
 
-  // ========== 事务操作 ==========
+  // ========== Transactional Operations ==========
   async transaction<T>(operation: () => Promise<T>): Promise<T> {
     try {
       await this.stateManager.beginTransaction();
@@ -442,7 +442,7 @@ export class UnifiedChatManager implements ChatManager {
     }
   }
 
-  // ========== 状态管理 ==========
+  // ========== State Management ==========
   getState(): ChatState {
     return this.stateManager.getState();
   }
@@ -457,7 +457,7 @@ export class UnifiedChatManager implements ChatManager {
     await this.notifyStateChange();
   }
 
-  // ========== 流程控制 ==========
+  // ========== Flow Control ==========
   async startChatFlow(chatId: string, flowType: string): Promise<OperationResult<void>> {
     return this.flowController.startFlow(chatId, flowType);
   }
@@ -474,7 +474,7 @@ export class UnifiedChatManager implements ChatManager {
     return this.flowController.stopFlow(chatId);
   }
 
-  // ========== 附件处理 ==========
+  // ========== Attachment Processing ==========
   async processAttachment(request: AttachmentRequest): Promise<OperationResult<any>> {
     return this.attachmentProcessor.processAttachment(request);
   }
@@ -483,7 +483,7 @@ export class UnifiedChatManager implements ChatManager {
     return this.attachmentProcessor.getResult(attachmentId);
   }
 
-  // ========== 审批管理 ==========
+  // ========== Approval Management ==========
   async configureApproval(config: ApprovalConfig): Promise<OperationResult<void>> {
     return this.approvalManager.configure(config);
   }
@@ -496,12 +496,12 @@ export class UnifiedChatManager implements ChatManager {
     return this.approvalManager.reject(operationId, reason);
   }
 
-  // ========== 性能监控 ==========
+  // ========== Performance Monitoring ==========
   getPerformanceMetrics() {
     return this.performanceMonitor.getMetrics();
   }
 
-  // ========== 私有方法 ==========
+  // ========== Private Methods ==========
   private async executeTransactionOperation(operation: TransactionOperation): Promise<OperationResult<any>> {
     switch (operation.type) {
       case 'addChat':
@@ -517,25 +517,25 @@ export class UnifiedChatManager implements ChatManager {
       case 'deleteMessage':
         return this.deleteMessage(operation.messageId!);
       default:
-        return this.errorHandler.createErrorResult('不支持的事务操作类型');
+        return this.errorHandler.createErrorResult('Unsupported transaction operation type');
     }
   }
 
   private setupEventListeners(): void {
-    // 监听状态管理器的变化
+    // Listen for changes from the state manager
     this.stateManager.subscribe((state) => {
       this.notifySubscribers(state);
     });
 
-    // 监听流程控制器事件
+    // Listen for flow controller events
     this.flowController.subscribe((event) => {
-      // 处理流程事件
+      // Handle flow events
       this.handleFlowEvent(event);
     });
 
-    // 监听审批管理器事件
+    // Listen for approval manager events
     this.approvalManager.subscribe((event) => {
-      // 处理审批事件
+      // Handle approval events
       this.handleApprovalEvent(event);
     });
   }
@@ -550,32 +550,32 @@ export class UnifiedChatManager implements ChatManager {
       try {
         callback(state);
       } catch (error) {
-        console.error('订阅者回调执行失败:', error);
+        console.error('Subscriber callback execution failed:', error);
       }
     });
   }
 
   private async handleFlowEvent(event: any): Promise<void> {
-    // 处理流程控制事件
-    console.log('流程事件:', event);
+    // Handle flow control events
+    console.log('Flow event:', event);
   }
 
   private async handleApprovalEvent(event: any): Promise<void> {
-    // 处理审批事件
-    console.log('审批事件:', event);
+    // Handle approval events
+    console.log('Approval event:', event);
   }
 
-  // ========== 添加缺失的ChatManager接口方法 ==========
+  // ========== Add missing ChatManager interface methods ==========
   async sendMessageWithAttachments(chatId: string, content: string, attachments: Attachment[]): Promise<MessageFlow> {
     try {
-      // 创建消息选项
+      // Create message options
       const messageOptions: CreateMessageOptions = {
         content,
         role: 'user',
         attachments
       };
 
-      // 添加消息
+      // Add message
       const result = await this.addMessage(chatId, messageOptions);
       
       if (!result.success) {
@@ -588,6 +588,7 @@ export class UnifiedChatManager implements ChatManager {
             content,
             role: 'user',
             timestamp: new Date(),
+            createdAt: new Date().toISOString(),
             chatId,
             attachments: []
           }
@@ -603,28 +604,29 @@ export class UnifiedChatManager implements ChatManager {
           content,
           role: 'user',
           timestamp: new Date(),
+          createdAt: new Date().toISOString(),
           chatId,
           attachments: []
         }
       };
     } catch (error) {
-      throw new Error(`发送带附件消息失败: ${error}`);
+      throw new Error(`Failed to send message with attachments: ${error}`);
     }
   }
 
   async handleApprovalFlow(_chatId: string, action: ApprovalAction): Promise<OperationResult<ApprovalFlow>> {
     try {
-      // 根据操作类型构造ApprovalConfig
+      // Construct ApprovalConfig based on the action type
       const config: ApprovalConfig = {
         autoApprove: action.automatic || action.action === 'approve',
         approvalMessage: action.reason,
-        approvalTimeout: 30000, // 30秒超时
+        approvalTimeout: 30000, // 30-second timeout
       };
 
       const messageId = action.messageId || '';
       await this.approvalManager.requestApproval(messageId, config);
       
-      // 构造ApprovalFlow返回
+      // Construct ApprovalFlow for return
       const flow: ApprovalFlow = {
         approved: action.action === 'approve',
         automatic: action.automatic || false,
@@ -637,7 +639,7 @@ export class UnifiedChatManager implements ChatManager {
         data: flow
       };
     } catch (error) {
-      return this.errorHandler.createErrorResult(`审批流程处理失败: ${error}`);
+      return this.errorHandler.createErrorResult(`Approval flow processing failed: ${error}`);
     }
   }
 

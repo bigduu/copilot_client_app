@@ -23,9 +23,9 @@ export function useChatInput() {
 
   const { currentChatId, currentChat } = useChats();
   const { sendMessage } = useMessages();
-  // 从 store 中获取系统提示词预设（如果需要的话可以添加选中的预设ID状态）
-  const selectedSystemPromptPresetId = null; // 暂时保持为 null，因为我们主要依赖聊天的 systemPromptId
-  // initiateAIResponse 现在通过 sendMessage 处理
+  // Get system prompt preset from store (selected preset ID state can be added if needed)
+  const selectedSystemPromptPresetId = null; // Temporarily null, as we mainly rely on the chat's systemPromptId
+  // initiateAIResponse is now handled via sendMessage
   const prevChatIdRef = useRef<string | null>(null);
   const toolService = ToolService.getInstance();
 
@@ -129,9 +129,9 @@ export function useChatInput() {
       const systemPromptId =
         currentChat?.systemPromptId || selectedSystemPromptPresetId;
 
-      // 如果没有系统提示词ID，显示错误并返回
+      // If there is no system prompt ID, show an error and return
       if (!systemPromptId) {
-        messageApi.error("当前聊天缺少系统提示词配置，请重新创建聊天或选择系统提示词");
+        messageApi.error("Current chat is missing system prompt configuration. Please recreate the chat or select a system prompt");
         return;
       }
 

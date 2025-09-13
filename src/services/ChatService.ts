@@ -55,10 +55,10 @@ export class ChatService {
     const newChatId = uuidv4();
     const currentSystemPrompt = localStorage.getItem(SYSTEM_PROMPT_KEY);
     if (!currentSystemPrompt) {
-      throw new Error("系统提示词未配置，无法创建聊天");
+      throw new Error("System prompt not configured, cannot create chat");
     }
     if (!defaultModel) {
-      throw new Error("模型未配置，无法创建聊天");
+      throw new Error("Model not configured, cannot create chat");
     }
     const newChatModel = defaultModel;
 
@@ -68,6 +68,7 @@ export class ChatService {
         role: "user",
         content: firstUserMessageContent,
         id: uuidv4(),
+        createdAt: new Date().toISOString(),
       });
     }
 
@@ -241,7 +242,7 @@ export class ChatService {
         systemPrompt:
           (systemMessage ? getMessageText(systemMessage.content) : null) ||
           localStorage.getItem(SYSTEM_PROMPT_KEY) ||
-          (() => { throw new Error("系统提示词未配置，无法迁移现有聊天。请配置系统提示词后重试。"); })(),
+          (() => { throw new Error("System prompt not configured, cannot migrate existing chats. Please configure a system prompt and try again."); })(),
       };
     });
   }

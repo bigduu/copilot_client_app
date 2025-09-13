@@ -5,7 +5,7 @@
 
 import { ToolCategoryInfo } from '../types/toolCategory';
 
-// 接口定义保持不变
+// Interface definition remains unchanged
 export interface IconMapping {
   [categoryType: string]: string;
 }

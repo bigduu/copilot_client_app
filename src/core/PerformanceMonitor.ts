@@ -3,7 +3,7 @@ import {
 } from '../interfaces/chat-manager';
 
 /**
- * 操作记录
+ * Operation Record
  */
 interface OperationRecord {
   name: string;
@@ -14,7 +14,7 @@ interface OperationRecord {
 }
 
 /**
- * 性能指标
+ * Performance Metrics
  */
 interface PerformanceMetrics {
   totalOperations: number;
@@ -38,8 +38,8 @@ interface PerformanceMetrics {
 }
 
 /**
- * 性能监控器
- * 性能追踪和监控
+ * Performance Monitor
+ * Performance tracking and monitoring
  */
 export class PerformanceMonitor implements IPerformanceMonitor {
   private initialized = false;
@@ -48,17 +48,17 @@ export class PerformanceMonitor implements IPerformanceMonitor {
   private startTime = Date.now();
   private metricsCache: PerformanceMetrics | null = null;
   private cacheExpiryTime = 0;
-  private cacheValidityMs = 5000; // 缓存5秒有效
+  private cacheValidityMs = 5000; // Cache is valid for 5 seconds
 
   constructor() {}
 
   /**
-   * 追踪操作性能
+   * Track operation performance
    */
   trackOperation(operationName: string, duration: number): void {
     try {
       if (!this.initialized) {
-        console.warn('PerformanceMonitor 未初始化，跳过追踪');
+        console.warn('PerformanceMonitor is not initialized, skipping tracking');
         return;
       }
 
@@ -71,16 +71,16 @@ export class PerformanceMonitor implements IPerformanceMonitor {
 
       this.addOperationRecord(record);
     } catch (error) {
-      console.error('追踪操作性能失败:', error);
+      console.error('Failed to track operation performance:', error);
     }
   }
 
   /**
-   * 带性能追踪的操作执行
+   * Execute operation with performance tracking
    */
   async withTracking<T>(operationName: string, operation: () => Promise<T>): Promise<T> {
     if (!this.initialized) {
-      console.warn('PerformanceMonitor 未初始化，直接执行操作');
+      console.warn('PerformanceMonitor is not initialized, executing operation directly');
       return await operation();
     }
 
@@ -112,38 +112,38 @@ export class PerformanceMonitor implements IPerformanceMonitor {
   }
 
   /**
-   * 记录操作性能
+   * Record operation performance
    */
   recordOperation(operation: string, duration: number): void {
     this.trackOperation(operation, duration);
   }
 
   /**
-   * 获取性能指标
+   * Get Performance Metrics
    */
   getMetrics(): Record<string, any> {
     try {
-      // 检查缓存是否有效
+      // Check if cache is valid
       if (this.metricsCache && Date.now() < this.cacheExpiryTime) {
         return this.metricsCache;
       }
 
-      // 计算新的指标
+      // Calculate new metrics
       const metrics = this.calculateMetrics();
       
-      // 更新缓存
+      // Update cache
       this.metricsCache = metrics;
       this.cacheExpiryTime = Date.now() + this.cacheValidityMs;
 
       return metrics;
     } catch (error) {
-      console.error('获取性能指标失败:', error);
+      console.error('Failed to get performance metrics:', error);
       return this.getDefaultMetrics();
     }
   }
 
   /**
-   * 初始化
+   * Initialize
    */
   async initialize(): Promise<void> {
     if (this.initialized) {
@@ -151,86 +151,86 @@ export class PerformanceMonitor implements IPerformanceMonitor {
     }
 
     try {
-      // 清理历史记录
+      // Clear history
       this.operations = [];
       
-      // 重置缓存
+      // Reset cache
       this.metricsCache = null;
       this.cacheExpiryTime = 0;
       
-      // 记录启动时间
+      // Record start time
       this.startTime = Date.now();
 
       this.initialized = true;
-      console.log('PerformanceMonitor 初始化完成');
+      console.log('PerformanceMonitor initialized successfully');
     } catch (error) {
-      throw new Error(`PerformanceMonitor 初始化失败: ${error instanceof Error ? error.message : String(error)}`);
+      throw new Error(`PerformanceMonitor initialization failed: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
 
   /**
-   * 销毁
+   * Dispose
    */
   async dispose(): Promise<void> {
     try {
-      // 清理数据
+      // Clear data
       this.operations = [];
       this.metricsCache = null;
       this.cacheExpiryTime = 0;
       
       this.initialized = false;
-      console.log('PerformanceMonitor 已销毁');
+      console.log('PerformanceMonitor has been disposed');
     } catch (error) {
-      console.error('PerformanceMonitor 销毁失败:', error);
+      console.error('PerformanceMonitor disposal failed:', error);
     }
   }
 
   /**
-   * 获取操作历史
+   * Get operation history
    */
   getOperationHistory(): OperationRecord[] {
     return [...this.operations];
   }
 
   /**
-   * 清理历史记录
+   * Clear history
    */
   clearHistory(): void {
     try {
       this.operations = [];
       this.metricsCache = null;
       this.cacheExpiryTime = 0;
-      console.log('性能监控历史记录已清理');
+      console.log('Performance monitoring history has been cleared');
     } catch (error) {
-      console.error('清理历史记录失败:', error);
+      console.error('Failed to clear history:', error);
     }
   }
 
   /**
-   * 设置最大历史记录数量
+   * Set maximum history size
    */
   setMaxHistorySize(size: number): void {
     if (size <= 0) {
-      throw new Error('历史记录大小必须大于0');
+      throw new Error('History size must be greater than 0');
     }
     
     this.maxHistorySize = size;
     
-    // 如果当前记录超过限制，截断
+    // If current records exceed the limit, truncate
     if (this.operations.length > size) {
       this.operations = this.operations.slice(-size);
     }
   }
 
   /**
-   * 获取运行时间
+   * Get uptime
    */
   getUptime(): number {
     return Date.now() - this.startTime;
   }
 
   /**
-   * 获取平均响应时间
+   * Get average response time
    */
   getAverageResponseTime(operationName?: string): number {
     try {
@@ -247,13 +247,13 @@ export class PerformanceMonitor implements IPerformanceMonitor {
       const totalDuration = relevantOps.reduce((sum, op) => sum + op.duration, 0);
       return totalDuration / relevantOps.length;
     } catch (error) {
-      console.error('计算平均响应时间失败:', error);
+      console.error('Failed to calculate average response time:', error);
       return 0;
     }
   }
 
   /**
-   * 获取成功率
+   * Get success rate
    */
   getSuccessRate(operationName?: string): number {
     try {
@@ -270,28 +270,28 @@ export class PerformanceMonitor implements IPerformanceMonitor {
       const successfulOps = relevantOps.filter(op => op.success).length;
       return (successfulOps / relevantOps.length) * 100;
     } catch (error) {
-      console.error('计算成功率失败:', error);
+      console.error('Failed to calculate success rate:', error);
       return 0;
     }
   }
 
   /**
-   * 添加操作记录
+   * Add Operation Record
    */
   private addOperationRecord(record: OperationRecord): void {
     this.operations.push(record);
     
-    // 限制历史记录大小
+    // Limit history size
     if (this.operations.length > this.maxHistorySize) {
       this.operations.shift();
     }
 
-    // 清理缓存
+    // Clear cache
     this.metricsCache = null;
   }
 
   /**
-   * 计算性能指标
+   * Calculate Performance Metrics
    */
   private calculateMetrics(): PerformanceMetrics {
     if (this.operations.length === 0) {
@@ -302,14 +302,14 @@ export class PerformanceMonitor implements IPerformanceMonitor {
     const successfulOperations = this.operations.filter(op => op.success).length;
     const failedOperations = totalOperations - successfulOperations;
 
-    // 计算持续时间统计
+    // Calculate duration statistics
     const durations = this.operations.map(op => op.duration);
     const totalDuration = durations.reduce((sum, duration) => sum + duration, 0);
     const averageDuration = totalDuration / totalOperations;
     const minDuration = Math.min(...durations);
     const maxDuration = Math.max(...durations);
 
-    // 按操作类型分组统计
+    // Group statistics by operation type
     const operationsByType: Record<string, any> = {};
     
     for (const op of this.operations) {
@@ -331,7 +331,7 @@ export class PerformanceMonitor implements IPerformanceMonitor {
       }
     }
 
-    // 计算每种操作类型的指标
+    // Calculate metrics for each operation type
     const processedOperationsByType: Record<string, any> = {};
     
     for (const [name, data] of Object.entries(operationsByType)) {
@@ -344,10 +344,10 @@ export class PerformanceMonitor implements IPerformanceMonitor {
       };
     }
 
-    // 获取最近的操作（最多10个）
+    // Get recent operations (up to 10)
     const recentOperations = this.operations.slice(-10);
 
-    // 尝试获取内存使用情况
+    // Try to get memory usage
     const memoryUsage = this.getMemoryUsage();
 
     return {
@@ -364,7 +364,7 @@ export class PerformanceMonitor implements IPerformanceMonitor {
   }
 
   /**
-   * 获取默认指标
+   * Get default metrics
    */
   private getDefaultMetrics(): PerformanceMetrics {
     return {
@@ -380,11 +380,11 @@ export class PerformanceMonitor implements IPerformanceMonitor {
   }
 
   /**
-   * 获取内存使用情况
+   * Get memory usage
    */
   private getMemoryUsage(): { used: number; total: number; percentage: number } | undefined {
     try {
-      // 在浏览器环境中，尝试使用 performance.memory API
+      // In a browser environment, try to use the performance.memory API
       if (typeof performance !== 'undefined' && 'memory' in performance) {
         const memory = (performance as any).memory;
         return {
@@ -396,13 +396,13 @@ export class PerformanceMonitor implements IPerformanceMonitor {
       
       return undefined;
     } catch (error) {
-      // 忽略内存获取错误
+      // Ignore memory fetch errors
       return undefined;
     }
   }
 
   /**
-   * 格式化持续时间
+   * Format duration
    */
   private formatDuration(ms: number): string {
     if (ms < 1000) {
@@ -413,36 +413,36 @@ export class PerformanceMonitor implements IPerformanceMonitor {
   }
 
   /**
-   * 获取性能报告
+   * Get performance report
    */
   getPerformanceReport(): string {
     try {
       const metrics = this.getMetrics();
       const uptime = this.getUptime();
       
-      let report = '=== 性能监控报告 ===\n';
-      report += `运行时间: ${this.formatDuration(uptime)}\n`;
-      report += `总操作数: ${metrics.totalOperations}\n`;
-      report += `成功操作: ${metrics.successfulOperations}\n`;
-      report += `失败操作: ${metrics.failedOperations}\n`;
-      report += `平均响应时间: ${this.formatDuration(metrics.averageDuration)}\n`;
-      report += `最快响应时间: ${this.formatDuration(metrics.minDuration)}\n`;
-      report += `最慢响应时间: ${this.formatDuration(metrics.maxDuration)}\n`;
+      let report = '=== Performance Monitoring Report ===\n';
+      report += `Uptime: ${this.formatDuration(uptime)}\n`;
+      report += `Total Operations: ${metrics.totalOperations}\n`;
+      report += `Successful Operations: ${metrics.successfulOperations}\n`;
+      report += `Failed Operations: ${metrics.failedOperations}\n`;
+      report += `Average Response Time: ${this.formatDuration(metrics.averageDuration)}\n`;
+      report += `Fastest Response Time: ${this.formatDuration(metrics.minDuration)}\n`;
+      report += `Slowest Response Time: ${this.formatDuration(metrics.maxDuration)}\n`;
       
       if (metrics.memoryUsage) {
-        report += `内存使用: ${(metrics.memoryUsage.used / 1024 / 1024).toFixed(2)}MB / ${(metrics.memoryUsage.total / 1024 / 1024).toFixed(2)}MB (${metrics.memoryUsage.percentage.toFixed(1)}%)\n`;
+        report += `Memory Usage: ${(metrics.memoryUsage.used / 1024 / 1024).toFixed(2)}MB / ${(metrics.memoryUsage.total / 1024 / 1024).toFixed(2)}MB (${metrics.memoryUsage.percentage.toFixed(1)}%)\n`;
       }
       
-      report += '\n操作类型统计:\n';
+      report += '\nOperation Type Statistics:\n';
       for (const [name, stats] of Object.entries(metrics.operationsByType)) {
         const typeStats = stats as any;
-        report += `  ${name}: ${typeStats.count}次, 平均${this.formatDuration(typeStats.averageDuration)}, 成功率${typeStats.successRate.toFixed(1)}%\n`;
+        report += `  ${name}: ${typeStats.count} times, avg ${this.formatDuration(typeStats.averageDuration)}, success rate ${typeStats.successRate.toFixed(1)}%\n`;
       }
       
       return report;
     } catch (error) {
-      console.error('生成性能报告失败:', error);
-      return '性能报告生成失败';
+      console.error('Failed to generate performance report:', error);
+      return 'Failed to generate performance report';
     }
   }
 }

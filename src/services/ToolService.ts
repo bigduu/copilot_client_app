@@ -118,10 +118,14 @@ export class ToolService {
       {
         role: "system",
         content: systemPrompt,
+        id: "system-prompt",
+        createdAt: new Date().toISOString(),
       },
       {
         role: "user",
         content: toolCall.user_description,
+        id: "user-prompt",
+        createdAt: new Date().toISOString(),
       },
     ];
 
@@ -254,19 +258,19 @@ Extract parameter value:`;
       return parameters;
     }
 
-    // 简化的参数解析：根据工具参数定义解析 AI 响应
-    // 对于大多数工具，AI 应该返回适合的参数值
+    // Simplified parameter parsing: parse AI response based on tool parameter definitions
+    // For most tools, the AI should return suitable parameter values
     if (tool.parameters.length === 1) {
-      // 单参数工具：直接使用 AI 响应作为参数值
+      // Single-parameter tool: directly use the AI response as the parameter value
       parameters.push({
         name: tool.parameters[0].name,
         value: trimmedResponse,
       });
     } else if (tool.parameters.length > 1) {
-      // 多参数工具：尝试按行分割或使用整个响应作为第一个参数
+      // Multi-parameter tool: try to split by line or use the entire response as the first parameter
       const lines = trimmedResponse.split('\n').filter(line => line.trim());
       if (lines.length >= tool.parameters.length) {
-        // 按行分配参数
+        // Assign parameters by line
         tool.parameters.forEach((param, index) => {
           parameters.push({
             name: param.name,
@@ -274,14 +278,14 @@ Extract parameter value:`;
           });
         });
       } else {
-        // 回退：使用用户描述作为第一个参数的值
+        // Fallback: use the user description as the value for the first parameter
         parameters.push({
           name: tool.parameters[0].name,
           value: userDescription,
         });
       }
     } else {
-      throw new Error(`工具 "${tool.name}" 没有定义参数`);
+      throw new Error(`Tool "${tool.name}" has no parameters defined`);
     }
 
     return parameters;
@@ -297,10 +301,10 @@ Extract parameter value:`;
   ): Promise<string> {
     const paramStr = parameters.map((p) => `${p.name}: ${p.value}`).join(", ");
 
-    // 简化的结果格式化：根据工具类型和参数推断代码语言
+    // Simplified result formatting: infer code language from tool type and parameters
     let codeLanguage = "text";
 
-    // 尝试从文件路径参数推断语言
+    // Try to infer language from file path parameter
     const pathParam = parameters.find((p) =>
       p.name.toLowerCase().includes("path") ||
       p.name.toLowerCase().includes("file")
@@ -360,12 +364,12 @@ ${result}
       const tools = await this.getAvailableTools();
       const tool = tools.find((tool) => tool.name === toolName);
       if (!tool) {
-        throw new Error(`工具 "${toolName}" 不存在，请检查工具是否已在后端正确注册`);
+        throw new Error(`Tool "${toolName}" does not exist. Please check if the tool is correctly registered in the backend`);
       }
       return tool;
     } catch (error) {
       console.error("Failed to get tool info:", error);
-      throw new Error(`获取工具 "${toolName}" 信息失败: ${error}`);
+      throw new Error(`Failed to get information for tool "${toolName}": ${error}`);
     }
   }
 
@@ -377,8 +381,8 @@ ${result}
     systemPromptId: string
   ): Promise<boolean> {
     if (!systemPromptId) {
-      // 严格模式：没有系统提示时不应该有默认行为
-      throw new Error("系统提示词ID必须提供，不能使用默认权限配置");
+      // Strict mode: there should be no default behavior without a system prompt
+      throw new Error("System prompt ID must be provided; default permission configuration cannot be used");
     }
 
     try {
@@ -387,24 +391,24 @@ ${result}
       );
 
       if (!preset) {
-        throw new Error(`系统提示词预设 "${systemPromptId}" 不存在，无法检查工具权限`);
+        throw new Error(`System prompt preset "${systemPromptId}" does not exist, cannot check tool permissions`);
       }
 
-      // 通用模式（general）：允许使用所有工具
-      // 这是因为通用助手类别应该能够访问所有可用的工具
+      // General mode: allow all tools
+      // This is because the general assistant category should have access to all available tools
       if (preset.mode !== "tool_specific") {
         return true;
       }
 
-      // 工具专用模式：检查工具是否在允许列表中
+      // Tool-specific mode: check if the tool is in the allowed list
       if (!preset.allowedTools) {
-        throw new Error(`工具专用模式的允许工具列表未配置，系统提示词 "${systemPromptId}" 缺少必要配置`);
+        throw new Error(`Allowed tools list for tool-specific mode is not configured. System prompt "${systemPromptId}" is missing necessary configuration`);
       }
 
       return preset.allowedTools.includes(toolName);
     } catch (error) {
       console.error("Failed to check tool permission:", error);
-      throw new Error(`检查工具 "${toolName}" 权限失败: ${error}`);
+      throw new Error(`Failed to check permission for tool "${toolName}": ${error}`);
     }
   }
 
@@ -416,7 +420,7 @@ ${result}
     systemPromptId: string
   ): Promise<string> {
     if (!systemPromptId) {
-      throw new Error("系统提示词ID必须提供，不能使用默认前缀配置");
+      throw new Error("System prompt ID must be provided; default prefix configuration cannot be used");
     }
     
     if (!message.trim()) {
@@ -429,7 +433,7 @@ ${result}
       );
 
       if (!preset) {
-        throw new Error(`系统提示词预设 "${systemPromptId}" 不存在，无法自动添加工具前缀`);
+        throw new Error(`System prompt preset "${systemPromptId}" does not exist, cannot automatically add tool prefix`);
       }
 
       if (preset.mode === "tool_specific" && preset.autoToolPrefix) {
@@ -441,7 +445,7 @@ ${result}
       return message;
     } catch (error) {
       console.error("Failed to auto add tool prefix:", error);
-      throw new Error(`自动添加工具前缀失败: ${error}`);
+      throw new Error(`Failed to automatically add tool prefix: ${error}`);
     }
   }
 
@@ -473,7 +477,7 @@ ${result}
     systemPromptId: string
   ): Promise<ValidationResult> {
     if (!systemPromptId) {
-      throw new Error("系统提示词ID必须提供，不能使用默认对话验证配置");
+      throw new Error("System prompt ID must be provided; default conversation validation configuration cannot be used");
     }
 
     try {
@@ -482,7 +486,7 @@ ${result}
       );
 
       if (!preset) {
-        throw new Error(`系统提示词预设 "${systemPromptId}" 不存在，无法验证对话权限`);
+        throw new Error(`System prompt preset "${systemPromptId}" does not exist, cannot validate conversation permissions`);
       }
 
       if (preset.restrictConversation) {
@@ -492,7 +496,7 @@ ${result}
           return {
             isValid: false,
             errorMessage:
-              "当前模式仅支持工具调用，不支持普通对话",
+              "Current mode only supports tool calls, not regular conversation",
           };
         }
       }
@@ -500,7 +504,7 @@ ${result}
       return { isValid: true };
     } catch (error) {
       console.error("Failed to validate conversation:", error);
-      throw new Error(`验证对话权限失败: ${error}`);
+      throw new Error(`Failed to validate conversation permissions: ${error}`);
     }
   }
 
@@ -552,30 +556,30 @@ ${result}
   }
 
   /**
-   * 获取工具类别权重 (用于排序)
+   * Get tool category weight (for sorting)
    */
   async getCategoryWeight(categoryId: string): Promise<number> {
     try {
-      // 使用新的get_tool_categories命令获取按优先级排序的类别
+      // Use the new get_tool_categories command to get categories sorted by priority
       const categories = await invoke<any[]>('get_tool_categories');
 
-      // 根据类别在数组中的位置计算权重
-      // 数组已经按优先级排序，所以索引就是权重
+      // Calculate weight based on the category's position in the array
+      // The array is already sorted by priority, so the index is the weight
       const categoryIndex = categories.findIndex(cat => cat.id === categoryId);
 
       if (categoryIndex === -1) {
-        throw new Error(`工具类别 "${categoryId}" 的排序权重未配置。请检查后端是否已注册该类别。`);
+        throw new Error(`Sort weight for tool category "${categoryId}" is not configured. Please check if the category is registered in the backend.`);
       }
 
-      return categoryIndex + 1; // 权重从1开始
+      return categoryIndex + 1; // Weight starts from 1
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
-      throw new Error(`获取工具类别 "${categoryId}" 权重失败: ${errorMessage}`);
+      throw new Error(`Failed to get weight for tool category "${categoryId}": ${errorMessage}`);
     }
   }
 
   /**
-   * 获取工具类别显示信息
+   * Get tool category display information
    */
   async getCategoryDisplayInfo(categoryId: string): Promise<{
     name: string;
@@ -584,26 +588,26 @@ ${result}
     color?: string;
   }> {
     try {
-      // 使用新的get_tool_categories命令获取类别信息
+      // Use the new get_tool_categories command to get category information
       const categories = await invoke<any[]>('get_tool_categories');
 
-      // 查找指定类别
+      // Find the specified category
       const category = categories.find(cat => cat.id === categoryId);
 
       if (!category) {
-        throw new Error(`工具类别 "${categoryId}" 未找到。请检查后端是否已注册该类别。`);
+        throw new Error(`Tool category "${categoryId}" not found. Please check if the category is registered in the backend.`);
       }
 
-      // 返回显示信息，直接使用后端提供的数据，不进行任何硬编码映射
+      // Return display information, directly using data provided by the backend without any hardcoded mapping
       return {
         name: category.display_name || category.name || categoryId,
-        icon: category.emoji_icon || '🔧', // 使用emoji图标而不是字符串名称
+        icon: category.emoji_icon || '🔧', // Use emoji icon instead of string name
         description: category.description || '',
-        color: category.color || '#666666' // 直接使用后端提供的颜色，如果没有则使用默认值
+        color: category.color || '#666666' // Directly use the color provided by the backend, or a default value if not available
       };
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
-      throw new Error(`获取工具类别 "${categoryId}" 显示信息失败: ${errorMessage}`);
+      throw new Error(`Failed to get display information for tool category "${categoryId}": ${errorMessage}`);
     }
   }
 

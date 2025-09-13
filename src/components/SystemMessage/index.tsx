@@ -16,7 +16,7 @@ const SystemMessage: React.FC<SystemMessageProps> = () => {
 
   // Get the current chat context
   const { currentChat } = useChats();
-  // TODO: systemPrompt 需要从 currentChat 中获取
+  // TODO: systemPrompt needs to be retrieved from currentChat
   const systemPrompt = currentChat?.systemPrompt || "";
 
   // State for category description

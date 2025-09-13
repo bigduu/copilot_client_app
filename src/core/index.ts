@@ -1,23 +1,23 @@
 /**
- * UnifiedChatManager 核心模块主要导出文件
- * 提供统一的入口点，导出所有核心类和接口
+ * Main export file for the UnifiedChatManager core module
+ * Provides a unified entry point, exporting all core classes and interfaces
  */
 
-// 核心管理器
+// Core Manager
 export { UnifiedChatManager } from './UnifiedChatManager';
 
-// 支持组件
+// Support Components
 export { StateManager } from './StateManager';
 export { AttachmentProcessor } from './AttachmentProcessor';
 export { ApprovalManager } from './ApprovalManager';
 export { ErrorHandler } from './ErrorHandler';
 export { PerformanceMonitor } from './PerformanceMonitor';
 
-// 接口定义
+// Interface Definitions
 export * from '../interfaces/chat-manager';
 
-// 类型定义
+// Type Definitions
 export * from '../types/unified-chat';
 
-// 默认导出 - 便于直接导入使用
+// Default export - for easy direct import
 export { UnifiedChatManager as default } from './UnifiedChatManager';

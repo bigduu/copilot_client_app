@@ -378,7 +378,7 @@ const MessageCard: React.FC<MessageCardProps> = ({
                 </ReactMarkdown>
               )}
 
-              {/* 流式显示光标 */}
+              {/* Blinking cursor for streaming */}
               {isStreaming && role === "assistant" && (
                 <span
                   className="blinking-cursor"

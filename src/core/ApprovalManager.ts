@@ -9,7 +9,7 @@ import {
 } from '../types/unified-chat';
 
 /**
- * 审批事件类型
+ * Approval Event Type
  */
 interface ApprovalEvent {
   type: 'approval_requested' | 'approval_approved' | 'approval_rejected' | 'approval_timeout';
@@ -20,7 +20,7 @@ interface ApprovalEvent {
 }
 
 /**
- * 待审批操作
+ * Pending Approval Operation
  */
 interface PendingApproval {
   operationId: string;
@@ -32,8 +32,8 @@ interface PendingApproval {
 }
 
 /**
- * 审批管理器
- * 管理自动和手动审批流程
+ * Approval Manager
+ * Manages automatic and manual approval processes
  */
 export class ApprovalManager implements IApprovalManager {
   private initialized = false;
@@ -43,39 +43,39 @@ export class ApprovalManager implements IApprovalManager {
   private approvalHistory = new Map<string, ApprovalFlow>();
 
   constructor() {
-    // 默认配置
+    // Default configuration
     this.globalConfig = {
       autoApprove: false,
-      approvalTimeout: 30000, // 30秒超时
-      approvalMessage: '请确认是否执行此操作',
+      approvalTimeout: 30000, // 30-second timeout
+      approvalMessage: 'Please confirm whether to perform this operation',
       requiredApprovers: []
     };
   }
 
   /**
-   * 请求审批
+   * Request Approval
    */
   async requestApproval(messageId: string, config?: ApprovalConfig): Promise<OperationResult<void>> {
     try {
       if (!this.initialized) {
-        throw new Error('ApprovalManager 未初始化');
+        throw new Error('ApprovalManager is not initialized');
       }
 
       const operationId = this.generateOperationId();
       const effectiveConfig = { ...this.globalConfig, ...config };
 
-      // 检查是否自动审批
+      // Check for auto-approval
       if (effectiveConfig.autoApprove) {
         const approvalFlow: ApprovalFlow = {
           approved: true,
           automatic: true,
           timestamp: Date.now(),
-          details: { reason: '自动审批' }
+          details: { reason: 'Auto-approved' }
         };
 
         this.approvalHistory.set(operationId, approvalFlow);
         
-        // 发布审批事件
+        // Publish approval event
         this.publishEvent({
           type: 'approval_approved',
           operationId,
@@ -86,11 +86,11 @@ export class ApprovalManager implements IApprovalManager {
 
         return {
           success: true,
-          message: '操作已自动审批'
+          message: 'Operation has been auto-approved'
         };
       }
 
-      // 创建待审批记录
+      // Create pending approval record
       const pendingApproval: PendingApproval = {
         operationId,
         messageId,
@@ -99,7 +99,7 @@ export class ApprovalManager implements IApprovalManager {
         data: config
       };
 
-      // 设置超时处理
+      // Set timeout handling
       if (effectiveConfig.approvalTimeout && effectiveConfig.approvalTimeout > 0) {
         pendingApproval.timeout = window.setTimeout(() => {
           this.handleTimeout(operationId);
@@ -108,7 +108,7 @@ export class ApprovalManager implements IApprovalManager {
 
       this.pendingApprovals.set(operationId, pendingApproval);
 
-      // 发布审批请求事件
+      // Publish approval request event
       this.publishEvent({
         type: 'approval_requested',
         operationId,
@@ -123,87 +123,87 @@ export class ApprovalManager implements IApprovalManager {
       return {
         success: true,
         data: undefined,
-        message: '审批请求已提交，等待审批'
+        message: 'Approval request submitted, awaiting approval'
       };
     } catch (error) {
-      console.error('请求审批失败:', error);
+      console.error('Failed to request approval:', error);
       return {
         success: false,
         error: error instanceof Error ? error.message : String(error),
-        message: '审批请求失败'
+        message: 'Failed to request approval'
       };
     }
   }
 
   /**
-   * 配置审批设置
+   * Configure Approval Settings
    */
   async configure(config: ApprovalConfig): Promise<OperationResult<void>> {
     try {
       if (!this.initialized) {
-        throw new Error('ApprovalManager 未初始化');
+        throw new Error('ApprovalManager is not initialized');
       }
 
-      // 验证配置
+      // Validate configuration
       this.validateConfig(config);
 
-      // 更新全局配置
+      // Update global configuration
       this.globalConfig = { ...this.globalConfig, ...config };
 
       return {
         success: true,
-        message: '审批配置已更新'
+        message: 'Approval configuration has been updated'
       };
     } catch (error) {
-      console.error('配置审批设置失败:', error);
+      console.error('Failed to configure approval settings:', error);
       return {
         success: false,
         error: error instanceof Error ? error.message : String(error),
-        message: '审批配置失败'
+        message: 'Failed to configure approval'
       };
     }
   }
 
   /**
-   * 批准操作
+   * Approve Operation
    */
   async approve(operationId: string): Promise<OperationResult<void>> {
     try {
       if (!this.initialized) {
-        throw new Error('ApprovalManager 未初始化');
+        throw new Error('ApprovalManager is not initialized');
       }
 
       const pendingApproval = this.pendingApprovals.get(operationId);
       if (!pendingApproval) {
         return {
           success: false,
-          error: '操作不存在或已处理',
-          message: `操作 ${operationId} 不存在或已处理`
+          error: 'Operation does not exist or has been processed',
+          message: `Operation ${operationId} does not exist or has been processed`
         };
       }
 
-      // 清理超时定时器
+      // Clear timeout timer
       if (pendingApproval.timeout) {
         window.clearTimeout(pendingApproval.timeout);
       }
 
-      // 移除待审批记录
+      // Remove pending approval record
       this.pendingApprovals.delete(operationId);
 
-      // 记录审批结果
+      // Record approval result
       const approvalFlow: ApprovalFlow = {
         approved: true,
         automatic: false,
         timestamp: Date.now(),
         details: {
           approvedAt: new Date().toISOString(),
-          reason: '手动审批通过'
+          reason: 'Manually approved'
         }
       };
 
       this.approvalHistory.set(operationId, approvalFlow);
 
-      // 发布审批通过事件
+      // Publish approval event
       this.publishEvent({
         type: 'approval_approved',
         operationId,
@@ -214,58 +214,58 @@ export class ApprovalManager implements IApprovalManager {
 
       return {
         success: true,
-        message: '操作已批准'
+        message: 'Operation has been approved'
       };
     } catch (error) {
-      console.error('批准操作失败:', error);
+      console.error('Failed to approve operation:', error);
       return {
         success: false,
         error: error instanceof Error ? error.message : String(error),
-        message: '批准操作失败'
+        message: 'Failed to approve operation'
       };
     }
   }
 
   /**
-   * 拒绝操作
+   * Reject Operation
    */
   async reject(operationId: string, reason?: string): Promise<OperationResult<void>> {
     try {
       if (!this.initialized) {
-        throw new Error('ApprovalManager 未初始化');
+        throw new Error('ApprovalManager is not initialized');
       }
 
       const pendingApproval = this.pendingApprovals.get(operationId);
       if (!pendingApproval) {
         return {
           success: false,
-          error: '操作不存在或已处理',
-          message: `操作 ${operationId} 不存在或已处理`
+          error: 'Operation does not exist or has been processed',
+          message: `Operation ${operationId} does not exist or has been processed`
         };
       }
 
-      // 清理超时定时器
+      // Clear timeout timer
       if (pendingApproval.timeout) {
         window.clearTimeout(pendingApproval.timeout);
       }
 
-      // 移除待审批记录
+      // Remove pending approval record
       this.pendingApprovals.delete(operationId);
 
-      // 记录审批结果
+      // Record approval result
       const approvalFlow: ApprovalFlow = {
         approved: false,
         automatic: false,
         timestamp: Date.now(),
         details: {
           rejectedAt: new Date().toISOString(),
-          reason: reason || '手动拒绝'
+          reason: reason || 'Manually rejected'
         }
       };
 
       this.approvalHistory.set(operationId, approvalFlow);
 
-      // 发布审批拒绝事件
+      // Publish rejection event
       this.publishEvent({
         type: 'approval_rejected',
         operationId,
@@ -276,20 +276,20 @@ export class ApprovalManager implements IApprovalManager {
 
       return {
         success: true,
-        message: '操作已拒绝'
+        message: 'Operation has been rejected'
       };
     } catch (error) {
-      console.error('拒绝操作失败:', error);
+      console.error('Failed to reject operation:', error);
       return {
         success: false,
         error: error instanceof Error ? error.message : String(error),
-        message: '拒绝操作失败'
+        message: 'Failed to reject operation'
       };
     }
   }
 
   /**
-   * 订阅审批事件
+   * Subscribe to Approval Events
    */
   subscribe(callback: (event: any) => void): () => void {
     this.subscribers.add(callback);
@@ -300,7 +300,7 @@ export class ApprovalManager implements IApprovalManager {
   }
 
   /**
-   * 初始化
+   * Initialize
    */
   async initialize(): Promise<void> {
     if (this.initialized) {
@@ -308,42 +308,42 @@ export class ApprovalManager implements IApprovalManager {
     }
 
     try {
-      // 清理所有待审批操作
+      // Clear all pending approvals
       this.clearAllPendingApprovals();
       
-      // 清理历史记录
+      // Clear history
       this.approvalHistory.clear();
 
       this.initialized = true;
-      console.log('ApprovalManager 初始化完成');
+      console.log('ApprovalManager initialized successfully');
     } catch (error) {
-      throw new Error(`ApprovalManager 初始化失败: ${error instanceof Error ? error.message : String(error)}`);
+      throw new Error(`ApprovalManager initialization failed: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
 
   /**
-   * 销毁
+   * Dispose
    */
   async dispose(): Promise<void> {
     try {
-      // 清理所有待审批操作
+      // Clear all pending approvals
       this.clearAllPendingApprovals();
       
-      // 清理订阅者
+      // Clear subscribers
       this.subscribers.clear();
       
-      // 清理历史记录
+      // Clear history
       this.approvalHistory.clear();
       
       this.initialized = false;
-      console.log('ApprovalManager 已销毁');
+      console.log('ApprovalManager has been disposed');
     } catch (error) {
-      console.error('ApprovalManager 销毁失败:', error);
+      console.error('ApprovalManager disposal failed:', error);
     }
   }
 
   /**
-   * 获取待审批操作列表
+   * Get List of Pending Approvals
    */
   getPendingApprovals(): Array<{ operationId: string; messageId: string; requestedAt: Date; config: ApprovalConfig }> {
     return Array.from(this.pendingApprovals.values()).map(approval => ({
@@ -355,7 +355,7 @@ export class ApprovalManager implements IApprovalManager {
   }
 
   /**
-   * 获取审批历史
+   * Get Approval History
    */
   getApprovalHistory(): Array<{ operationId: string; flow: ApprovalFlow }> {
     return Array.from(this.approvalHistory.entries()).map(([operationId, flow]) => ({
@@ -365,14 +365,14 @@ export class ApprovalManager implements IApprovalManager {
   }
 
   /**
-   * 获取全局配置
+   * Get Global Configuration
    */
   getGlobalConfig(): ApprovalConfig {
     return { ...this.globalConfig };
   }
 
   /**
-   * 处理超时
+   * Handle Timeout
    */
   private handleTimeout(operationId: string): void {
     try {
@@ -381,23 +381,23 @@ export class ApprovalManager implements IApprovalManager {
         return;
       }
 
-      // 移除待审批记录
+      // Remove pending approval record
       this.pendingApprovals.delete(operationId);
 
-      // 记录超时结果
+      // Record timeout result
       const approvalFlow: ApprovalFlow = {
         approved: false,
         automatic: true,
         timestamp: Date.now(),
         details: {
-          reason: '审批超时',
+          reason: 'Approval timed out',
           timeoutAt: new Date().toISOString()
         }
       };
 
       this.approvalHistory.set(operationId, approvalFlow);
 
-      // 发布超时事件
+      // Publish timeout event
       this.publishEvent({
         type: 'approval_timeout',
         operationId,
@@ -406,12 +406,12 @@ export class ApprovalManager implements IApprovalManager {
         timestamp: Date.now()
       });
     } catch (error) {
-      console.error('处理审批超时失败:', error);
+      console.error('Failed to handle approval timeout:', error);
     }
   }
 
   /**
-   * 发布事件
+   * Publish Event
    */
   private publishEvent(event: ApprovalEvent): void {
     try {
@@ -419,39 +419,39 @@ export class ApprovalManager implements IApprovalManager {
         try {
           subscriber(event);
         } catch (error) {
-          console.error('订阅者执行失败:', error);
+          console.error('Subscriber execution failed:', error);
         }
       }
     } catch (error) {
-      console.error('发布审批事件失败:', error);
+      console.error('Failed to publish approval event:', error);
     }
   }
 
   /**
-   * 验证配置
+   * Validate Configuration
    */
   private validateConfig(config: ApprovalConfig): void {
     if (config.approvalTimeout !== undefined) {
       if (typeof config.approvalTimeout !== 'number' || config.approvalTimeout < 0) {
-        throw new Error('审批超时时间必须是非负数');
+        throw new Error('Approval timeout must be a non-negative number');
       }
     }
 
     if (config.requiredApprovers !== undefined) {
       if (!Array.isArray(config.requiredApprovers)) {
-        throw new Error('必需审批者必须是数组');
+        throw new Error('Required approvers must be an array');
       }
     }
 
     if (config.approvalMessage !== undefined) {
       if (typeof config.approvalMessage !== 'string' || config.approvalMessage.trim() === '') {
-        throw new Error('审批消息不能为空');
+        throw new Error('Approval message cannot be empty');
       }
     }
   }
 
   /**
-   * 清理所有待审批操作
+   * Clear All Pending Approvals
    */
   private clearAllPendingApprovals(): void {
     try {
@@ -462,12 +462,12 @@ export class ApprovalManager implements IApprovalManager {
       }
       this.pendingApprovals.clear();
     } catch (error) {
-      console.error('清理待审批操作失败:', error);
+      console.error('Failed to clear pending approvals:', error);
     }
   }
 
   /**
-   * 生成操作ID
+   * Generate Operation ID
    */
   private generateOperationId(): string {
     return `approval_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;

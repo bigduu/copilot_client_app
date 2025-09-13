@@ -42,7 +42,9 @@ const SystemPromptSelector: React.FC<SystemPromptSelectorProps> = ({
   showCancelButton = true,
 }) => {
   const { token } = useToken();
-  const lastSelectedPromptId = useAppStore((state) => state.lastSelectedPromptId);
+  const lastSelectedPromptId = useAppStore(
+    (state) => state.lastSelectedPromptId
+  );
   const setLastSelectedPromptId = useAppStore(
     (state) => state.setLastSelectedPromptId
   );
@@ -108,7 +110,9 @@ const SystemPromptSelector: React.FC<SystemPromptSelectorProps> = ({
     presets.forEach((preset) => {
       const category = preset.category;
       if (!category) {
-        throw new Error("系统提示预设缺少类别信息，无法分组");
+        throw new Error(
+          "System prompt preset is missing category information and cannot be grouped."
+        );
       }
       if (!groups[category]) {
         groups[category] = [];
@@ -123,7 +127,7 @@ const SystemPromptSelector: React.FC<SystemPromptSelectorProps> = ({
   const categoryOrder = useMemo(() => {
     const categories = Object.keys(groupedPresets);
     return categories.sort((a, b) => {
-      // 排序逻辑应该从后端配置获取，这里只提供基本的字典排序
+      // The sorting logic should be obtained from the backend configuration, here only basic dictionary sorting is provided
       return a.localeCompare(b);
     });
   }, [groupedPresets]);

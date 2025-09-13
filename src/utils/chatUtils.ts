@@ -113,7 +113,7 @@ export const groupChatsByToolCategory = (
   chats
     .filter((chat) => !chat.pinned)
     .forEach((chat) => {
-      const category = chat.toolCategory || "General"; // 默认分类为 "General"
+      const category = chat.toolCategory || "General"; // Default category is "General"
       if (!grouped[category]) {
         grouped[category] = [];
       }
@@ -207,7 +207,7 @@ export interface CategoryDisplayInfo {
 export const getCategoryDisplayInfo = (
   category: string
 ): CategoryDisplayInfo => {
-  // 固定的特殊分组处理
+  // Fixed special group handling
   if (category === "Pinned") {
     return {
       name: "Pinned Chats",
@@ -217,18 +217,18 @@ export const getCategoryDisplayInfo = (
     };
   }
 
-  // 对于工具类别，必须从后端动态获取配置
-  throw new Error(`工具类别 "${category}" 的显示信息必须从后端配置获取，前端不提供硬编码配置`);
+  // For tool categories, the configuration must be dynamically obtained from the backend
+  throw new Error(`Display information for tool category "${category}" must be obtained from the backend configuration; no hardcoded configuration is provided on the frontend`);
 };
 
 /**
- * Get category display information (异步版本)
- * 从后端获取类别显示信息
+ * Get category display information (async version)
+ * Get category display information from the backend
  */
 export const getCategoryDisplayInfoAsync = async (
   category: string
 ): Promise<CategoryDisplayInfo> => {
-  // 固定的特殊分组处理
+  // Fixed special group handling
   if (category === "Pinned") {
     return {
       name: "Pinned Chats",
@@ -238,49 +238,49 @@ export const getCategoryDisplayInfoAsync = async (
     };
   }
 
-  // 从ToolService获取类别显示信息
+  // Get category display information from ToolService
   try {
     const { ToolService } = await import('../services/ToolService');
     const toolService = ToolService.getInstance();
     return await toolService.getCategoryDisplayInfo(category);
   } catch (error) {
-    console.error('获取工具类别显示信息失败:', error);
-    throw new Error(`工具类别 "${category}" 的显示信息未配置。请检查后端是否已注册该类别。`);
+    console.error('Failed to get tool category display information:', error);
+    throw new Error(`Display information for tool category "${category}" is not configured. Please check if the category is registered in the backend.`);
   }
 };
 
 /**
  * Get sorting weight for tool categories
- * 同步版本：用于已知有后端配置的情况
+ * Sync version: for cases where backend configuration is known to exist
  */
 export const getCategoryWeight = (category: string): number => {
-  // 固定的特殊分组处理
+  // Fixed special group handling
   if (category === "Pinned") {
     return 0;
   }
 
-  // 对于工具类别，排序权重必须从后端配置获取
-  throw new Error(`工具类别 "${category}" 的排序权重必须从后端配置获取，前端不提供硬编码配置`);
+  // For tool categories, the sort weight must be obtained from the backend configuration
+  throw new Error(`The sort weight for tool category "${category}" must be obtained from the backend configuration; the frontend does not provide a hardcoded configuration.`);
 };
 
 /**
- * Get sorting weight for tool categories (异步版本)
- * 从后端获取类别权重
+ * Get sorting weight for tool categories (async version)
+ * Get category weight from the backend
  */
 export const getCategoryWeightAsync = async (category: string): Promise<number> => {
-  // 固定的特殊分组处理
+  // Fixed special group handling
   if (category === "Pinned") {
     return 0;
   }
 
-  // 从ToolService获取权重
+  // Get weight from ToolService
   try {
     const { ToolService } = await import('../services/ToolService');
     const toolService = ToolService.getInstance();
     return await toolService.getCategoryWeight(category);
   } catch (error) {
-    console.error('获取工具类别权重失败:', error);
-    throw new Error(`工具类别 "${category}" 的排序权重未配置。请检查后端是否已注册该类别。`);
+    console.error('Failed to get tool category weight:', error);
+    throw new Error(`Sort weight for tool category "${category}" is not configured. Please check if the category is registered in the backend.`);
   }
 };
 
