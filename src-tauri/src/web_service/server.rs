@@ -98,6 +98,12 @@ impl WebService {
     }
 }
 
+impl Default for WebService {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Drop for WebService {
     fn drop(&mut self) {
         if let Some(shutdown_tx) = self.shutdown_tx.take() {

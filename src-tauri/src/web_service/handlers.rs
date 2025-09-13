@@ -146,10 +146,10 @@ async fn handle_stream_request(
                                     index: 0,
                                     message: None,
                                     delta: Some(OpenAIDelta {
-                                        role: internal_chunk.choices.get(0).map(|c| c.delta.role.clone()).flatten(),
-                                        content: internal_chunk.choices.get(0).map(|c| c.delta.content.clone()).flatten(),
+                                        role: internal_chunk.choices.first().and_then(|c| c.delta.role.clone()),
+                                        content: internal_chunk.choices.first().and_then(|c| c.delta.content.clone()),
                                     }),
-                                    finish_reason: internal_chunk.choices.get(0)
+                                    finish_reason: internal_chunk.choices.first()
                                         .and_then(|c| c.finish_reason.clone()),
                                 }],
                             };
@@ -209,7 +209,7 @@ async fn handle_non_stream_request(
                         crate::copilot::model::stream_model::StreamChunk,
                     >(&chunk_str)
                     {
-                        if let Some(choice) = internal_chunk.choices.get(0) {
+                        if let Some(choice) = internal_chunk.choices.first() {
                             let delta = &choice.delta;
                             if let Some(content) = &delta.content {
                                 full_content.push_str(content);
