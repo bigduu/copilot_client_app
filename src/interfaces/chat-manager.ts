@@ -158,18 +158,6 @@ export interface PersistenceLayer {
   deleteMessage(chatId: string, messageId: string): Promise<void>;
 }
 
-// Performance Monitor Interface
-export interface PerformanceMonitor {
-  trackOperation(operationName: string, duration: number): void;
-  withTracking<T>(operationName: string, operation: () => Promise<T>): Promise<T>;
-  recordOperation(operation: string, duration: number): void;
-  getMetrics(): Record<string, any>;
-  
-  // Lifecycle
-  initialize(): Promise<void>;
-  dispose(): Promise<void>;
-}
-
 // Main ChatManager interface
 export interface ChatManager extends AtomicOperations {
   // Core Components
@@ -179,7 +167,6 @@ export interface ChatManager extends AtomicOperations {
   approvalManager: ApprovalManager;
   errorHandler: ErrorHandler;
   persistenceLayer: PersistenceLayer;
-  performanceMonitor: PerformanceMonitor;
 
   // Advanced Operations
   sendMessageWithAttachments(chatId: string, content: string, attachments: Attachment[]): Promise<MessageFlow>;
