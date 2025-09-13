@@ -34,14 +34,18 @@ export const ChatView: React.FC = () => {
       return null;
     }
 
+    const isWaiting = streamingMessage.content === "";
+
     return (
       <Flex justify="flex-start" style={{ width: "100%" }}>
         <MessageCard
           role="assistant"
-          content={streamingMessage.content}
+          content={
+            isWaiting ? "Assistant is thinking..." : streamingMessage.content
+          }
           messageId="streaming"
           onDelete={() => {}}
-          isStreaming={true}
+          isStreaming={!isWaiting}
         />
       </Flex>
     );
@@ -145,19 +149,6 @@ export const ChatView: React.FC = () => {
     }
   }, [currentChatId]);
 
-  useEffect(() => {
-    if (messagesEndRef.current && currentMessages.length > 0) {
-      messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
-    }
-  }, [currentMessages, isStreaming]);
-
-  // Add separate scroll effect for streaming messages
-  useEffect(() => {
-    if (messagesEndRef.current && streamingMessage) {
-      messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
-    }
-  }, [streamingMessage]);
-
   // Handler to show/hide scroll-to-bottom button
   const handleMessagesScroll = () => {
     const el = messagesListRef.current;
@@ -176,9 +167,10 @@ export const ChatView: React.FC = () => {
   };
 
   useEffect(() => {
-    scrollToBottom();
-    setShowScrollToBottom(false);
-  }, [currentMessages, isStreaming, streamingMessage]);
+    if (!showScrollToBottom) {
+      scrollToBottom();
+    }
+  }, [currentMessages, streamingMessage]);
 
   const hasMessages = currentMessages.length > 0;
   const showMessagesView = currentChatId && (hasMessages || isStreaming);
@@ -358,10 +350,7 @@ export const ChatView: React.FC = () => {
               margin: showMessagesView ? "0 auto" : undefined,
             }}
           >
-            <InputContainer
-              isStreaming={isStreaming}
-              isCenteredLayout={!showMessagesView}
-            />
+            <InputContainer isCenteredLayout={!showMessagesView} />
           </div>
         </Flex>
       </Flex>

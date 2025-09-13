@@ -100,10 +100,13 @@ export const useChats = (): UseChatsReturn => {
   };
 
   const deleteEmptyChats = () => {
-    const emptyChats = chats.filter(chat => !chat.pinned && chat.messages.length === 0);
-    const emptyChatsIds = emptyChats.map(chat => chat.id);
-    if (emptyChatsIds.length > 0) {
-      deleteChats(emptyChatsIds);
+    const emptyChats = chats.filter(chat => {
+      const chatMessages = messages[chat.id] || [];
+      return !chat.pinned && chatMessages.length === 0;
+    });
+    const emptyChatIds = emptyChats.map(chat => chat.id);
+    if (emptyChatIds.length > 0) {
+      deleteChats(emptyChatIds);
     }
   };
 

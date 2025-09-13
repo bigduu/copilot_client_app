@@ -21,7 +21,6 @@ import { useAppStore } from "../../store";
 // SystemPromptService has been removed, now using backend configuration
 
 const { Text, Title } = Typography;
-const { Panel } = Collapse;
 const { useToken } = theme;
 
 interface SystemPromptSelectorProps {
@@ -291,39 +290,37 @@ const SystemPromptSelector: React.FC<SystemPromptSelectorProps> = ({
         />
       ) : (
         <Collapse
-          defaultActiveKey={categoryOrder}
-          ghost
-          expandIconPosition="end"
-          style={{ backgroundColor: "transparent" }}
-        >
-          {categoryOrder.map((category) => (
-            <Panel
-              header={
-                <Space>
-                  {getCategoryIcon(category)}
-                  <Title level={5} style={{ margin: 0 }}>
-                    {getCategoryDisplayName(category)}
-                  </Title>
-                  <Text type="secondary">
-                    ({groupedPresets[category].length} items)
-                  </Text>
-                </Space>
-              }
-              key={category}
-              style={{
-                border: `1px solid ${token.colorBorderSecondary}`,
-                borderRadius: token.borderRadius,
-                marginBottom: token.marginXS,
-              }}
-            >
+          items={categoryOrder.map((category) => ({
+            key: category,
+            label: (
+              <Space>
+                {getCategoryIcon(category)}
+                <Title level={5} style={{ margin: 0 }}>
+                  {getCategoryDisplayName(category)}
+                </Title>
+                <Text type="secondary">
+                  ({groupedPresets[category].length} items)
+                </Text>
+              </Space>
+            ),
+            children: (
               <List
                 dataSource={groupedPresets[category]}
                 renderItem={renderPresetItem}
                 split={false}
               />
-            </Panel>
-          ))}
-        </Collapse>
+            ),
+            style: {
+              border: `1px solid ${token.colorBorderSecondary}`,
+              borderRadius: token.borderRadius,
+              marginBottom: token.marginXS,
+            },
+          }))}
+          defaultActiveKey={categoryOrder}
+          ghost
+          expandIconPosition="end"
+          style={{ backgroundColor: "transparent" }}
+        />
       )}
     </Modal>
   );

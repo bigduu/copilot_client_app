@@ -1,6 +1,6 @@
 import { StateCreator } from 'zustand';
 import { ChatItem, Message } from '../../types/chat';
-import { OptimizedStorageService, OptimizedChatItem } from '../../services/OptimizedStorageService';
+import { StorageService } from '../../services/StorageService';
 import type { AppState } from '../';
 
 export interface ChatSlice {
@@ -9,6 +9,8 @@ export interface ChatSlice {
   currentChatId: string | null;
   latestActiveChatId: string | null; // Store the last active chat ID
   messages: Record<string, Message[]>;
+  isProcessing: boolean;
+  streamingMessage: { chatId: string; content: string } | null;
 
   // Actions
   addChat: (chat: Omit<ChatItem, 'id'>) => void;
@@ -25,17 +27,19 @@ export interface ChatSlice {
   
   loadChats: () => Promise<void>;
   saveChats: () => Promise<void>;
-  saveChatsDebounced?: () => void;
+
+  setProcessing: (isProcessing: boolean) => void;
+  setStreamingMessage: (streamingMessage: { chatId: string; content: string } | null) => void;
 }
 
-const storageService = OptimizedStorageService.getInstance();
-
-export const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (set, get) => ({
+export const createChatSlice = (storageService: StorageService): StateCreator<AppState, [], [], ChatSlice> => (set, get) => ({
   // Initial state
   chats: [],
   currentChatId: null,
   latestActiveChatId: null,
   messages: {},
+  isProcessing: false,
+  streamingMessage: null,
 
   // Chat management actions
   addChat: (chatData) => {
@@ -55,8 +59,6 @@ export const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (set, 
       latestActiveChatId: newChat.id,
       messages: { ...state.messages, [newChat.id]: chatData.messages || [] }
     }));
-
-    get().saveChats();
   },
 
   selectChat: (chatId) => {
@@ -88,8 +90,6 @@ export const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (set, 
         latestActiveChatId: newLatestActiveChatId
       };
     });
-
-    get().saveChats();
   },
 
   deleteChats: (chatIds) => {
@@ -117,8 +117,6 @@ export const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (set, 
         latestActiveChatId: newLatestActiveChatId
       };
     });
-
-    get().saveChats();
   },
 
   updateChat: (chatId, updates) => {
@@ -130,8 +128,6 @@ export const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (set, 
           : chat
       )
     }));
-
-    get().saveChats();
   },
 
   pinChat: (chatId) => {
@@ -151,11 +147,6 @@ export const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (set, 
         [chatId]: [...(state.messages[chatId] || []), message]
       }
     }));
-
-    const store = get();
-    if (store.saveChatsDebounced) {
-      store.saveChatsDebounced();
-    }
   },
 
   updateMessage: (chatId, messageId, updates) => {
@@ -198,25 +189,13 @@ export const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (set, 
         }
       };
     });
-
-    get().saveChats();
   },
 
   // Data persistence
   loadChats: async () => {
     try {
-      const optimizedChats = await storageService.loadChats();
+      const { chats, messages } = await storageService.loadAllData();
       const latestActiveChatId = await storageService.loadLatestActiveChatId();
-
-      const chats: ChatItem[] = optimizedChats.map(chat => ({
-        ...chat,
-        messages: [],
-      }));
-
-      const messages: Record<string, Message[]> = {};
-      for (const chat of optimizedChats) {
-        messages[chat.id] = await storageService.loadMessages(chat.id);
-      }
 
       const migratedChats = chats.map(chat => {
         if (!chat.systemPromptId) {
@@ -236,48 +215,35 @@ export const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (set, 
         currentChatId = migratedChats[0].id;
       }
 
-      set(state => ({
-        ...state,
+      set({
         chats: migratedChats,
         messages,
         latestActiveChatId: latestActiveChatId,
-        currentChatId: currentChatId
-      }));
+        currentChatId: currentChatId,
+        isProcessing: false,
+        streamingMessage: null,
+      });
     } catch (error) {
       console.error('Failed to load chats:', error);
-      set(state => ({ ...state, chats: [], messages: {}, latestActiveChatId: null, currentChatId: null }));
+      set({ chats: [], messages: {}, latestActiveChatId: null, currentChatId: null, isProcessing: false, streamingMessage: null });
     }
   },
 
   saveChats: async () => {
     try {
       const { chats, messages, latestActiveChatId } = get();
-
-      const optimizedChats: OptimizedChatItem[] = chats.map(chat => ({
-        id: chat.id,
-        title: chat.title,
-        createdAt: chat.createdAt,
-        systemPrompt: chat.systemPrompt,
-        systemPromptId: chat.systemPromptId,
-        toolCategory: chat.toolCategory || 'general_assistant',
-        pinned: chat.pinned || false,
-        model: chat.model,
-        messageCount: messages[chat.id]?.length || 0,
-        lastMessageAt: messages[chat.id]?.length > 0 ? Date.now() : undefined,
-      }));
-
-      await storageService.saveChats(optimizedChats);
-
-      for (const chat of chats) {
-        const chatMessages = messages[chat.id] || [];
-        if (chatMessages.length > 0) {
-          await storageService.saveMessages(chat.id, chatMessages);
-        }
-      }
-
+      await storageService.saveAllData(chats, messages);
       await storageService.saveLatestActiveChatId(latestActiveChatId);
     } catch (error) {
       console.error('Failed to save chats:', error);
     }
+  },
+
+  setProcessing: (isProcessing) => {
+    set({ isProcessing });
+  },
+
+  setStreamingMessage: (streamingMessage) => {
+    set({ streamingMessage });
   },
 });

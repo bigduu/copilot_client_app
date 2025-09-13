@@ -60,9 +60,7 @@ export const ChatSidebar: React.FC<{
   const pinChat = useAppStore((state) => state.pinChat);
   const unpinChat = useAppStore((state) => state.unpinChat);
   const updateChat = useAppStore((state) => state.updateChat);
-  const systemPromptPresets = useAppStore(
-    (state) => state.systemPromptPresets
-  );
+  const systemPromptPresets = useAppStore((state) => state.systemPromptPresets);
 
   const loadSystemPromptPresets = useAppStore(
     (state) => state.loadSystemPromptPresets
@@ -73,8 +71,6 @@ export const ChatSidebar: React.FC<{
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   const [isNewChatSelectorOpen, setIsNewChatSelectorOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
-  const [isSelectMode, setIsSelectMode] = useState(false);
-  const [selectedChatIds, setSelectedChatIds] = useState<string[]>([]);
   const [footerHeight, setFooterHeight] = useState(0);
 
   // Add category info cache and loading state
@@ -711,19 +707,6 @@ export const ChatSidebar: React.FC<{
                                         onUnpin={unpinChat}
                                         onEdit={handleEditTitle}
                                         onGenerateTitle={handleGenerateTitle}
-                                        SelectMode={isSelectMode}
-                                        checked={selectedChatIds.includes(
-                                          chat.id
-                                        )}
-                                        onCheck={(chatId, checked) => {
-                                          setSelectedChatIds((prev) =>
-                                            checked
-                                              ? [...prev, chatId]
-                                              : prev.filter(
-                                                  (id) => id !== chatId
-                                                )
-                                          );
-                                        }}
                                       />
                                     )}
                                   />
@@ -868,25 +851,6 @@ export const ChatSidebar: React.FC<{
           </Button>
         </Tooltip>
 
-        {!collapsed && (
-          <Tooltip
-            placement={collapsed ? "right" : "top"}
-            title={isSelectMode ? "Exit Select Mode" : "Select Mode"}
-          >
-            <Button
-              type={isSelectMode ? "default" : "dashed"}
-              onClick={() => {
-                setIsSelectMode(!isSelectMode);
-                setSelectedChatIds([]);
-              }}
-              block
-              size={screens.xs ? "small" : "middle"}
-            >
-              {isSelectMode ? "Exit Select Mode" : "Select Mode"}
-            </Button>
-          </Tooltip>
-        )}
-
         <Tooltip
           placement={collapsed ? "right" : "top"}
           title="System Settings"
@@ -906,32 +870,6 @@ export const ChatSidebar: React.FC<{
             {!collapsed && "System Settings"}
           </Button>
         </Tooltip>
-
-        {isSelectMode && !collapsed && (
-          <Button
-            danger
-            type="primary"
-            disabled={selectedChatIds.length === 0}
-            onClick={() => {
-              Modal.confirm({
-                title: `Delete selected chats`,
-                content: `Are you sure you want to delete the selected ${selectedChatIds.length} chats? This action cannot be undone.`,
-                okText: "Delete",
-                okType: "danger",
-                cancelText: "Cancel",
-                onOk: () => {
-                  deleteChats(selectedChatIds);
-                  setSelectedChatIds([]);
-                  setIsSelectMode(false);
-                },
-              });
-            }}
-            block
-            size={screens.xs ? "small" : "middle"}
-          >
-            Delete selected chats
-          </Button>
-        )}
       </Flex>
 
       <SystemSettingsModal

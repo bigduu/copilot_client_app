@@ -21,9 +21,6 @@ interface ChatItemProps {
   onUnpin: (chatId: string) => void;
   onEdit?: (chatId: string, newTitle: string) => void;
   onGenerateTitle?: (chatId: string) => void;
-  SelectMode?: boolean;
-  checked?: boolean;
-  onCheck?: (chatId: string, checked: boolean) => void;
 }
 
 export const ChatItem: React.FC<ChatItemProps> = ({
@@ -35,9 +32,6 @@ export const ChatItem: React.FC<ChatItemProps> = ({
   onUnpin,
   onEdit,
   onGenerateTitle,
-  SelectMode,
-  checked,
-  onCheck,
 }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [editValue, setEditValue] = useState(chat.title);
@@ -100,7 +94,7 @@ export const ChatItem: React.FC<ChatItemProps> = ({
 
   // Build List.Item actions - only show when hovered or editing
   const actions =
-    isHovered || isEditing || SelectMode
+    isHovered || isEditing
       ? [
           // Pin/Unpin button
           <Tooltip key="pin" title={chat.pinned ? "Unpin" : "Pin"}>
@@ -197,17 +191,6 @@ export const ChatItem: React.FC<ChatItemProps> = ({
       className="chat-item" // Keep class name for CSS hover effects
     >
       <List.Item.Meta
-        avatar={
-          SelectMode && (
-            <Checkbox
-              checked={!!checked}
-              onChange={(e) => {
-                if (onCheck) onCheck(chat.id, e.target.checked);
-              }}
-              onClick={(e) => e.stopPropagation()}
-            />
-          )
-        }
         title={
           isEditing ? (
             <Input

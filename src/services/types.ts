@@ -13,22 +13,6 @@ export interface MessageContent {
   };
 }
 
-export interface ChatService {
-  /**
-   * Execute a prompt with streaming response
-   */
-  executePrompt(
-    messages: Message[],
-    model?: string,
-    onChunk?: (chunk: string) => void,
-    abortSignal?: AbortSignal
-  ): Promise<void>;
-
-  /**
-   * Get available models
-   */
-  getModels(): Promise<string[]>;
-}
 
 export interface ToolService {
   /**

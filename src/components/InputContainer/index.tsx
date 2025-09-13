@@ -5,7 +5,7 @@ import { MessageInput } from "../MessageInput";
 import InputPreview from "./InputPreview";
 import ToolSelector from "../ToolSelector";
 import { useChats } from "../../hooks/useChats";
-import { useChatInput } from "../../hooks/useChatInput";
+import { useChatManager } from "../../hooks/useChatManager"; // Import the new hook
 import { useToolCategoryValidation } from "../../hooks/useToolCategoryValidation";
 import { useSystemPrompt } from "../../hooks/useSystemPrompt";
 // Removed getCategoryDisplayInfoAsync import since lock functionality is removed
@@ -14,19 +14,21 @@ import { useAppStore } from "../../store";
 const { useToken } = theme;
 
 interface InputContainerProps {
-  isStreaming: boolean;
   isCenteredLayout?: boolean;
 }
 
 export const InputContainer: React.FC<InputContainerProps> = ({
-  isStreaming,
   isCenteredLayout = false,
 }) => {
   const [showToolSelector, setShowToolSelector] = useState(false);
   const [toolSearchText, setToolSearchText] = useState("");
   const { token } = useToken();
   const { currentMessages, currentChat } = useChats();
-  const { cancelCurrentRequest } = useAppStore();
+  const cancelCurrentRequest = useAppStore(
+    (state) => state.cancelCurrentRequest
+  );
+  const isProcessing = useAppStore((state) => state.isProcessing);
+  const isStreaming = isProcessing;
   // TODO: selectedSystemPromptPresetId needs to be retrieved from the new store
   const selectedSystemPromptPresetId = null;
 
@@ -52,17 +54,26 @@ export const InputContainer: React.FC<InputContainerProps> = ({
   } = useToolCategoryValidation(currentChat?.toolCategory);
 
   // Use the new chat input hook for state management
-  const {
-    content,
-    setContent,
-    referenceText,
-    images,
-    handleSubmit,
-    handleRetry,
-    handleCloseReferencePreview,
-    setImages,
-    contextHolder,
-  } = useChatInput();
+  // State management for the input itself
+  const [content, setContent] = useState("");
+  const [images, setImages] = useState<any[]>([]);
+  const [referenceText, setReferenceText] = useState<string | null>(null);
+
+  // Get the new sendMessage function
+  const { sendMessage, retryLastMessage } = useChatManager();
+
+  // Create a new handleSubmit that uses our new hook
+  const handleSubmit = () => {
+    if (!content.trim() && images.length === 0) return;
+    sendMessage(content, images);
+    setContent("");
+    setImages([]);
+    setReferenceText(null); // Clear reference after sending
+  };
+
+  // Dummy functions to satisfy props, will be cleaned up
+  const handleCloseReferencePreview = () => setReferenceText(null);
+  const { contextHolder } = { contextHolder: null }; // Dummy
 
   // Handle input changes to detect tool selector trigger
   const handleInputChange = (value: string) => {
@@ -220,7 +231,7 @@ export const InputContainer: React.FC<InputContainerProps> = ({
           value={content}
           onChange={handleInputChange}
           onSubmit={handleSubmit}
-          onRetry={handleRetry}
+          onRetry={retryLastMessage}
           onCancel={cancelCurrentRequest}
           isStreaming={isStreaming}
           isCenteredLayout={isCenteredLayout}

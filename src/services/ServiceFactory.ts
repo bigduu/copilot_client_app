@@ -1,5 +1,5 @@
-import { ChatService, ToolService, UtilityService, ServiceMode } from './types';
-import { OpenAIService } from './OpenAIService';
+import { ToolService, UtilityService, ServiceMode } from './types';
+import { AIService } from './AIService';
 import { TauriChatService, TauriToolService, TauriUtilityService } from './TauriService';
 
 const SERVICE_MODE_KEY = 'copilot_service_mode';
@@ -12,7 +12,7 @@ export class ServiceFactory {
   private tauriChatService = new TauriChatService();
   private tauriToolService = new TauriToolService();
   private tauriUtilityService = new TauriUtilityService();
-  private openaiService = new OpenAIService();
+  private openaiService = new AIService();
 
   private constructor() {
     // Load saved mode from localStorage, default to 'openai' if not set
@@ -42,7 +42,7 @@ export class ServiceFactory {
     localStorage.setItem(SERVICE_MODE_KEY, mode);
   }
 
-  getChatService(): ChatService {
+  getChatService(): AIService | TauriChatService {
     switch (this.currentMode) {
       case 'openai':
         return this.openaiService;

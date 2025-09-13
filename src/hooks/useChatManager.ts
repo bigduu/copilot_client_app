@@ -1,420 +1,251 @@
-import { useState, useCallback, useMemo, useEffect } from "react";
-import {
-  FavoritesService,
-  SystemPromptService,
-} from "../services";
-import { useChats } from "./useChats";
-import { useMessages } from "./useMessages";
-import { useModels } from "./useModels";
-import { ExportService } from "../services/ExportService";
-import { ChatItem, FavoriteItem, SystemPromptPresetList } from "../types/chat";
+import { useCallback, useMemo } from 'react';
+import { useAppStore } from '../store';
+import { shallow } from 'zustand/shallow';
+import { AppState } from '../store';
+import { AIService } from '../services/AIService';
+import { Message, MessageImage, createContentWithImages } from '../types/chat';
+import { ImageFile } from '../utils/imageUtils';
+import { serviceFactory } from '../services/ServiceFactory';
+import SystemPromptEnhancer from '../services/SystemPromptEnhancer';
 
-/**
- * useChatManager - Main Hook that integrates all chat-related functionality
- * Combines Service layer business logic with React state management
- */
-export function useChatManager() {
-  // Service layer instances
-  const favoritesService = useMemo(() => FavoritesService.getInstance(), []);
-  const systemPromptService = useMemo(
-    () => SystemPromptService.getInstance(),
-    []
-  );
+const convertImageFileToMessageImage = (imageFile: ImageFile): MessageImage => {
+  return {
+    id: imageFile.id,
+    base64: imageFile.base64,
+    name: imageFile.name,
+    size: imageFile.size,
+    type: imageFile.type,
+    width: undefined,
+    height: undefined,
+  };
+};
 
-  // Integration of existing hooks
-  const { selectedModel } = useModels();
+export const useChatManager = () => {
+  const addMessage = useAppStore((state) => state.addMessage);
+  const updateMessage = useAppStore((state) => state.updateMessage);
+  const deleteMessage = useAppStore((state) => state.deleteMessage);
+  const currentChatId = useAppStore((state) => state.currentChatId);
+  const allMessages = useAppStore((state) => state.messages);
+  const selectedModel = useAppStore((state) => state.selectedModel);
+  const systemPromptPresets = useAppStore(state => state.systemPromptPresets);
+  const setCurrentRequestController = useAppStore(state => state.setCurrentRequestController);
+  const setProcessing = useAppStore(state => state.setProcessing);
+  const setStreamingMessage = useAppStore(state => state.setStreamingMessage);
 
-  // Chat-related state and functionality
-  const {
-    chats,
-    currentChatId,
-    currentChat,
-    currentMessages,
-    selectChat,
-    deleteChat: deleteChatFromHook,
-    deleteChats: deleteChatsFromHook,
-    pinChat: pinChatFromHook,
-    unpinChat: unpinChatFromHook,
-    updateChat: updateChatFromHook,
-    createNewChat,
-    deleteEmptyChats: deleteEmptyChatsFromHook,
-    saveChats,
-  } = useChats();
+  const aiService = useMemo(() => new AIService(), []);
 
-  // Message-related state and functionality
-  const {
-    sendMessage: originalSendMessage,
-    isProcessing,
-  } = useMessages();
+  const triggerAIResponse = useCallback(async (chatId: string) => {
+    const { chats, messages, selectedModel, systemPromptPresets } = useAppStore.getState();
+    const currentChat = chats.find((c: any) => c.id === chatId);
+    if (!currentChat) return;
 
-  // ====== Favorites State Management ======
-  const [favorites, setFavorites] = useState<FavoriteItem[]>(() => {
-    return favoritesService.loadFavorites();
-  });
+    const chatMessages = messages[chatId] || [];
+    if (chatMessages.length === 0) return;
 
-  // ====== System Prompt Presets State Management ======
-  const [systemPromptPresets, setSystemPromptPresets] =
-    useState<SystemPromptPresetList>([]);
-
-  // Asynchronously load tool templates
-  const loadSystemPromptPresets = useCallback(async () => {
-    try {
-      const presets = await systemPromptService.getSystemPromptPresets();
-      setSystemPromptPresets(presets);
-    } catch (error) {
-      console.error("Failed to load system prompt presets:", error);
-      setSystemPromptPresets([]);
-    }
-  }, [systemPromptService]);
-
-  // Load presets when component initializes
-  useEffect(() => {
-    loadSystemPromptPresets();
-  }, [loadSystemPromptPresets]);
-
-  const [selectedSystemPromptPresetId, setSelectedSystemPromptPresetId] =
-    useState<string>(() => {
-      return systemPromptService.getSelectedSystemPromptPresetId();
-    });
-
-  // ====== Chat Operation Methods (Service + React Integration) ======
-
-  const addChat = useCallback(
-    (
-      firstUserMessageContent?: string,
-      options?: {
-        systemPromptId?: string;
-        toolCategory?: string;
-        systemPrompt?: string;
-      }
-    ): string => {
-      try {
-        // Update title number
-        const chatNumber = chats.length + 1;
-        const title = firstUserMessageContent ?
-          (firstUserMessageContent.length > 30 ?
-            firstUserMessageContent.substring(0, 30) + "..." :
-            firstUserMessageContent) :
-          `Chat ${chatNumber}`;
-
-        // Use hook's createNewChat method
-        createNewChat(title, {
-          systemPromptId: options?.systemPromptId || 'general_assistant',
-          toolCategory: options?.toolCategory || 'general_assistant',
-          systemPrompt: options?.systemPrompt,
-          model: selectedModel,
-        });
-
-        // Get the newly created chat ID (it will be the first in the list after creation)
-        // Since createNewChat automatically selects the new chat, we can get it from currentChatId
-        // But we need to return the ID immediately, so we'll generate it the same way the store does
-        const newChatId = Date.now().toString();
-        return newChatId;
-      } catch (error) {
-        console.error("Failed to create chat:", error);
-        throw new Error("Failed to create chat, please try again");
-      }
-    },
-    [chats, createNewChat, selectedModel]
-  );
-
-  const deleteChat = useCallback(
-    (chatId: string) => {
-      deleteChatFromHook(chatId);
-      // Hook automatically handles selecting next chat and saving
-    },
-    [deleteChatFromHook]
-  );
-
-  const deleteChats = useCallback(
-    (chatIds: string[]) => {
-      deleteChatsFromHook(chatIds);
-      // Hook automatically handles deselecting and saving
-    },
-    [deleteChatsFromHook]
-  );
-
-  const deleteAllChats = useCallback(() => {
-    // Delete all chats by passing all chat IDs
-    const allChatIds = chats.map(chat => chat.id);
-    deleteChatsFromHook(allChatIds);
-  }, [chats, deleteChatsFromHook]);
-
-  const deleteEmptyChats = useCallback(() => {
-    deleteEmptyChatsFromHook();
-    // Hook automatically handles everything
-  }, [deleteEmptyChatsFromHook]);
-
-  const pinChat = useCallback(
-    (chatId: string) => {
-      pinChatFromHook(chatId);
-    },
-    [pinChatFromHook]
-  );
-
-  const unpinChat = useCallback(
-    (chatId: string) => {
-      unpinChatFromHook(chatId);
-    },
-    [unpinChatFromHook]
-  );
-
-  const updateChat = useCallback(
-    (chatId: string, updates: Partial<ChatItem>) => {
-      updateChatFromHook(chatId, updates);
-    },
-    [updateChatFromHook]
-  );
-
-  const updateCurrentChatSystemPrompt = useCallback(
-    (prompt: string) => {
-      if (!currentChatId) return;
-      updateChatFromHook(currentChatId, { systemPrompt: prompt });
-    },
-    [currentChatId, updateChatFromHook]
-  );
-
-  const updateCurrentChatModel = useCallback(
-    (model: string) => {
-      if (!currentChatId) return;
-      updateChatFromHook(currentChatId, { model });
-    },
-    [currentChatId, updateChatFromHook]
-  );
-
-  // ====== Favorites Operation Methods ======
-
-  const addFavorite = useCallback(
-    (favorite: Omit<FavoriteItem, "id" | "createdAt">): string => {
-      const result = favoritesService.addFavorite(favorite, favorites);
-      setFavorites(result.newFavorites);
-      favoritesService.saveFavorites(result.newFavorites);
-      return result.newFavoriteId;
-    },
-    [favoritesService, favorites]
-  );
-
-  const removeFavorite = useCallback(
-    (id: string) => {
-      const newFavorites = favoritesService.removeFavorite(id, favorites);
-      setFavorites(newFavorites);
-      favoritesService.saveFavorites(newFavorites);
-    },
-    [favoritesService, favorites]
-  );
-
-  const updateFavorite = useCallback(
-    (id: string, updates: Partial<Omit<FavoriteItem, "id" | "createdAt">>) => {
-      const newFavorites = favoritesService.updateFavorite(
-        id,
-        updates,
-        favorites
-      );
-      setFavorites(newFavorites);
-      favoritesService.saveFavorites(newFavorites);
-    },
-    [favoritesService, favorites]
-  );
-
-  const getCurrentChatFavorites = useCallback(() => {
-    if (!currentChatId) return [];
-    return favoritesService.getChatFavorites(currentChatId, favorites);
-  }, [favoritesService, currentChatId, favorites]);
-
-  // Export favorites functionality using unified ExportService
-  const exportFavorites = useCallback(
-    async (format: "markdown" | "pdf") => {
-      if (!currentChatId) {
-        throw new Error("No chat selected");
-      }
-
-      const chatFavorites = getCurrentChatFavorites();
-      if (chatFavorites.length === 0) {
-        throw new Error("No favorites to export");
-      }
-
-      const result = await ExportService.exportFavorites({
-        format,
-        data: chatFavorites,
-        chatId: currentChatId,
+    const modelId = selectedModel || currentChat.model;
+    if (!modelId) {
+      console.error("No model selected for AI response.");
+      addMessage(chatId, {
+        id: Date.now().toString(),
+        role: 'assistant',
+        content: "Error: AI model not selected.",
+        createdAt: new Date().toISOString(),
       });
+      return;
+    }
 
-      if (!result.success) {
-        throw new Error(result.error || "Export failed");
-      }
+    const controller = new AbortController();
+    setCurrentRequestController(controller);
+    setProcessing(true);
+    setStreamingMessage({ chatId, content: '' });
 
-      return result.filename;
-    },
-    [currentChatId, getCurrentChatFavorites]
-  );
+    try {
+      const systemPrompt = SystemPromptEnhancer.getEnhancedSystemPrompt(currentChat, systemPromptPresets);
+      
+      let finalContent = '';
+      let buffer = '';
+      const onChunk = (chunk: string) => {
+        if (chunk === '[DONE]') {
+          addMessage(chatId, {
+            id: Date.now().toString(),
+            role: 'assistant',
+            content: finalContent,
+            createdAt: new Date().toISOString(),
+          });
+          setProcessing(false);
+          setStreamingMessage(null);
+          setCurrentRequestController(null);
+        } else if (chunk === '[CANCELLED]') {
+            setProcessing(false);
+            setStreamingMessage(null);
+            setCurrentRequestController(null);
+        } else {
+          buffer += chunk;
+          let boundary = buffer.lastIndexOf('}\n{');
+          if (boundary === -1) boundary = buffer.lastIndexOf('}{');
 
-  // Summarize favorites
-  const summarizeFavorites = useCallback(async () => {
-    if (!currentChatId) return;
+          let processable = buffer;
+          if (boundary !== -1) {
+            processable = buffer.substring(0, boundary + 1);
+            buffer = buffer.substring(boundary + 1);
+          } else {
+            // If no boundary, and buffer ends with '}', we can process it.
+            if (!buffer.endsWith('}')) return;
+          }
+          
+          const jsonChunks = processable.replace(/}\s*{/g, '}}\n{').split('\n');
 
-    const chatFavorites = getCurrentChatFavorites();
-    if (chatFavorites.length === 0) return;
-
-    const summaryContent =
-      favoritesService.generateSummaryContent(chatFavorites);
-
-    console.log(
-      "Creating new chat for summarization with content:",
-      summaryContent.substring(0, 100) + "..."
-    );
-
-    // Create new chat and select it
-    addChat(summaryContent);
-    // The addChat method automatically selects the new chat
-
-    // Note: AI response will need to be triggered manually by the user
-    // or through a separate mechanism since we don't have direct access
-    // to initiateAIResponse in this context
-  }, [
-    currentChatId,
-    getCurrentChatFavorites,
-    favoritesService,
-    addChat,
-  ]);
-
-  // ====== System Prompt Operation Methods ======
-
-  const updateSystemPrompt = useCallback(
-    (prompt: string) => {
-      systemPromptService.updateGlobalSystemPrompt(prompt);
-    },
-    [systemPromptService]
-  );
-
-  // Note: Preset management functionality has been removed, now fully managed by backend configuration
-  const addSystemPromptPreset = useCallback((_preset: Omit<any, "id">) => {
-    console.warn(
-      "Preset management has been removed, please manage presets through Rust backend configuration files"
-    );
-    throw new Error(
-      "Preset management has been removed, please manage through backend configuration"
-    );
-  }, []);
-
-  const updateSystemPromptPreset = useCallback(
-    (_id: string, _preset: Omit<any, "id">) => {
-      console.warn(
-        "Preset management has been removed, please manage presets through Rust backend configuration files"
-      );
-      throw new Error(
-        "Preset management has been removed, please manage through backend configuration"
-      );
-    },
-    []
-  );
-
-  const deleteSystemPromptPreset = useCallback((_id: string) => {
-    console.warn(
-      "Preset management has been removed, please manage presets through Rust backend configuration files"
-    );
-    throw new Error(
-      "Preset management has been removed, please manage through backend configuration"
-    );
-  }, []);
-
-  const selectSystemPromptPreset = useCallback(
-    (id: string) => {
-      try {
-        const preset = systemPromptService.findPresetById(id);
-        if (!preset) {
-          throw new Error("Cannot find specified system prompt preset");
+          for (const jsonChunk of jsonChunks) {
+            if (jsonChunk.trim() === '') continue;
+            try {
+              const parsed = JSON.parse(jsonChunk);
+              if (parsed.choices && parsed.choices[0].delta.content) {
+                finalContent += parsed.choices[0].delta.content;
+                setStreamingMessage({ chatId, content: finalContent });
+              }
+            } catch (e) {
+              // console.error("JSON parsing error in chunk:", e);
+              // console.error("Problematic chunk:", jsonChunk);
+            }
+          }
+          if (boundary !== -1) {
+            // The buffer was split, so what remains is the start of the next JSON
+          } else {
+            buffer = '';
+          }
         }
+      };
 
-        setSelectedSystemPromptPresetId(id);
-        systemPromptService.setSelectedSystemPromptPresetId(id);
-      } catch (error) {
-        console.error("Failed to select system prompt preset:", error);
-        throw error;
+      await serviceFactory.executePrompt(
+        chatMessages,
+        modelId,
+        onChunk,
+        controller.signal
+      );
+    } catch (error) {
+      if ((error as Error).name === 'AbortError') {
+        console.log('AI request was cancelled.');
+        const streamingMessage = useAppStore.getState().streamingMessage;
+        const finalContent = streamingMessage?.content || '';
+        if (finalContent) {
+          addMessage(chatId, {
+            id: Date.now().toString(),
+            role: 'assistant',
+            content: finalContent + "\n\n-- Request Cancelled --",
+            createdAt: new Date().toISOString(),
+          });
+        }
+      } else {
+        console.error('Error during AI response:', error);
+        addMessage(chatId, {
+          id: Date.now().toString(),
+          role: 'assistant',
+          content: `Error: ${(error as Error).message}`,
+          createdAt: new Date().toISOString(),
+        });
       }
-    },
-    [systemPromptService]
-  );
+      setProcessing(false);
+      setStreamingMessage(null);
+      setCurrentRequestController(null);
+    }
+  }, [addMessage, setCurrentRequestController, setProcessing, setStreamingMessage]);
 
-  // Get current system prompt content
-  const [systemPrompt, setSystemPrompt] = useState<string>("");
+  const sendMessage = useCallback(async (content: string, images?: ImageFile[]) => {
+    const currentChatId = useAppStore.getState().currentChatId;
+    if (!currentChatId) {
+      console.error("No active chat selected.");
+      return;
+    }
 
-  useEffect(() => {
-    const loadSystemPrompt = async () => {
-      try {
-        const content = await systemPromptService.getCurrentSystemPromptContent(
-          selectedSystemPromptPresetId
-        );
-        setSystemPrompt(content);
-      } catch (error) {
-        console.error("Failed to load system prompt:", error);
-        setSystemPrompt(systemPromptService.getGlobalSystemPrompt());
-      }
+    const isToolCall = aiService.isToolCall(content);
+    const isApprovalRequest = aiService.isApprovalRequest(content);
+
+    const addUserMessage = (msgContent: any, msgImages?: MessageImage[]) => {
+      const userMessage: Message = {
+        role: "user",
+        content: msgContent,
+        id: crypto.randomUUID(),
+        createdAt: new Date().toISOString(),
+        images: msgImages,
+      };
+      addMessage(currentChatId, userMessage);
     };
 
-    loadSystemPrompt();
-  }, [systemPromptService, selectedSystemPromptPresetId]);
+    if (isApprovalRequest) {
+      console.log("[useChatManager] Handling approval request:", content);
+      const messageImages = images ? images.map(convertImageFileToMessageImage) : [];
+      addUserMessage(content, messageImages);
 
-  // Navigate to message
-  const navigateToMessage = useCallback(
-    (messageId?: string) => {
-      if (!currentChat || !messageId) return;
+      const assistantMessageId = crypto.randomUUID();
+      const assistantMessage: Message = {
+        role: "assistant",
+        content: '',
+        id: assistantMessageId,
+        createdAt: new Date().toISOString(),
+      };
+      addMessage(currentChatId, assistantMessage);
 
-      // Send custom event to ChatView for scroll handling
-      const event = new CustomEvent("navigate-to-message", {
-        detail: { messageId },
-      });
-      window.dispatchEvent(event);
-    },
-    [currentChat]
-  );
+      try {
+        const result = await aiService.processCommand(content);
+        updateMessage(currentChatId, assistantMessageId, { content: result.content });
+      } catch (error) {
+        console.error("Approval request failed:", error);
+        updateMessage(currentChatId, assistantMessageId, { content: `Approval processing failed: ${error as string}` });
+      }
 
-  // Return unified interface
-  return {
-    // Chat state
-    chats,
-    currentChatId,
-    currentChat,
-    currentMessages,
+    } else if (isToolCall) {
+      console.log("[useChatManager] Handling tool call:", content);
+      const messageImages = images ? images.map(convertImageFileToMessageImage) : [];
+      addUserMessage(content, messageImages);
 
-    // Processing state
-    isProcessing,
+      try {
+        const result = await aiService.processCommand(content);
+        const assistantMessage: Message = {
+          role: "assistant",
+          content: result.content,
+          id: crypto.randomUUID(),
+          createdAt: new Date().toISOString(),
+        };
+        addMessage(currentChatId, assistantMessage);
+      } catch (error) {
+        console.error("Tool call failed:", error);
+        const errorMessage: Message = {
+          role: "assistant",
+          content: `Tool execution failed: ${error as string}`,
+          id: crypto.randomUUID(),
+          createdAt: new Date().toISOString(),
+        };
+        addMessage(currentChatId, errorMessage);
+      }
 
-    // Chat operations
-    addChat,
-    selectChat,
-    deleteChat,
-    deleteChats,
-    deleteAllChats,
-    deleteEmptyChats,
-    saveChats,
-    pinChat,
-    unpinChat,
-    updateChat,
+    } else {
+      console.log("[useChatManager] Handling regular message");
+      const messageImages = images ? images.map(convertImageFileToMessageImage) : [];
+      const messageContent = (images && images.length > 0) ? createContentWithImages(content, messageImages) : content;
+      addUserMessage(messageContent, messageImages);
+      await triggerAIResponse(currentChatId);
+    }
+  }, [addMessage, updateMessage, aiService, triggerAIResponse]);
 
-    // Message operations
-    sendMessage: originalSendMessage,
+  const retryLastMessage = useCallback(async () => {
+    const currentChatId = useAppStore.getState().currentChatId;
+    if (!currentChatId) return;
 
-    // System prompt
-    systemPrompt,
-    updateSystemPrompt,
-    updateCurrentChatSystemPrompt,
-    updateCurrentChatModel,
-    currentChatSystemPrompt: currentChat?.systemPrompt || null,
-    systemPromptPresets,
-    addSystemPromptPreset,
-    updateSystemPromptPreset,
-    deleteSystemPromptPreset,
-    selectSystemPromptPreset,
-    selectedSystemPromptPresetId,
+    const chatMessages = useAppStore.getState().messages[currentChatId] || [];
+    if (chatMessages.length === 0) return;
 
-    // Favorites
-    favorites,
-    addFavorite,
-    removeFavorite,
-    updateFavorite,
-    getCurrentChatFavorites,
-    exportFavorites,
-    summarizeFavorites,
-    navigateToMessage,
-  };
-}
+    const lastMessage = chatMessages[chatMessages.length - 1];
+
+    // If the last message is from the assistant, delete it and trigger a new response.
+    if (lastMessage.role === 'assistant') {
+      await deleteMessage(currentChatId, lastMessage.id);
+      // Ensure the state is updated before triggering AI response
+      // by getting the fresh state after deletion.
+      await triggerAIResponse(currentChatId);
+    } else {
+      console.log('Last message is from user, nothing to regenerate.');
+    }
+  }, [deleteMessage, triggerAIResponse]);
+
+  return { sendMessage, retryLastMessage };
+};

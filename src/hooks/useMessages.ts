@@ -3,7 +3,6 @@ import { useCurrentMessages } from '../store/hooks';
 import { Message, getMessageText } from '../types/chat';
 import { ImageFile } from '../utils/imageUtils';
 import { serviceFactory } from '../services/ServiceFactory';
-import { MessageHandler } from '../services/MessageHandler';
 
 /**
  * Hook for managing messages within the current chat
@@ -26,7 +25,6 @@ interface UseMessagesReturn {
   // Convenience Operations (for the current chat)
   addMessageToCurrentChat: (message: Message) => void;
   updateMessageInCurrentChat: (messageId: string, updates: Partial<Message>) => void;
-  sendMessage: (content: string, images?: ImageFile[]) => Promise<void>;
   generateChatTitle: (chatId: string) => Promise<string>;
   autoUpdateChatTitle: (chatId: string) => Promise<void>;
 }
@@ -41,8 +39,6 @@ export const useMessages = (): UseMessagesReturn => {
   const addMessage = useAppStore(state => state.addMessage);
   const updateMessage = useAppStore(state => state.updateMessage);
   const deleteMessage = useAppStore(state => state.deleteMessage);
-  const initiateAIResponse = useAppStore(state => state.initiateAIResponse);
-  const triggerAIResponseOnly = useAppStore(state => state.triggerAIResponseOnly);
 
   // Convenience method for the current chat
   const addMessageToCurrentChat = (message: Message) => {
@@ -57,25 +53,6 @@ export const useMessages = (): UseMessagesReturn => {
     }
   };
 
-  const sendMessage = async (content: string, images?: ImageFile[]) => {
-    if (!currentChatId) {
-      console.error('Cannot send message: no active chat');
-      return;
-    }
-
-    // Create message handler with required dependencies
-    const messageHandler = new MessageHandler(
-      currentChatId,
-      addMessageToCurrentChat,
-      updateMessageInCurrentChat,
-      initiateAIResponse,
-      triggerAIResponseOnly,
-      autoUpdateChatTitle
-    );
-
-    // Handle the message using the new MessageHandler
-    await messageHandler.handleMessage(content, images);
-  };
 
   const generateChatTitle = async (chatId: string): Promise<string> => {
     // Get messages for the specific chat
@@ -251,7 +228,6 @@ Title:`;
     // Convenience Operations (for the current chat)
     addMessageToCurrentChat,
     updateMessageInCurrentChat,
-    sendMessage,
     generateChatTitle,
     autoUpdateChatTitle,
   };

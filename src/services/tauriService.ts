@@ -1,8 +1,8 @@
 import { invoke } from '@tauri-apps/api/core';
 import { Channel } from '@tauri-apps/api/core';
-import { ChatService, ToolService, UtilityService, Message } from './types';
+import { ToolService, UtilityService, Message } from './types';
 
-export class TauriChatService implements ChatService {
+export class TauriChatService {
   /**
    * Execute a prompt with streaming response
    */
