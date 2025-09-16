@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useCallback } from "react";
 import {
   Layout,
   Button,
@@ -474,8 +474,8 @@ export const ChatSidebar: React.FC<{
           }
 
           /* Date and Category Group Styles */
-          .date-group-header:hover {
-            background-color: var(--ant-color-fill-tertiary) !important;
+          .date-group-header:hover .date-delete-btn {
+            opacity: 0.6 !important;
           }
           .date-group-header .date-delete-btn {
             opacity: 0 !important;
@@ -489,8 +489,8 @@ export const ChatSidebar: React.FC<{
             color: var(--ant-color-error) !important;
           }
 
-          .category-group-header:hover {
-            background-color: var(--ant-color-fill-secondary) !important;
+          .category-group-header:hover .category-delete-btn {
+            opacity: 0.5 !important;
           }
           .category-group-header .category-delete-btn {
             opacity: 0 !important;
@@ -566,7 +566,7 @@ export const ChatSidebar: React.FC<{
                         borderRadius: "6px",
                         transition: "background-color 0.2s",
                         backgroundColor: isDateOpen
-                          ? "var(--ant-color-fill-quaternary)"
+                          ? token.colorFill
                           : "transparent",
                       }}
                       onClick={() => toggleDateExpansion(dateKey)}
@@ -582,6 +582,8 @@ export const ChatSidebar: React.FC<{
                             color:
                               dateKey === "Today"
                                 ? token.colorPrimary
+                                : themeMode === "light"
+                                ? "#000000"
                                 : "inherit",
                           }}
                         >
@@ -635,9 +637,11 @@ export const ChatSidebar: React.FC<{
                                     cursor: "pointer",
                                     borderRadius: "4px",
                                     transition: "background-color 0.2s",
-                                    backgroundColor: isCategoryOpen
-                                      ? "var(--ant-color-fill-tertiary)"
-                                      : "transparent",
+                                    color: isCategoryOpen
+                                      ? categoryInfo.color
+                                      : themeMode === "light"
+                                      ? "#000000"
+                                      : "white",
                                   }}
                                   onClick={() =>
                                     toggleCategoryExpansion(dateKey, category)
@@ -647,11 +651,23 @@ export const ChatSidebar: React.FC<{
                                   <Flex align="center" gap="small">
                                     {isCategoryOpen ? (
                                       <DownOutlined
-                                        style={{ fontSize: "10px" }}
+                                        style={{
+                                          fontSize: "10px",
+                                          color:
+                                            themeMode === "light"
+                                              ? "#000000"
+                                              : "inherit",
+                                        }}
                                       />
                                     ) : (
                                       <RightOutlined
-                                        style={{ fontSize: "10px" }}
+                                        style={{
+                                          fontSize: "10px",
+                                          color:
+                                            themeMode === "light"
+                                              ? "#000000"
+                                              : "inherit",
+                                        }}
                                       />
                                     )}
                                     <span style={{ marginRight: 4 }}>
