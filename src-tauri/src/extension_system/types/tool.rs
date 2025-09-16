@@ -6,6 +6,18 @@ use std::fmt::Debug;
 
 use super::{Parameter, ToolType};
 
+/// Defines how the tool's output should be displayed in the UI.
+#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq, Eq)]
+pub enum DisplayPreference {
+    /// The output is displayed directly.
+    #[default]
+    Default,
+    /// The output is rendered inside a collapsible container.
+    Collapsible,
+    /// The output is hidden from the user.
+    Hidden,
+}
+
 /// Tool trait definition
 #[async_trait]
 pub trait Tool: Debug + Send + Sync {
@@ -32,6 +44,12 @@ pub trait Tool: Debug + Send + Sync {
         true
     }
 
+    /// Specifies how the tool's output should be displayed.
+    /// Defaults to `DisplayPreference::Default`.
+    fn display_preference(&self) -> DisplayPreference {
+        DisplayPreference::Default
+    }
+
     async fn execute(&self, parameters: Vec<Parameter>) -> anyhow::Result<String>;
 }
 
@@ -50,6 +68,8 @@ pub struct ToolConfig {
     pub parameter_regex: Option<String>,
     pub custom_prompt: Option<String>,
     pub hide_in_selector: bool,
+    #[serde(default)]
+    pub display_preference: DisplayPreference,
 }
 
 impl ToolConfig {

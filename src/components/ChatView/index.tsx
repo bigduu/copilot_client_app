@@ -6,12 +6,12 @@ import React, {
   useCallback,
 } from "react";
 import { Layout, Empty, Space, theme, Button, Grid, Flex } from "antd";
-import { useChats } from "../../hooks/useChats";
-import { useMessages } from "../../hooks/useMessages";
-import { useAppStore } from "../../store";
+import { useChatList } from "../../hooks/useChatList";
+import { useChatControllerContext } from "../../contexts/ChatControllerContext";
 import SystemMessage from "../SystemMessage";
 import { DownOutlined } from "@ant-design/icons";
 import { InputContainer } from "../InputContainer";
+import { ApprovalModal } from "../ApprovalModal";
 import "./styles.css"; // Import a new CSS file for animations and specific styles
 import MessageCard from "../MessageCard";
 
@@ -20,36 +20,15 @@ const { useToken } = theme;
 const { useBreakpoint } = Grid;
 
 export const ChatView: React.FC = () => {
-  // Use new Zustand hooks
-  const { currentChatId, currentMessages, updateChat } = useChats();
-  const { isProcessing, deleteMessage } = useMessages();
-  const streamingMessage = useAppStore((state) => state.streamingMessage);
-
-  // Streaming responses are now fully handled in chatStore, no longer need StreamingMessageItem
-  const isStreaming = isProcessing;
-
-  // Use useMemo to optimize streaming message rendering
-  const streamingMessageComponent = useMemo(() => {
-    if (!streamingMessage || streamingMessage.chatId !== currentChatId) {
-      return null;
-    }
-
-    const isWaiting = streamingMessage.content === "";
-
-    return (
-      <Flex justify="flex-start" style={{ width: "100%" }}>
-        <MessageCard
-          role="assistant"
-          content={
-            isWaiting ? "Assistant is thinking..." : streamingMessage.content
-          }
-          messageId="streaming"
-          onDelete={() => {}}
-          isStreaming={!isWaiting}
-        />
-      </Flex>
-    );
-  }, [streamingMessage, currentChatId]);
+  const {
+    currentChatId,
+    currentMessages,
+    currentChat,
+    deleteMessage,
+    updateChat,
+    // No need to get messages from here, ChatView now gets them from Zustand
+  } = useChatList();
+  const { state, send } = useChatControllerContext();
 
   // Handle message deletion - optimized with useCallback
   const handleDeleteMessage = useCallback(
@@ -103,7 +82,7 @@ export const ChatView: React.FC = () => {
         updateChat(currentChatId, { messages: updatedMessages });
       }
     }
-  }, [currentChatId, currentMessages]);
+  }, [currentChatId, currentMessages, updateChat]);
 
   // Add event listener for message navigation
   useEffect(() => {
@@ -170,10 +149,10 @@ export const ChatView: React.FC = () => {
     if (!showScrollToBottom) {
       scrollToBottom();
     }
-  }, [currentMessages, streamingMessage]);
+  }, [currentMessages, state.context.streamingContent, showScrollToBottom]);
 
   const hasMessages = currentMessages.length > 0;
-  const showMessagesView = currentChatId && (hasMessages || isStreaming);
+  const showMessagesView = currentChatId && hasMessages;
 
   // Calculate scroll to bottom button position
   const getScrollButtonPosition = () => {
@@ -303,18 +282,28 @@ export const ChatView: React.FC = () => {
                           messageId={messageCardId}
                           images={message.images}
                           onDelete={handleDeleteMessage}
+                          isStreaming={message.isStreaming} // Pass the streaming flag
                         />
                       </div>
                     </Flex>
                   );
                 })}
 
-              {/* Display streaming message - optimized with useMemo */}
-              {streamingMessageComponent}
               <div ref={messagesEndRef} />
             </Space>
           )}
         </Content>
+
+        {/* Real Approval Modal */}
+        {state.context.toolCallRequest && state.context.parsedParameters && (
+          <ApprovalModal
+            visible={state.matches("AWAITING_APPROVAL")}
+            toolName={state.context.toolCallRequest.tool_name}
+            parameters={state.context.parsedParameters}
+            onApprove={() => send({ type: "USER_APPROVES" })}
+            onReject={() => send({ type: "USER_REJECTS" })}
+          />
+        )}
 
         {/* Scroll to Bottom Button */}
         {showScrollToBottom && (

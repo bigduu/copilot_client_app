@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { Card, Space, Typography, theme } from "antd";
 import ReactMarkdown from "react-markdown";
-import { useChats } from "../../hooks/useChats";
+import { useChatList } from "../../hooks/useChatList";
 import { SystemPromptService } from "../../services/SystemPromptService";
 
 const { Text } = Typography;
@@ -15,7 +15,7 @@ const SystemMessage: React.FC<SystemMessageProps> = () => {
   const { token } = useToken();
 
   // Get the current chat context
-  const { currentChat } = useChats();
+  const { currentChat } = useChatList();
   // TODO: systemPrompt needs to be retrieved from currentChat
   const systemPrompt = currentChat?.systemPrompt || "";
 

@@ -2,7 +2,9 @@ use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tauri::State;
 
-use crate::extension_system::{Parameter, ToolCategory, ToolConfig, ToolsManager};
+use crate::extension_system::{
+    DisplayPreference, Parameter, ToolCategory, ToolConfig, ToolsManager,
+};
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct ApprovalConfig {
@@ -25,9 +27,18 @@ pub struct ToolUIInfo {
     pub description: String,
     pub parameters: Vec<ParameterInfo>,
     pub tool_type: String,
+    pub parameter_parsing_strategy: String, // Add this field
     pub parameter_regex: Option<String>,
     pub ai_response_template: Option<String>,
     pub hide_in_selector: bool,
+    pub display_preference: DisplayPreference,
+    pub required_approval: bool,
+}
+
+#[derive(Serialize)]
+pub struct ToolsUIResponse {
+    pub tools: Vec<ToolUIInfo>,
+    pub is_strict_mode: bool,
 }
 
 #[derive(Deserialize)]
@@ -54,32 +65,46 @@ pub fn get_available_tools(
 pub fn get_tools_for_ui(
     tool_manager: State<'_, Arc<ToolsManager>>,
     category_id: Option<String>,
-) -> Result<Vec<ToolUIInfo>, String> {
-    // 如果指定了类别ID，检查是否为严格模式
+) -> Result<ToolsUIResponse, String> {
+    let mut is_strict_mode = false;
+    let tools: Vec<ToolUIInfo>;
+
     if let Some(category_id) = category_id {
         if let Some(category) = tool_manager.get_category_by_id(&category_id) {
             if category.strict_tools_mode {
+                is_strict_mode = true;
                 // 严格模式：只返回该类别允许的工具
                 let category_tools = tool_manager.get_category_tools(&category_id);
-
                 let allowed_tool_names: std::collections::HashSet<String> =
                     category_tools.iter().map(|tool| tool.name()).collect();
-
                 let all_tools = tool_manager.list_tools_for_ui();
-
-                let filtered_tools: Vec<ToolUIInfo> = all_tools
+                tools = all_tools
                     .into_iter()
                     .filter(|tool| allowed_tool_names.contains(&tool.name))
                     .collect();
-
-                return Ok(filtered_tools);
+            } else {
+                // 非严格模式
+                tools = tool_manager.list_tools_for_ui();
             }
+        } else {
+            // 找不到类别，默认为非严格模式
+            tools = tool_manager.list_tools_for_ui();
         }
+    } else {
+        // 未指定类别，默认为非严格模式
+        tools = tool_manager.list_tools_for_ui();
     }
 
-    // 非严格模式或未指定类别：返回所有工具
-    let tools = tool_manager.list_tools_for_ui();
-    Ok(tools)
+    Ok(ToolsUIResponse {
+        tools,
+        is_strict_mode,
+    })
+}
+
+#[derive(Serialize)]
+struct ToolExecutionResult {
+    result: String,
+    display_preference: DisplayPreference,
 }
 
 #[tauri::command(async)]
@@ -91,6 +116,9 @@ pub async fn execute_tool(
     let tool = tool_manager
         .get_tool(&request.tool_name)
         .ok_or_else(|| format!("Tool '{}' not found", request.tool_name))?;
+
+    // Get display preference from the tool instance
+    let display_preference = tool.display_preference();
 
     // Convert ParameterValue to Parameter
     let parameters: Vec<Parameter> = request
@@ -105,9 +133,20 @@ pub async fn execute_tool(
         .collect();
 
     // Execute the tool
-    tool.execute(parameters)
+    let result = tool
+        .execute(parameters)
         .await
-        .map_err(|e| format!("Tool execution failed: {}", e))
+        .map_err(|e| format!("Tool execution failed: {}", e))?;
+
+    // Create a structured result
+    let execution_result = ToolExecutionResult {
+        result,
+        display_preference,
+    };
+
+    // Serialize the structured result to a JSON string and return
+    serde_json::to_string(&execution_result)
+        .map_err(|e| format!("Failed to serialize tool result: {}", e))
 }
 
 // This command is mainly for UI information purposes,

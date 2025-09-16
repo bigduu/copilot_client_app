@@ -9,27 +9,48 @@ export interface MessageImage {
   height?: number;
 }
 
-// Content can be either string or array for GitHub Copilot API compatibility
-export type MessageContent =
-  | string
-  | Array<{
-      type: "text" | "image_url" | "tool_code";
-      text?: string;
-      image_url?: {
-        url: string;
-        detail?: "low" | "high" | "auto";
-      };
-      tool_code?: string;
-    }>;
+export interface ProcessorUpdate {
+  type: "processor_update";
+  source: string;
+  content: string;
+}
+
+export interface MessageContentPart {
+  type: "text" | "image_url" | "tool_code";
+  text?: string;
+  image_url?: {
+    url: string;
+    detail?: "low" | "high" | "auto";
+  };
+  tool_code?: string;
+}
+
+// Defines how the tool's output should be displayed in the UI.
+export type DisplayPreference = "Default" | "Collapsible" | "Hidden";
+
+// Represents the structured result from a tool execution.
+export interface ToolExecutionResult {
+  result: string;
+  display_preference: DisplayPreference;
+}
+
+// Content can be a string, an array of parts, or a structured tool result.
+export type MessageContent = string | MessageContentPart[] | ToolExecutionResult;
 
 export interface Message {
-  id: string; // Unique identifier for the message
-  role: "system" | "user" | "assistant";
+  id: string;
+  role: "user" | "assistant" | "system" | "tool";
   content: MessageContent;
   createdAt: string;
-  processorUpdates?: string[]; // Optional: To store processor update strings
-  images?: MessageImage[]; // Optional: Array of attached images (for internal use)
+  images?: MessageImage[];
+  processorUpdates?: ProcessorUpdate[];
+  isStreaming?: boolean; // Flag for streaming messages
 }
+
+// Type guard to check if content is a ToolExecutionResult
+export const isToolExecutionResult = (content: MessageContent): content is ToolExecutionResult => {
+  return typeof content === 'object' && content !== null && 'result' in content && 'display_preference' in content;
+};
 
 // Utility functions for message content handling
 export const getMessageText = (content: MessageContent): string => {
@@ -37,7 +58,12 @@ export const getMessageText = (content: MessageContent): string => {
     return content;
   }
 
-  // Extract text from array format
+  if (isToolExecutionResult(content)) {
+    // For tool results, the "text" is the raw result string.
+    return content.result;
+  }
+
+  // Extract text from array format for rich content (e.g., with images)
   const textParts = content
     .filter(part => part.type === 'text' && part.text)
     .map(part => part.text!)

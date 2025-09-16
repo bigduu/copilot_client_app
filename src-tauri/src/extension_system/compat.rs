@@ -25,8 +25,9 @@ impl ToolsManager {
         for category_info in self.get_all_categories() {
             for tool_config in category_info.tools {
                 // Get the actual tool to extract parameter information
-                let parameters = if let Some(tool) = self.get_tool(&tool_config.name) {
-                    tool.parameters()
+                if let Some(tool) = self.get_tool(&tool_config.name) {
+                    let parameters = tool
+                        .parameters()
                         .into_iter()
                         .map(|p| crate::command::tools::ParameterInfo {
                             name: p.name,
@@ -34,20 +35,31 @@ impl ToolsManager {
                             required: p.required,
                             param_type: "string".to_string(),
                         })
-                        .collect()
-                } else {
-                    vec![]
-                };
+                        .collect();
 
-                ui_tools.push(crate::command::tools::ToolUIInfo {
-                    name: tool_config.name,
-                    description: tool_config.description,
-                    parameters,
-                    tool_type: tool_config.tool_type,
-                    parameter_regex: tool_config.parameter_regex,
-                    ai_response_template: tool_config.custom_prompt,
-                    hide_in_selector: tool_config.hide_in_selector,
-                });
+                    let tool_type_enum = tool.tool_type();
+                    let parameter_parsing_strategy = match tool_type_enum {
+                        crate::extension_system::ToolType::AIParameterParsing => {
+                            "AIParameterParsing".to_string()
+                        }
+                        crate::extension_system::ToolType::RegexParameterExtraction => {
+                            "RegexParameterExtraction".to_string()
+                        }
+                    };
+
+                    ui_tools.push(crate::command::tools::ToolUIInfo {
+                        name: tool_config.name.clone(),
+                        description: tool_config.description.clone(),
+                        parameters,
+                        tool_type: tool_config.tool_type.clone(),
+                        parameter_parsing_strategy,
+                        parameter_regex: tool_config.parameter_regex.clone(),
+                        ai_response_template: tool_config.custom_prompt.clone(),
+                        hide_in_selector: tool_config.hide_in_selector,
+                        display_preference: tool.display_preference(),
+                        required_approval: tool.required_approval(),
+                    });
+                }
             }
         }
 

@@ -43,6 +43,7 @@ impl CopilotAuthHandler {
 
         // Create the directory if it doesn't exist
         create_dir_all(&self.app_data_dir)?;
+        info!("The app dir is {:?}", self.app_data_dir.clone());
 
         let token_path = self.app_data_dir.join(".token");
 

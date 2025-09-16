@@ -38,7 +38,7 @@ import { ChatItem as ChatItemComponent } from "../ChatItem";
 import { ChatItem } from "../../types/chat";
 import SystemPromptSelector from "../SystemPromptSelector";
 import { SystemPromptPreset } from "../../types/chat";
-import { useMessages } from "../../hooks/useMessages";
+import { useChatController } from "../../hooks/useChatController";
 
 const { Sider } = Layout;
 const { Text } = Typography;
@@ -66,8 +66,8 @@ export const ChatSidebar: React.FC<{
     (state) => state.loadSystemPromptPresets
   );
 
-  // Add useMessages hook for AI title generation
-  const { generateChatTitle } = useMessages();
+  // Add useChatController hook for AI title generation
+  const { generateChatTitle } = useChatController();
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   const [isNewChatSelectorOpen, setIsNewChatSelectorOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(false);

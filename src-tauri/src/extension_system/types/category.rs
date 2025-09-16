@@ -76,6 +76,7 @@ pub trait Category: Send + Sync + std::fmt::Debug {
                 parameter_regex: tool.parameter_regex(),
                 custom_prompt: tool.custom_prompt(),
                 hide_in_selector: tool.hide_in_selector(),
+                display_preference: tool.display_preference(),
             })
             .collect()
     }

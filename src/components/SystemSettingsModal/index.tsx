@@ -18,7 +18,7 @@ import {
   ApiOutlined,
   DesktopOutlined,
 } from "@ant-design/icons";
-import { useChats } from "../../hooks/useChats";
+import { useChatList } from "../../hooks/useChatList";
 import { useModels } from "../../hooks/useModels";
 import { useServiceMode } from "../../hooks/useServiceMode";
 import {
@@ -58,7 +58,9 @@ const ModelSelection = ({
         style={{ width: "100%" }}
       >
         <Text strong>Model Selection</Text>
-        <Text type="warning">No model options available, please check service connection</Text>
+        <Text type="warning">
+          No model options available, please check service connection
+        </Text>
       </Space>
     );
   }
@@ -116,7 +118,7 @@ const SystemSettingsModal = ({
   onThemeModeChange: (mode: "light" | "dark") => void;
 }) => {
   const { token } = useToken();
-  const { deleteAllUnpinnedChats, deleteEmptyChats } = useChats();
+  const { deleteAllUnpinnedChats, deleteEmptyChats } = useChatList();
   const [msgApi, contextHolder] = message.useMessage();
   const [mermaidEnhancementEnabled, setMermaidEnhancementEnabledState] =
     useState<boolean>(() => {

@@ -1,4 +1,4 @@
-use crate::extension_system::{auto_register_tool, Parameter, Tool, ToolType};
+use crate::extension_system::{auto_register_tool, DisplayPreference, Parameter, Tool, ToolType};
 use anyhow::{Context, Result};
 use async_trait::async_trait;
 
@@ -24,6 +24,10 @@ impl Tool for ExecuteCommandTool {
         "Executes a shell command and returns the output".to_string()
     }
 
+    fn display_preference(&self) -> DisplayPreference {
+        DisplayPreference::Hidden
+    }
+
     fn parameters(&self) -> Vec<Parameter> {
         vec![Parameter {
             name: "command".to_string(),
@@ -39,6 +43,10 @@ impl Tool for ExecuteCommandTool {
 
     fn tool_type(&self) -> ToolType {
         ToolType::AIParameterParsing
+    }
+
+    fn hide_in_selector(&self) -> bool {
+        false
     }
 
     async fn execute(&self, parameters: Vec<Parameter>) -> Result<String> {

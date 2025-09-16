@@ -28,8 +28,8 @@ import {
   EnvironmentOutlined,
   FileTextOutlined,
 } from "@ant-design/icons";
-import { useChats } from "../../hooks/useChats";
-import { useMessages } from "../../hooks/useMessages";
+import { useChatList } from "../../hooks/useChatList";
+import { useChatController } from "../../hooks/useChatController";
 import { FavoriteItem } from "../../types/chat";
 import { useAppStore } from "../../store";
 import ReactMarkdown from "react-markdown";
@@ -48,8 +48,8 @@ const { useBreakpoint } = Grid;
 export const FavoritesPanel: React.FC = () => {
   const { token } = useToken();
   const screens = useBreakpoint();
-  const { currentChatId } = useChats();
-  const { sendMessage } = useMessages();
+  const { currentChatId, createNewChat } = useChatList();
+  const { sendMessage } = useChatController();
 
   // Get favorites functionality from Zustand store
   const allFavorites = useAppStore((state) => state.favorites);
@@ -212,7 +212,6 @@ export const FavoritesPanel: React.FC = () => {
       summaryContent += `Total favorites analyzed: ${chatFavorites.length}`;
 
       // Create new chat with summary request
-      const { createNewChat } = useChats();
       createNewChat(`📋 Favorites Summary - ${formatDate(Date.now())}`);
 
       // Send the summary content as the first message

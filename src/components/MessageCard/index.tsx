@@ -18,17 +18,15 @@ import {
   createFavoriteButton,
   createReferenceButton,
 } from "../ActionButtonGroup";
-import { useChats } from "../../hooks/useChats";
+import { useChatList } from "../../hooks/useChatList";
 import { useAppStore } from "../../store";
-import { MessageImage, MessageContent, getMessageText } from "../../types/chat";
-import { useMessages } from "../../hooks/useMessages";
-import ApprovalCard from "./ApprovalCard";
 import {
-  isApprovalRequest,
-  parseApprovalRequest,
-  createApprovedRequest,
-  createRejectedRequest,
-} from "../../utils/approvalUtils";
+  MessageImage,
+  MessageContent,
+  getMessageText,
+  ProcessorUpdate,
+  isToolExecutionResult,
+} from "../../types/chat";
 
 const { Text } = Typography;
 const { useToken } = theme;
@@ -37,7 +35,7 @@ const { useBreakpoint } = Grid;
 interface MessageCardProps {
   role: string;
   content: MessageContent;
-  processorUpdates?: string[];
+  processorUpdates?: ProcessorUpdate[];
   messageIndex?: number;
   children?: React.ReactNode;
   messageId?: string;
@@ -58,34 +56,16 @@ const MessageCard: React.FC<MessageCardProps> = ({
 }) => {
   const { token } = useToken();
   const screens = useBreakpoint();
-  const { currentChatId } = useChats();
-  const { sendMessage } = useMessages();
+  const { currentChatId } = useChatList();
   const addFavorite = useAppStore((state) => state.addFavorite);
   const cardRef = useRef<HTMLDivElement>(null);
   const [selectedText, setSelectedText] = useState<string>("");
   const [isHovering, setIsHovering] = useState<boolean>(false);
-  const [approvalProcessing, setApprovalProcessing] = useState<boolean>(false);
-  const [approvalHandled, setApprovalHandled] = useState<boolean>(false);
 
   // Memoize expensive operations for better performance
   const messageText = useMemo(() => getMessageText(content), [content]);
-  const isApproval = useMemo(
-    () => role === "assistant" && isApprovalRequest(messageText),
-    [role, messageText]
-  );
-  const approvalData = useMemo(
-    () => (isApproval ? parseApprovalRequest(messageText) : null),
-    [isApproval, messageText]
-  );
   const isUserToolCall = useMemo(
     () => role === "user" && messageText.startsWith("/"),
-    [role, messageText]
-  );
-  const isApprovalResponse = useMemo(
-    () =>
-      role === "user" &&
-      isApprovalRequest(messageText) &&
-      parseApprovalRequest(messageText)?.approval !== undefined,
     [role, messageText]
   );
 
@@ -120,42 +100,6 @@ const MessageCard: React.FC<MessageCardProps> = ({
       .replace(/\b\w/g, (l) => l.toUpperCase());
 
     return `🔧 ${friendlyToolName}: ${description}`;
-  };
-
-  // Don't render approval response messages
-  if (isApprovalResponse) {
-    return null;
-  }
-
-  // Handle approval actions
-  const handleApprove = async () => {
-    if (!approvalData || approvalHandled) return;
-
-    setApprovalProcessing(true);
-    try {
-      const approvedRequest = createApprovedRequest(approvalData);
-      await sendMessage(approvedRequest);
-      setApprovalHandled(true); // Mark as permanently handled
-    } catch (error) {
-      console.error("Failed to send approval:", error);
-    } finally {
-      setApprovalProcessing(false);
-    }
-  };
-
-  const handleReject = async () => {
-    if (!approvalData || approvalHandled) return;
-
-    setApprovalProcessing(true);
-    try {
-      const rejectedRequest = createRejectedRequest(approvalData);
-      await sendMessage(rejectedRequest);
-      setApprovalHandled(true); // Mark as permanently handled
-    } catch (error) {
-      console.error("Failed to send rejection:", error);
-    } finally {
-      setApprovalProcessing(false);
-    }
   };
 
   // Add entire message to favorites
@@ -346,7 +290,7 @@ const MessageCard: React.FC<MessageCardProps> = ({
                           paddingLeft: token.paddingSM,
                         }}
                       >
-                        {update}
+                        {update.content}
                       </Text>
                     ))}
                   </Space>
@@ -359,14 +303,39 @@ const MessageCard: React.FC<MessageCardProps> = ({
 
             {/* Content */}
             <div style={{ width: "100%", maxWidth: "100%" }}>
-              {isApproval && approvalData ? (
-                <ApprovalCard
-                  data={approvalData}
-                  onApprove={handleApprove}
-                  onReject={handleReject}
-                  disabled={approvalProcessing || approvalHandled}
-                />
+              {isToolExecutionResult(content) ? (
+                // This is a structured tool result, render it based on display preference
+                <>
+                  {content.display_preference === "Collapsible" ? (
+                    <Collapse ghost size="small">
+                      <Collapse.Panel
+                        header="View Tool Result"
+                        key="tool-result-panel"
+                      >
+                        <ReactMarkdown
+                          remarkPlugins={markdownPlugins}
+                          rehypePlugins={rehypePlugins}
+                          components={markdownComponents}
+                        >
+                          {content.result}
+                        </ReactMarkdown>
+                      </Collapse.Panel>
+                    </Collapse>
+                  ) : content.display_preference === "Hidden" ? (
+                    <Text italic>Tool executed successfully.</Text>
+                  ) : (
+                    // Default behavior
+                    <ReactMarkdown
+                      remarkPlugins={markdownPlugins}
+                      rehypePlugins={rehypePlugins}
+                      components={markdownComponents}
+                    >
+                      {content.result}
+                    </ReactMarkdown>
+                  )}
+                </>
               ) : (
+                // This is a regular message (string or rich content)
                 <ReactMarkdown
                   remarkPlugins={markdownPlugins}
                   rehypePlugins={rehypePlugins}

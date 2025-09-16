@@ -1,11 +1,11 @@
 import { create } from 'zustand';
 import { devtools, subscribeWithSelector } from 'zustand/middleware';
 import { debounce } from 'lodash-es';
-import { ChatSlice, createChatSlice } from './slices/chatSlice';
+import { ChatSlice, createChatSlice } from './slices/chatSessionSlice';
 import { ModelSlice, createModelSlice } from './slices/modelSlice';
 import { PromptSlice, createPromptSlice } from './slices/promptSlice';
 import { FavoritesSlice, createFavoritesSlice } from './slices/favoritesSlice';
-import { SessionSlice, createSessionSlice } from './slices/sessionSlice';
+import { SessionSlice, createSessionSlice } from './slices/appSettingsSlice';
 import { StorageService } from '../services/StorageService';
 
 export type AppState = ChatSlice & ModelSlice & PromptSlice & FavoritesSlice & SessionSlice;

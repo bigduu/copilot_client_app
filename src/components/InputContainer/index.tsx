@@ -4,12 +4,11 @@ import { ToolOutlined } from "@ant-design/icons";
 import { MessageInput } from "../MessageInput";
 import InputPreview from "./InputPreview";
 import ToolSelector from "../ToolSelector";
-import { useChats } from "../../hooks/useChats";
-import { useChatManager } from "../../hooks/useChatManager"; // Import the new hook
+import { useChatList } from "../../hooks/useChatList";
+import { useChatControllerContext } from "../../contexts/ChatControllerContext";
 import { useToolCategoryValidation } from "../../hooks/useToolCategoryValidation";
 import { useSystemPrompt } from "../../hooks/useSystemPrompt";
 // Removed getCategoryDisplayInfoAsync import since lock functionality is removed
-import { useAppStore } from "../../store";
 
 const { useToken } = theme;
 
@@ -23,12 +22,13 @@ export const InputContainer: React.FC<InputContainerProps> = ({
   const [showToolSelector, setShowToolSelector] = useState(false);
   const [toolSearchText, setToolSearchText] = useState("");
   const { token } = useToken();
-  const { currentMessages, currentChat } = useChats();
-  const cancelCurrentRequest = useAppStore(
-    (state) => state.cancelCurrentRequest
-  );
-  const isProcessing = useAppStore((state) => state.isProcessing);
-  const isStreaming = isProcessing;
+  const { currentMessages, currentChat } = useChatList();
+
+  // Get state and actions from the state machine
+  const { state, send, sendMessage, retryLastMessage } =
+    useChatControllerContext();
+  const isStreaming = state.matches("THINKING");
+
   // TODO: selectedSystemPromptPresetId needs to be retrieved from the new store
   const selectedSystemPromptPresetId = null;
 
@@ -58,9 +58,6 @@ export const InputContainer: React.FC<InputContainerProps> = ({
   const [content, setContent] = useState("");
   const [images, setImages] = useState<any[]>([]);
   const [referenceText, setReferenceText] = useState<string | null>(null);
-
-  // Get the new sendMessage function
-  const { sendMessage, retryLastMessage } = useChatManager();
 
   // Create a new handleSubmit that uses our new hook
   const handleSubmit = () => {
@@ -232,7 +229,7 @@ export const InputContainer: React.FC<InputContainerProps> = ({
           onChange={handleInputChange}
           onSubmit={handleSubmit}
           onRetry={retryLastMessage}
-          onCancel={cancelCurrentRequest}
+          onCancel={() => send({ type: "CANCEL" })}
           isStreaming={isStreaming}
           isCenteredLayout={isCenteredLayout}
           placeholder={placeholder}

@@ -85,6 +85,8 @@ You combine architect-level strategic thinking with hands-on development experti
             "execute_command",
             // Search functionality
             "search",
+            "simple_tool",
+            "demo_tool",
         ]
     }
 

@@ -1,65 +1,33 @@
 import React, { createContext, useContext, ReactNode } from "react";
-import { useMessages } from "../hooks/useMessages";
-import { useChats } from "../hooks/useChats";
-import { useChatInput } from "../hooks/useChatInput";
+import { useChatList } from "../hooks/useChatList";
 
 // Define the context type based on modern hooks
 interface ChatContextType {
-  // From useMessages
-  messages: ReturnType<typeof useMessages>["messages"];
-  isProcessing: ReturnType<typeof useMessages>["isProcessing"];
-  currentChatId: ReturnType<typeof useMessages>["currentChatId"];
-  addMessage: ReturnType<typeof useMessages>["addMessage"];
-  updateMessage: ReturnType<typeof useMessages>["updateMessage"];
-  addMessageToCurrentChat: ReturnType<
-    typeof useMessages
-  >["addMessageToCurrentChat"];
-  updateMessageInCurrentChat: ReturnType<
-    typeof useMessages
-  >["updateMessageInCurrentChat"];
-  sendMessage: ReturnType<typeof useMessages>["sendMessage"];
-  generateChatTitle: ReturnType<typeof useMessages>["generateChatTitle"];
-  autoUpdateChatTitle: ReturnType<typeof useMessages>["autoUpdateChatTitle"];
-
-  // From useChats
-  chats: ReturnType<typeof useChats>["chats"];
-  currentChat: ReturnType<typeof useChats>["currentChat"];
-  currentMessages: ReturnType<typeof useChats>["currentMessages"];
-  pinnedChats: ReturnType<typeof useChats>["pinnedChats"];
-  unpinnedChats: ReturnType<typeof useChats>["unpinnedChats"];
-  chatCount: ReturnType<typeof useChats>["chatCount"];
-  selectChat: ReturnType<typeof useChats>["selectChat"];
-  deleteChat: ReturnType<typeof useChats>["deleteChat"];
-  deleteChats: ReturnType<typeof useChats>["deleteChats"];
-  pinChat: ReturnType<typeof useChats>["pinChat"];
-  unpinChat: ReturnType<typeof useChats>["unpinChat"];
-  updateChat: ReturnType<typeof useChats>["updateChat"];
-  loadChats: ReturnType<typeof useChats>["loadChats"];
-  saveChats: ReturnType<typeof useChats>["saveChats"];
-  createNewChat: ReturnType<typeof useChats>["createNewChat"];
+  // From useChatList
+  chats: ReturnType<typeof useChatList>["chats"];
+  currentChat: ReturnType<typeof useChatList>["currentChat"];
+  currentMessages: ReturnType<typeof useChatList>["currentMessages"];
+  pinnedChats: ReturnType<typeof useChatList>["pinnedChats"];
+  unpinnedChats: ReturnType<typeof useChatList>["unpinnedChats"];
+  chatCount: ReturnType<typeof useChatList>["chatCount"];
+  selectChat: ReturnType<typeof useChatList>["selectChat"];
+  deleteChat: ReturnType<typeof useChatList>["deleteChat"];
+  deleteChats: ReturnType<typeof useChatList>["deleteChats"];
+  pinChat: ReturnType<typeof useChatList>["pinChat"];
+  unpinChat: ReturnType<typeof useChatList>["unpinChat"];
+  updateChat: ReturnType<typeof useChatList>["updateChat"];
+  loadChats: ReturnType<typeof useChatList>["loadChats"];
+  saveChats: ReturnType<typeof useChatList>["saveChats"];
+  createNewChat: ReturnType<typeof useChatList>["createNewChat"];
   createChatWithSystemPrompt: ReturnType<
-    typeof useChats
+    typeof useChatList
   >["createChatWithSystemPrompt"];
-  toggleChatPin: ReturnType<typeof useChats>["toggleChatPin"];
-  updateChatTitle: ReturnType<typeof useChats>["updateChatTitle"];
-  deleteEmptyChats: ReturnType<typeof useChats>["deleteEmptyChats"];
-  deleteAllUnpinnedChats: ReturnType<typeof useChats>["deleteAllUnpinnedChats"];
-
-  // From useChatInput
-  content: ReturnType<typeof useChatInput>["content"];
-  setContent: ReturnType<typeof useChatInput>["setContent"];
-  referenceText: ReturnType<typeof useChatInput>["referenceText"];
-  images: ReturnType<typeof useChatInput>["images"];
-  handleSubmit: ReturnType<typeof useChatInput>["handleSubmit"];
-  handleRetry: ReturnType<typeof useChatInput>["handleRetry"];
-  handleCloseReferencePreview: ReturnType<
-    typeof useChatInput
-  >["handleCloseReferencePreview"];
-  setReferenceText: ReturnType<typeof useChatInput>["setReferenceText"];
-  clearReferenceText: ReturnType<typeof useChatInput>["clearReferenceText"];
-  setImages: ReturnType<typeof useChatInput>["setImages"];
-  clearImages: ReturnType<typeof useChatInput>["clearImages"];
-  contextHolder: ReturnType<typeof useChatInput>["contextHolder"];
+  toggleChatPin: ReturnType<typeof useChatList>["toggleChatPin"];
+  updateChatTitle: ReturnType<typeof useChatList>["updateChatTitle"];
+  deleteEmptyChats: ReturnType<typeof useChatList>["deleteEmptyChats"];
+  deleteAllUnpinnedChats: ReturnType<
+    typeof useChatList
+  >["deleteAllUnpinnedChats"];
 }
 
 // Create the context without default implementation
@@ -73,25 +41,11 @@ interface ChatProviderProps {
 // The actual provider implementation using modern hooks
 export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
   // Use modern hooks instead of useChatManager
-  const messagesHook = useMessages();
-  const chatsHook = useChats();
-  const chatInputHook = useChatInput();
+  const chatsHook = useChatList();
 
   // Combine all hooks into a single context value
   const contextValue: ChatContextType = {
-    // From useMessages
-    messages: messagesHook.messages,
-    isProcessing: messagesHook.isProcessing,
-    currentChatId: messagesHook.currentChatId,
-    addMessage: messagesHook.addMessage,
-    updateMessage: messagesHook.updateMessage,
-    addMessageToCurrentChat: messagesHook.addMessageToCurrentChat,
-    updateMessageInCurrentChat: messagesHook.updateMessageInCurrentChat,
-    sendMessage: messagesHook.sendMessage,
-    generateChatTitle: messagesHook.generateChatTitle,
-    autoUpdateChatTitle: messagesHook.autoUpdateChatTitle,
-
-    // From useChats
+    // From useChatList
     chats: chatsHook.chats,
     currentChat: chatsHook.currentChat,
     currentMessages: chatsHook.currentMessages,
@@ -112,20 +66,6 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     updateChatTitle: chatsHook.updateChatTitle,
     deleteEmptyChats: chatsHook.deleteEmptyChats,
     deleteAllUnpinnedChats: chatsHook.deleteAllUnpinnedChats,
-
-    // From useChatInput
-    content: chatInputHook.content,
-    setContent: chatInputHook.setContent,
-    referenceText: chatInputHook.referenceText,
-    images: chatInputHook.images,
-    handleSubmit: chatInputHook.handleSubmit,
-    handleRetry: chatInputHook.handleRetry,
-    handleCloseReferencePreview: chatInputHook.handleCloseReferencePreview,
-    setReferenceText: chatInputHook.setReferenceText,
-    clearReferenceText: chatInputHook.clearReferenceText,
-    setImages: chatInputHook.setImages,
-    clearImages: chatInputHook.clearImages,
-    contextHolder: chatInputHook.contextHolder,
   };
 
   return (

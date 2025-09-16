@@ -1,36 +1,30 @@
-/**
- * Create a throttled function that only invokes the provided function at most once
- * per every `throttleMs` milliseconds.
- * @param onUpdate The function to throttle.
- * @param throttleMs The number of milliseconds to throttle invocations to.
- * @returns A new throttled function.
- */
-export const createThrottledUpdater = (
-  onUpdate: (content: string) => void,
-  throttleMs: number = 150
-): (content: string) => void => {
-  let lastUpdateTime = 0;
-  let pendingContent = '';
-  let timeoutId: number | null = null;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function throttle<T extends (...args: any[]) => void>(
+  func: T,
+  limit: number
+): (...args: Parameters<T>) => void {
+  let inThrottle: boolean;
+  let lastFunc: NodeJS.Timeout;
+  let lastRan: number;
 
-  return (content: string) => {
-    pendingContent = content;
-    const now = Date.now();
-    const timeSinceLastUpdate = now - lastUpdateTime;
-
-    if (timeSinceLastUpdate > throttleMs) {
-      lastUpdateTime = now;
-      onUpdate(content);
-      if (timeoutId) {
-        clearTimeout(timeoutId);
-        timeoutId = null;
-      }
-    } else if (timeoutId === null) {
-      timeoutId = window.setTimeout(() => {
-        onUpdate(pendingContent);
-        lastUpdateTime = Date.now();
-        timeoutId = null;
-      }, throttleMs - timeSinceLastUpdate);
+  return function (this: ThisParameterType<T>, ...args: Parameters<T>) {
+    // eslint-disable-next-line @typescript-eslint/no-this-alias
+    const context = this;
+    if (!inThrottle) {
+      func.apply(context, args);
+      lastRan = Date.now();
+      inThrottle = true;
+    } else {
+      clearTimeout(lastFunc);
+      lastFunc = setTimeout(
+        () => {
+          if (Date.now() - lastRan >= limit) {
+            func.apply(context, args);
+            lastRan = Date.now();
+          }
+        },
+        limit - (Date.now() - lastRan)
+      );
     }
   };
-};
+}

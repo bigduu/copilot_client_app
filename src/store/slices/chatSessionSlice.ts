@@ -15,14 +15,16 @@ export interface ChatSlice {
   // Actions
   addChat: (chat: Omit<ChatItem, 'id'>) => void;
   selectChat: (chatId: string | null) => void;
-  deleteChat: (chatId: string) => void;
-  deleteChats: (chatIds: string[]) => void;
+  deleteChat: (chatId: string) => Promise<void>;
+  deleteChats: (chatIds: string[]) => Promise<void>;
   updateChat: (chatId: string, updates: Partial<ChatItem>) => void;
   pinChat: (chatId: string) => void;
   unpinChat: (chatId: string) => void;
   
   addMessage: (chatId: string, message: Message) => void;
+  setMessages: (chatId: string, messages: Message[]) => void;
   updateMessage: (chatId: string, messageId: string, updates: Partial<Message>) => void;
+  updateMessageContent: (chatId: string, messageId: string, content: string) => void; // New action for streaming
   deleteMessage: (chatId: string, messageId: string) => void;
   
   loadChats: () => Promise<void>;
@@ -65,7 +67,8 @@ export const createChatSlice = (storageService: StorageService): StateCreator<Ap
     set({ ...get(), currentChatId: chatId, latestActiveChatId: chatId });
   },
 
-  deleteChat: (chatId) => {
+  deleteChat: async (chatId) => {
+    await storageService.deleteMessages(chatId);
     set(state => {
       const newChats = state.chats.filter(chat => chat.id !== chatId);
       const newMessages = { ...state.messages };
@@ -92,7 +95,8 @@ export const createChatSlice = (storageService: StorageService): StateCreator<Ap
     });
   },
 
-  deleteChats: (chatIds) => {
+  deleteChats: async (chatIds) => {
+    await storageService.deleteMultipleMessages(chatIds);
     set(state => {
       const newChats = state.chats.filter(chat => !chatIds.includes(chat.id));
       const newMessages = { ...state.messages };
@@ -139,6 +143,16 @@ export const createChatSlice = (storageService: StorageService): StateCreator<Ap
   },
 
   // Message management
+  setMessages: (chatId, messages) => {
+    set(state => ({
+      ...state,
+      messages: {
+        ...state.messages,
+        [chatId]: messages
+      }
+    }));
+  },
+
   addMessage: (chatId, message) => {
     set(state => ({
       ...state,
@@ -165,6 +179,28 @@ export const createChatSlice = (storageService: StorageService): StateCreator<Ap
           ...state.messages,
           [chatId]: currentMessages.map(msg =>
             msg.id === messageId ? { ...msg, ...updates } : msg
+          )
+        }
+      };
+    });
+  },
+
+  updateMessageContent: (chatId, messageId, content) => {
+    set(state => {
+      const currentMessages = state.messages[chatId] || [];
+      const messageExists = currentMessages.some(msg => msg.id === messageId);
+
+      if (!messageExists) {
+        // Don't warn, as this can happen if the stream starts before the message is added
+        return state;
+      }
+
+      return {
+        ...state,
+        messages: {
+          ...state.messages,
+          [chatId]: currentMessages.map(msg =>
+            msg.id === messageId ? { ...msg, content } : msg
           )
         }
       };

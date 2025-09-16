@@ -1,22 +1,9 @@
 import React, { useEffect, useState, useRef } from "react";
 import { theme } from "antd";
 import { invoke } from "@tauri-apps/api/core";
+import { ToolUIInfo, ToolsUIResponse } from "../../services/ToolService";
 
 const { useToken } = theme;
-
-interface ParameterInfo {
-  name: string;
-  description: string;
-  required: boolean;
-  type: string;
-}
-
-interface ToolUIInfo {
-  name: string;
-  description: string;
-  parameters: ParameterInfo[];
-  hide_in_selector: boolean;
-}
 
 interface ToolSelectorProps {
   visible: boolean;
@@ -48,26 +35,13 @@ const ToolSelector: React.FC<ToolSelectorProps> = ({
   // Fetch tools when component becomes visible
   useEffect(() => {
     if (visible) {
-      // Fetch tools
-      const fetchTools = invoke<ToolUIInfo[]>("get_tools_for_ui", {
-        category_id: categoryId,
-      });
-
-      // Fetch category info to check strict mode if categoryId is provided
-      const fetchCategoryInfo = categoryId
-        ? invoke<any>("get_tool_category_info", { category_id: categoryId })
-        : Promise.resolve(null);
-
-      Promise.all([fetchTools, fetchCategoryInfo])
-        .then(([toolsList, categoryInfo]) => {
-          console.log("Fetched tools:", toolsList);
-          console.log("Category info:", categoryInfo);
-          console.log(
-            "Is strict mode:",
-            categoryInfo?.strict_tools_mode || false
-          );
-          setTools(toolsList);
-          setIsStrictMode(categoryInfo?.strict_tools_mode || false);
+      invoke<ToolsUIResponse>("get_tools_for_ui", {
+        categoryId: categoryId,
+      })
+        .then((response) => {
+          console.log("Fetched tools response:", response);
+          setTools(response.tools);
+          setIsStrictMode(response.is_strict_mode);
           setSelectedIndex(0);
         })
         .catch((error) => {

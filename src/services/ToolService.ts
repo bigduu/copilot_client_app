@@ -1,10 +1,12 @@
 import { invoke } from "@tauri-apps/api/core";
-import { Message } from "../types/chat";
+import OpenAI from 'openai';
+import { Message, ToolExecutionResult } from "../types/chat";
 import { SystemPromptService } from "./SystemPromptService";
 
 export interface ToolCallRequest {
   tool_name: string;
   user_description: string;
+  parameter_parsing_strategy?: 'AIParameterParsing' | 'RegexParameterExtraction';
 }
 
 export interface ParameterValue {
@@ -22,6 +24,8 @@ export interface ToolUIInfo {
   description: string;
   parameters: ParameterInfo[];
   tool_type: string;
+  parameter_parsing_strategy?: 'AIParameterParsing' | 'RegexParameterExtraction';
+  required_approval: boolean; // Add this field
   parameter_regex?: string;
   ai_response_template?: string;
   hide_in_selector: boolean;
@@ -32,6 +36,11 @@ export interface ParameterInfo {
   description: string;
   required: boolean;
   type: string;
+}
+
+export interface ToolsUIResponse {
+  tools: ToolUIInfo[];
+  is_strict_mode: boolean;
 }
 
 export interface ValidationResult {
@@ -61,31 +70,48 @@ export class ToolService {
   }
 
   /**
-   * Parse tool call format (e.g., "/create_file Create a test file")
+   * Parses a user-entered command from the input box.
+   * e.g., "/simple_tool 123" -> { tool_name: "simple_tool", user_description: "123" }
    */
-  parseToolCallFormat(content: string): ToolCallRequest | null {
-    if (content.startsWith("/")) {
-      // Handle case where user just typed tool name without description
-      const spacePos = content.indexOf(" ");
-      if (spacePos !== -1) {
-        const tool_name = content.slice(1, spacePos);
-        const user_description = content.slice(spacePos + 1);
-        return {
-          tool_name,
-          user_description,
-        };
-      } else {
-        // Handle case where user just typed "/toolname" without space or description
-        const tool_name = content.slice(1);
-        if (tool_name.length > 0) {
-          return {
-            tool_name,
-            user_description: "",
-          };
-        }
-      }
+  parseUserCommand(content: string): ToolCallRequest | null {
+    console.log(`[ToolService] parseUserCommand: Parsing content: "${content}"`);
+    const trimmedContent = content.trim();
+    if (!trimmedContent.startsWith('/')) {
+      console.log('[ToolService] parseUserCommand: Content does not start with "/", not a tool command.');
+      return null;
     }
+
+    const spaceIndex = trimmedContent.indexOf(' ');
+    let tool_name;
+    let user_description;
+
+    if (spaceIndex === -1) {
+      // Command is just "/tool_name"
+      tool_name = trimmedContent.substring(1);
+      user_description = '';
+    } else {
+      // Command is "/tool_name with description"
+      tool_name = trimmedContent.substring(1, spaceIndex);
+      user_description = trimmedContent.substring(spaceIndex + 1).trim();
+    }
+
+    if (tool_name) {
+      const result = { tool_name, user_description };
+      console.log('[ToolService] parseUserCommand: Successfully parsed command:', result);
+      return result;
+    }
+
+    console.log('[ToolService] parseUserCommand: Failed to parse tool name from content.');
     return null;
+  }
+
+  /**
+   * Parses an AI-generated string to see if it's a tool call.
+   * This is kept separate in case the AI format differs from user commands.
+   */
+  parseAIResponseToToolCall(content: string): ToolCallRequest | null {
+    // For now, AI and user formats are the same.
+    return this.parseUserCommand(content);
   }
 
   /**
@@ -93,7 +119,12 @@ export class ToolService {
    */
   async getAvailableTools(): Promise<ToolUIInfo[]> {
     try {
-      return await invoke<ToolUIInfo[]>("get_tools_for_ui");
+      const response = await invoke<ToolsUIResponse>("get_tools_for_ui", { categoryId: null });
+      if (response && Array.isArray(response.tools)) {
+        return response.tools;
+      }
+      // Fallback for safety, in case the response is not as expected.
+      return [];
     } catch (error) {
       console.error("Failed to get available tools:", error);
       throw new Error(`Failed to get available tools: ${error}`);
@@ -101,58 +132,100 @@ export class ToolService {
   }
 
   /**
-   * Parse tool parameters using AI
+   * Get tools for a specific category.
+   * @param categoryId The ID of the category.
    */
-  async parseToolParameters(
-    toolCall: ToolCallRequest,
-    tool: ToolUIInfo,
-    sendLLMRequest: (messages: Message[]) => Promise<string>
-  ): Promise<ParameterValue[]> {
-    // Build system prompt for parameter parsing
-    const systemPrompt = await this.buildParameterParsingPrompt(
-      tool,
-      toolCall.user_description
-    );
+  async getToolsForCategory(categoryId: string): Promise<ToolUIInfo[]> {
+    try {
+      console.log(`[ToolService] Fetching tools for category: ${categoryId}`);
+      const response = await invoke<ToolsUIResponse>("get_tools_for_ui", { categoryId });
+      if (response && Array.isArray(response.tools)) {
+        console.log(`[ToolService] Found ${response.tools.length} tools for category ${categoryId}.`);
+        return response.tools;
+      }
+      console.warn(`[ToolService] No tools found or invalid response for category ${categoryId}.`);
+      return [];
+    } catch (error) {
+      console.error(`Failed to get tools for category ${categoryId}:`, error);
+      throw new Error(`Failed to get tools for category ${categoryId}: ${error}`);
+    }
+  }
 
-    const messages: Message[] = [
-      {
-        role: "system",
-        content: systemPrompt,
-        id: "system-prompt",
-        createdAt: new Date().toISOString(),
-      },
-      {
-        role: "user",
-        content: toolCall.user_description,
-        id: "user-prompt",
-        createdAt: new Date().toISOString(),
-      },
+  /**
+   * Parses tool parameters using an AI model.
+   * This is a dedicated method to be called by the state machine.
+   */
+  async parseParametersWithAI(toolCall: ToolCallRequest): Promise<ParameterValue[]> {
+    console.log(`[ToolService] parseParametersWithAI: Starting AI parsing for tool "${toolCall.tool_name}"`);
+    const toolInfo = await this.getToolInfo(toolCall.tool_name);
+    if (!toolInfo) {
+      throw new Error(`Tool "${toolCall.tool_name}" not found for AI parameter parsing.`);
+    }
+
+    // Build the specific prompt for the AI to parse parameters.
+    const systemPrompt = this.buildParameterParsingPrompt(toolInfo, toolCall.user_description);
+    const messages = [
+      { role: "system", content: systemPrompt },
+      { role: "user", content: toolCall.user_description },
     ];
 
-    // Call LLM to parse parameters
-    const aiResponse = await sendLLMRequest(messages);
+    try {
+      // Use the OpenAI client to call the local web server, same as AIService
+      const client = new OpenAI({
+        baseURL: 'http://localhost:8080/v1',
+        apiKey: 'dummy-key',
+        dangerouslyAllowBrowser: true,
+      });
 
-    console.log("[ToolService] AI parameter parsing response:", aiResponse);
+      const response = await client.chat.completions.create({
+        model: 'gpt-4.1', // Or a model configured for this task
+        messages: messages as any,
+        stream: false,
+      });
 
-    // Parse parameters returned by AI
-    const parsedParams = await this.parseAIParameterResponse(
-      aiResponse,
-      tool,
-      toolCall.user_description
-    );
+      const aiResponse = response.choices[0]?.message?.content;
+      if (!aiResponse) {
+        throw new Error("AI did not return a valid response for parameter parsing.");
+      }
 
-    console.log("[ToolService] Parsed parameters:", parsedParams);
-    return parsedParams;
+      console.log(`[ToolService] parseParametersWithAI: AI response: "${aiResponse}"`);
+
+      // The AI's response IS the parameter value.
+      if (toolInfo.parameters.length === 1) {
+        const parsedParams: ParameterValue[] = [{
+          name: toolInfo.parameters[0].name,
+          value: aiResponse.trim(),
+        }];
+        console.log('[ToolService] parseParametersWithAI: Parsed parameters:', parsedParams);
+        return parsedParams;
+      }
+
+      console.warn(`[ToolService] AI parameter parsing for multi-parameter tools is not fully implemented. Using fallback.`);
+      return [{ name: "parameters", value: aiResponse.trim() }];
+    } catch (error) {
+      console.error(`[ToolService] parseParametersWithAI: Failed to call local AI server:`, error);
+      const errorMessage = typeof error === 'string' ? error : (error instanceof Error ? error.message : 'An unknown error occurred during parameter parsing.');
+      throw new Error(errorMessage);
+    }
   }
 
   /**
    * Execute tool
    */
-  async executeTool(request: ToolExecutionRequest): Promise<string> {
+  async executeTool(request: ToolExecutionRequest): Promise<ToolExecutionResult> {
+    console.log('[ToolService] executeTool: Attempting to execute tool via Tauri with request:', request);
     try {
-      return await invoke<string>("execute_tool", { request });
+      // The backend now returns a JSON string containing the result and display preference.
+      const jsonResult = await invoke<string>("execute_tool", { request });
+      console.log('[ToolService] executeTool: Tauri command "execute_tool" returned successfully with JSON result:', jsonResult);
+      
+      // Parse the JSON string into a structured object.
+      const structuredResult: ToolExecutionResult = JSON.parse(jsonResult);
+      console.log('[ToolService] executeTool: Parsed structured result:', structuredResult);
+      
+      return structuredResult;
     } catch (error) {
-      console.error("Tool execution failed:", error);
+      console.error('[ToolService] executeTool: Tauri command "execute_tool" invocation failed:', error);
       throw new Error(`Tool execution failed: ${error}`);
     }
   }
@@ -162,10 +235,10 @@ export class ToolService {
   /**
    * Build system prompt for parameter parsing
    */
-  private async buildParameterParsingPrompt(
+  private buildParameterParsingPrompt(
     tool: ToolUIInfo,
     userDescription: string
-  ): Promise<string> {
+  ): string {
     const parametersDesc = tool.parameters
       .map(
         (p) =>
@@ -216,80 +289,6 @@ User input: "${userDescription}"
 Extract parameter value:`;
   }
 
-  /**
-   * Parse AI parameter response
-   */
-  private async parseAIParameterResponse(
-    aiResponse: string,
-    tool: ToolUIInfo,
-    userDescription: string
-  ): Promise<ParameterValue[]> {
-    const trimmedResponse = aiResponse.trim();
-
-    if (!trimmedResponse) {
-      throw new Error("AI returned empty parameters");
-    }
-
-    const parameters: ParameterValue[] = [];
-
-    // Special handling for execute_command tool
-    if (tool.name === "execute_command" && tool.parameters.length === 1) {
-      // For execute_command, use AI response directly if it looks like a valid command
-      let command = trimmedResponse;
-
-      // Fallback: if AI response is empty or looks invalid, use user description
-      if (!command || command.length === 0) {
-        command = userDescription;
-
-        // If user description starts with "/execute_command ", extract the command part
-        if (userDescription.startsWith("/execute_command ")) {
-          command = userDescription.substring("/execute_command ".length);
-        }
-      }
-
-      parameters.push({
-        name: tool.parameters[0].name,
-        value: command,
-      });
-
-      console.log("[ToolService] Execute command parameter extracted:", command);
-      console.log("[ToolService] AI response was:", trimmedResponse);
-      console.log("[ToolService] User description was:", userDescription);
-      return parameters;
-    }
-
-    // Simplified parameter parsing: parse AI response based on tool parameter definitions
-    // For most tools, the AI should return suitable parameter values
-    if (tool.parameters.length === 1) {
-      // Single-parameter tool: directly use the AI response as the parameter value
-      parameters.push({
-        name: tool.parameters[0].name,
-        value: trimmedResponse,
-      });
-    } else if (tool.parameters.length > 1) {
-      // Multi-parameter tool: try to split by line or use the entire response as the first parameter
-      const lines = trimmedResponse.split('\n').filter(line => line.trim());
-      if (lines.length >= tool.parameters.length) {
-        // Assign parameters by line
-        tool.parameters.forEach((param, index) => {
-          parameters.push({
-            name: param.name,
-            value: lines[index] ? lines[index].trim() : userDescription,
-          });
-        });
-      } else {
-        // Fallback: use the user description as the value for the first parameter
-        parameters.push({
-          name: tool.parameters[0].name,
-          value: userDescription,
-        });
-      }
-    } else {
-      throw new Error(`Tool "${tool.name}" has no parameters defined`);
-    }
-
-    return parameters;
-  }
 
   /**
    * Format tool execution result
@@ -364,12 +363,32 @@ ${result}
       const tools = await this.getAvailableTools();
       const tool = tools.find((tool) => tool.name === toolName);
       if (!tool) {
-        throw new Error(`Tool "${toolName}" does not exist. Please check if the tool is correctly registered in the backend`);
+        // Return null instead of throwing, allows for graceful checking.
+        console.warn(`Tool "${toolName}" does not exist.`);
+        return null;
       }
       return tool;
     } catch (error) {
       console.error("Failed to get tool info:", error);
+      // Re-throw to be handled by the caller
       throw new Error(`Failed to get information for tool "${toolName}": ${error}`);
+    }
+  }
+
+  /**
+   * Checks if a tool requires user approval before execution.
+   * This is based on the tool's definition in the backend.
+   */
+  async toolRequiresApproval(toolName: string): Promise<boolean> {
+    try {
+      const toolInfo = await this.getToolInfo(toolName);
+      // Corresponds to the `required_approval` field in the Rust Tool trait.
+      // If tool not found or info is incomplete, default to requiring approval for safety.
+      return toolInfo?.required_approval ?? true;
+    } catch (error) {
+      console.error(`Error checking approval for tool "${toolName}":`, error);
+      // Default to true for safety if there's an error fetching info.
+      return true;
     }
   }
 
@@ -491,7 +510,7 @@ ${result}
 
       if (preset.restrictConversation) {
         // Check if it's a tool call
-        const isToolCall = this.parseToolCallFormat(content) !== null;
+        const isToolCall = this.parseUserCommand(content) !== null;
         if (!isToolCall) {
           return {
             isValid: false,
@@ -526,7 +545,7 @@ ${result}
 
     // 2. Validate normal conversation permissions
     const conversationValidation = await this.validateConversation(
-      content,
+      processedContent, // Use processedContent here
       systemPromptId
     );
     if (!conversationValidation.isValid) {
@@ -537,7 +556,7 @@ ${result}
     }
 
     // 3. Check tool call permissions (if it's a tool call)
-    const toolCall = this.parseToolCallFormat(processedContent);
+    const toolCall = this.parseUserCommand(processedContent);
     if (toolCall) {
       const toolValidation = await this.validateToolCall(
         toolCall,

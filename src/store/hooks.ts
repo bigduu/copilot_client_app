@@ -4,7 +4,7 @@ import { ChatItem } from '../types/chat';
 /**
  * Convenience hook to get the list of chats.
  */
-export const useChats = () => useAppStore(state => state.chats);
+export const useChatList = () => useAppStore(state => state.chats);
 
 /**
  * Convenience hook to get the currently selected chat.

@@ -16,6 +16,7 @@
     "@tauri-apps/plugin-global-shortcut": "~2",
     "@types/markdown-it": "^14.1.2",
     "@types/react-syntax-highlighter": "^15.5.13",
+    "@xstate/react": "^6.0.0",
     "antd": "^5.24.7",
     "date-fns": "^4.1.0",
     "html2canvas": "^1.4.1",
@@ -33,6 +34,7 @@
     "remark-breaks": "^4.0.0",
     "remark-gfm": "^4.0.1",
     "uuid": "^11.1.0",
+    "xstate": "^5.21.0",
     "zustand": "^5.0.6"
   },
   "devDependencies": {

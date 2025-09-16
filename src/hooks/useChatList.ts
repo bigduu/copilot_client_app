@@ -20,6 +20,7 @@ interface UseChatsReturn {
 
   // Basic Operations (Directly mapped to Store)
   selectChat: (chatId: string | null) => void;
+  deleteMessage: (chatId: string, messageId: string) => void;
   deleteChat: (chatId: string) => void;
   deleteChats: (chatIds: string[]) => void;
   pinChat: (chatId: string) => void;
@@ -37,7 +38,7 @@ interface UseChatsReturn {
   deleteAllUnpinnedChats: () => void;
 }
 
-export const useChats = (): UseChatsReturn => {
+export const useChatList = (): UseChatsReturn => {
   // Get data from Zustand Store (Hook → Store)
   const chats = useAppStore(state => state.chats);
   const currentChatId = useAppStore(state => state.currentChatId);
@@ -48,6 +49,7 @@ export const useChats = (): UseChatsReturn => {
   const selectChat = useAppStore(state => state.selectChat);
   const deleteChat = useAppStore(state => state.deleteChat);
   const deleteChats = useAppStore(state => state.deleteChats);
+  const deleteMessage = useAppStore(state => state.deleteMessage);
   const updateChat = useAppStore(state => state.updateChat);
   const pinChat = useAppStore(state => state.pinChat);
   const unpinChat = useAppStore(state => state.unpinChat);
@@ -129,6 +131,7 @@ export const useChats = (): UseChatsReturn => {
 
     // Basic Operations (Directly mapped to Store)
     selectChat,
+    deleteMessage,
     deleteChat,
     deleteChats,
     pinChat,
