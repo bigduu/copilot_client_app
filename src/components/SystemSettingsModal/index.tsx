@@ -144,6 +144,12 @@ const SystemSettingsModal = ({
     msgApi.success("Empty chats deleted (except pinned)");
   };
 
+  const handleClearLocalStorage = () => {
+    localStorage.clear();
+    msgApi.success("Local storage has been cleared");
+    onClose();
+  };
+
   return (
     <Modal
       title="System Settings"
@@ -251,6 +257,18 @@ const SystemSettingsModal = ({
         >
           <Button danger block icon={<DeleteOutlined />}>
             Delete Empty Chats
+          </Button>
+        </Popconfirm>
+        <Popconfirm
+          title="Clear Local Storage"
+          description="Are you sure? This will delete all local storage data and reset the application."
+          onConfirm={handleClearLocalStorage}
+          okText="Yes, clear it"
+          cancelText="Cancel"
+          placement="top"
+        >
+          <Button danger block icon={<DeleteOutlined />}>
+            Clear Local Storage
           </Button>
         </Popconfirm>
       </Space>

@@ -21,31 +21,16 @@ export class AIService {
     try {
       // Convert our message format to OpenAI format
       const openaiMessages = messages.map(msg => {
-        let content;
-        if (typeof msg.content === 'string') {
-          content = msg.content;
-        } else if (isToolExecutionResult(msg.content)) {
-          // If it's a tool result, just use the string result for the AI prompt
-          content = msg.content.result;
-        } else {
-          // It's an array of content parts
-          content = msg.content.map(part => {
-            if (part.type === 'text') {
-              return { type: 'text', text: part.text };
-            } else if (part.type === 'image_url') {
-              return {
-                type: 'image_url',
-                image_url: {
-                  url: part.image_url?.url || '',
-                  detail: part.image_url?.detail || 'auto'
-                }
-              };
-            }
-            return part;
-          });
+        if (msg.role === 'system' || (msg.role === 'user' && typeof msg.content === 'string') || (msg.role === 'assistant' && msg.type === 'text')) {
+          return { role: msg.role, content: msg.content };
         }
-        return { role: msg.role, content };
-      });
+        if (msg.role === 'assistant' && msg.type === 'tool_result') {
+          const content = `Tool: ${msg.toolName} executed. Result: ${JSON.stringify(msg.result)}`;
+          return { role: 'assistant', content };
+        }
+        // Handle other message types if necessary, or filter them out
+        return null;
+      }).filter(Boolean);
 
       console.log('[AIService] Sending messages:', openaiMessages.length, 'messages');
       console.log('[AIService] Messages:', JSON.stringify(openaiMessages, null, 2));
@@ -71,17 +56,7 @@ export class AIService {
           const finishReason = chunk.choices[0]?.finish_reason;
 
           if (content) {
-            // Convert to Tauri-compatible format
-            const tauriFormat = {
-              choices: [{
-                delta: {
-                  content: content,
-                  role: chunk.choices[0]?.delta?.role || null
-                },
-                finish_reason: finishReason || null
-              }]
-            };
-            onChunk(JSON.stringify(tauriFormat));
+            onChunk(content);
           }
 
           // Check if stream is finished
@@ -90,7 +65,7 @@ export class AIService {
           }
         }
 
-        // Send completion signal in Tauri format
+        // Send completion signal
         if (onChunk) {
           onChunk('[DONE]');
         }

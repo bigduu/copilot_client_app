@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { List, Button, Input, Checkbox, Tooltip } from "antd";
+import { List, Button, Input, Tooltip } from "antd";
 import {
   DeleteOutlined,
   PushpinFilled,

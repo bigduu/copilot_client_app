@@ -21,11 +21,10 @@ import {
 import { useChatList } from "../../hooks/useChatList";
 import { useAppStore } from "../../store";
 import {
+  isAssistantToolCallMessage,
+  isAssistantToolResultMessage,
+  Message,
   MessageImage,
-  MessageContent,
-  getMessageText,
-  ProcessorUpdate,
-  isToolExecutionResult,
 } from "../../types/chat";
 
 const { Text } = Typography;
@@ -33,27 +32,17 @@ const { useToken } = theme;
 const { useBreakpoint } = Grid;
 
 interface MessageCardProps {
-  role: string;
-  content: MessageContent;
-  processorUpdates?: ProcessorUpdate[];
-  messageIndex?: number;
-  children?: React.ReactNode;
-  messageId?: string;
-  images?: MessageImage[];
-  onDelete?: (messageId: string) => void;
+  message: Message;
   isStreaming?: boolean;
+  onDelete?: (messageId: string) => void;
 }
 
 const MessageCard: React.FC<MessageCardProps> = ({
-  role,
-  content,
-  processorUpdates,
-  children,
-  messageId,
+  message,
   isStreaming = false,
-  images = [],
   onDelete,
 }) => {
+  const { role, id: messageId } = message;
   const { token } = useToken();
   const screens = useBreakpoint();
   const { currentChatId } = useChatList();
@@ -63,7 +52,26 @@ const MessageCard: React.FC<MessageCardProps> = ({
   const [isHovering, setIsHovering] = useState<boolean>(false);
 
   // Memoize expensive operations for better performance
-  const messageText = useMemo(() => getMessageText(content), [content]);
+  const messageText = useMemo(() => {
+    if (message.role === "system" || message.role === "user") {
+      return message.content;
+    }
+    if (message.role === "assistant") {
+      if (message.type === "text") {
+        return message.content;
+      }
+      if (message.type === "tool_result") {
+        return `Tool ${message.toolName} Result: ${message.result.result}`;
+      }
+      if (message.type === "tool_call") {
+        return `Requesting to call ${message.toolCalls
+          .map((tc) => tc.toolName)
+          .join(", ")}`;
+      }
+    }
+    return "";
+  }, [message]);
+
   const isUserToolCall = useMemo(
     () => role === "user" && messageText.startsWith("/"),
     [role, messageText]
@@ -262,54 +270,20 @@ const MessageCard: React.FC<MessageCardProps> = ({
                 : role}
             </Text>
 
-            {/* Processor Updates */}
-            {processorUpdates && processorUpdates.length > 0 && (
-              <Collapse
-                ghost
-                size="small"
-                style={{ marginBottom: token.marginXS }}
-              >
-                <Collapse.Panel
-                  header="View Processing Steps"
-                  key="proc-updates-panel"
-                >
-                  <Space
-                    direction="vertical"
-                    size="small"
-                    style={{ width: "100%" }}
-                  >
-                    {processorUpdates.map((update, index) => (
-                      <Text
-                        key={`mc-proc-${index}`}
-                        style={{
-                          display: "block",
-                          fontSize: token.fontSizeSM * 0.9,
-                          color: token.colorTextSecondary,
-                          fontStyle: "italic",
-                          whiteSpace: "pre-wrap",
-                          paddingLeft: token.paddingSM,
-                        }}
-                      >
-                        {update.content}
-                      </Text>
-                    ))}
-                  </Space>
-                </Collapse.Panel>
-              </Collapse>
+            {/* Images for User Messages */}
+            {message.role === "user" && message.images && (
+              <ImageGrid images={message.images} />
             )}
-
-            {/* Images */}
-            <ImageGrid images={images} />
 
             {/* Content */}
             <div style={{ width: "100%", maxWidth: "100%" }}>
-              {isToolExecutionResult(content) ? (
-                // This is a structured tool result, render it based on display preference
+              {/* Case 1: Assistant Tool Result */}
+              {isAssistantToolResultMessage(message) ? (
                 <>
-                  {content.display_preference === "Collapsible" ? (
+                  {message.result.display_preference === "Collapsible" ? (
                     <Collapse ghost size="small">
                       <Collapse.Panel
-                        header="View Tool Result"
+                        header={`View Result: ${message.toolName}`}
                         key="tool-result-panel"
                       >
                         <ReactMarkdown
@@ -317,25 +291,44 @@ const MessageCard: React.FC<MessageCardProps> = ({
                           rehypePlugins={rehypePlugins}
                           components={markdownComponents}
                         >
-                          {content.result}
+                          {message.result.result}
                         </ReactMarkdown>
                       </Collapse.Panel>
                     </Collapse>
-                  ) : content.display_preference === "Hidden" ? (
-                    <Text italic>Tool executed successfully.</Text>
+                  ) : message.result.display_preference === "Hidden" ? (
+                    <Text italic>Tool executed: {message.toolName}</Text>
                   ) : (
-                    // Default behavior
                     <ReactMarkdown
                       remarkPlugins={markdownPlugins}
                       rehypePlugins={rehypePlugins}
                       components={markdownComponents}
                     >
-                      {content.result}
+                      {message.result.result}
                     </ReactMarkdown>
                   )}
                 </>
+              ) : isAssistantToolCallMessage(message) ? (
+                // Case 2: Assistant Tool Call
+                <Space direction="vertical" style={{ width: "100%" }}>
+                  {message.toolCalls.map((call) => (
+                    <Card
+                      key={call.toolCallId}
+                      size="small"
+                      title={`Requesting Tool: ${call.toolName}`}
+                    >
+                      <pre
+                        style={{
+                          whiteSpace: "pre-wrap",
+                          wordBreak: "break-all",
+                        }}
+                      >
+                        {JSON.stringify(call.parameters, null, 2)}
+                      </pre>
+                    </Card>
+                  ))}
+                </Space>
               ) : (
-                // This is a regular message (string or rich content)
+                // Case 3: Regular Text Message (User or Assistant)
                 <ReactMarkdown
                   remarkPlugins={markdownPlugins}
                   rehypePlugins={rehypePlugins}
@@ -359,7 +352,6 @@ const MessageCard: React.FC<MessageCardProps> = ({
                 />
               )}
             </div>
-            {children}
 
             {/* Action buttons */}
             <ActionButtonGroup

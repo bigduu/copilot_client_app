@@ -275,14 +275,8 @@ export const ChatView: React.FC = () => {
                         }}
                       >
                         <MessageCard
-                          role={message.role}
-                          content={message.content}
-                          processorUpdates={message.processorUpdates}
-                          messageIndex={index}
-                          messageId={messageCardId}
-                          images={message.images}
+                          message={message}
                           onDelete={handleDeleteMessage}
-                          isStreaming={message.isStreaming} // Pass the streaming flag
                         />
                       </div>
                     </Flex>

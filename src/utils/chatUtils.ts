@@ -113,7 +113,7 @@ export const groupChatsByToolCategory = (
   chats
     .filter((chat) => !chat.pinned)
     .forEach((chat) => {
-      const category = chat.toolCategory || "General"; // Default category is "General"
+      const category = chat.config.toolCategory || "General"; // Default category is "General"
       if (!grouped[category]) {
         grouped[category] = [];
       }
@@ -159,7 +159,7 @@ export const groupChatsByDateAndCategory = (
     .forEach((chat) => {
       const chatDate = new Date(chat.createdAt);
       const dateKey = getDateGroupKey(chatDate);
-      const category = chat.toolCategory || "General";
+      const category = chat.config.toolCategory || "General";
 
       if (!grouped[dateKey]) {
         grouped[dateKey] = {};

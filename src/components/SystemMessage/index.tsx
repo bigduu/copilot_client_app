@@ -14,10 +14,8 @@ interface SystemMessageProps {
 const SystemMessage: React.FC<SystemMessageProps> = () => {
   const { token } = useToken();
 
-  // Get the current chat context
+  // Get the current chat context from the new hook
   const { currentChat } = useChatList();
-  // TODO: systemPrompt needs to be retrieved from currentChat
-  const systemPrompt = currentChat?.systemPrompt || "";
 
   // State for category description
   const [categoryDescription, setCategoryDescription] = useState<string>("");
@@ -31,11 +29,14 @@ const SystemMessage: React.FC<SystemMessageProps> = () => {
   // Effect to load category description
   useEffect(() => {
     const loadCategoryDescription = async () => {
+      if (!currentChat?.config) return;
+
       try {
-        // If chat has a systemPromptId, get the preset description
-        if (currentChat?.systemPromptId) {
+        const { systemPromptId, toolCategory } = currentChat.config;
+
+        if (systemPromptId) {
           const preset = await systemPromptService.findPresetById(
-            currentChat.systemPromptId
+            systemPromptId
           );
           if (preset?.description) {
             setCategoryDescription(preset.description);
@@ -43,59 +44,48 @@ const SystemMessage: React.FC<SystemMessageProps> = () => {
           }
         }
 
-        // If chat has toolCategory, get categories and find description
-        if (currentChat?.toolCategory) {
+        if (toolCategory) {
           const presets = await systemPromptService.getSystemPromptPresets();
           const matchingPreset = presets.find(
-            (preset) => preset.category === currentChat.toolCategory
+            (preset) => preset.category === toolCategory
           );
           if (matchingPreset?.description) {
             setCategoryDescription(matchingPreset.description);
             return;
           }
         }
-
-        // Throw error when unable to get category description
-        throw new Error(
-          "Unable to get category description, frontend does not provide default values"
-        );
+        // If no description is found, clear it.
+        setCategoryDescription("");
       } catch (error) {
         console.error("Failed to load category description:", error);
-        throw new Error(
-          "Failed to load category description, frontend does not provide default values"
-        );
+        setCategoryDescription("Error loading description.");
       }
     };
 
     loadCategoryDescription();
-  }, [
-    currentChat?.systemPromptId,
-    currentChat?.toolCategory,
-    systemPromptService,
-  ]);
+  }, [currentChat?.config, systemPromptService]);
 
   // Content to display: prioritize category description, then fallback
   const promptToDisplay = React.useMemo(() => {
     if (categoryDescription) {
       return categoryDescription;
     }
-
-    // Get system prompt, do not provide default values
-    const content = currentChat?.systemPrompt || systemPrompt;
-
-    if (!content) {
-      throw new Error("System prompt not configured");
+    // The actual system prompt is now stored in the messages array.
+    // This component should primarily show the description or a placeholder.
+    const systemMessage = currentChat?.messages.find(
+      (m) => m.role === "system"
+    );
+    if (systemMessage) {
+      return systemMessage.content;
     }
 
-    if (typeof content === "string") {
-      const trimmedContent = content.trim();
-      if (!trimmedContent) {
-        throw new Error("System prompt is empty");
-      }
-      return trimmedContent;
-    }
-    throw new Error("System prompt format error");
-  }, [categoryDescription, currentChat?.systemPrompt, systemPrompt]);
+    return "System prompt is being prepared...";
+  }, [categoryDescription, currentChat?.messages]);
+
+  // If there's no active chat, don't render anything.
+  if (!currentChat) {
+    return null;
+  }
 
   return (
     <Card

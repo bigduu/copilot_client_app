@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { ConfigProvider, theme } from "antd";
+import { App as AntApp, ConfigProvider, theme } from "antd";
 import "./App.css";
 // ChatProvider no longer needed - using Zustand store directly
 import { MainLayout } from "./layouts/MainLayout";
@@ -38,17 +38,22 @@ function App() {
           themeMode === "dark" ? theme.darkAlgorithm : theme.defaultAlgorithm,
       }}
     >
-      <ChatControllerProvider>
-        <div style={{ position: "relative" }}>
-          <MainLayout themeMode={themeMode} onThemeModeChange={setThemeMode} />
-          <SystemSettingsModal
-            open={settingsOpen}
-            onClose={() => setSettingsOpen(false)}
-            themeMode={themeMode}
-            onThemeModeChange={setThemeMode}
-          />
-        </div>
-      </ChatControllerProvider>
+      <AntApp>
+        <ChatControllerProvider>
+          <div style={{ position: "relative" }}>
+            <MainLayout
+              themeMode={themeMode}
+              onThemeModeChange={setThemeMode}
+            />
+            <SystemSettingsModal
+              open={settingsOpen}
+              onClose={() => setSettingsOpen(false)}
+              themeMode={themeMode}
+              onThemeModeChange={setThemeMode}
+            />
+          </div>
+        </ChatControllerProvider>
+      </AntApp>
     </ConfigProvider>
   );
 }

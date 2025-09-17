@@ -1,24 +1,31 @@
 import { useCallback, useEffect, useMemo, useRef } from 'react';
+import { App as AntApp } from 'antd';
 import { useAppStore } from '../store';
 import { useMachine } from '@xstate/react';
 import { chatMachine } from '../core/chatInteractionMachine';
-import { Message, MessageImage, createContentWithImages } from '../types/chat';
+import { Message, MessageImage, UserMessage, AssistantTextMessage, ChatItem } from '../types/chat';
 import { ImageFile } from '../utils/imageUtils';
 import { throttle } from '../utils/throttle';
 import { ToolService } from '../services/ToolService';
+import { useChatList } from './useChatList'; // Import the corrected hook
 
 const toolService = ToolService.getInstance();
 
 export const useChatController = () => {
+  const { modal } = AntApp.useApp();
+  // Use the reliable, corrected useChatList hook as the source of truth
   const {
-    currentChatId,
+    currentChat,
+    currentMessages,
     addMessage,
     setMessages,
-    updateMessageContent,
-    deleteMessage, // Import deleteMessage
-    messages: allMessages,
-    chats,
-  } = useAppStore();
+    updateChat,
+    deleteMessage,
+  } = useChatList();
+  const currentChatId = currentChat?.id || null;
+
+  // Get the raw state updater for streaming, as it's performance-critical
+  const updateMessageContent = useAppStore(state => state.updateMessageContent);
 
   // Create a throttled version of the update function to prevent excessive re-renders
   const throttledUpdateMessageContent = useMemo(
@@ -53,12 +60,12 @@ export const useChatController = () => {
     // 1. Entering THINKING: Create a placeholder message
     if (state.matches('THINKING') && !prevState.matches('THINKING')) {
       if (currentChatId) {
-        const newStreamingMessage: Message = {
+        const newStreamingMessage: AssistantTextMessage = {
           id: crypto.randomUUID(),
           role: 'assistant',
+          type: 'text',
           content: '',
           createdAt: new Date().toISOString(),
-          isStreaming: true,
         };
         streamingMessageIdRef.current = newStreamingMessage.id;
         console.log(`[ChatController] THINKING: Creating new streaming message ${newStreamingMessage.id}`);
@@ -69,13 +76,10 @@ export const useChatController = () => {
     // 2. Process finished (IDLE): Finalize the message and persist
     if (state.matches('IDLE') && !prevState.matches('IDLE')) {
       console.log('[ChatController] IDLE: Process finished.');
-      if (currentChatId && streamingMessageIdRef.current) {
-        const finalMessage = state.context.messages.find(m => m.id === streamingMessageIdRef.current);
-        if (finalMessage) {
-          console.log(`[ChatController] IDLE: Updating final content for message ${streamingMessageIdRef.current}`);
-          // Bypass throttle for final update
-          updateMessageContent(currentChatId, streamingMessageIdRef.current, finalMessage.content as string);
-        }
+      if (currentChatId && streamingMessageIdRef.current && state.context.finalContent) {
+        console.log(`[ChatController] IDLE: Updating final content for message ${streamingMessageIdRef.current}`);
+        // Bypass throttle for final update and use the definitive final content
+        updateMessageContent(currentChatId, streamingMessageIdRef.current, state.context.finalContent);
       }
       if (currentChatId && state.context.messages.length > 0) {
         console.log('[ChatController] IDLE: Persisting final messages to Zustand.');
@@ -106,10 +110,16 @@ export const useChatController = () => {
   }, [state.context.streamingContent, currentChatId, throttledUpdateMessageContent]);
 
   const sendMessage = useCallback(async (content: string, images?: ImageFile[]) => {
-    if (!currentChatId) {
+    if (!currentChat) {
       console.error("[ChatController] sendMessage: No active chat selected.");
+      modal.info({
+        title: 'No Active Chat',
+        content: 'Please create or select a chat before sending a message.',
+        okText: 'OK',
+      });
       return;
     }
+    const chatId = currentChat.id;
     console.log(`[ChatController] sendMessage: Received content: "${content}"`);
 
     const messageImages: MessageImage[] = images?.map(img => ({
@@ -120,11 +130,9 @@ export const useChatController = () => {
       type: img.type,
     })) || [];
 
-    const messageContent = messageImages.length > 0 ? createContentWithImages(content, messageImages) : content;
-
-    const userMessage: Message = {
+    const userMessage: UserMessage = {
       role: "user",
-      content: messageContent,
+      content: content,
       id: crypto.randomUUID(),
       createdAt: new Date().toISOString(),
       images: messageImages,
@@ -132,93 +140,99 @@ export const useChatController = () => {
 
     // 1. Optimistic UI update: Add user message to Zustand immediately
     console.log(`[ChatController] sendMessage: Adding user message to store:`, userMessage);
-    addMessage(currentChatId, userMessage);
+    addMessage(chatId, userMessage);
 
-    // 2. Check if the content is a direct tool command.
+    // 2. Prepare the payload for the state machine using the LATEST data.
+    // The history now includes the message we just added.
+    const updatedHistory = [...currentChat.messages, userMessage];
+    const updatedChat: ChatItem = {
+      ...currentChat,
+      messages: updatedHistory,
+    };
+
+    // 3. Check if the content is a direct tool command.
     const basicToolCall = toolService.parseUserCommand(content);
-    const currentHistory = [...(allMessages[currentChatId] || []), userMessage];
-    const chat = chats.find(c => c.id === currentChatId);
-
-    if (!chat) {
-      console.error("[ChatController] sendMessage: Current chat not found.");
-      return;
-    }
 
     if (basicToolCall) {
       // If it's a tool call, enhance it with the full tool info before sending to the machine.
       // This ensures the state machine has the `parameter_parsing_strategy` for routing.
       const toolInfo = await toolService.getToolInfo(basicToolCall.tool_name);
+      const toolCallId = `call_${crypto.randomUUID()}`;
       const enhancedToolCall = {
         ...basicToolCall,
+        toolCallId,
         parameter_parsing_strategy: toolInfo?.parameter_parsing_strategy,
       };
       
       console.log('[ChatController] sendMessage: Detected a direct tool command. Sending USER_INVOKES_TOOL with enhanced request.', enhancedToolCall);
-      send({ type: 'USER_INVOKES_TOOL', payload: { request: enhancedToolCall, messages: currentHistory } });
+      // Pass the updated history to the machine
+      send({ type: 'USER_INVOKES_TOOL', payload: { request: enhancedToolCall, messages: updatedHistory } });
 
     } else {
       // It's a normal message, send to AI for processing.
       console.log('[ChatController] sendMessage: Detected a normal message. Sending USER_SUBMITS.');
+      // Pass the updated chat object and its messages to the machine
       send({
         type: 'USER_SUBMITS',
         payload: {
-          messages: currentHistory,
-          chat,
+          messages: updatedHistory,
+          chat: updatedChat,
         },
       });
     }
-  }, [currentChatId, allMessages, addMessage, send, chats]);
+  }, [currentChat, addMessage, send]);
 
   const retryLastMessage = useCallback(async () => {
-    if (!currentChatId) return;
+    if (!currentChat) return;
 
-    // Get messages from the reliable store, not the state machine context
-    const currentMessages = allMessages[currentChatId] || [];
-    if (currentMessages.length === 0) {
+    const chatId = currentChat.id;
+    const history = [...currentChat.messages]; // Use messages from the reliable currentChat
+
+    if (history.length === 0) {
       console.log("No messages to retry.");
       return;
     }
 
-    const lastMessage = currentMessages[currentMessages.length - 1];
-    let messagesToRetry = [...currentMessages];
+    const lastMessage = history[history.length - 1];
+    let messagesToRetry = history;
 
     // If the last message is from the assistant, remove it before retrying
     if (lastMessage && lastMessage.role === 'assistant') {
       // 1. Optimistically remove from the UI
-      deleteMessage(currentChatId, lastMessage.id);
+      deleteMessage(chatId, lastMessage.id);
       // 2. Prepare the history for the new request
-      messagesToRetry = currentMessages.slice(0, -1);
+      messagesToRetry = history.slice(0, -1);
     }
 
     // Ensure we are not sending an empty history
     if (messagesToRetry.length > 0) {
-      const chat = chats.find(c => c.id === currentChatId);
-      if (!chat) {
-        console.error("[ChatController] retryLastMessage: Current chat not found.");
-        return;
-      }
+      const updatedChat: ChatItem = {
+        ...currentChat,
+        messages: messagesToRetry,
+      };
       // 3. Send the corrected history to the state machine
       send({
         type: 'USER_SUBMITS',
         payload: {
           messages: messagesToRetry,
-          chat,
+          chat: updatedChat,
         },
       });
     } else {
       console.log("Cannot retry from an empty history.");
     }
-  }, [currentChatId, allMessages, deleteMessage, send, chats]);
+  }, [currentChat, deleteMessage, send]);
 
   const generateChatTitle = useCallback(async (chatId: string): Promise<string> => {
-    const messages = allMessages[chatId];
-    if (!messages || messages.length === 0) {
+    // This function is less critical now, but let's make it use the new structure.
+    const chat = useAppStore.getState().chats.find(c => c.id === chatId);
+    const messages = chat?.messages || [];
+    if (messages.length === 0) {
       return "New Chat";
     }
-    // Simplified logic for title generation
-    const userMessage = messages.find(m => m.role === 'user');
-    return userMessage ? (userMessage.content as string).substring(0, 20) : "New Chat";
-  }, [allMessages]);
+    const userMessage = messages.find(m => m.role === 'user') as UserMessage | undefined;
+    return userMessage ? userMessage.content.substring(0, 20) : "New Chat";
+  }, []);
 
   return { 
     state, 

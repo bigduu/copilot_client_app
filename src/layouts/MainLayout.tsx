@@ -6,7 +6,8 @@ import { FavoritesPanel } from "../components/FavoritesPanel";
 import { listen } from "@tauri-apps/api/event";
 import { useAppStore } from "../store";
 import { useCurrentMessages } from "../store/hooks";
-import { getMessageText } from "../types/chat";
+import { useChatController } from "../hooks/useChatController";
+import { ChatItem } from "../types/chat";
 
 import "./styles.css";
 
@@ -17,10 +18,10 @@ export const MainLayout: React.FC<{
   // Direct access to Zustand store
   const addChat = useAppStore((state) => state.addChat);
   const selectChat = useAppStore((state) => state.selectChat);
-  const initiateAIResponse = useAppStore((state) => state.initiateAIResponse);
+  const { sendMessage } = useChatController();
   const currentMessages = useCurrentMessages();
   const currentChatId = useAppStore((state) => state.currentChatId);
-  const pendingAIRef = useRef(false);
+  const pendingAIRef = useRef<{ chatId: string; message: string } | null>(null);
   const [showFavorites, setShowFavorites] = useState(true);
 
   useEffect(() => {
@@ -34,22 +35,35 @@ export const MainLayout: React.FC<{
           messageContent
         );
 
-        // Add chat with the initial message content
-        addChat({
-          title: "New Chat",
-          messages: [],
+        // Create a full ChatItem object to add
+        const newChat: Omit<ChatItem, "id"> = {
+          title: "New Chat from Spotlight",
           createdAt: Date.now(),
-        });
+          messages: [],
+          pinned: false,
+          config: {
+            systemPromptId: "general_assistant", // Default prompt
+            toolCategory: "general_assistant",
+            lastUsedEnhancedPrompt: null,
+          },
+          currentInteraction: null,
+        };
 
-        // Get the current chat ID (addChat automatically selects the new chat)
-        const currentChatId = useAppStore.getState().currentChatId;
-        console.log(
-          "[MainLayout] New chat ID created with initial message:",
-          currentChatId
-        );
+        addChat(newChat);
 
-        // Mark that AI reply needs to be triggered automatically
-        pendingAIRef.current = true;
+        // The chat ID is generated inside the store, so we need to get it after adding.
+        // We'll use a slight delay to ensure the state is updated.
+        setTimeout(() => {
+          const newChatId = useAppStore.getState().currentChatId;
+          if (newChatId) {
+            console.log("[MainLayout] New chat ID created:", newChatId);
+            // Mark that AI reply needs to be triggered for this specific chat and message
+            pendingAIRef.current = {
+              chatId: newChatId,
+              message: messageContent,
+            };
+          }
+        }, 100);
       }
     );
 
@@ -59,22 +73,19 @@ export const MainLayout: React.FC<{
   }, [addChat, selectChat]);
 
   useEffect(() => {
-    // Only trigger when pendingAIRef is marked as true and current chat has only one user message
-    if (
-      pendingAIRef.current &&
-      currentMessages.length === 1 &&
-      currentMessages[0].role === "user"
-    ) {
-      console.log(
-        "[MainLayout] useEffect: Auto triggering AI response for new chat."
-      );
-      if (currentChatId) {
-        const messageContent = getMessageText(currentMessages[0].content);
-        initiateAIResponse(currentChatId, messageContent);
+    // When a pending AI response is flagged, send the message using the chat controller
+    if (pendingAIRef.current) {
+      const { chatId, message } = pendingAIRef.current;
+      // Ensure the current chat is the one we just created
+      if (chatId === useAppStore.getState().currentChatId) {
+        console.log(
+          `[MainLayout] useEffect: Auto-sending message for new chat ${chatId}.`
+        );
+        sendMessage(message);
+        pendingAIRef.current = null; // Clear the flag
       }
-      pendingAIRef.current = false;
     }
-  }, [currentMessages, initiateAIResponse, currentChatId]);
+  }, [currentChatId, sendMessage]); // Depend on currentChatId to re-check when it changes
 
   // Add keyboard shortcut for toggling favorites
   useEffect(() => {

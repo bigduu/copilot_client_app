@@ -34,7 +34,7 @@ export const InputContainer: React.FC<InputContainerProps> = ({
 
   // Use system prompt hook instead of direct service
   const systemPromptId =
-    currentChat?.systemPromptId || selectedSystemPromptPresetId;
+    currentChat?.config.systemPromptId || selectedSystemPromptPresetId;
   const { currentSystemPromptInfo } = useSystemPrompt(systemPromptId);
 
   // Check if in tool-specific mode
@@ -51,7 +51,7 @@ export const InputContainer: React.FC<InputContainerProps> = ({
     isStrictMode,
     getStrictModePlaceholder,
     currentCategoryInfo,
-  } = useToolCategoryValidation(currentChat?.toolCategory);
+  } = useToolCategoryValidation(currentChat?.config.toolCategory);
 
   // Use the new chat input hook for state management
   // State management for the input itself
@@ -247,7 +247,7 @@ export const InputContainer: React.FC<InputContainerProps> = ({
           onCancel={handleToolSelectorCancel}
           onAutoComplete={handleAutoComplete}
           searchText={toolSearchText}
-          categoryId={currentChat?.toolCategory}
+          categoryId={currentChat?.config.toolCategory}
           allowedTools={
             // In strict mode, tools are already filtered by backend, no need for frontend filtering
             isStrictMode() && currentCategoryInfo

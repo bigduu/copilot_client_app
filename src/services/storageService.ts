@@ -1,48 +1,53 @@
 import { ChatItem, Message } from '../types/chat';
 
 /**
- * Optimized Storage Service
+ * Optimized Storage Service V2
  * 
- * This service optimizes storage by:
- * 1. Storing each chat's messages separately
- * 2. Loading messages on-demand
- * 3. Reducing memory usage and improving performance
+ * This service is aligned with the ChatItem V2 data structure.
+ * It stores chat metadata and messages separately for performance.
  */
 
 const STORAGE_KEYS = {
-  CHATS: 'copilot_chats_v2', // New version to avoid conflicts
-  CHAT_INDEX: 'copilot_chat_index',
-  MESSAGES_PREFIX: 'copilot_messages_',
-  LATEST_ACTIVE_CHAT: 'copilot_latest_active_chat_id',
-  // Legacy keys for migration
-  LEGACY_CHATS: 'copilot_chats',
-  LEGACY_MESSAGES: 'copilot_messages',
+  CHATS: 'copilot_chats_v2', // Key for storing chat metadata
+  MESSAGES_PREFIX: 'copilot_messages_v2_', // Prefix for individual chat messages
+  LATEST_ACTIVE_CHAT: 'copilot_latest_active_chat_id_v2',
 };
 
-export interface OptimizedChatItem extends Omit<ChatItem, 'messages'> {
-  messageCount: number; // Track message count for UI display
-  lastMessageAt?: number; // Track last message timestamp
+// This interface represents the data that is actually saved to localStorage for each chat.
+// It's a "dehydrated" version of ChatItem, without the transient `messages` and `currentInteraction` state.
+export interface OptimizedChatItem {
+  id: string;
+  title: string;
+  createdAt: number;
+  pinned?: boolean;
+  config: ChatItem['config']; // Store the entire config object
+  messageCount: number;
+  lastMessageAt?: number;
 }
 
 export class StorageService {
-  private messageCache = new Map<string, Message[]>(); // In-memory cache for active chats
-  private maxCacheSize = 5; // Keep messages for up to 5 chats in memory
+  private messageCache = new Map<string, Message[]>();
+  private maxCacheSize = 5;
 
   /**
-   * Load all chats and their messages from storage
+   * Loads all chat metadata and hydrates them into full ChatItem objects.
+   * Messages are not loaded here; they are loaded on-demand when a chat is selected.
    */
   async loadAllData(): Promise<{ chats: ChatItem[], messages: Record<string, Message[]> }> {
     try {
       const optimizedChats = await this.loadChats();
-      const messages: Record<string, Message[]> = {};
-      for (const chat of optimizedChats) {
-        messages[chat.id] = await this.loadMessages(chat.id);
-      }
+      
+      // Hydrate the optimized chats into full ChatItem objects for the store.
+      // Initialize with empty messages and null interaction state.
       const chats: ChatItem[] = optimizedChats.map(chat => ({
         ...chat,
-        messages: [], // Messages are handled separately in the store
+        messages: [], // Messages will be loaded on-demand
+        currentInteraction: null, // This is always transient state
       }));
-      return { chats, messages };
+
+      // The messages record is no longer pre-loaded for all chats.
+      // Return an empty object to match the expected signature.
+      return { chats, messages: {} };
     } catch (error) {
       console.error('Failed to load all data:', error);
       return { chats: [], messages: {} };
@@ -50,29 +55,31 @@ export class StorageService {
   }
 
   /**
-   * Save all application data (chats and messages)
+   * Saves the metadata for all chats and the messages for currently active chats.
    */
   async saveAllData(chats: ChatItem[], messages: Record<string, Message[]>): Promise<void> {
     try {
+      // Dehydrate the full ChatItem objects into OptimizedChatItem for storage.
       const optimizedChats: OptimizedChatItem[] = chats.map(chat => ({
         id: chat.id,
         title: chat.title,
         createdAt: chat.createdAt,
-        systemPrompt: chat.systemPrompt,
-        systemPromptId: chat.systemPromptId,
-        toolCategory: chat.toolCategory || 'general_assistant',
-        pinned: chat.pinned || false,
-        model: chat.model,
-        messageCount: messages[chat.id]?.length || 0,
-        lastMessageAt: messages[chat.id]?.length > 0 ? Date.now() : undefined,
+        pinned: chat.pinned,
+        config: chat.config, // Save the entire config object
+        messageCount: chat.messages.length,
+        lastMessageAt: chat.messages.length > 0 
+          ? new Date(chat.messages[chat.messages.length - 1].createdAt).getTime() 
+          : chat.createdAt,
       }));
 
       await this.saveChats(optimizedChats);
 
+      // The `messages` parameter is now deprecated for this function,
+      // as messages are saved directly with `saveMessages`.
+      // However, we can iterate through the provided chats to save their messages.
       for (const chat of chats) {
-        const chatMessages = messages[chat.id] || [];
-        if (chatMessages.length > 0) {
-          await this.saveMessages(chat.id, chatMessages);
+        if (chat.messages.length > 0) {
+          await this.saveMessages(chat.id, chat.messages);
         }
       }
     } catch (error) {
@@ -81,29 +88,16 @@ export class StorageService {
   }
 
   /**
-   * Load all chats (without messages)
+   * Loads only the chat metadata (OptimizedChatItem) from localStorage.
    */
   private async loadChats(): Promise<OptimizedChatItem[]> {
     try {
-      // Check if we need to migrate from legacy format
-      const legacyChats = localStorage.getItem(STORAGE_KEYS.LEGACY_CHATS);
-      const newChats = localStorage.getItem(STORAGE_KEYS.CHATS);
-      
-      if (!newChats && legacyChats) {
-        console.log('Migrating from legacy storage format...');
-        await this.migrateFromLegacyFormat();
-      }
-
       const stored = localStorage.getItem(STORAGE_KEYS.CHATS);
       if (!stored) return [];
       
-      const chats = JSON.parse(stored);
-      return chats.map((chat: any) => ({
-        ...chat,
-        createdAt: typeof chat.createdAt === 'number' ? chat.createdAt : Date.now(),
-        toolCategory: chat.toolCategory || 'general_assistant',
-        messageCount: chat.messageCount || 0,
-      }));
+      const chats = JSON.parse(stored) as OptimizedChatItem[];
+      // Basic validation can be done here if needed
+      return chats;
     } catch (error) {
       console.error('Failed to load chats:', error);
       return [];
@@ -111,15 +105,11 @@ export class StorageService {
   }
 
   /**
-   * Save all chats (without messages)
+   * Saves the chat metadata array to localStorage.
    */
   private async saveChats(chats: OptimizedChatItem[]): Promise<void> {
     try {
       localStorage.setItem(STORAGE_KEYS.CHATS, JSON.stringify(chats));
-      
-      // Update chat index
-      const chatIds = chats.map(chat => chat.id);
-      localStorage.setItem(STORAGE_KEYS.CHAT_INDEX, JSON.stringify(chatIds));
     } catch (error) {
       console.error('Failed to save chats:', error);
       throw error;
@@ -127,10 +117,9 @@ export class StorageService {
   }
 
   /**
-   * Load messages for a specific chat
+   * Load messages for a specific chat, from cache or localStorage.
    */
   async loadMessages(chatId: string): Promise<Message[]> {
-    // Check cache first
     if (this.messageCache.has(chatId)) {
       return this.messageCache.get(chatId)!;
     }
@@ -138,10 +127,7 @@ export class StorageService {
     try {
       const stored = localStorage.getItem(`${STORAGE_KEYS.MESSAGES_PREFIX}${chatId}`);
       const messages = stored ? JSON.parse(stored) : [];
-      
-      // Add to cache
       this.addToCache(chatId, messages);
-      
       return messages;
     } catch (error) {
       console.error(`Failed to load messages for chat ${chatId}:`, error);
@@ -150,13 +136,11 @@ export class StorageService {
   }
 
   /**
-   * Save messages for a specific chat
+   * Save messages for a specific chat to localStorage and update the cache.
    */
   async saveMessages(chatId: string, messages: Message[]): Promise<void> {
     try {
       localStorage.setItem(`${STORAGE_KEYS.MESSAGES_PREFIX}${chatId}`, JSON.stringify(messages));
-      
-      // Update cache
       this.addToCache(chatId, messages);
     } catch (error) {
       console.error(`Failed to save messages for chat ${chatId}:`, error);
@@ -165,7 +149,7 @@ export class StorageService {
   }
 
   /**
-   * Delete messages for a specific chat
+   * Delete messages for a specific chat from localStorage and cache.
    */
   async deleteMessages(chatId: string): Promise<void> {
     try {
@@ -176,18 +160,12 @@ export class StorageService {
     }
   }
 
-  /**
-   * Delete messages for multiple chats
-   */
   async deleteMultipleMessages(chatIds: string[]): Promise<void> {
     for (const chatId of chatIds) {
       await this.deleteMessages(chatId);
     }
   }
 
-  /**
-   * Load latest active chat ID
-   */
   async loadLatestActiveChatId(): Promise<string | null> {
     try {
       return localStorage.getItem(STORAGE_KEYS.LATEST_ACTIVE_CHAT) || null;
@@ -197,9 +175,6 @@ export class StorageService {
     }
   }
 
-  /**
-   * Save latest active chat ID
-   */
   async saveLatestActiveChatId(chatId: string | null): Promise<void> {
     try {
       if (chatId) {
@@ -212,20 +187,16 @@ export class StorageService {
     }
   }
 
-  /**
-   * Get storage usage statistics
-   */
   getStorageStats(): { totalChats: number; cacheSize: number; estimatedSize: string } {
-    const chatIndex = localStorage.getItem(STORAGE_KEYS.CHAT_INDEX);
-    const totalChats = chatIndex ? JSON.parse(chatIndex).length : 0;
+    const chatsStr = localStorage.getItem(STORAGE_KEYS.CHATS);
+    const totalChats = chatsStr ? (JSON.parse(chatsStr) as OptimizedChatItem[]).length : 0;
     
-    // Estimate total storage size
     let totalSize = 0;
     for (let i = 0; i < localStorage.length; i++) {
       const key = localStorage.key(i);
       if (key && key.startsWith('copilot_')) {
         const value = localStorage.getItem(key);
-        totalSize += (key.length + (value?.length || 0)) * 2; // Rough estimate in bytes
+        totalSize += (key.length + (value?.length || 0)) * 2;
       }
     }
     
@@ -236,88 +207,21 @@ export class StorageService {
     };
   }
 
-  /**
-   * Clear all cache
-   */
   clearCache(): void {
     this.messageCache.clear();
   }
 
-  /**
-   * Add messages to cache with LRU eviction
-   */
   private addToCache(chatId: string, messages: Message[]): void {
-    // Remove if already exists to update position
     if (this.messageCache.has(chatId)) {
       this.messageCache.delete(chatId);
     }
-    
-    // Add to cache
     this.messageCache.set(chatId, messages);
     
-    // Evict oldest if cache is full
     if (this.messageCache.size > this.maxCacheSize) {
       const firstKey = this.messageCache.keys().next().value;
       if (firstKey !== undefined) {
         this.messageCache.delete(firstKey);
       }
-    }
-  }
-
-  /**
-   * Migrate from legacy storage format
-   */
-  private async migrateFromLegacyFormat(): Promise<void> {
-    try {
-      console.log('Starting migration from legacy format...');
-      
-      // Load legacy data
-      const legacyChatsStr = localStorage.getItem(STORAGE_KEYS.LEGACY_CHATS);
-      const legacyMessagesStr = localStorage.getItem(STORAGE_KEYS.LEGACY_MESSAGES);
-      
-      if (!legacyChatsStr) return;
-      
-      const legacyChats: ChatItem[] = JSON.parse(legacyChatsStr);
-      const legacyMessages: Record<string, Message[]> = legacyMessagesStr 
-        ? JSON.parse(legacyMessagesStr) 
-        : {};
-
-      // Convert to new format
-      const optimizedChats: OptimizedChatItem[] = legacyChats.map(chat => {
-        const messages = legacyMessages[chat.id] || [];
-        return {
-          id: chat.id,
-          title: chat.title,
-          createdAt: chat.createdAt,
-          systemPrompt: chat.systemPrompt,
-          systemPromptId: chat.systemPromptId,
-          toolCategory: chat.toolCategory || 'general_assistant',
-          pinned: chat.pinned || false,
-          model: chat.model,
-          messageCount: messages.length,
-          lastMessageAt: messages.length > 0 ? Date.now() : undefined,
-        };
-      });
-
-      // Save new format
-      await this.saveChats(optimizedChats);
-      
-      // Save messages separately
-      for (const chat of legacyChats) {
-        const messages = legacyMessages[chat.id] || [];
-        if (messages.length > 0) {
-          await this.saveMessages(chat.id, messages);
-        }
-      }
-
-      console.log(`Migration completed: ${optimizedChats.length} chats migrated`);
-      
-      // Keep legacy data for now (don't delete in case of issues)
-      // We can add a cleanup function later
-      
-    } catch (error) {
-      console.error('Migration failed:', error);
-      throw error;
     }
   }
 }

@@ -362,19 +362,21 @@ export const ChatSidebar: React.FC<{
 
   const handleSystemPromptSelect = (preset: SystemPromptPreset) => {
     try {
-      // Create new chat and apply selected System Prompt settings
+      // Create a new chat item that conforms to the Omit<ChatItem, 'id'> type
       addChat({
         title: `New Chat - ${preset.name}`,
-        messages: [],
         createdAt: Date.now(),
-        systemPromptId: preset.id,
-        toolCategory: preset.category,
-        systemPrompt: preset.content,
+        messages: [],
+        pinned: false,
+        config: {
+          systemPromptId: preset.id,
+          toolCategory: preset.category,
+          lastUsedEnhancedPrompt: null,
+        },
+        currentInteraction: null,
       });
 
       // The new chat is automatically selected in the store
-
-      // Close the selector
       setIsNewChatSelectorOpen(false);
     } catch (error) {
       console.error("Failed to create chat:", error);
@@ -743,7 +745,7 @@ export const ChatSidebar: React.FC<{
             {Object.values(groupedChats)
               .flat()
               .map((chat: ChatItem) => {
-                const category = chat.toolCategory || "unknown";
+                const category = chat.config.toolCategory || "unknown";
                 const categoryInfo = categoryInfoCache[category] || {
                   name: category,
                   icon: "🔧",

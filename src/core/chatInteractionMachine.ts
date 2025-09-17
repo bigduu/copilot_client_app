@@ -1,7 +1,17 @@
 import { setup, assign, fromPromise, fromCallback } from 'xstate';
 import { AIService } from '../services/AIService';
-import { ToolService, ToolCallRequest, ParameterValue, ToolUIInfo } from '../services/ToolService';
-import { Message, ToolExecutionResult, ChatItem, SystemPromptPreset, isToolExecutionResult } from '../types/chat';
+import { ToolService, ToolCallRequest, ParameterValue } from '../services/ToolService';
+import {
+  Message,
+  ToolExecutionResult,
+  ChatItem,
+  SystemPromptPreset,
+  AssistantTextMessage,
+  AssistantToolCallMessage,
+  AssistantToolResultMessage,
+  SystemMessage,
+  UserMessage,
+} from '../types/chat';
 import SystemPromptEnhancer from '../services/SystemPromptEnhancer';
 
 // Create single instances of services
@@ -14,7 +24,8 @@ export interface ChatMachineContext {
   messages: Message[];
   streamingContent: string;
   finalContent: string;
-  toolCallRequest?: ToolCallRequest; // Changed to a structured object
+  // Holds the full request while the tool call is being processed
+  toolCallRequest?: ToolCallRequest & { toolCallId: string };
   parsedParameters: ParameterValue[] | null;
   error?: Error | null;
 }
@@ -31,7 +42,7 @@ export type ChatMachineEvent =
   | { type: 'USER_INVOKES_TOOL'; payload: { request: ToolCallRequest; messages: Message[] } }
   | { type: 'CHUNK_RECEIVED'; payload: { chunk: string } }
   | { type: 'STREAM_COMPLETE_TEXT'; payload: { finalContent: string } }
-  | { type: 'STREAM_COMPLETE_TOOL_CALL'; payload: { toolCall: ToolCallRequest } }
+  | { type: 'STREAM_COMPLETE_TOOL_CALL'; payload: { toolCall: ToolCallRequest & { toolCallId: string } } }
   | { type: 'STREAM_ERROR'; payload: { error: Error } }
   | { type: 'PARSING_SUCCESS'; payload: { parameters: ParameterValue[] } }
   | { type: 'PARSING_FAILURE'; payload: { error: Error } }
@@ -61,23 +72,20 @@ export const chatMachine = setup({
       const controller = new AbortController();
       let fullContent = '';
 
-      // New: Prepare messages for the AI service
-      const messagesForAI = input.messages.map(msg => {
-        if (isToolExecutionResult(msg.content)) {
-          // If the content is a tool result object, replace it with the plain text result.
-          return { ...msg, content: msg.content.result };
-        }
-        return msg;
-      });
+      // The AIService now handles the message conversion.
+      const messagesForAI = input.messages;
+
 
       const onChunk = async (chunk: string) => {
         if (chunk === '[DONE]') {
           const basicToolCall = toolService.parseAIResponseToToolCall(fullContent);
           if (basicToolCall) {
-            // Enhance the tool call with full info
             const toolInfo = await toolService.getToolInfo(basicToolCall.tool_name);
-            const enhancedToolCall: ToolCallRequest = {
+            // Generate a unique ID for this specific tool call instance
+            const toolCallId = `call_${crypto.randomUUID()}`;
+            const enhancedToolCall = {
               ...basicToolCall,
+              toolCallId, // Add the generated ID
               parameter_parsing_strategy: toolInfo?.parameter_parsing_strategy,
             };
             sendBack({ type: 'STREAM_COMPLETE_TOOL_CALL', payload: { toolCall: enhancedToolCall } });
@@ -91,17 +99,9 @@ export const chatMachine = setup({
           return;
         }
         
-        try {
-          const parsed = JSON.parse(chunk);
-          const content = parsed.choices[0]?.delta?.content;
-          if (content) {
-            fullContent += content;
-            sendBack({ type: 'CHUNK_RECEIVED', payload: { chunk: content } });
-          }
-        } catch (e) {
-          console.error("Failed to parse AI chunk:", e);
-          // Potentially send an error back to the machine
-        }
+        // We simplified the AIService to return raw chunks.
+        fullContent += chunk;
+        sendBack({ type: 'CHUNK_RECEIVED', payload: { chunk } });
       };
 
       // Use the transformed messages
@@ -174,7 +174,10 @@ export const chatMachine = setup({
           target: 'ROUTING_TOOL_CALL',
           actions: assign({
             messages: ({ event }) => event.payload.messages,
-            toolCallRequest: ({ event }) => event.payload.request,
+            toolCallRequest: ({ event }) => ({
+              ...event.payload.request,
+              toolCallId: `call_${crypto.randomUUID()}`, // Add a unique ID
+            }),
           }),
         },
       },
@@ -190,7 +193,7 @@ export const chatMachine = setup({
           actions: assign({
             messages: ({ context, event }) => {
               const systemPromptContent = event.output;
-              const systemMessage: Message = {
+              const systemMessage: SystemMessage = {
                 id: 'system-prompt',
                 role: 'system',
                 content: systemPromptContent,
@@ -267,9 +270,10 @@ export const chatMachine = setup({
                 {
                   id: crypto.randomUUID(),
                   role: 'assistant',
+                  type: 'text',
                   content: event.payload.finalContent,
                   createdAt: new Date().toISOString(),
-                } as Message,
+                } as AssistantTextMessage,
               ],
             }),
             'persistMessages', // We still need to signal that the process is complete
@@ -279,16 +283,24 @@ export const chatMachine = setup({
           target: 'ROUTING_TOOL_CALL',
           actions: assign({
             toolCallRequest: ({ event }) => event.payload.toolCall,
-            // Also add the tool call request as a message
-            messages: ({ context, event }) => [
-              ...context.messages,
-              {
+            messages: ({ context, event }) => {
+              const { toolCall } = event.payload;
+              const newToolCallMessage: AssistantToolCallMessage = {
                 id: crypto.randomUUID(),
                 role: 'assistant',
-                content: `/` + event.payload.toolCall.tool_name + ' ' + event.payload.toolCall.user_description,
+                type: 'tool_call',
                 createdAt: new Date().toISOString(),
-              } as Message,
-            ]
+                toolCalls: [
+                  {
+                    toolCallId: toolCall.toolCallId,
+                    toolName: toolCall.tool_name,
+                    // For now, parameters are parsed later. We can store the raw description.
+                    parameters: { user_description: toolCall.user_description },
+                  },
+                ],
+              };
+              return [...context.messages, newToolCallMessage];
+            },
           }),
         },
         STREAM_ERROR: {
@@ -301,9 +313,10 @@ export const chatMachine = setup({
                 {
                   id: crypto.randomUUID(),
                   role: 'assistant',
+                  type: 'text',
                   content: `Error: ${(event.payload.error as Error).message}`,
                   createdAt: new Date().toISOString(),
-                } as Message,
+                } as AssistantTextMessage,
               ],
             }),
             'persistMessages', // Trigger the side effect
@@ -369,12 +382,13 @@ export const chatMachine = setup({
             error: ({ event }) => event.error as Error,
             messages: ({ context, event }) => [
               ...context.messages,
-              {
-                id: crypto.randomUUID(),
-                role: 'assistant',
-                content: `Error during parameter parsing: ${(event.error as Error).message}`,
-                createdAt: new Date().toISOString(),
-              } as Message,
+                {
+                  id: crypto.randomUUID(),
+                  role: 'assistant',
+                  type: 'text',
+                  content: `Error during parameter parsing: ${(event.error as Error).message}`,
+                  createdAt: new Date().toISOString(),
+                } as AssistantTextMessage,
             ],
           }),
         }
@@ -407,17 +421,18 @@ export const chatMachine = setup({
           actions: assign({
             messages: ({ context, event }) => {
               console.log('[ChatMachine] toolExecutor succeeded, output:', event.output);
-              // The event.output is now the ToolExecutionResult object.
-              // We will pass this entire object as the content of the new message.
-              return [
-                ...context.messages,
-                {
-                  id: crypto.randomUUID(),
-                  role: 'assistant', // Or 'tool' if you prefer
-                  content: event.output, // Pass the whole object
-                  createdAt: new Date().toISOString(),
-                } as Message,
-              ];
+              const toolResult: ToolExecutionResult = event.output;
+              const newResultMessage: AssistantToolResultMessage = {
+                id: crypto.randomUUID(),
+                role: 'assistant',
+                type: 'tool_result',
+                toolName: context.toolCallRequest!.tool_name,
+                toolCallId: context.toolCallRequest!.toolCallId,
+                result: toolResult,
+                isError: false,
+                createdAt: new Date().toISOString(),
+              };
+              return [...context.messages, newResultMessage];
             },
           }),
         },
@@ -426,15 +441,22 @@ export const chatMachine = setup({
           actions: assign({
             messages: ({ context, event }) => {
               console.error('[ChatMachine] toolExecutor failed, error:', event.error);
-              return [
-                ...context.messages,
-                {
-                  id: crypto.randomUUID(),
-                  role: 'assistant',
-                  content: `Tool error: ${(event.error as Error).message}`,
-                  createdAt: new Date().toISOString(),
-                } as Message,
-              ];
+              const toolResult: ToolExecutionResult = {
+                tool_name: context.toolCallRequest!.tool_name,
+                result: (event.error as Error).message,
+                display_preference: 'Default',
+              };
+              const newResultMessage: AssistantToolResultMessage = {
+                id: crypto.randomUUID(),
+                role: 'assistant',
+                type: 'tool_result',
+                toolName: context.toolCallRequest!.tool_name,
+                toolCallId: context.toolCallRequest!.toolCallId,
+                result: toolResult,
+                isError: true,
+                createdAt: new Date().toISOString(),
+              };
+              return [...context.messages, newResultMessage];
             },
           }),
         },

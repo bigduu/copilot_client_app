@@ -1,3 +1,5 @@
+import { StateValue } from 'xstate';
+
 // Image attachment interface for messages
 export interface MessageImage {
   id: string;
@@ -9,92 +11,142 @@ export interface MessageImage {
   height?: number;
 }
 
-export interface ProcessorUpdate {
-  type: "processor_update";
-  source: string;
-  content: string;
-}
-
-export interface MessageContentPart {
-  type: "text" | "image_url" | "tool_code";
-  text?: string;
-  image_url?: {
-    url: string;
-    detail?: "low" | "high" | "auto";
-  };
-  tool_code?: string;
-}
-
 // Defines how the tool's output should be displayed in the UI.
 export type DisplayPreference = "Default" | "Collapsible" | "Hidden";
 
 // Represents the structured result from a tool execution.
 export interface ToolExecutionResult {
+  tool_name: string;
   result: string;
   display_preference: DisplayPreference;
 }
 
-// Content can be a string, an array of parts, or a structured tool result.
-export type MessageContent = string | MessageContentPart[] | ToolExecutionResult;
+// Type guard to check if an object is a ToolExecutionResult
+export const isToolExecutionResult = (obj: any): obj is ToolExecutionResult => {
+  return obj && typeof obj.result === 'string' && typeof obj.display_preference === 'string';
+};
 
-export interface Message {
+// --- NEW V3 DATA STRUCTURES ---
+
+// Base interface for all message types
+interface BaseMessage {
   id: string;
-  role: "user" | "assistant" | "system" | "tool";
-  content: MessageContent;
   createdAt: string;
-  images?: MessageImage[];
-  processorUpdates?: ProcessorUpdate[];
-  isStreaming?: boolean; // Flag for streaming messages
 }
 
-// Type guard to check if content is a ToolExecutionResult
-export const isToolExecutionResult = (content: MessageContent): content is ToolExecutionResult => {
-  return typeof content === 'object' && content !== null && 'result' in content && 'display_preference' in content;
+// 1. User's Message
+export interface SystemMessage extends BaseMessage {
+  role: 'system';
+  content: string;
+}
+
+export interface UserMessage extends BaseMessage {
+  role: 'user';
+  content: string;
+  images?: MessageImage[];
+}
+
+// 2. Assistant's Standard Text Response
+export interface AssistantTextMessage extends BaseMessage {
+  role: 'assistant';
+  type: 'text';
+  content: string;
+  // --- Metadata ---
+  model?: string;
+  finishReason?: 'stop' | 'length' | 'error';
+  tokenUsage?: { promptTokens: number; completionTokens: number; };
+  latency?: { firstTokenMs: number; totalDurationMs: number; };
+}
+
+// 3. Assistant's Request to Call a Tool
+export interface AssistantToolCallMessage extends BaseMessage {
+  role: 'assistant';
+  type: 'tool_call';
+  toolCalls: {
+    toolCallId: string;
+    toolName: string;
+    parameters: Record<string, any>;
+  }[]; // Support for multiple tool calls in one turn
+  // --- Metadata ---
+  model?: string;
+  finishReason?: 'tool_calls';
+  // ... other metadata
+}
+
+// 4. Assistant's Report of a Tool's Result
+export interface AssistantToolResultMessage extends BaseMessage {
+  role: 'assistant';
+  type: 'tool_result';
+  toolName: string;
+  toolCallId: string; // Links back to the specific call request.
+  result: ToolExecutionResult;
+  isError: boolean;
+}
+
+// The complete, type-safe Message union
+export type Message = UserMessage | AssistantTextMessage | AssistantToolCallMessage | AssistantToolResultMessage | SystemMessage;
+
+
+// --- NEW ChatItem V2 ---
+
+export interface ChatItem {
+  id: string;
+  title: string;
+  createdAt: number;
+  pinned?: boolean;
+  
+  // The full conversation history
+  messages: Message[];
+
+  // The configuration for this chat
+  config: {
+    // The base system prompt ID from the library
+    systemPromptId: string; 
+    // The actual, enhanced prompt content used in the last interaction
+    lastUsedEnhancedPrompt: string | null;
+    // The tool category active for this chat
+    toolCategory: string;
+  };
+
+  // The state of the CURRENT, ONGOING interaction.
+  // This is null if the chat is idle.
+  currentInteraction: {
+    // The state machine's current position (e.g., 'generatingResponse.streaming')
+    machineState: StateValue;
+    
+    // The ID of the assistant message being streamed into
+    streamingMessageId: string | null;
+
+    // The content being actively streamed
+    streamingContent: string | null;
+
+    // A tool call that is pending user approval
+    pendingApproval?: {
+      toolCallId: string;
+      toolName: string;
+      parameters: Record<string, any>;
+    };
+
+    // An error that occurred during the last operation
+    error?: {
+      message: string;
+      details?: any;
+    };
+  } | null;
+}
+
+
+// --- Utility functions and Type Guards ---
+
+export const isAssistantToolResultMessage = (message: Message): message is AssistantToolResultMessage => {
+  return message.role === 'assistant' && 'type'in message && message.type === 'tool_result';
 };
 
-// Utility functions for message content handling
-export const getMessageText = (content: MessageContent): string => {
-  if (typeof content === 'string') {
-    return content;
-  }
-
-  if (isToolExecutionResult(content)) {
-    // For tool results, the "text" is the raw result string.
-    return content.result;
-  }
-
-  // Extract text from array format for rich content (e.g., with images)
-  const textParts = content
-    .filter(part => part.type === 'text' && part.text)
-    .map(part => part.text!)
-    .join(' ');
-
-  return textParts;
+export const isAssistantToolCallMessage = (message: Message): message is AssistantToolCallMessage => {
+  return message.role === 'assistant' && 'type' in message && message.type === 'tool_call';
 };
 
-export const createTextContent = (text: string): MessageContent => text;
-
-export const createContentWithImages = (text: string, images: MessageImage[]): MessageContent => {
-  const content: MessageContent = [
-    {
-      type: "text",
-      text: text
-    }
-  ];
-
-  // Add images to content array
-  images.forEach(image => {
-    (content as any[]).push({
-      type: "image_url",
-      image_url: {
-        url: image.base64,
-        detail: "high"
-      }
-    });
-  });
-
-  return content;
-};
+// --- Other existing types to keep ---
 
 export interface FavoriteItem {
   id: string;
@@ -109,18 +161,8 @@ export interface FavoriteItem {
   messageId?: string; // Reference to the original message id
 }
 
-export interface ChatItem {
-  id: string;
-  title: string;
-  messages: Message[];
-  createdAt: number;
-  systemPrompt?: string; // Optional for backward compatibility
-  systemPromptId?: string; // New: Associated system prompt ID
-  toolCategory?: string; // New: Tool category
-  pinned?: boolean;
-  model?: string; // Optional model selection for the chat
-}
-
+// Note: The following types are for raw API responses and are kept for that purpose.
+// The 'message' property in 'Choice' might need future adjustment if it conflicts.
 export interface ChatCompletionResponse {
   choices: Choice[];
   created?: number;
@@ -133,60 +175,8 @@ export interface ChatCompletionResponse {
 export interface Choice {
   finish_reason: string;
   index?: number;
-  content_filter_offsets?: ContentFilterOffsets;
-  content_filter_results?: ContentFilterResults;
-  delta?: Delta;
-  message?: Message;
-}
-
-export interface ContentFilterOffsets {
-  check_offset: number;
-  start_offset: number;
-  end_offset: number;
-}
-
-export interface Delta {
-  content?: any;
-  annotations: Annotations;
-  copilot_annotations: Annotations;
-}
-
-export interface Annotations {
-  CodeVulnerability: CodeVulnerability[];
-}
-
-export interface CodeVulnerability {
-  id: number;
-  start_offset: number;
-  end_offset: number;
-  details: Details;
-  citations: Citations;
-}
-
-export interface Citations {
-  // Empty in Rust
-}
-
-export interface Details {
-  type: string;
-}
-
-export interface ContentFilterResults {
-  error: Error;
-  hate: FilterResult;
-  self_harm: FilterResult;
-  sexual: FilterResult;
-  violence: FilterResult;
-}
-
-export interface Error {
-  code: string;
-  message: string;
-}
-
-export interface FilterResult {
-  filtered: boolean;
-  severity: string;
+  delta?: { content?: string };
+  message?: { role: 'assistant'; content: string | null; tool_calls?: any[] };
 }
 
 export interface Usage {
@@ -199,16 +189,12 @@ export interface SystemPromptPreset {
   id: string; // uuid
   name: string;
   content: string;
-  description: string; // New: Capability description
-  category: string; // New: Tool category - changed to string type, obtained from backend
-  mode: "general" | "tool_specific"; // New: Mode type
-  autoToolPrefix?: string; // New: Auto tool prefix (e.g., "/read_file")
-  allowedTools?: string[]; // New: List of allowed tools (whitelist)
-  restrictConversation?: boolean; // New: Whether to restrict normal conversation
+  description: string;
+  category: string;
+  mode: "general" | "tool_specific";
+  autoToolPrefix?: string;
+  allowedTools?: string[];
+  restrictConversation?: boolean;
 }
 
 export type SystemPromptPresetList = SystemPromptPreset[];
-
-// Note: The hardcoded TOOL_CATEGORIES enum has been removed
-// All category information is now dynamically fetched from the backend
-// The ToolCategoryInfo interface has been moved to src/types/toolCategory.ts

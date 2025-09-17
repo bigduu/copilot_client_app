@@ -45,13 +45,11 @@ export const createChatSlice = (storageService: StorageService): StateCreator<Ap
 
   // Chat management actions
   addChat: (chatData) => {
+    // This function now strictly expects the new ChatItem structure.
+    // The ID is generated here, and the rest of the data comes from the input.
     const newChat: ChatItem = {
+      id: crypto.randomUUID(), // Use crypto.randomUUID for better uniqueness
       ...chatData,
-      id: Date.now().toString(),
-      createdAt: chatData.createdAt || Date.now(),
-      pinned: false,
-      toolCategory: chatData.toolCategory || "general_assistant",
-      systemPromptId: chatData.systemPromptId || "general_assistant",
     };
 
     set(state => ({
@@ -59,21 +57,33 @@ export const createChatSlice = (storageService: StorageService): StateCreator<Ap
       chats: [...state.chats, newChat],
       currentChatId: newChat.id,
       latestActiveChatId: newChat.id,
-      messages: { ...state.messages, [newChat.id]: chatData.messages || [] }
+      // The 'messages' record is deprecated and no longer used.
     }));
   },
 
   selectChat: (chatId) => {
-    set({ ...get(), currentChatId: chatId, latestActiveChatId: chatId });
+    set({ currentChatId: chatId, latestActiveChatId: chatId });
+
+    // Lazy load messages on chat selection if they are not already loaded.
+    if (chatId) {
+      const chat = get().chats.find(c => c.id === chatId);
+      // Check if messages are empty and there's an indication they should exist.
+      // The presence of messages in storage is implicitly known by the app's logic,
+      // so if `messages` is empty, it's safe to try loading.
+      if (chat && chat.messages.length === 0) {
+        storageService.loadMessages(chatId).then(messages => {
+          if (messages.length > 0) {
+            get().updateChat(chatId, { messages });
+          }
+        });
+      }
+    }
   },
 
   deleteChat: async (chatId) => {
     await storageService.deleteMessages(chatId);
     set(state => {
       const newChats = state.chats.filter(chat => chat.id !== chatId);
-      const newMessages = { ...state.messages };
-      delete newMessages[chatId];
-
       let newCurrentChatId = state.currentChatId;
       let newLatestActiveChatId = state.latestActiveChatId;
 
@@ -88,7 +98,7 @@ export const createChatSlice = (storageService: StorageService): StateCreator<Ap
       return {
         ...state,
         chats: newChats,
-        messages: newMessages,
+        messages: {}, // Keep messages cleared
         currentChatId: newCurrentChatId,
         latestActiveChatId: newLatestActiveChatId
       };
@@ -99,9 +109,6 @@ export const createChatSlice = (storageService: StorageService): StateCreator<Ap
     await storageService.deleteMultipleMessages(chatIds);
     set(state => {
       const newChats = state.chats.filter(chat => !chatIds.includes(chat.id));
-      const newMessages = { ...state.messages };
-      chatIds.forEach(id => delete newMessages[id]);
-
       let newCurrentChatId = state.currentChatId;
       let newLatestActiveChatId = state.latestActiveChatId;
 
@@ -116,7 +123,7 @@ export const createChatSlice = (storageService: StorageService): StateCreator<Ap
       return {
         ...state,
         chats: newChats,
-        messages: newMessages,
+        messages: {}, // Keep messages cleared
         currentChatId: newCurrentChatId,
         latestActiveChatId: newLatestActiveChatId
       };
@@ -142,133 +149,108 @@ export const createChatSlice = (storageService: StorageService): StateCreator<Ap
     get().updateChat(chatId, { pinned: false });
   },
 
-  // Message management
+  // Message management (now operates on the messages array within each ChatItem)
   setMessages: (chatId, messages) => {
-    set(state => ({
-      ...state,
-      messages: {
-        ...state.messages,
-        [chatId]: messages
-      }
-    }));
+    const chat = get().chats.find(c => c.id === chatId);
+    if (chat) {
+      get().updateChat(chatId, { messages });
+    }
   },
 
   addMessage: (chatId, message) => {
-    set(state => ({
-      ...state,
-      messages: {
-        ...state.messages,
-        [chatId]: [...(state.messages[chatId] || []), message]
-      }
-    }));
+    const chat = get().chats.find(c => c.id === chatId);
+    if (chat) {
+      get().updateChat(chatId, { messages: [...chat.messages, message] });
+    }
   },
 
   updateMessage: (chatId, messageId, updates) => {
-    set(state => {
-      const currentMessages = state.messages[chatId] || [];
-      const messageExists = currentMessages.some(msg => msg.id === messageId);
-
-      if (!messageExists) {
-        console.warn(`Message ${messageId} not found in chat ${chatId}`);
-        return state;
-      }
-
-      return {
-        ...state,
-        messages: {
-          ...state.messages,
-          [chatId]: currentMessages.map(msg =>
-            msg.id === messageId ? { ...msg, ...updates } : msg
-          )
+    const chat = get().chats.find(c => c.id === chatId);
+    if (chat) {
+      const updatedMessages = chat.messages.map(msg => {
+        if (msg.id === messageId) {
+          // Perform a type-safe update by only applying properties that exist on the original message.
+          const updatedMsg = { ...msg };
+          Object.keys(updates).forEach(key => {
+            if (Object.prototype.hasOwnProperty.call(updatedMsg, key)) {
+              (updatedMsg as any)[key] = (updates as any)[key];
+            }
+          });
+          return updatedMsg;
         }
-      };
-    });
+        return msg;
+      });
+      get().updateChat(chatId, { messages: updatedMessages });
+    }
   },
 
   updateMessageContent: (chatId, messageId, content) => {
-    set(state => {
-      const currentMessages = state.messages[chatId] || [];
-      const messageExists = currentMessages.some(msg => msg.id === messageId);
-
-      if (!messageExists) {
-        // Don't warn, as this can happen if the stream starts before the message is added
-        return state;
-      }
-
-      return {
-        ...state,
-        messages: {
-          ...state.messages,
-          [chatId]: currentMessages.map(msg =>
-            msg.id === messageId ? { ...msg, content } : msg
-          )
+    const chat = get().chats.find(c => c.id === chatId);
+    if (chat) {
+      const updatedMessages = chat.messages.map(msg => {
+        if (msg.id === messageId) {
+          if ((msg.role === 'user' || (msg.role === 'assistant' && msg.type === 'text'))) {
+            return { ...msg, content };
+          }
         }
-      };
-    });
+        return msg;
+      });
+      get().updateChat(chatId, { messages: updatedMessages });
+    }
   },
 
   deleteMessage: (chatId, messageId) => {
-    set(state => {
-      const currentMessages = state.messages[chatId] || [];
-      const messageExists = currentMessages.some(msg => msg.id === messageId);
-
-      if (!messageExists) {
-        console.warn(`Message ${messageId} not found in chat ${chatId}`);
-        return state;
-      }
-
-      return {
-        ...state,
-        messages: {
-          ...state.messages,
-          [chatId]: currentMessages.filter(msg => msg.id !== messageId)
-        }
-      };
-    });
+    const chat = get().chats.find(c => c.id === chatId);
+    if (chat) {
+      const updatedMessages = chat.messages.filter(msg => msg.id !== messageId);
+      get().updateChat(chatId, { messages: updatedMessages });
+    }
   },
 
   // Data persistence
   loadChats: async () => {
     try {
-      const { chats, messages } = await storageService.loadAllData();
+      // 1. Load chat metadata (which have empty messages array)
+      const { chats: loadedChats } = await storageService.loadAllData();
       const latestActiveChatId = await storageService.loadLatestActiveChatId();
 
-      const migratedChats = chats.map(chat => {
-        if (!chat.systemPromptId) {
-          return {
-            ...chat,
-            systemPromptId: 'general_assistant',
-            toolCategory: chat.toolCategory || 'general_assistant',
-          };
-        }
-        return chat;
-      });
-
       let currentChatId = null;
-      if (latestActiveChatId && migratedChats.some(chat => chat.id === latestActiveChatId)) {
+      if (latestActiveChatId && loadedChats.some(chat => chat.id === latestActiveChatId)) {
         currentChatId = latestActiveChatId;
-      } else if (migratedChats.length > 0) {
-        currentChatId = migratedChats[0].id;
+      } else if (loadedChats.length > 0) {
+        currentChatId = loadedChats[0].id;
       }
 
+      // 2. If there's an active chat, pre-load its messages
+      if (currentChatId) {
+        const messages = await storageService.loadMessages(currentChatId);
+        const chatToUpdate = loadedChats.find(chat => chat.id === currentChatId);
+        if (chatToUpdate) {
+          chatToUpdate.messages = messages;
+        }
+      }
+
+      // 3. Set the final state
       set({
-        chats: migratedChats,
-        messages,
-        latestActiveChatId: latestActiveChatId,
+        chats: loadedChats, // Now contains messages for the active chat
+        messages: {}, // Deprecated, ensure it's cleared.
+        latestActiveChatId: currentChatId,
         currentChatId: currentChatId,
         isProcessing: false,
         streamingMessage: null,
       });
     } catch (error) {
       console.error('Failed to load chats:', error);
+      // On error, reset to a clean initial state
       set({ chats: [], messages: {}, latestActiveChatId: null, currentChatId: null, isProcessing: false, streamingMessage: null });
     }
   },
 
   saveChats: async () => {
     try {
-      const { chats, messages, latestActiveChatId } = get();
-      await storageService.saveAllData(chats, messages);
+      const { chats, latestActiveChatId } = get();
+      // The storage service now expects chats to contain their own messages.
+      await storageService.saveAllData(chats, {}); // Pass empty messages object
       await storageService.saveLatestActiveChatId(latestActiveChatId);
     } catch (error) {
       console.error('Failed to save chats:', error);

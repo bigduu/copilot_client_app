@@ -1,3 +1,4 @@
+import { useCallback } from 'react';
 import { useAppStore } from '../store';
 import { ChatItem, Message, SystemPromptPreset } from '../types/chat';
 
@@ -19,7 +20,9 @@ interface UseChatsReturn {
   chatCount: number;
 
   // Basic Operations (Directly mapped to Store)
-  selectChat: (chatId: string | null) => void;
+  addMessage: (chatId: string, message: Message) => void;
+  setMessages: (chatId: string, messages: Message[]) => void;
+  selectChat: (chatId:string | null) => void;
   deleteMessage: (chatId: string, messageId: string) => void;
   deleteChat: (chatId: string) => void;
   deleteChats: (chatIds: string[]) => void;
@@ -42,10 +45,12 @@ export const useChatList = (): UseChatsReturn => {
   // Get data from Zustand Store (Hook → Store)
   const chats = useAppStore(state => state.chats);
   const currentChatId = useAppStore(state => state.currentChatId);
-  const messages = useAppStore(state => state.messages);
+  // The 'messages' record is deprecated. Messages are now part of each chat item.
 
   // Get action methods from Zustand Store (Hook → Store)
   const addChat = useAppStore(state => state.addChat);
+  const setMessages = useAppStore(state => state.setMessages);
+  const addMessage = useAppStore(state => state.addMessage);
   const selectChat = useAppStore(state => state.selectChat);
   const deleteChat = useAppStore(state => state.deleteChat);
   const deleteChats = useAppStore(state => state.deleteChats);
@@ -56,37 +61,72 @@ export const useChatList = (): UseChatsReturn => {
   const loadChats = useAppStore(state => state.loadChats);
   const saveChats = useAppStore(state => state.saveChats);
 
+  // Memoize action methods to stabilize their references
+  const memoizedAddMessage = useCallback(addMessage, [addMessage]);
+  const memoizedSetMessages = useCallback(setMessages, [setMessages]);
+  const memoizedSelectChat = useCallback(selectChat, [selectChat]);
+  const memoizedDeleteMessage = useCallback(deleteMessage, [deleteMessage]);
+  const memoizedDeleteChat = useCallback(deleteChat, [deleteChat]);
+  const memoizedDeleteChats = useCallback(deleteChats, [deleteChats]);
+  const memoizedPinChat = useCallback(pinChat, [pinChat]);
+  const memoizedUnpinChat = useCallback(unpinChat, [unpinChat]);
+  const memoizedUpdateChat = useCallback(updateChat, [updateChat]);
+  const memoizedLoadChats = useCallback(loadChats, [loadChats]);
+  const memoizedSaveChats = useCallback(saveChats, [saveChats]);
+
   // Calculate derived state (computed from Store data)
   const currentChat = chats.find(chat => chat.id === currentChatId) || null;
-  const currentMessages = currentChatId ? messages[currentChatId] || [] : [];
+  // Correctly derive messages from the current chat item
+  const currentMessages = currentChat ? currentChat.messages : [];
   const pinnedChats = chats.filter(chat => chat.pinned);
   const unpinnedChats = chats.filter(chat => !chat.pinned);
   const chatCount = chats.length;
 
   // Convenience action methods (combining Store operations)
-  const createNewChat = (title?: string, options?: Partial<ChatItem>) => {
-    addChat({
+  const createNewChat = useCallback((title?: string, options?: Partial<Omit<ChatItem, 'id'>>) => {
+    const newChatData: Omit<ChatItem, 'id'> = {
       title: title || 'New Chat',
-      messages: [],
       createdAt: Date.now(),
-      systemPromptId: 'general_assistant', // TODO: Dynamically get default category from backend
-      toolCategory: 'general_assistant', // TODO: Dynamically get default category from backend
+      messages: [],
+      config: {
+        systemPromptId: 'general_assistant',
+        toolCategory: 'general_assistant',
+        lastUsedEnhancedPrompt: null,
+      },
+      currentInteraction: null,
       ...options,
-    });
-  };
+    };
+    addChat(newChatData);
+    // Immediately save after adding a new chat
+    saveChats();
+  }, [addChat, saveChats]);
 
-  const createChatWithSystemPrompt = (preset: SystemPromptPreset) => {
-    addChat({
+  const createChatWithSystemPrompt = useCallback((preset: SystemPromptPreset) => {
+    const newChatData: Omit<ChatItem, 'id'> = {
       title: `New Chat - ${preset.name}`,
-      messages: [],
       createdAt: Date.now(),
-      systemPromptId: preset.id,
-      toolCategory: preset.category,
-      systemPrompt: preset.content,
-    });
-  };
+      messages: [
+        // Optionally pre-fill the system message
+        {
+          id: 'system-prompt',
+          role: 'system',
+          content: preset.content,
+          createdAt: new Date().toISOString(),
+        }
+      ],
+      config: {
+        systemPromptId: preset.id,
+        toolCategory: preset.category,
+        lastUsedEnhancedPrompt: preset.content,
+      },
+      currentInteraction: null,
+    };
+    addChat(newChatData);
+    // Immediately save after adding a new chat
+    saveChats();
+  }, [addChat, saveChats]);
 
-  const toggleChatPin = (chatId: string) => {
+  const toggleChatPin = useCallback((chatId: string) => {
     const chat = chats.find(c => c.id === chatId);
     if (chat) {
       if (chat.pinned) {
@@ -95,29 +135,29 @@ export const useChatList = (): UseChatsReturn => {
         pinChat(chatId);
       }
     }
-  };
+  }, [chats, pinChat, unpinChat]);
 
-  const updateChatTitle = (chatId: string, newTitle: string) => {
+  const updateChatTitle = useCallback((chatId: string, newTitle: string) => {
     updateChat(chatId, { title: newTitle });
-  };
+  }, [updateChat]);
 
-  const deleteEmptyChats = () => {
+  const deleteEmptyChats = useCallback(() => {
     const emptyChats = chats.filter(chat => {
-      const chatMessages = messages[chat.id] || [];
-      return !chat.pinned && chatMessages.length === 0;
+      // Logic updated to check messages directly from the chat item
+      return !chat.pinned && chat.messages.length === 0;
     });
     const emptyChatIds = emptyChats.map(chat => chat.id);
     if (emptyChatIds.length > 0) {
       deleteChats(emptyChatIds);
     }
-  };
+  }, [chats, deleteChats]);
 
-  const deleteAllUnpinnedChats = () => {
+  const deleteAllUnpinnedChats = useCallback(() => {
     const unpinnedChatsIds = unpinnedChats.map(chat => chat.id);
     if (unpinnedChatsIds.length > 0) {
       deleteChats(unpinnedChatsIds);
     }
-  };
+  }, [unpinnedChats, deleteChats]);
 
   return {
     // Data State
@@ -130,15 +170,17 @@ export const useChatList = (): UseChatsReturn => {
     chatCount,
 
     // Basic Operations (Directly mapped to Store)
-    selectChat,
-    deleteMessage,
-    deleteChat,
-    deleteChats,
-    pinChat,
-    unpinChat,
-    updateChat,
-    loadChats,
-    saveChats,
+    addMessage: memoizedAddMessage,
+    setMessages: memoizedSetMessages,
+    selectChat: memoizedSelectChat,
+    deleteMessage: memoizedDeleteMessage,
+    deleteChat: memoizedDeleteChat,
+    deleteChats: memoizedDeleteChats,
+    pinChat: memoizedPinChat,
+    unpinChat: memoizedUnpinChat,
+    updateChat: memoizedUpdateChat,
+    loadChats: memoizedLoadChats,
+    saveChats: memoizedSaveChats,
 
     // Convenience Operations (Combining multiple Store operations)
     createNewChat,

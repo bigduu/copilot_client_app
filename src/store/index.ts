@@ -28,19 +28,20 @@ export const useAppStore = create<AppState>()(
 );
 
 // Debounced save function
-const debouncedSave = debounce((state: Pick<AppState, 'chats' | 'messages' | 'latestActiveChatId'>) => {
-  const { chats, messages, latestActiveChatId } = state;
-  storageService.saveAllData(chats, messages);
+const debouncedSave = debounce((state: Pick<AppState, 'chats' | 'latestActiveChatId'>) => {
+  const { chats, latestActiveChatId } = state;
+  // The `messages` parameter is deprecated. Pass an empty object.
+  storageService.saveAllData(chats, {});
   storageService.saveLatestActiveChatId(latestActiveChatId);
 }, 1000);
 
 // Subscribe to state changes for automatic saving
 useAppStore.subscribe(
-  (state) => ({ chats: state.chats, messages: state.messages, latestActiveChatId: state.latestActiveChatId }),
+  (state) => ({ chats: state.chats, latestActiveChatId: state.latestActiveChatId }),
   (state) => {
     debouncedSave(state);
   },
-  { equalityFn: (a, b) => a.chats === b.chats && a.messages === b.messages && a.latestActiveChatId === b.latestActiveChatId }
+  { equalityFn: (a, b) => a.chats === b.chats && a.latestActiveChatId === b.latestActiveChatId }
 );
 
 
