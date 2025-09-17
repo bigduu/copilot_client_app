@@ -38,7 +38,7 @@ import { ChatItem as ChatItemComponent } from "../ChatItem";
 import { ChatItem } from "../../types/chat";
 import SystemPromptSelector from "../SystemPromptSelector";
 import { SystemPromptPreset } from "../../types/chat";
-import { useChatController } from "../../hooks/useChatController";
+import { useChatManager } from "../../hooks/useChatManager";
 
 const { Sider } = Layout;
 const { Text } = Typography;
@@ -50,24 +50,24 @@ export const ChatSidebar: React.FC<{
   onThemeModeChange: (mode: "light" | "dark") => void;
 }> = ({ themeMode, onThemeModeChange }) => {
   const { token } = useToken();
-  // Direct access to Zustand store - much simpler!
-  const chats = useAppStore((state) => state.chats);
-  const addChat = useAppStore((state) => state.addChat);
-  const selectChat = useAppStore((state) => state.selectChat);
-  const currentChatId = useAppStore((state) => state.currentChatId);
-  const deleteChat = useAppStore((state) => state.deleteChat);
-  const deleteChats = useAppStore((state) => state.deleteChats);
-  const pinChat = useAppStore((state) => state.pinChat);
-  const unpinChat = useAppStore((state) => state.unpinChat);
-  const updateChat = useAppStore((state) => state.updateChat);
-  const systemPromptPresets = useAppStore((state) => state.systemPromptPresets);
+  // Use the central chat manager hook
+  const {
+    chats,
+    currentChatId,
+    selectChat,
+    deleteChat,
+    deleteChats,
+    pinChat,
+    unpinChat,
+    updateChat,
+    createNewChat,
+  } = useChatManager();
 
+  const systemPromptPresets = useAppStore((state) => state.systemPromptPresets);
   const loadSystemPromptPresets = useAppStore(
     (state) => state.loadSystemPromptPresets
   );
 
-  // Add useChatController hook for AI title generation
-  const { generateChatTitle } = useChatController();
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   const [isNewChatSelectorOpen, setIsNewChatSelectorOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
@@ -306,14 +306,9 @@ export const ChatSidebar: React.FC<{
   };
 
   const handleGenerateTitle = async (chatId: string) => {
-    try {
-      console.log(`[ChatSidebar] Generating AI title for chat: ${chatId}`);
-      const newTitle = await generateChatTitle(chatId);
-      updateChat(chatId, { title: newTitle });
-      console.log(`[ChatSidebar] Generated title: "${newTitle}"`);
-    } catch (error) {
-      console.error("Failed to generate title:", error);
-    }
+    // This feature is temporarily disabled during refactoring.
+    // A new implementation will be added if required.
+    console.warn("AI title generation is temporarily disabled.");
   };
 
   // Batch delete handler
@@ -362,21 +357,13 @@ export const ChatSidebar: React.FC<{
 
   const handleSystemPromptSelect = (preset: SystemPromptPreset) => {
     try {
-      // Create a new chat item that conforms to the Omit<ChatItem, 'id'> type
-      addChat({
-        title: `New Chat - ${preset.name}`,
-        createdAt: Date.now(),
-        messages: [],
-        pinned: false,
+      createNewChat(`New Chat - ${preset.name}`, {
         config: {
           systemPromptId: preset.id,
           toolCategory: preset.category,
           lastUsedEnhancedPrompt: null,
         },
-        currentInteraction: null,
       });
-
-      // The new chat is automatically selected in the store
       setIsNewChatSelectorOpen(false);
     } catch (error) {
       console.error("Failed to create chat:", error);

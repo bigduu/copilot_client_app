@@ -18,7 +18,7 @@ import {
   ApiOutlined,
   DesktopOutlined,
 } from "@ant-design/icons";
-import { useChatList } from "../../hooks/useChatList";
+import { useChatManager } from "../../hooks/useChatManager";
 import { useModels } from "../../hooks/useModels";
 import { useServiceMode } from "../../hooks/useServiceMode";
 import {
@@ -118,7 +118,7 @@ const SystemSettingsModal = ({
   onThemeModeChange: (mode: "light" | "dark") => void;
 }) => {
   const { token } = useToken();
-  const { deleteAllUnpinnedChats, deleteEmptyChats } = useChatList();
+  const { deleteAllUnpinnedChats, deleteEmptyChats } = useChatManager();
   const [msgApi, contextHolder] = message.useMessage();
   const [mermaidEnhancementEnabled, setMermaidEnhancementEnabledState] =
     useState<boolean>(() => {

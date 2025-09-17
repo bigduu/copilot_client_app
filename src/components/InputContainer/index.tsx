@@ -4,9 +4,7 @@ import { ToolOutlined } from "@ant-design/icons";
 import { MessageInput } from "../MessageInput";
 import InputPreview from "./InputPreview";
 import ToolSelector from "../ToolSelector";
-import { useChatList } from "../../hooks/useChatList";
-import { useChatControllerContext } from "../../contexts/ChatControllerContext";
-import { useToolCategoryValidation } from "../../hooks/useToolCategoryValidation";
+import { useChatManager } from "../../hooks/useChatManager";
 import { useSystemPrompt } from "../../hooks/useSystemPrompt";
 // Removed getCategoryDisplayInfoAsync import since lock functionality is removed
 
@@ -22,12 +20,15 @@ export const InputContainer: React.FC<InputContainerProps> = ({
   const [showToolSelector, setShowToolSelector] = useState(false);
   const [toolSearchText, setToolSearchText] = useState("");
   const { token } = useToken();
-  const { currentMessages, currentChat } = useChatList();
-
-  // Get state and actions from the state machine
-  const { state, send, sendMessage, retryLastMessage } =
-    useChatControllerContext();
-  const isStreaming = state.matches("THINKING");
+  const {
+    currentMessages,
+    currentChat,
+    interactionState,
+    sendMessage,
+    retryLastMessage,
+    send,
+  } = useChatManager();
+  const isStreaming = interactionState.matches("THINKING");
 
   // TODO: selectedSystemPromptPresetId needs to be retrieved from the new store
   const selectedSystemPromptPresetId = null;
@@ -44,14 +45,6 @@ export const InputContainer: React.FC<InputContainerProps> = ({
   const autoToolPrefix = currentSystemPromptInfo?.autoToolPrefix;
 
   // Removed lock functionality since everything is controlled by categories
-
-  // Tool category validation logic
-  const {
-    validateMessage,
-    isStrictMode,
-    getStrictModePlaceholder,
-    currentCategoryInfo,
-  } = useToolCategoryValidation(currentChat?.config.toolCategory);
 
   // Use the new chat input hook for state management
   // State management for the input itself
@@ -119,14 +112,6 @@ export const InputContainer: React.FC<InputContainerProps> = ({
       return "Send a message (includes reference)";
     }
 
-    // Check if in strict mode
-    if (isStrictMode()) {
-      const strictPlaceholder = getStrictModePlaceholder();
-      if (strictPlaceholder) {
-        return strictPlaceholder;
-      }
-    }
-
     if (isToolSpecificMode) {
       if (isRestrictConversation) {
         return `Tool calls only (allowed tools: ${allowedTools.join(", ")})`;
@@ -144,8 +129,6 @@ export const InputContainer: React.FC<InputContainerProps> = ({
     isRestrictConversation,
     allowedTools,
     autoToolPrefix,
-    isStrictMode,
-    getStrictModePlaceholder,
   ]);
 
   return (
@@ -163,26 +146,8 @@ export const InputContainer: React.FC<InputContainerProps> = ({
     >
       {/* Ant Design message context holder */}
       {contextHolder}
-      {/* Strict mode alert */}
-      {isStrictMode() && currentCategoryInfo && (
-        <Alert
-          type="warning"
-          showIcon
-          style={{ marginBottom: token.marginSM }}
-          message={
-            <Space wrap>
-              <span>
-                Strict Mode: {currentCategoryInfo.name} - Tool calls only
-              </span>
-              <Tag color="red">Strict Mode Enabled</Tag>
-            </Space>
-          }
-          description="In this mode, only tool call commands starting with / are allowed"
-        />
-      )}
-
       {/* Tool-specific mode alert */}
-      {!isStrictMode() && isToolSpecificMode && (
+      {isToolSpecificMode && (
         <Alert
           type={isRestrictConversation ? "warning" : "info"}
           showIcon
@@ -238,7 +203,6 @@ export const InputContainer: React.FC<InputContainerProps> = ({
           onImagesChange={setImages}
           allowImages={true}
           isToolSelectorVisible={showToolSelector}
-          validateMessage={validateMessage}
         />
 
         <ToolSelector
@@ -250,11 +214,7 @@ export const InputContainer: React.FC<InputContainerProps> = ({
           categoryId={currentChat?.config.toolCategory}
           allowedTools={
             // In strict mode, tools are already filtered by backend, no need for frontend filtering
-            isStrictMode() && currentCategoryInfo
-              ? undefined
-              : isToolSpecificMode
-              ? allowedTools
-              : undefined
+            isToolSpecificMode ? allowedTools : undefined
           }
         />
       </div>

@@ -5,8 +5,7 @@ import { ChatView } from "../components/ChatView";
 import { FavoritesPanel } from "../components/FavoritesPanel";
 import { listen } from "@tauri-apps/api/event";
 import { useAppStore } from "../store";
-import { useCurrentMessages } from "../store/hooks";
-import { useChatController } from "../hooks/useChatController";
+import { useChatManager } from "../hooks/useChatManager";
 import { ChatItem } from "../types/chat";
 
 import "./styles.css";
@@ -18,9 +17,7 @@ export const MainLayout: React.FC<{
   // Direct access to Zustand store
   const addChat = useAppStore((state) => state.addChat);
   const selectChat = useAppStore((state) => state.selectChat);
-  const { sendMessage } = useChatController();
-  const currentMessages = useCurrentMessages();
-  const currentChatId = useAppStore((state) => state.currentChatId);
+  const { sendMessage, currentMessages, currentChatId } = useChatManager();
   const pendingAIRef = useRef<{ chatId: string; message: string } | null>(null);
   const [showFavorites, setShowFavorites] = useState(true);
 
@@ -77,7 +74,7 @@ export const MainLayout: React.FC<{
     if (pendingAIRef.current) {
       const { chatId, message } = pendingAIRef.current;
       // Ensure the current chat is the one we just created
-      if (chatId === useAppStore.getState().currentChatId) {
+      if (chatId === currentChatId) {
         console.log(
           `[MainLayout] useEffect: Auto-sending message for new chat ${chatId}.`
         );

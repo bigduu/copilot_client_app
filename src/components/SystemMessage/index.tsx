@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { Card, Space, Typography, theme } from "antd";
 import ReactMarkdown from "react-markdown";
-import { useChatList } from "../../hooks/useChatList";
+import { useChatManager } from "../../hooks/useChatManager";
 import { SystemPromptService } from "../../services/SystemPromptService";
 
 const { Text } = Typography;
@@ -15,7 +15,7 @@ const SystemMessage: React.FC<SystemMessageProps> = () => {
   const { token } = useToken();
 
   // Get the current chat context from the new hook
-  const { currentChat } = useChatList();
+  const { currentChat } = useChatManager();
 
   // State for category description
   const [categoryDescription, setCategoryDescription] = useState<string>("");

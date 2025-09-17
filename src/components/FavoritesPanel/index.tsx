@@ -28,8 +28,8 @@ import {
   EnvironmentOutlined,
   FileTextOutlined,
 } from "@ant-design/icons";
-import { useChatList } from "../../hooks/useChatList";
-import { useChatController } from "../../hooks/useChatController";
+import { useChatManager } from "../../hooks/useChatManager";
+import { useFavorites } from "../../hooks/useFavorites";
 import { FavoriteItem } from "../../types/chat";
 import { useAppStore } from "../../store";
 import ReactMarkdown from "react-markdown";
@@ -48,13 +48,14 @@ const { useBreakpoint } = Grid;
 export const FavoritesPanel: React.FC = () => {
   const { token } = useToken();
   const screens = useBreakpoint();
-  const { currentChatId, createNewChat } = useChatList();
-  const { sendMessage } = useChatController();
+  const { currentChatId, createNewChat, sendMessage } = useChatManager();
 
-  // Get favorites functionality from Zustand store
-  const allFavorites = useAppStore((state) => state.favorites);
-  const removeFavorite = useAppStore((state) => state.removeFavorite);
-  const updateFavorite = useAppStore((state) => state.updateFavorite);
+  // Get favorites functionality from the new hook
+  const {
+    favorites: allFavorites,
+    removeFavorite,
+    updateFavorite,
+  } = useFavorites();
 
   // Get current chat favorites
   const getCurrentChatFavorites = () => {

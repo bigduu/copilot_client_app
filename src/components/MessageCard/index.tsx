@@ -18,7 +18,7 @@ import {
   createFavoriteButton,
   createReferenceButton,
 } from "../ActionButtonGroup";
-import { useChatList } from "../../hooks/useChatList";
+import { useChatManager } from "../../hooks/useChatManager";
 import { useAppStore } from "../../store";
 import {
   isAssistantToolCallMessage,
@@ -45,7 +45,7 @@ const MessageCard: React.FC<MessageCardProps> = ({
   const { role, id: messageId } = message;
   const { token } = useToken();
   const screens = useBreakpoint();
-  const { currentChatId } = useChatList();
+  const { currentChatId } = useChatManager();
   const addFavorite = useAppStore((state) => state.addFavorite);
   const cardRef = useRef<HTMLDivElement>(null);
   const [selectedText, setSelectedText] = useState<string>("");
@@ -281,20 +281,25 @@ const MessageCard: React.FC<MessageCardProps> = ({
               {isAssistantToolResultMessage(message) ? (
                 <>
                   {message.result.display_preference === "Collapsible" ? (
-                    <Collapse ghost size="small">
-                      <Collapse.Panel
-                        header={`View Result: ${message.toolName}`}
-                        key="tool-result-panel"
-                      >
-                        <ReactMarkdown
-                          remarkPlugins={markdownPlugins}
-                          rehypePlugins={rehypePlugins}
-                          components={markdownComponents}
-                        >
-                          {message.result.result}
-                        </ReactMarkdown>
-                      </Collapse.Panel>
-                    </Collapse>
+                    <Collapse
+                      ghost
+                      size="small"
+                      items={[
+                        {
+                          key: "tool-result-panel",
+                          label: `View Result: ${message.toolName}`,
+                          children: (
+                            <ReactMarkdown
+                              remarkPlugins={markdownPlugins}
+                              rehypePlugins={rehypePlugins}
+                              components={markdownComponents}
+                            >
+                              {message.result.result}
+                            </ReactMarkdown>
+                          ),
+                        },
+                      ]}
+                    />
                   ) : message.result.display_preference === "Hidden" ? (
                     <Text italic>Tool executed: {message.toolName}</Text>
                   ) : (
@@ -329,15 +334,23 @@ const MessageCard: React.FC<MessageCardProps> = ({
                 </Space>
               ) : (
                 // Case 3: Regular Text Message (User or Assistant)
-                <ReactMarkdown
-                  remarkPlugins={markdownPlugins}
-                  rehypePlugins={rehypePlugins}
-                  components={markdownComponents}
-                >
-                  {isUserToolCall
-                    ? formatUserToolCall(messageText)
-                    : messageText}
-                </ReactMarkdown>
+                <>
+                  {message.role === "assistant" &&
+                  !messageText &&
+                  !isStreaming ? (
+                    <Text italic>Assistant is thinking...</Text>
+                  ) : (
+                    <ReactMarkdown
+                      remarkPlugins={markdownPlugins}
+                      rehypePlugins={rehypePlugins}
+                      components={markdownComponents}
+                    >
+                      {isUserToolCall
+                        ? formatUserToolCall(messageText)
+                        : messageText}
+                    </ReactMarkdown>
+                  )}
+                </>
               )}
 
               {/* Blinking cursor for streaming */}

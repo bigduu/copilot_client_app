@@ -6,8 +6,7 @@ import React, {
   useCallback,
 } from "react";
 import { Layout, Empty, Space, theme, Button, Grid, Flex } from "antd";
-import { useChatList } from "../../hooks/useChatList";
-import { useChatControllerContext } from "../../contexts/ChatControllerContext";
+import { useChatManager } from "../../hooks/useChatManager";
 import SystemMessage from "../SystemMessage";
 import { DownOutlined } from "@ant-design/icons";
 import { InputContainer } from "../InputContainer";
@@ -26,9 +25,9 @@ export const ChatView: React.FC = () => {
     currentChat,
     deleteMessage,
     updateChat,
-    // No need to get messages from here, ChatView now gets them from Zustand
-  } = useChatList();
-  const { state, send } = useChatControllerContext();
+    interactionState,
+    send,
+  } = useChatManager();
 
   // Handle message deletion - optimized with useCallback
   const handleDeleteMessage = useCallback(
@@ -149,7 +148,11 @@ export const ChatView: React.FC = () => {
     if (!showScrollToBottom) {
       scrollToBottom();
     }
-  }, [currentMessages, state.context.streamingContent, showScrollToBottom]);
+  }, [
+    currentMessages,
+    interactionState.context.streamingContent,
+    showScrollToBottom,
+  ]);
 
   const hasMessages = currentMessages.length > 0;
   const showMessagesView = currentChatId && hasMessages;
@@ -289,15 +292,16 @@ export const ChatView: React.FC = () => {
         </Content>
 
         {/* Real Approval Modal */}
-        {state.context.toolCallRequest && state.context.parsedParameters && (
-          <ApprovalModal
-            visible={state.matches("AWAITING_APPROVAL")}
-            toolName={state.context.toolCallRequest.tool_name}
-            parameters={state.context.parsedParameters}
-            onApprove={() => send({ type: "USER_APPROVES" })}
-            onReject={() => send({ type: "USER_REJECTS" })}
-          />
-        )}
+        {interactionState.context.toolCallRequest &&
+          interactionState.context.parsedParameters && (
+            <ApprovalModal
+              visible={interactionState.matches("AWAITING_APPROVAL")}
+              toolName={interactionState.context.toolCallRequest.tool_name}
+              parameters={interactionState.context.parsedParameters}
+              onApprove={() => send({ type: "USER_APPROVES" })}
+              onReject={() => send({ type: "USER_REJECTS" })}
+            />
+          )}
 
         {/* Scroll to Bottom Button */}
         {showScrollToBottom && (
