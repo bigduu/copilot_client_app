@@ -4,7 +4,7 @@ import { ToolOutlined } from "@ant-design/icons";
 import { MessageInput } from "../MessageInput";
 import InputPreview from "./InputPreview";
 import ToolSelector from "../ToolSelector";
-import { useChatManager } from "../../hooks/useChatManager";
+import { useChatController } from "../../contexts/ChatControllerContext";
 import { useSystemPrompt } from "../../hooks/useSystemPrompt";
 // Removed getCategoryDisplayInfoAsync import since lock functionality is removed
 
@@ -27,7 +27,7 @@ export const InputContainer: React.FC<InputContainerProps> = ({
     sendMessage,
     retryLastMessage,
     send,
-  } = useChatManager();
+  } = useChatController();
   const isStreaming = interactionState.matches("THINKING");
 
   // TODO: selectedSystemPromptPresetId needs to be retrieved from the new store

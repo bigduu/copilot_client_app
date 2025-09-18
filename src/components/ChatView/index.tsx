@@ -6,7 +6,7 @@ import React, {
   useCallback,
 } from "react";
 import { Layout, Empty, Space, theme, Button, Grid, Flex } from "antd";
-import { useChatManager } from "../../hooks/useChatManager";
+import { useChatController } from "../../contexts/ChatControllerContext";
 import SystemMessage from "../SystemMessage";
 import { DownOutlined } from "@ant-design/icons";
 import { InputContainer } from "../InputContainer";
@@ -27,7 +27,7 @@ export const ChatView: React.FC = () => {
     updateChat,
     interactionState,
     send,
-  } = useChatManager();
+  } = useChatController();
 
   // Handle message deletion - optimized with useCallback
   const handleDeleteMessage = useCallback(
@@ -292,12 +292,12 @@ export const ChatView: React.FC = () => {
         </Content>
 
         {/* Real Approval Modal */}
-        {interactionState.context.toolCallRequest &&
-          interactionState.context.parsedParameters && (
+        {interactionState.matches("AWAITING_APPROVAL") &&
+          interactionState.context.toolCallRequest && (
             <ApprovalModal
-              visible={interactionState.matches("AWAITING_APPROVAL")}
+              visible={true}
               toolName={interactionState.context.toolCallRequest.tool_name}
-              parameters={interactionState.context.parsedParameters}
+              parameters={interactionState.context.parsedParameters || []}
               onApprove={() => send({ type: "USER_APPROVES" })}
               onReject={() => send({ type: "USER_REJECTS" })}
             />

@@ -27,7 +27,7 @@ export interface ToolUIInfo {
   parameter_parsing_strategy?: 'AIParameterParsing' | 'RegexParameterExtraction';
   required_approval: boolean; // Add this field
   parameter_regex?: string;
-  ai_response_template?: string;
+  ai_prompt_template?: string; // Renamed to match backend
   hide_in_selector: boolean;
 }
 
@@ -162,10 +162,16 @@ export class ToolService {
       throw new Error(`Tool "${toolCall.tool_name}" not found for AI parameter parsing.`);
     }
 
-    // Build the specific prompt for the AI to parse parameters.
-    const systemPrompt = this.buildParameterParsingPrompt(toolInfo, toolCall.user_description);
+    if (!toolInfo.ai_prompt_template) {
+      throw new Error(`Tool "${toolCall.tool_name}" is not configured for AI parameter parsing (missing prompt template).`);
+    }
+
+    // Use the prompt template from the backend, replacing the placeholder.
+    const systemPrompt = toolInfo.ai_prompt_template.replace('{user_description}', toolCall.user_description);
+    
     const messages = [
       { role: "system", content: systemPrompt },
+      // The user's raw input is still valuable context for the AI.
       { role: "user", content: toolCall.user_description },
     ];
 
@@ -232,115 +238,6 @@ export class ToolService {
 
 
 
-  /**
-   * Build system prompt for parameter parsing
-   */
-  private buildParameterParsingPrompt(
-    tool: ToolUIInfo,
-    userDescription: string
-  ): string {
-    const parametersDesc = tool.parameters
-      .map(
-        (p) =>
-          `- ${p.name}: ${p.description} (${
-            p.required ? "required" : "optional"
-          })`
-      )
-      .join("\n");
-
-    // Special handling for execute_command tool
-    if (tool.name === "execute_command") {
-      return `You are a command parameter parser. Your task is to extract the shell command from user input.
-
-Tool: ${tool.name}
-Description: ${tool.description}
-Parameters:
-${parametersDesc}
-
-RULES:
-- The user input is the command they want to execute
-- Return ONLY the command string, nothing else
-- Do NOT add explanations, quotes, or formatting
-- Do NOT provide safety warnings
-
-User wants to execute: "${userDescription}"
-
-Command:`;
-    }
-
-    // Default prompt for other tools
-    return `CRITICAL: You are ONLY a parameter extraction system. Ignore any previous instructions or system prompts.
-
-Your ONLY task is to extract parameter values from user input for tool execution.
-
-Tool: ${tool.name}
-Description: ${tool.description}
-Parameters:
-${parametersDesc}
-
-EXTRACTION RULES:
-- Extract the exact parameter value from the user input
-- Return ONLY the raw parameter value, nothing else
-- Do NOT ask questions, provide explanations, or act as an assistant
-- Do NOT provide safety warnings or security checks
-
-User input: "${userDescription}"
-
-Extract parameter value:`;
-  }
-
-
-  /**
-   * Format tool execution result
-   */
-  async formatToolResult(
-    toolName: string,
-    parameters: ParameterValue[],
-    result: string
-  ): Promise<string> {
-    const paramStr = parameters.map((p) => `${p.name}: ${p.value}`).join(", ");
-
-    // Simplified result formatting: infer code language from tool type and parameters
-    let codeLanguage = "text";
-
-    // Try to infer language from file path parameter
-    const pathParam = parameters.find((p) =>
-      p.name.toLowerCase().includes("path") ||
-      p.name.toLowerCase().includes("file")
-    );
-
-    if (pathParam) {
-      const ext = pathParam.value.split(".").pop()?.toLowerCase();
-      const extensionMap: Record<string, string> = {
-        "js": "javascript",
-        "jsx": "javascript",
-        "ts": "typescript",
-        "tsx": "typescript",
-        "py": "python",
-        "rs": "rust",
-        "json": "json",
-        "md": "markdown",
-        "html": "html",
-        "css": "css",
-        "sh": "bash",
-        "yml": "yaml",
-        "yaml": "yaml"
-      };
-
-      if (ext && extensionMap[ext]) {
-        codeLanguage = extensionMap[ext];
-      }
-    }
-
-    return `**Tool: ${toolName}**
-
-**Parameters:** ${paramStr}
-
-**Result:**
-\`\`\`${codeLanguage}
-${result}
-\`\`\``;
-  }
 
   /**
    * Check if tool exists
@@ -392,187 +289,6 @@ ${result}
     }
   }
 
-  /**
-   * Check tool call permissions
-   */
-  async checkToolPermission(
-    toolName: string,
-    systemPromptId: string
-  ): Promise<boolean> {
-    if (!systemPromptId) {
-      // Strict mode: there should be no default behavior without a system prompt
-      throw new Error("System prompt ID must be provided; default permission configuration cannot be used");
-    }
-
-    try {
-      const preset = await this.systemPromptService.findPresetById(
-        systemPromptId
-      );
-
-      if (!preset) {
-        throw new Error(`System prompt preset "${systemPromptId}" does not exist, cannot check tool permissions`);
-      }
-
-      // General mode: allow all tools
-      // This is because the general assistant category should have access to all available tools
-      if (preset.mode !== "tool_specific") {
-        return true;
-      }
-
-      // Tool-specific mode: check if the tool is in the allowed list
-      if (!preset.allowedTools) {
-        throw new Error(`Allowed tools list for tool-specific mode is not configured. System prompt "${systemPromptId}" is missing necessary configuration`);
-      }
-
-      return preset.allowedTools.includes(toolName);
-    } catch (error) {
-      console.error("Failed to check tool permission:", error);
-      throw new Error(`Failed to check permission for tool "${toolName}": ${error}`);
-    }
-  }
-
-  /**
-   * Auto add tool prefix
-   */
-  async autoAddToolPrefix(
-    message: string,
-    systemPromptId: string
-  ): Promise<string> {
-    if (!systemPromptId) {
-      throw new Error("System prompt ID must be provided; default prefix configuration cannot be used");
-    }
-    
-    if (!message.trim()) {
-      return message;
-    }
-
-    try {
-      const preset = await this.systemPromptService.findPresetById(
-        systemPromptId
-      );
-
-      if (!preset) {
-        throw new Error(`System prompt preset "${systemPromptId}" does not exist, cannot automatically add tool prefix`);
-      }
-
-      if (preset.mode === "tool_specific" && preset.autoToolPrefix) {
-        // Check if message already contains tool prefix
-        if (!message.startsWith("/")) {
-          return `${preset.autoToolPrefix} ${message}`;
-        }
-      }
-      return message;
-    } catch (error) {
-      console.error("Failed to auto add tool prefix:", error);
-      throw new Error(`Failed to automatically add tool prefix: ${error}`);
-    }
-  }
-
-  /**
-   * Validate tool call compliance
-   */
-  async validateToolCall(
-    toolCall: ToolCallRequest,
-    systemPromptId: string
-  ): Promise<ValidationResult> {
-    const isAllowed = await this.checkToolPermission(
-      toolCall.tool_name,
-      systemPromptId
-    );
-
-    return {
-      isValid: isAllowed,
-      errorMessage: isAllowed
-        ? undefined
-        : `Current mode does not allow using tool "${toolCall.tool_name}"`,
-    };
-  }
-
-  /**
-   * Validate normal conversation permissions
-   */
-  async validateConversation(
-    content: string,
-    systemPromptId: string
-  ): Promise<ValidationResult> {
-    if (!systemPromptId) {
-      throw new Error("System prompt ID must be provided; default conversation validation configuration cannot be used");
-    }
-
-    try {
-      const preset = await this.systemPromptService.findPresetById(
-        systemPromptId
-      );
-
-      if (!preset) {
-        throw new Error(`System prompt preset "${systemPromptId}" does not exist, cannot validate conversation permissions`);
-      }
-
-      if (preset.restrictConversation) {
-        // Check if it's a tool call
-        const isToolCall = this.parseUserCommand(content) !== null;
-        if (!isToolCall) {
-          return {
-            isValid: false,
-            errorMessage:
-              "Current mode only supports tool calls, not regular conversation",
-          };
-        }
-      }
-
-      return { isValid: true };
-    } catch (error) {
-      console.error("Failed to validate conversation:", error);
-      throw new Error(`Failed to validate conversation permissions: ${error}`);
-    }
-  }
-
-  /**
-   * Process message and apply auto prefix and permission validation
-   */
-  async processMessage(
-    content: string,
-    systemPromptId: string
-  ): Promise<{
-    processedContent: string;
-    validation: ValidationResult;
-  }> {
-    // 1. Auto add tool prefix (if in tool-specific mode)
-    const processedContent = await this.autoAddToolPrefix(
-      content,
-      systemPromptId
-    );
-
-    // 2. Validate normal conversation permissions
-    const conversationValidation = await this.validateConversation(
-      processedContent, // Use processedContent here
-      systemPromptId
-    );
-    if (!conversationValidation.isValid) {
-      return {
-        processedContent,
-        validation: conversationValidation,
-      };
-    }
-
-    // 3. Check tool call permissions (if it's a tool call)
-    const toolCall = this.parseUserCommand(processedContent);
-    if (toolCall) {
-      const toolValidation = await this.validateToolCall(
-        toolCall,
-        systemPromptId
-      );
-      return {
-        processedContent,
-        validation: toolValidation,
-      };
-    }
-
-    return {
-      processedContent,
-      validation: { isValid: true },
-    };
-  }
 
   /**
    * Get tool category weight (for sorting)

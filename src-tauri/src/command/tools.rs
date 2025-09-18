@@ -27,9 +27,9 @@ pub struct ToolUIInfo {
     pub description: String,
     pub parameters: Vec<ParameterInfo>,
     pub tool_type: String,
-    pub parameter_parsing_strategy: String, // Add this field
+    pub parameter_parsing_strategy: String,
     pub parameter_regex: Option<String>,
-    pub ai_response_template: Option<String>,
+    pub ai_prompt_template: Option<String>, // Renamed for clarity
     pub hide_in_selector: bool,
     pub display_preference: DisplayPreference,
     pub required_approval: bool,

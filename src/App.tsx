@@ -4,6 +4,7 @@ import "./App.css";
 // ChatProvider no longer needed - using Zustand store directly
 import { MainLayout } from "./layouts/MainLayout";
 import { SystemSettingsModal } from "./components/SystemSettingsModal";
+import { ChatControllerProvider } from "./contexts/ChatControllerContext";
 
 const DARK_MODE_KEY = "copilot_dark_mode";
 
@@ -38,15 +39,20 @@ function App() {
       }}
     >
       <AntApp>
-        <div style={{ position: "relative" }}>
-          <MainLayout themeMode={themeMode} onThemeModeChange={setThemeMode} />
-          <SystemSettingsModal
-            open={settingsOpen}
-            onClose={() => setSettingsOpen(false)}
-            themeMode={themeMode}
-            onThemeModeChange={setThemeMode}
-          />
-        </div>
+        <ChatControllerProvider>
+          <div style={{ position: "relative" }}>
+            <MainLayout
+              themeMode={themeMode}
+              onThemeModeChange={setThemeMode}
+            />
+            <SystemSettingsModal
+              open={settingsOpen}
+              onClose={() => setSettingsOpen(false)}
+              themeMode={themeMode}
+              onThemeModeChange={setThemeMode}
+            />
+          </div>
+        </ChatControllerProvider>
       </AntApp>
     </ConfigProvider>
   );

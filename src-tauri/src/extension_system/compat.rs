@@ -54,7 +54,7 @@ impl ToolsManager {
                         tool_type: tool_config.tool_type.clone(),
                         parameter_parsing_strategy,
                         parameter_regex: tool_config.parameter_regex.clone(),
-                        ai_response_template: tool_config.custom_prompt.clone(),
+                        ai_prompt_template: tool.get_ai_prompt_template(), // Use the new method
                         hide_in_selector: tool_config.hide_in_selector,
                         display_preference: tool.display_preference(),
                         required_approval: tool.required_approval(),

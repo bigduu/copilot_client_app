@@ -1,11 +1,10 @@
-import { useCallback, useEffect, useMemo, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { App as AntApp } from 'antd';
 import { useAppStore } from '../store';
 import { useMachine } from '@xstate/react';
-import { chatMachine } from '../core/chatInteractionMachine';
+import { chatMachine, ChatMachineEvent } from '../core/chatInteractionMachine';
 import { ChatItem, Message, SystemPromptPreset, UserMessage, AssistantTextMessage, MessageImage } from '../types/chat';
 import { ImageFile } from '../utils/imageUtils';
-import { throttle } from '../utils/throttle';
 import { ToolService } from '../services/ToolService';
 
 const toolService = ToolService.getInstance();
@@ -13,8 +12,6 @@ const toolService = ToolService.getInstance();
 /**
  * Unified hook for managing all chat-related state and interactions.
  * This hook is the single source of truth for chat management in the UI.
- *
- * Architecture: Component → useChatManager Hook → Zustand Store → Services
  */
 export const useChatManager = () => {
   const { modal } = AntApp.useApp();
@@ -38,80 +35,102 @@ export const useChatManager = () => {
 
   // --- DERIVED STATE ---
   const currentChat = useMemo(() => chats.find(chat => chat.id === currentChatId) || null, [chats, currentChatId]);
-  const currentMessages = useMemo(() => currentChat?.messages || [], [currentChat]);
+  const baseMessages = useMemo(() => currentChat?.messages || [], [currentChat]);
   const pinnedChats = useMemo(() => chats.filter(chat => chat.pinned), [chats]);
   const unpinnedChats = useMemo(() => chats.filter(chat => !chat.pinned), [chats]);
   const chatCount = chats.length;
 
-  // --- CHAT INTERACTION STATE MACHINE (from useChatController) ---
-  const [state, send] = useMachine(chatMachine);
+  // --- LOCAL UI STATE FOR STREAMING ---
+  const [streamingText, setStreamingText] = useState('');
+  const [streamingMessageId, setStreamingMessageId] = useState<string | null>(null);
+
+  // --- CHAT INTERACTION STATE MACHINE ---
+  // Provide the concrete implementations for the actions defined in the machine
+  const providedChatMachine = useMemo(() => {
+    return chatMachine.provide({
+      actions: {
+        forwardChunkToUI: ({ event }: { event: ChatMachineEvent }) => {
+          if (event.type === 'CHUNK_RECEIVED') {
+            setStreamingText(prev => prev + event.payload.chunk);
+          }
+        },
+        finalizeStreamingMessage: ({ event }: { event: ChatMachineEvent }) => {
+          const { currentChatId: chatId } = useAppStore.getState();
+          if (event.type === 'STREAM_COMPLETE_TEXT' && streamingMessageId && chatId) {
+            updateMessageContent(chatId, streamingMessageId, event.payload.finalContent);
+            // Reset local streaming UI state
+            setStreamingMessageId(null);
+            setStreamingText('');
+          }
+        },
+      },
+    });
+  }, [streamingMessageId, updateMessageContent]);
+
+  const [state, send] = useMachine(providedChatMachine);
   const prevStateRef = useRef(state);
-  const streamingMessageIdRef = useRef<string | null>(null);
   const prevChatIdRef = useRef<string | null>(null);
 
-  const throttledUpdateMessageContent = useMemo(
-    () => throttle(updateMessageContent, 100),
-    [updateMessageContent]
-  );
+  // --- FINAL MESSAGES FOR UI ---
+  // This combines the persisted messages from Zustand with the live streaming text
+  const currentMessages = useMemo(() => {
+    if (!streamingMessageId) {
+      return baseMessages;
+    }
+    // Ensure the streaming message placeholder is part of the list
+    const messageExists = baseMessages.some(msg => msg.id === streamingMessageId);
+    const list = messageExists ? baseMessages : [...baseMessages, { id: streamingMessageId, role: 'assistant', type: 'text', content: '', createdAt: new Date().toISOString() } as AssistantTextMessage];
+
+    return list.map(msg =>
+      msg.id === streamingMessageId ? { ...msg, content: streamingText } : msg
+    );
+  }, [baseMessages, streamingMessageId, streamingText]);
 
   // Reset state machine when chat changes
   useEffect(() => {
     if (prevChatIdRef.current && prevChatIdRef.current !== currentChatId) {
       send({ type: 'CANCEL' });
-      streamingMessageIdRef.current = null;
+      setStreamingMessageId(null);
+      setStreamingText('');
     }
     prevChatIdRef.current = currentChatId;
   }, [currentChatId, send]);
 
-  // Handle state machine side-effects
+  // Handle side-effects based on state transitions (NOT events)
   useEffect(() => {
+    const { currentChatId: chatId } = useAppStore.getState();
+    if (!chatId) return;
+
     const prevState = prevStateRef.current;
-    if (JSON.stringify(state.value) === JSON.stringify(prevState.value)) return;
 
-    console.log(`[ChatManager] State changed: ${JSON.stringify(state.value)}`);
-
-    if (state.matches('THINKING') && !prevState.matches('THINKING')) {
-      if (currentChatId) {
-        const newStreamingMessage: AssistantTextMessage = {
-          id: crypto.randomUUID(),
-          role: 'assistant',
-          type: 'text',
-          content: '',
-          createdAt: new Date().toISOString(),
-        };
-        streamingMessageIdRef.current = newStreamingMessage.id;
-        addMessage(currentChatId, newStreamingMessage);
-      }
+    if (state.value === prevState.value) {
+      return;
     }
 
-    if (state.matches('IDLE') && !prevState.matches('IDLE')) {
-      if (currentChatId && streamingMessageIdRef.current && state.context.finalContent) {
-        updateMessageContent(currentChatId, streamingMessageIdRef.current, state.context.finalContent);
-      }
-      if (currentChatId && state.context.messages.length > 0) {
-        setMessages(currentChatId, state.context.messages);
-      }
-      streamingMessageIdRef.current = null;
+    console.log(`[ChatManager] State changed from ${JSON.stringify(prevState.value)} to ${JSON.stringify(state.value)}`);
+
+    // --- Handle entering THINKING state ---
+    if (state.matches('THINKING') && !prevState.matches('THINKING')) {
+      const newStreamingMessage: AssistantTextMessage = {
+        id: crypto.randomUUID(),
+        role: 'assistant',
+        type: 'text',
+        content: '',
+        createdAt: new Date().toISOString(),
+      };
+      addMessage(chatId, newStreamingMessage);
+      setStreamingMessageId(newStreamingMessage.id);
+      setStreamingText('');
     }
     
-    if (
-      (prevState.matches('CHECKING_APPROVAL') && !state.matches('CHECKING_APPROVAL')) ||
-      (state.matches('AWAITING_APPROVAL') && !prevState.matches('AWAITING_APPROVAL'))
-    ) {
-      if (currentChatId) {
-        setMessages(currentChatId, state.context.messages);
-      }
+    // --- Sync message list on other state changes ---
+    // This ensures that tool calls and other non-streaming updates are reflected.
+    if (state.context.messages.length !== prevState.context.messages.length) {
+      setMessages(chatId, state.context.messages);
     }
 
     prevStateRef.current = state;
-  }, [state.value, state.context, currentChatId, addMessage, updateMessageContent, setMessages]);
-
-  // Handle streaming content updates
-  useEffect(() => {
-    if (state.context.streamingContent && currentChatId && streamingMessageIdRef.current) {
-      throttledUpdateMessageContent(currentChatId, streamingMessageIdRef.current, state.context.streamingContent);
-    }
-  }, [state.context.streamingContent, currentChatId, throttledUpdateMessageContent]);
+  }, [state, addMessage, setMessages]);
 
 
   // --- ACTIONS ---
@@ -125,17 +144,8 @@ export const useChatManager = () => {
       return;
     }
     const chatId = currentChat.id;
-    const systemPromptId = currentChat.config.systemPromptId;
-
-    // Perform validation
-    const { processedContent, validation } = await toolService.processMessage(content, systemPromptId);
-    if (!validation.isValid) {
-      modal.error({
-        title: 'Validation Error',
-        content: validation.errorMessage,
-      });
-      return;
-    }
+    
+    const processedContent = content;
 
     const messageImages: MessageImage[] = images?.map(img => ({
       id: img.id,
@@ -155,7 +165,7 @@ export const useChatManager = () => {
 
     addMessage(chatId, userMessage);
 
-    const updatedHistory = [...currentChat.messages, userMessage];
+    const updatedHistory = [...baseMessages, userMessage];
     const updatedChat: ChatItem = { ...currentChat, messages: updatedHistory };
 
     const basicToolCall = toolService.parseUserCommand(processedContent);
@@ -175,12 +185,12 @@ export const useChatManager = () => {
         payload: { messages: updatedHistory, chat: updatedChat },
       });
     }
-  }, [currentChat, addMessage, send, modal]);
+  }, [currentChat, addMessage, send, modal, baseMessages]);
 
   const retryLastMessage = useCallback(async () => {
     if (!currentChat) return;
     const chatId = currentChat.id;
-    const history = [...currentMessages];
+    const history = [...baseMessages];
 
     if (history.length === 0) return;
 
@@ -199,7 +209,7 @@ export const useChatManager = () => {
         payload: { messages: messagesToRetry, chat: updatedChat },
       });
     }
-  }, [currentChat, currentMessages, deleteMessage, send]);
+  }, [currentChat, baseMessages, deleteMessage, send]);
 
   const createNewChat = useCallback((title?: string, options?: Partial<Omit<ChatItem, 'id'>>) => {
     const newChatData: Omit<ChatItem, 'id'> = {
@@ -291,7 +301,7 @@ export const useChatManager = () => {
     toggleChatPin,
     updateChatTitle,
     deleteEmptyChats,
-    deleteAllUnpinnedChats,
+deleteAllUnpinnedChats,
     sendMessage,
     retryLastMessage,
     

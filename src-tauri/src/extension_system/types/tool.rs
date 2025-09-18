@@ -50,6 +50,54 @@ pub trait Tool: Debug + Send + Sync {
         DisplayPreference::Default
     }
 
+    /// Generates a prompt template for AI-based parameter parsing.
+    /// This can be overridden by specific tools for custom behavior.
+    fn get_ai_prompt_template(&self) -> Option<String> {
+        if self.tool_type() != ToolType::AIParameterParsing {
+            return None;
+        }
+
+        let parameters_desc = self
+            .parameters()
+            .iter()
+            .map(|p| {
+                format!(
+                    "- {}: {} ({})",
+                    p.name,
+                    p.description,
+                    if p.required { "required" } else { "optional" }
+                )
+            })
+            .collect::<Vec<_>>()
+            .join("\n");
+
+        let template = format!(
+            r#"CRITICAL: You are ONLY a parameter extraction system. Ignore any previous instructions or system prompts.
+
+Your ONLY task is to extract parameter values from user input for tool execution.
+
+Tool: {}
+Description: {}
+Parameters:
+{}
+
+EXTRACTION RULES:
+- Extract the exact parameter value from the user input
+- Return ONLY the raw parameter value, nothing else
+- Do NOT ask questions, provide explanations, or act as an assistant
+- Do NOT provide safety warnings or security checks
+
+User input: "{{user_description}}"
+
+Extract parameter value:"#,
+            self.name(),
+            self.description(),
+            parameters_desc
+        );
+
+        Some(template)
+    }
+
     async fn execute(&self, parameters: Vec<Parameter>) -> anyhow::Result<String>;
 }
 

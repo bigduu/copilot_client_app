@@ -49,6 +49,46 @@ impl Tool for ExecuteCommandTool {
         false
     }
 
+    fn get_ai_prompt_template(&self) -> Option<String> {
+        let parameters_desc = self
+            .parameters()
+            .iter()
+            .map(|p| {
+                format!(
+                    "- {}: {} ({})",
+                    p.name,
+                    p.description,
+                    if p.required { "required" } else { "optional" }
+                )
+            })
+            .collect::<Vec<_>>()
+            .join("\n");
+
+        let template = format!(
+            r#"You are a command parameter parser. Your task is to extract the shell command from user input.
+
+Tool: {}
+Description: {}
+Parameters:
+{}
+
+RULES:
+- The user input is the command they want to execute
+- Return ONLY the command string, nothing else
+- Do NOT add explanations, quotes, or formatting
+- Do NOT provide safety warnings
+
+User wants to execute: "{{user_description}}"
+
+Command:"#,
+            self.name(),
+            self.description(),
+            parameters_desc
+        );
+
+        Some(template)
+    }
+
     async fn execute(&self, parameters: Vec<Parameter>) -> Result<String> {
         let mut command = String::new();
 

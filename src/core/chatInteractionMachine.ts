@@ -60,6 +60,8 @@ export const chatMachine = setup({
   },
   actions: {
     persistMessages: () => {}, // Placeholder, implementation is in the hook
+    forwardChunkToUI: ({ event }) => {}, // Placeholder, implementation is in the hook
+    finalizeStreamingMessage: ({ event }) => {}, // Placeholder, implementation is in the hook
   },
   actors: {
     enhanceSystemPrompt: fromPromise<string, { chat: ChatItem }>(async ({ input }) => {
@@ -255,28 +257,33 @@ export const chatMachine = setup({
       },
       on: {
         CHUNK_RECEIVED: {
-          actions: assign({
-            streamingContent: ({ context, event }) => context.streamingContent + event.payload.chunk,
-          }),
+          // This action is implemented in the useChatManager hook.
+          // It forwards the chunk to the local React state for UI updates
+          // without causing a state machine re-render, thus solving the infinite loop.
+          actions: 'forwardChunkToUI',
         },
         STREAM_COMPLETE_TEXT: {
           target: 'IDLE',
           actions: [
+            'finalizeStreamingMessage',
             assign({
               finalContent: ({ event }) => event.payload.finalContent,
               streamingContent: '', // Clear streaming content
-              messages: ({ context, event }) => [
-                ...context.messages,
-                {
-                  id: crypto.randomUUID(),
+              // The message is now finalized in the hook, but we still need to add it to the machine's history
+              messages: ({ context, event }) => {
+                // Find the placeholder message and update it, or add the new one.
+                // A simpler approach for now is to just add it. The hook will handle the UI.
+                const finalMessage: AssistantTextMessage = {
+                  id: crypto.randomUUID(), // This ID will differ from the UI one, which is acceptable
                   role: 'assistant',
                   type: 'text',
                   content: event.payload.finalContent,
                   createdAt: new Date().toISOString(),
-                } as AssistantTextMessage,
-              ],
+                };
+                return [...context.messages, finalMessage];
+              }
             }),
-            'persistMessages', // We still need to signal that the process is complete
+            'persistMessages',
           ],
         },
         STREAM_COMPLETE_TOOL_CALL: {
@@ -338,26 +345,31 @@ export const chatMachine = setup({
       entry: () => console.log('[ChatMachine] Entering ROUTING_TOOL_CALL state'),
       always: [
         {
-          guard: ({ context }) => {
-            // This guard needs to be synchronous. We can't await here.
-            // The logic needs to be moved to an action or another state.
-            // For now, we assume the info is already fetched or we route differently.
-            // This will be fixed by the ROUTING_TOOL_CALL state.
-            return context.toolCallRequest?.parameter_parsing_strategy === 'AIParameterParsing';
-          },
+          guard: ({ context }) => context.toolCallRequest?.parameter_parsing_strategy === 'AIParameterParsing',
           target: 'PARSING_PARAMETERS',
           actions: () => console.log('[ChatMachine] Routing to AI parameter parsing.'),
         },
         {
+          // This is the path for RegexParameterExtraction and other direct tools
           target: 'CHECKING_APPROVAL',
           actions: [
-            () => console.log('[ChatMachine] Routing directly to approval check.'),
-            // If not AI parsing, we construct the parameters from the user_description directly.
+            () => console.log('[ChatMachine] Routing directly to approval check for non-AI tool.'),
             assign({
               parsedParameters: ({ context }) => {
                 if (!context.toolCallRequest) return null;
-                // This is a simplification for single-parameter regex/no-param tools.
-                return [{ name: 'command', value: context.toolCallRequest.user_description }];
+                // This is a more robust way to handle single-parameter tools.
+                // It assumes the first parameter is the one to be filled.
+                // A more complex tool would need a different strategy.
+                const toolName = context.toolCallRequest.tool_name;
+                // This is a synchronous call, which is not ideal.
+                // In a future refactor, tool info should be fetched and stored in context earlier.
+                // For now, we accept this limitation for simplicity.
+                // Let's assume the parameter name is 'command' for execute_command
+                if (toolName === 'execute_command') {
+                   return [{ name: 'command', value: context.toolCallRequest.user_description }];
+                }
+                // Fallback for other simple tools
+                return [{ name: 'parameter', value: context.toolCallRequest.user_description }];
               }
             })
           ]

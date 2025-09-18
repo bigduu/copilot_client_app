@@ -38,7 +38,7 @@ import { ChatItem as ChatItemComponent } from "../ChatItem";
 import { ChatItem } from "../../types/chat";
 import SystemPromptSelector from "../SystemPromptSelector";
 import { SystemPromptPreset } from "../../types/chat";
-import { useChatManager } from "../../hooks/useChatManager";
+import { useChatController } from "../../contexts/ChatControllerContext";
 
 const { Sider } = Layout;
 const { Text } = Typography;
@@ -61,7 +61,7 @@ export const ChatSidebar: React.FC<{
     unpinChat,
     updateChat,
     createNewChat,
-  } = useChatManager();
+  } = useChatController();
 
   const systemPromptPresets = useAppStore((state) => state.systemPromptPresets);
   const loadSystemPromptPresets = useAppStore(
