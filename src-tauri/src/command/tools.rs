@@ -2,9 +2,8 @@ use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tauri::State;
 
-use crate::extension_system::{
-    DisplayPreference, Parameter, ToolCategory, ToolConfig, ToolsManager,
-};
+use tool_system::manager::ToolsManager;
+use tool_system::types::{DisplayPreference, Parameter, ToolCategory, ToolConfig};
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct ApprovalConfig {
@@ -67,33 +66,58 @@ pub fn get_tools_for_ui(
     category_id: Option<String>,
 ) -> Result<ToolsUIResponse, String> {
     let mut is_strict_mode = false;
-    let tools: Vec<ToolUIInfo>;
+    let tool_configs: Vec<ToolConfig>;
 
     if let Some(category_id) = category_id {
         if let Some(category) = tool_manager.get_category_by_id(&category_id) {
             if category.strict_tools_mode {
                 is_strict_mode = true;
-                // 严格模式：只返回该类别允许的工具
                 let category_tools = tool_manager.get_category_tools(&category_id);
                 let allowed_tool_names: std::collections::HashSet<String> =
                     category_tools.iter().map(|tool| tool.name()).collect();
                 let all_tools = tool_manager.list_tools_for_ui();
-                tools = all_tools
+                tool_configs = all_tools
                     .into_iter()
                     .filter(|tool| allowed_tool_names.contains(&tool.name))
                     .collect();
             } else {
-                // 非严格模式
-                tools = tool_manager.list_tools_for_ui();
+                tool_configs = tool_manager.list_tools_for_ui();
             }
         } else {
-            // 找不到类别，默认为非严格模式
-            tools = tool_manager.list_tools_for_ui();
+            tool_configs = tool_manager.list_tools_for_ui();
         }
     } else {
-        // 未指定类别，默认为非严格模式
-        tools = tool_manager.list_tools_for_ui();
+        tool_configs = tool_manager.list_tools_for_ui();
     }
+
+    let tools: Vec<ToolUIInfo> = tool_configs
+        .into_iter()
+        .map(|config| {
+            let tool = tool_manager.get_tool(&config.name).unwrap();
+            let parameters = tool
+                .parameters()
+                .into_iter()
+                .map(|p| ParameterInfo {
+                    name: p.name,
+                    description: p.description,
+                    required: p.required,
+                    param_type: "string".to_string(),
+                })
+                .collect();
+            ToolUIInfo {
+                name: config.name,
+                description: config.description,
+                parameters,
+                tool_type: config.tool_type,
+                parameter_parsing_strategy: "".to_string(),
+                parameter_regex: config.parameter_regex,
+                ai_prompt_template: None,
+                hide_in_selector: config.hide_in_selector,
+                display_preference: tool.display_preference(),
+                required_approval: tool.required_approval(),
+            }
+        })
+        .collect();
 
     Ok(ToolsUIResponse {
         tools,

@@ -31,7 +31,6 @@ import {
 import { useChatManager } from "../../hooks/useChatManager";
 import { useFavorites } from "../../hooks/useFavorites";
 import { FavoriteItem } from "../../types/chat";
-import { useAppStore } from "../../store";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";

@@ -2,7 +2,6 @@ import React, {
   useEffect,
   useRef,
   useState,
-  useMemo,
   useCallback,
 } from "react";
 import { Layout, Empty, Space, theme, Button, Grid, Flex } from "antd";
@@ -22,7 +21,6 @@ export const ChatView: React.FC = () => {
   const {
     currentChatId,
     currentMessages,
-    currentChat,
     deleteMessage,
     updateChat,
     interactionState,
@@ -257,8 +255,6 @@ export const ChatView: React.FC = () => {
                     message.role === "user" || message.role === "assistant"
                 )
                 .map((message, index) => {
-                  const messageCardId =
-                    message.id || `msg-${currentChatId}-${index}`;
 
                   return (
                     <Flex

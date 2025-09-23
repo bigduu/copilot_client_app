@@ -48,16 +48,16 @@ ${toolDefs}
     const toolService = ToolService.getInstance();
 
     const presets = await systemPromptService.getSystemPromptPresets();
-    const preset = presets.find((p: SystemPromptPreset) => p.id === chat.systemPromptId);
-    let basePrompt = chat.systemPrompt || preset?.content || "You are a helpful assistant.";
+    const preset = presets.find((p: SystemPromptPreset) => p.id === chat.config?.systemPromptId);
+    let basePrompt = chat.config?.lastUsedEnhancedPrompt || preset?.content || "You are a helpful assistant.";
     
-    if (!chat.systemPromptId) {
+    if (!chat.config?.systemPromptId) {
         console.warn("No systemPromptId found in chat. Skipping tool enhancement.");
         return basePrompt;
     }
 
     // 1. Add tool definitions by fetching tools for the specific category
-    const availableTools = await toolService.getToolsForCategory(chat.systemPromptId);
+    const availableTools = await toolService.getToolsForCategory(chat.config.systemPromptId);
     const toolDefinitions = this.formatToolDefinitions(availableTools);
     basePrompt += toolDefinitions;
 

@@ -4,19 +4,15 @@ use tokio::sync::Mutex;
 use crate::command::chat::{execute_prompt, get_models};
 use crate::command::copy::copy_to_clipboard;
 use crate::command::web_service::{get_web_service_status, WebServiceState};
-use crate::copilot::{Config, CopilotClient};
-use crate::extension_system::create_tools_manager;
-use crate::mcp::client::init_all_clients;
-use crate::web_service::WebService;
+use mcp_client::client::init_all_clients;
+use web_service::WebService;
 use command::mcp::{get_mcp_client_status, get_mcp_servers, set_mcp_servers};
+use copilot_client::{Config, CopilotClient};
 use log::LevelFilter;
 use tauri::{App, Manager, Runtime};
+use tool_system::create_tools_manager;
 
 pub mod command;
-pub mod copilot;
-pub mod extension_system;
-pub mod mcp;
-pub mod web_service;
 
 fn setup<R: Runtime>(app: &mut App<R>) -> std::result::Result<(), Box<dyn std::error::Error>> {
     let handle = app.handle();

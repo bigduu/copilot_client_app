@@ -57,7 +57,7 @@ export class StorageService {
   /**
    * Saves the metadata for all chats and the messages for currently active chats.
    */
-  async saveAllData(chats: ChatItem[], messages: Record<string, Message[]>): Promise<void> {
+  async saveAllData(chats: ChatItem[]): Promise<void> {
     try {
       // Dehydrate the full ChatItem objects into OptimizedChatItem for storage.
       const optimizedChats: OptimizedChatItem[] = chats.map(chat => ({

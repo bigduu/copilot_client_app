@@ -1,6 +1,5 @@
 import { useCallback } from 'react';
 import { useAppStore } from '../store';
-import { FavoriteItem } from '../types/chat';
 
 /**
  * Hook for managing favorites, backed by Zustand store.

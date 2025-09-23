@@ -1,5 +1,5 @@
 import OpenAI from 'openai';
-import { Message, isToolExecutionResult } from '../types/chat';
+import { Message } from '../types/chat';
 
 export class AIService {
   private client: OpenAI;

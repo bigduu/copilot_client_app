@@ -24,7 +24,6 @@ import {
   isAssistantToolCallMessage,
   isAssistantToolResultMessage,
   Message,
-  MessageImage,
 } from "../../types/chat";
 
 const { Text } = Typography;

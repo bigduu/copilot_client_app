@@ -98,7 +98,7 @@ export interface MessageUpdates {
 }
 
 // Extended message type
-export interface ExtendedMessage extends Message {
+export type ExtendedMessage = Message & {
   isHidden?: boolean; // Controls whether the message is displayed in the GUI
   messageType?: 'normal' | 'attachment_processing' | 'approval_request' | 'approval_response';
   attachmentSummary?: string; // Attachment processing result
@@ -109,7 +109,7 @@ export interface ExtendedMessage extends Message {
   updatedAt?: Date; // Update time
   chatId?: string; // ID of the chat it belongs to
   attachments?: AttachmentResult[]; // List of attachments
-}
+};
 
 // Message Metadata
 export interface MessageMetadata {

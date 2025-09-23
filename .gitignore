@@ -26,3 +26,6 @@ dist-ssr
 .cursor/*
 .cursor
 .vscode
+target/*
+target
+*/target

@@ -3,7 +3,7 @@ import { App as AntApp } from 'antd';
 import { useAppStore } from '../store';
 import { useMachine } from '@xstate/react';
 import { chatMachine, ChatMachineEvent } from '../core/chatInteractionMachine';
-import { ChatItem, Message, SystemPromptPreset, UserMessage, AssistantTextMessage, MessageImage } from '../types/chat';
+import { ChatItem, SystemPromptPreset, UserMessage, AssistantTextMessage, MessageImage } from '../types/chat';
 import { ImageFile } from '../utils/imageUtils';
 import { ToolService } from '../services/ToolService';
 

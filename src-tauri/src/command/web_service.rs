@@ -3,8 +3,8 @@ use std::sync::Arc;
 use tauri::State;
 use tokio::sync::Mutex;
 
-use crate::copilot::CopilotClient;
-use crate::web_service::WebService;
+use copilot_client::CopilotClient;
+use web_service::WebService;
 
 // Global web service state
 pub type WebServiceState = Arc<Mutex<WebService>>;

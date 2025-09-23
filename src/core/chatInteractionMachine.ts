@@ -5,12 +5,10 @@ import {
   Message,
   ToolExecutionResult,
   ChatItem,
-  SystemPromptPreset,
   AssistantTextMessage,
   AssistantToolCallMessage,
   AssistantToolResultMessage,
   SystemMessage,
-  UserMessage,
 } from '../types/chat';
 import SystemPromptEnhancer from '../services/SystemPromptEnhancer';
 
@@ -60,8 +58,8 @@ export const chatMachine = setup({
   },
   actions: {
     persistMessages: () => {}, // Placeholder, implementation is in the hook
-    forwardChunkToUI: ({ event }) => {}, // Placeholder, implementation is in the hook
-    finalizeStreamingMessage: ({ event }) => {}, // Placeholder, implementation is in the hook
+    forwardChunkToUI: () => {}, // Placeholder, implementation is in the hook
+    finalizeStreamingMessage: () => {}, // Placeholder, implementation is in the hook
   },
   actors: {
     enhanceSystemPrompt: fromPromise<string, { chat: ChatItem }>(async ({ input }) => {

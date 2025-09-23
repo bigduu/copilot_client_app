@@ -30,8 +30,8 @@ export const useAppStore = create<AppState>()(
 // Debounced save function
 const debouncedSave = debounce((state: Pick<AppState, 'chats' | 'latestActiveChatId'>) => {
   const { chats, latestActiveChatId } = state;
-  // The `messages` parameter is deprecated. Pass an empty object.
-  storageService.saveAllData(chats, {});
+  // The `messages` parameter is deprecated.
+  storageService.saveAllData(chats);
   storageService.saveLatestActiveChatId(latestActiveChatId);
 }, 1000);
 

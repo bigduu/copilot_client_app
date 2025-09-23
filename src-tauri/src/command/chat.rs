@@ -1,6 +1,6 @@
 use log::{debug, error, info};
 
-use crate::copilot::{model::stream_model::Message, CopilotClient};
+use copilot_client::{model::stream_model::Message, CopilotClient};
 
 async fn send_direct_llm_request(
     messages: Vec<Message>,

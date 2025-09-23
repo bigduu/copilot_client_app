@@ -1,0 +1,17 @@
+[package]
+name = "web_service"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+actix-web = "4.4"
+actix-cors = "0.7"
+anyhow = "1.0"
+log = "0.4"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+tokio = { version = "1", features = ["full"] }
+uuid = { version = "1.8.0", features = ["v4"] }
+async-stream = "0.3"
+
+copilot_client = { path = "../copilot_client" }

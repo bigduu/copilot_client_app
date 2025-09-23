@@ -1,5 +1,5 @@
 import React from "react";
-import { Modal, Button, Typography, Descriptions, Tag } from "antd";
+import { Modal, Button, Typography, Descriptions } from "antd";
 import { ParameterValue } from "../../services/ToolService";
 
 const { Text, Paragraph } = Typography;

@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useCallback } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import {
   Layout,
   Button,
@@ -305,7 +305,7 @@ export const ChatSidebar: React.FC<{
     updateChat(chatId, { title: newTitle });
   };
 
-  const handleGenerateTitle = async (chatId: string) => {
+  const handleGenerateTitle = async () => {
     // This feature is temporarily disabled during refactoring.
     // A new implementation will be added if required.
     console.warn("AI title generation is temporarily disabled.");

@@ -1,0 +1,32 @@
+[package]
+name = "tool_system"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+# Auto Registration System
+inventory = "0.3"
+
+# Serialization
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# Error Handling & Utilities
+anyhow = "1.0"
+
+# Logging
+log = { version = "0.4", features = ["std"] }
+
+# Async
+tokio = { version = "1.45.0", features = ["full"] }
+
+# Utilities
+regex = "1.10"
+walkdir = "2.3"
+similar = "2.4"
+glob = "0.3"
+async-trait = "0.1"
+lazy_static = "1.4"
+
+[features]
+internal = []

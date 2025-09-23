@@ -250,7 +250,7 @@ export const createChatSlice = (storageService: StorageService): StateCreator<Ap
     try {
       const { chats, latestActiveChatId } = get();
       // The storage service now expects chats to contain their own messages.
-      await storageService.saveAllData(chats, {}); // Pass empty messages object
+      await storageService.saveAllData(chats);
       await storageService.saveLatestActiveChatId(latestActiveChatId);
     } catch (error) {
       console.error('Failed to save chats:', error);

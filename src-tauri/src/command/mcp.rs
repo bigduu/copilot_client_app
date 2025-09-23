@@ -1,5 +1,5 @@
-use crate::mcp::client::{McpClientStatus, MCP_CLIENT_MANAGER};
-use crate::mcp::model::McpServersConfig;
+use mcp_client::client::{McpClientStatus, MCP_CLIENT_MANAGER};
+use mcp_client::model::McpServersConfig;
 use log::info;
 use serde_json;
 use std::fs;

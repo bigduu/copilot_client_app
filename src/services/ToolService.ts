@@ -1,7 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import OpenAI from 'openai';
-import { Message, ToolExecutionResult } from "../types/chat";
-import { SystemPromptService } from "./SystemPromptService";
+import { ToolExecutionResult } from "../types/chat";
 
 export interface ToolCallRequest {
   tool_name: string;
@@ -56,11 +55,8 @@ export interface ValidationResult {
  */
 export class ToolService {
   private static instance: ToolService;
-  private systemPromptService: SystemPromptService;
 
-  constructor() {
-    this.systemPromptService = SystemPromptService.getInstance();
-  }
+  constructor() {}
 
   static getInstance(): ToolService {
     if (!ToolService.instance) {
