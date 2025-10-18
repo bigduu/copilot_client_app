@@ -6348,6 +6348,7 @@ dependencies = [
  "mcp_client",
  "serde",
  "serde_json",
+ "thiserror 1.0.69",
  "tokio",
  "tool_system",
  "uuid",

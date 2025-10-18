@@ -9,14 +9,11 @@ import {
 } from "@ant-design/icons";
 
 const { Text } = Typography;
-import {
-  ImageFile,
-  processImageFiles,
-  hasImageFiles,
-  extractImageFiles,
-  cleanupImagePreviews,
-} from "../../utils/imageUtils";
+import { ImageFile } from "../../utils/imageUtils";
 import ImagePreviewModal from "../ImagePreviewModal";
+import { useImageHandler } from "../../hooks/useImageHandler";
+import { useDragAndDrop } from "../../hooks/useDragAndDrop";
+import { usePasteHandler } from "../../hooks/usePasteHandler";
 
 import { Input } from "antd";
 
@@ -57,7 +54,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
   disabled = false,
   showRetryButton = true,
   hasMessages = false,
-  images = [],
+  images: propImages,
   onImagesChange,
   allowImages = true,
   isToolSelectorVisible = false,
@@ -66,113 +63,40 @@ export const MessageInput: React.FC<MessageInputProps> = ({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { token } = theme.useToken();
   const [messageApi, contextHolder] = message.useMessage();
-  const [isDragOver, setIsDragOver] = useState(false);
-  const [previewModalVisible, setPreviewModalVisible] = useState(false);
-  const [previewImageIndex, setPreviewImageIndex] = useState(0);
   const [availableTools, setAvailableTools] = useState<string[]>([]);
   const toolService = ToolService.getInstance();
 
-  // Image handling functions
-  const handleImageFiles = useCallback(
-    async (files: FileList | File[]) => {
-      if (!allowImages || !onImagesChange) return;
+  const {
+    images,
+    setImages,
+    previewModalVisible,
+    setPreviewModalVisible,
+    previewImageIndex,
+    handleImageFiles,
+    handleRemoveImage,
+    handleImagePreview,
+    clearImages,
+  } = useImageHandler(allowImages);
 
-      try {
-        const processedImages = await processImageFiles(files);
-        if (processedImages.length > 0) {
-          const newImages = [...images, ...processedImages];
-          onImagesChange(newImages);
-          messageApi.success(`Added ${processedImages.length} image(s)`);
-        }
-      } catch (error) {
-        messageApi.error(`Failed to process images: ${error}`);
-      }
-    },
-    [allowImages, images, onImagesChange, messageApi]
-  );
+  const { isDragOver, handleDragOver, handleDragLeave, handleDrop } =
+    useDragAndDrop({ onFiles: handleImageFiles, allowImages });
 
-  const handleRemoveImage = useCallback(
-    (imageId: string) => {
-      if (!onImagesChange) return;
+  const { handlePaste } = usePasteHandler({
+    onFiles: handleImageFiles,
+    allowImages,
+  });
 
-      const imageToRemove = images.find((img) => img.id === imageId);
-      if (imageToRemove) {
-        cleanupImagePreviews([imageToRemove]);
-      }
+  useEffect(() => {
+    if (onImagesChange) {
+      onImagesChange(images);
+    }
+  }, [images, onImagesChange]);
 
-      const newImages = images.filter((img) => img.id !== imageId);
-      onImagesChange(newImages);
-    },
-    [images, onImagesChange]
-  );
-
-  const handleImagePreview = useCallback(
-    (image: ImageFile) => {
-      const index = images.findIndex((img) => img.id === image.id);
-      setPreviewImageIndex(index >= 0 ? index : 0);
-      setPreviewModalVisible(true);
-    },
-    [images]
-  );
-
-  // Drag and drop handlers
-  const handleDragOver = useCallback(
-    (e: React.DragEvent) => {
-      e.preventDefault();
-      e.stopPropagation();
-      if (allowImages && hasImageFiles(e.dataTransfer)) {
-        setIsDragOver(true);
-      }
-    },
-    [allowImages]
-  );
-
-  const handleDragLeave = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setIsDragOver(false);
-  }, []);
-
-  const handleDrop = useCallback(
-    (e: React.DragEvent) => {
-      e.preventDefault();
-      e.stopPropagation();
-      setIsDragOver(false);
-
-      if (!allowImages) return;
-
-      const imageFiles = extractImageFiles(e.dataTransfer);
-      if (imageFiles.length > 0) {
-        handleImageFiles(imageFiles);
-      }
-    },
-    [allowImages, handleImageFiles]
-  );
-
-  // Paste handler
-  const handlePaste = useCallback(
-    (e: React.ClipboardEvent) => {
-      if (!allowImages || !e.clipboardData) return;
-
-      const items = Array.from(e.clipboardData.items);
-      const imageFiles: File[] = [];
-
-      items.forEach((item) => {
-        if (item.type.startsWith("image/")) {
-          const file = item.getAsFile();
-          if (file) {
-            imageFiles.push(file);
-          }
-        }
-      });
-
-      if (imageFiles.length > 0) {
-        e.preventDefault();
-        handleImageFiles(imageFiles);
-      }
-    },
-    [allowImages, handleImageFiles]
-  );
+  useEffect(() => {
+    if (propImages) {
+      setImages(propImages);
+    }
+  }, [propImages, setImages]);
 
   // Fetch available tools on component mount
   useEffect(() => {
@@ -288,6 +212,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
     }
 
     onSubmit(trimmedContent, images.length > 0 ? images : undefined);
+    clearImages();
   };
 
   const handleRetry = () => {
@@ -382,9 +307,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
                 type="text"
                 size="small"
                 icon={<CloseOutlined />}
-                onClick={() => {
-                  images.forEach((img) => handleRemoveImage(img.id));
-                }}
+                onClick={clearImages}
                 style={{
                   marginLeft: "auto",
                   minWidth: "auto",
@@ -487,7 +410,6 @@ export const MessageInput: React.FC<MessageInputProps> = ({
             onPaste={handlePaste}
             placeholder={placeholder}
             disabled={disabled}
-            readOnly={isStreaming}
             autoSize={{ minRows: 2, maxRows: 6 }}
             variant="borderless"
             style={{
@@ -535,6 +457,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
               type="primary"
               icon={isStreaming ? <StopOutlined /> : <SendOutlined />}
               onClick={isStreaming ? onCancel : handleSubmit}
+              loading={isStreaming && !onCancel}
               disabled={
                 isStreaming
                   ? !onCancel || disabled

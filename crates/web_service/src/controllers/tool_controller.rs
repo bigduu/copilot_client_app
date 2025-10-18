@@ -1,3 +1,4 @@
+use crate::error::AppError;
 use crate::models::ToolExecutionRequest;
 use crate::services::tool_service::ToolService;
 use actix_web::{web, HttpResponse, Responder};
@@ -24,11 +25,9 @@ async fn get_tools_for_ui(
 async fn execute_tool(
     tool_service: web::Data<ToolService>,
     request: web::Json<ToolExecutionRequest>,
-) -> impl Responder {
-    match tool_service.execute_tool(request.into_inner()).await {
-        Ok(result) => HttpResponse::Ok().json(result),
-        Err(e) => HttpResponse::InternalServerError().body(e.to_string()),
-    }
+) -> Result<HttpResponse, AppError> {
+    let result = tool_service.execute_tool(request.into_inner()).await?;
+    Ok(HttpResponse::Ok().json(result))
 }
 
 async fn get_tool_categories(tool_service: web::Data<ToolService>) -> impl Responder {

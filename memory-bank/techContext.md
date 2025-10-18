@@ -6,7 +6,7 @@
   - **框架**: React
   - **语言**: TypeScript
   - **构建工具**: Vite
-  - **状态管理**: Redux Toolkit
+  - **状态管理**: Zustand
   - **UI组件**: 自定义组件，可能使用MUI或Ant Design等组件库的原则。
 
 - **后端/桌面**:

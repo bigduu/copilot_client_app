@@ -1,7 +1,7 @@
+use crate::error::AppError;
 use crate::models::{
     ParameterInfo, ToolExecutionRequest, ToolExecutionResult, ToolUIInfo, ToolsUIResponse,
 };
-use anyhow::Result;
 use std::sync::Arc;
 use tool_system::manager::ToolsManager;
 use tool_system::types::{Parameter, ToolCategory, ToolConfig};
@@ -22,58 +22,11 @@ impl ToolService {
     }
 
     pub fn get_tools_for_ui(&self, category_id: Option<String>) -> ToolsUIResponse {
-        let mut is_strict_mode = false;
-        let tool_configs: Vec<ToolConfig>;
+        let (tool_configs, is_strict_mode) = self.get_tool_configs_for_category(category_id);
 
-        if let Some(category_id) = category_id {
-            if let Some(category) = self.tools_manager.get_category_by_id(&category_id) {
-                if category.strict_tools_mode {
-                    is_strict_mode = true;
-                    let category_tools = self.tools_manager.get_category_tools(&category_id);
-                    let allowed_tool_names: std::collections::HashSet<String> =
-                        category_tools.iter().map(|tool| tool.name()).collect();
-                    let all_tools = self.tools_manager.list_tools_for_ui();
-                    tool_configs = all_tools
-                        .into_iter()
-                        .filter(|tool| allowed_tool_names.contains(&tool.name))
-                        .collect();
-                } else {
-                    tool_configs = self.tools_manager.list_tools_for_ui();
-                }
-            } else {
-                tool_configs = self.tools_manager.list_tools_for_ui();
-            }
-        } else {
-            tool_configs = self.tools_manager.list_tools_for_ui();
-        }
-
-        let tools: Vec<ToolUIInfo> = tool_configs
+        let tools = tool_configs
             .into_iter()
-            .map(|config| {
-                let tool = self.tools_manager.get_tool(&config.name).unwrap();
-                let parameters = tool
-                    .parameters()
-                    .into_iter()
-                    .map(|p| ParameterInfo {
-                        name: p.name,
-                        description: p.description,
-                        required: p.required,
-                        param_type: "string".to_string(),
-                    })
-                    .collect();
-                ToolUIInfo {
-                    name: config.name,
-                    description: config.description,
-                    parameters,
-                    tool_type: config.tool_type,
-                    parameter_parsing_strategy: "".to_string(),
-                    parameter_regex: config.parameter_regex,
-                    ai_prompt_template: None,
-                    hide_in_selector: config.hide_in_selector,
-                    display_preference: tool.display_preference(),
-                    required_approval: tool.required_approval(),
-                }
-            })
+            .filter_map(|config| self.build_tool_ui_info(config))
             .collect();
 
         ToolsUIResponse {
@@ -82,11 +35,70 @@ impl ToolService {
         }
     }
 
-    pub async fn execute_tool(&self, request: ToolExecutionRequest) -> Result<ToolExecutionResult> {
+    fn get_tool_configs_for_category(
+        &self,
+        category_id: Option<String>,
+    ) -> (Vec<ToolConfig>, bool) {
+        let category_id = match category_id {
+            Some(id) => id,
+            None => return (self.tools_manager.list_tools_for_ui(), false),
+        };
+
+        let category = match self.tools_manager.get_category_by_id(&category_id) {
+            Some(cat) => cat,
+            None => return (self.tools_manager.list_tools_for_ui(), false),
+        };
+
+        if category.strict_tools_mode {
+            let category_tools = self.tools_manager.get_category_tools(&category_id);
+            let allowed_tool_names: std::collections::HashSet<String> =
+                category_tools.iter().map(|tool| tool.name()).collect();
+            let all_tools = self.tools_manager.list_tools_for_ui();
+            let filtered_configs = all_tools
+                .into_iter()
+                .filter(|tool| allowed_tool_names.contains(&tool.name))
+                .collect();
+            (filtered_configs, true)
+        } else {
+            (self.tools_manager.list_tools_for_ui(), false)
+        }
+    }
+
+    fn build_tool_ui_info(&self, config: ToolConfig) -> Option<ToolUIInfo> {
+        let tool = self.tools_manager.get_tool(&config.name)?;
+        let parameters = tool
+            .parameters()
+            .into_iter()
+            .map(|p| ParameterInfo {
+                name: p.name,
+                description: p.description,
+                required: p.required,
+                param_type: "string".to_string(),
+            })
+            .collect();
+
+        Some(ToolUIInfo {
+            name: config.name,
+            description: config.description,
+            parameters,
+            tool_type: config.tool_type,
+            parameter_parsing_strategy: "".to_string(),
+            parameter_regex: config.parameter_regex,
+            ai_prompt_template: None,
+            hide_in_selector: config.hide_in_selector,
+            display_preference: tool.display_preference(),
+            required_approval: tool.required_approval(),
+        })
+    }
+
+    pub async fn execute_tool(
+        &self,
+        request: ToolExecutionRequest,
+    ) -> Result<ToolExecutionResult, AppError> {
         let tool = self
             .tools_manager
             .get_tool(&request.tool_name)
-            .ok_or_else(|| anyhow::anyhow!("Tool '{}' not found", request.tool_name))?;
+            .ok_or_else(|| AppError::ToolNotFound(request.tool_name.clone()))?;
 
         let display_preference = tool.display_preference();
 
@@ -101,7 +113,10 @@ impl ToolService {
             })
             .collect();
 
-        let result = tool.execute(parameters).await?;
+        let result = tool
+            .execute(parameters)
+            .await
+            .map_err(|e| AppError::ToolExecutionError(e.to_string()))?;
 
         let execution_result = ToolExecutionResult {
             result,

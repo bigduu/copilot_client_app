@@ -49,15 +49,13 @@ export const InputContainer: React.FC<InputContainerProps> = ({
   // Use the new chat input hook for state management
   // State management for the input itself
   const [content, setContent] = useState("");
-  const [images, setImages] = useState<any[]>([]);
   const [referenceText, setReferenceText] = useState<string | null>(null);
 
   // Create a new handleSubmit that uses our new hook
-  const handleSubmit = () => {
-    if (!content.trim() && images.length === 0) return;
+  const handleSubmit = (images?: any[]) => {
+    if (!content.trim() && (!images || images.length === 0)) return;
     sendMessage(content, images);
     setContent("");
-    setImages([]);
     setReferenceText(null); // Clear reference after sending
   };
 
@@ -192,15 +190,13 @@ export const InputContainer: React.FC<InputContainerProps> = ({
         <MessageInput
           value={content}
           onChange={handleInputChange}
-          onSubmit={handleSubmit}
+          onSubmit={(content, images) => handleSubmit(images)}
           onRetry={retryLastMessage}
           onCancel={() => send({ type: "CANCEL" })}
           isStreaming={isStreaming}
           isCenteredLayout={isCenteredLayout}
           placeholder={placeholder}
           hasMessages={currentMessages.length > 0}
-          images={images}
-          onImagesChange={setImages}
           allowImages={true}
           isToolSelectorVisible={showToolSelector}
         />
