@@ -13,7 +13,6 @@ export interface MessageContent {
   };
 }
 
-
 export interface ToolService {
   /**
    * Get available tools
@@ -75,7 +74,7 @@ export interface UtilityService {
   /**
    * Get MCP client status
    */
-  getMcpClientStatus(): Promise<any>;
+  getMcpClientStatus(name: string): Promise<any>;
 
   /**
    * Generic invoke method for custom commands
@@ -83,4 +82,4 @@ export interface UtilityService {
   invoke<T = any>(command: string, args?: Record<string, any>): Promise<T>;
 }
 
-export type ServiceMode = 'tauri' | 'openai';
+export type ServiceMode = "tauri" | "openai";

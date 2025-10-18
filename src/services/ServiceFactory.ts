@@ -1,28 +1,30 @@
-import { ToolService, UtilityService, ServiceMode } from './types';
-import { AIService } from './AIService';
-import { TauriChatService, TauriToolService, TauriUtilityService } from './TauriService';
+import { ToolService, UtilityService, ServiceMode } from "./types";
+import { AIService } from "./AIService";
+import { HttpToolService, HttpUtilityService } from "./HttpServices";
+import { TauriChatService, TauriUtilityService } from "./TauriService";
 
-const SERVICE_MODE_KEY = 'copilot_service_mode';
+const SERVICE_MODE_KEY = "copilot_service_mode";
 
 export class ServiceFactory {
   private static instance: ServiceFactory;
-  private currentMode: ServiceMode = 'openai';
-  
+  private currentMode: ServiceMode = "openai";
+
   // Service instances
   private tauriChatService = new TauriChatService();
-  private tauriToolService = new TauriToolService();
   private tauriUtilityService = new TauriUtilityService();
   private openaiService = new AIService();
+  private httpToolService = new HttpToolService();
+  private httpUtilityService = new HttpUtilityService();
 
   private constructor() {
     // Load saved mode from localStorage, default to 'openai' if not set
     const savedMode = localStorage.getItem(SERVICE_MODE_KEY) as ServiceMode;
-    if (savedMode && (savedMode === 'tauri' || savedMode === 'openai')) {
+    if (savedMode && (savedMode === "tauri" || savedMode === "openai")) {
       this.currentMode = savedMode;
     } else {
       // Set default mode to openai and save it
-      this.currentMode = 'openai';
-      localStorage.setItem(SERVICE_MODE_KEY, 'openai');
+      this.currentMode = "openai";
+      localStorage.setItem(SERVICE_MODE_KEY, "openai");
     }
   }
 
@@ -44,21 +46,38 @@ export class ServiceFactory {
 
   getChatService(): AIService | TauriChatService {
     switch (this.currentMode) {
-      case 'openai':
+      case "openai":
         return this.openaiService;
-      case 'tauri':
+      case "tauri":
       default:
         return this.tauriChatService;
     }
   }
 
   getToolService(): ToolService {
-    // Tools are always handled by Tauri service since they're not part of OpenAI API
-    return this.tauriToolService;
+    // Always return the HTTP-based tool service as the Tauri one is deprecated.
+    return this.httpToolService;
   }
 
   getUtilityService(): UtilityService {
-    // Utilities are always handled by Tauri service
+    // This is a composite service.
+    // Native functions like copyToClipboard always use Tauri.
+    // Other functions use HTTP when in openai mode.
+    if (this.currentMode === "openai") {
+      return {
+        copyToClipboard: (text: string) =>
+          this.tauriUtilityService.copyToClipboard(text),
+        invoke: <T = any>(
+          command: string,
+          args?: Record<string, any>
+        ): Promise<T> => this.tauriUtilityService.invoke(command, args),
+        getMcpServers: () => this.httpUtilityService.getMcpServers(),
+        setMcpServers: (servers: any) =>
+          this.httpUtilityService.setMcpServers(servers),
+        getMcpClientStatus: (name: string) =>
+          this.httpUtilityService.getMcpClientStatus(name),
+      };
+    }
     return this.tauriUtilityService;
   }
 
@@ -69,7 +88,12 @@ export class ServiceFactory {
     onChunk?: (chunk: string) => void,
     abortSignal?: AbortSignal
   ): Promise<void> {
-    return this.getChatService().executePrompt(messages, model, onChunk, abortSignal);
+    return this.getChatService().executePrompt(
+      messages,
+      model,
+      onChunk,
+      abortSignal
+    );
   }
 
   async getModels(): Promise<string[]> {
@@ -80,38 +104,6 @@ export class ServiceFactory {
     return this.getUtilityService().copyToClipboard(text);
   }
 
-  async getAvailableTools(): Promise<any[]> {
-    return this.getToolService().getAvailableTools();
-  }
-
-  async getToolsDocumentation(): Promise<any> {
-    return this.getToolService().getToolsDocumentation();
-  }
-
-  async getToolsForUI(): Promise<any[]> {
-    return this.getToolService().getToolsForUI();
-  }
-
-  async executeTool(toolName: string, parameters: any[]): Promise<any> {
-    return this.getToolService().executeTool(toolName, parameters);
-  }
-
-  async getToolCategories(): Promise<any[]> {
-    return this.getToolService().getToolCategories();
-  }
-
-  async getCategoryTools(categoryId: string): Promise<any[]> {
-    return this.getToolService().getCategoryTools(categoryId);
-  }
-
-  async getToolCategoryInfo(categoryId: string): Promise<any> {
-    return this.getToolService().getToolCategoryInfo(categoryId);
-  }
-
-  async getCategorySystemPrompt(categoryId: string): Promise<string> {
-    return this.getToolService().getCategorySystemPrompt(categoryId);
-  }
-
   async getMcpServers(): Promise<any> {
     return this.getUtilityService().getMcpServers();
   }
@@ -120,11 +112,14 @@ export class ServiceFactory {
     return this.getUtilityService().setMcpServers(servers);
   }
 
-  async getMcpClientStatus(): Promise<any> {
-    return this.getUtilityService().getMcpClientStatus();
+  async getMcpClientStatus(name: string): Promise<any> {
+    return this.getUtilityService().getMcpClientStatus(name);
   }
 
-  async invoke<T = any>(command: string, args?: Record<string, any>): Promise<T> {
+  async invoke<T = any>(
+    command: string,
+    args?: Record<string, any>
+  ): Promise<T> {
     return this.getUtilityService().invoke(command, args);
   }
 }

@@ -6345,9 +6345,11 @@ dependencies = [
  "async-stream",
  "copilot_client",
  "log",
+ "mcp_client",
  "serde",
  "serde_json",
  "tokio",
+ "tool_system",
  "uuid",
 ]
 

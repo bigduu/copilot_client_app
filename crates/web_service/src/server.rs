@@ -4,8 +4,10 @@ use log::{error, info};
 use std::sync::Arc;
 use tokio::sync::oneshot;
 
-use super::handlers;
+use crate::controllers::{chat_controller, system_controller, tool_controller};
+use crate::services::tool_service::ToolService;
 use copilot_client::CopilotClient;
+use tool_system::manager::ToolsManager;
 
 pub struct WebService {
     shutdown_tx: Option<oneshot::Sender<()>>,
@@ -20,18 +22,25 @@ impl WebService {
         }
     }
 
-    pub async fn start(&mut self, copilot_client: Arc<CopilotClient>) -> Result<(), String> {
+    pub async fn start(
+        &mut self,
+        copilot_client: Arc<CopilotClient>,
+        tools_manager: Arc<ToolsManager>,
+    ) -> Result<(), String> {
         if self.server_handle.is_some() {
             return Err("Web service is already running".to_string());
         }
 
         let (shutdown_tx, mut shutdown_rx) = oneshot::channel::<()>();
 
-        let copilot_client_data = web::Data::new(copilot_client);
+        let copilot_client_data = web::Data::from(copilot_client);
+        let tool_service = ToolService::new(tools_manager);
+        let tool_service_data = web::Data::new(tool_service);
 
         let server = HttpServer::new(move || {
             App::new()
                 .app_data(copilot_client_data.clone())
+                .app_data(tool_service_data.clone())
                 .wrap(Logger::default())
                 .wrap(
                     Cors::default()
@@ -42,11 +51,9 @@ impl WebService {
                 )
                 .service(
                     web::scope("/v1")
-                        .route(
-                            "/chat/completions",
-                            web::post().to(handlers::chat_completions),
-                        )
-                        .route("/models", web::get().to(handlers::models)),
+                        .configure(tool_controller::config)
+                        .configure(chat_controller::config)
+                        .configure(system_controller::config),
                 )
         })
         .bind("127.0.0.1:8080")

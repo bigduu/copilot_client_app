@@ -5,10 +5,10 @@ use serde_json::json;
 use std::sync::Arc;
 use uuid::Uuid;
 
-use super::models::{
+use crate::models::{
     OpenAIChatCompletionRequest, OpenAIChatCompletionResponse, OpenAIChoice, OpenAIContent,
-    OpenAIDelta, OpenAIError, OpenAIErrorDetail, OpenAIMessage, OpenAIModel,
-    OpenAIModelsResponse, OpenAIStreamChunk, OpenAIUsage,
+    OpenAIDelta, OpenAIError, OpenAIErrorDetail, OpenAIMessage, OpenAIModel, OpenAIModelsResponse,
+    OpenAIStreamChunk, OpenAIUsage,
 };
 use copilot_client::CopilotClient;
 
@@ -205,8 +205,9 @@ async fn handle_non_stream_request(
         match message {
             Ok(bytes) => {
                 if let Ok(chunk_str) = String::from_utf8(bytes.to_vec()) {
-                    if let Ok(chunk) =
-                        serde_json::from_str::<copilot_client::model::stream_model::StreamChunk>(&chunk_str)
+                    if let Ok(chunk) = serde_json::from_str::<
+                        copilot_client::model::stream_model::StreamChunk,
+                    >(&chunk_str)
                     {
                         if let Some(choice) = chunk.choices.first() {
                             if let Some(content) = &choice.delta.content {
@@ -292,4 +293,9 @@ pub async fn models(copilot_client: web::Data<Arc<CopilotClient>>) -> Result<Htt
             Ok(create_error_response(&e, "Failed to get models"))
         }
     }
+}
+
+pub fn config(cfg: &mut web::ServiceConfig) {
+    cfg.service(web::resource("/chat/completions").route(web::post().to(chat_completions)))
+        .service(web::resource("/models").route(web::get().to(models)));
 }

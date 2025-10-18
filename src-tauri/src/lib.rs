@@ -1,16 +1,14 @@
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
-use crate::command::chat::{execute_prompt, get_models};
 use crate::command::copy::copy_to_clipboard;
-use crate::command::web_service::{get_web_service_status, WebServiceState};
-use mcp_client::client::init_all_clients;
-use web_service::WebService;
-use command::mcp::{get_mcp_client_status, get_mcp_servers, set_mcp_servers};
+use crate::command::web_service::WebServiceState;
 use copilot_client::{Config, CopilotClient};
 use log::LevelFilter;
+use mcp_client::client::init_all_clients;
 use tauri::{App, Manager, Runtime};
 use tool_system::create_tools_manager;
+use web_service::WebService;
 
 pub mod command;
 
@@ -32,9 +30,10 @@ fn setup<R: Runtime>(app: &mut App<R>) -> std::result::Result<(), Box<dyn std::e
 
     // Start web service automatically
     let client_for_web = Arc::new(client.clone());
+    let tool_manager_for_web = tool_manager.clone();
     tauri::async_runtime::spawn(async move {
         let mut service = web_service.lock().await;
-        if let Err(e) = service.start(client_for_web).await {
+        if let Err(e) = service.start(client_for_web, tool_manager_for_web).await {
             log::error!("Failed to start web service automatically: {}", e);
         } else {
             log::info!("Web service started automatically on http://127.0.0.1:8080");
@@ -60,29 +59,7 @@ pub fn run() {
         .plugin(log_plugin)
         .plugin(dialog_plugin)
         .setup(|app| setup(app))
-        .invoke_handler(tauri::generate_handler![
-            execute_prompt,
-            copy_to_clipboard,
-            get_models,
-            get_mcp_servers,
-            set_mcp_servers,
-            get_mcp_client_status,
-            // Web service status (read-only)
-            get_web_service_status,
-            // Core tool system API
-            command::tools::get_available_tools,
-            command::tools::get_tools_documentation,
-            command::tools::get_tools_for_ui,
-            command::tools::execute_tool,
-            // Category management API
-            command::tools::get_tool_categories,
-            command::tools::get_category_tools,
-            command::tools::get_tool_category_info,
-            // Utility API
-            command::tools::get_tool_manager_stats,
-            command::tools::is_category_enabled,
-            command::tools::get_category_system_prompt,
-        ])
+        .invoke_handler(tauri::generate_handler![copy_to_clipboard,])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

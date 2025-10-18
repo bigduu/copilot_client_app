@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
+use tool_system::types::DisplayPreference;
 
-// OpenAI-compatible request models
+// Models for OpenAI compatibility
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct OpenAIMessage {
     pub role: String,
@@ -11,21 +12,30 @@ pub struct OpenAIMessage {
 #[serde(untagged)]
 pub enum OpenAIContent {
     Text(String),
-    Array(Vec<OpenAIContentPart>),
+    // TODO: Add support for image content if needed
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct OpenAIContentPart {
-    #[serde(rename = "type")]
-    pub content_type: String,
-    pub text: Option<String>,
-    pub image_url: Option<OpenAIImageUrl>,
+impl From<copilot_client::model::stream_model::Message> for OpenAIMessage {
+    fn from(msg: copilot_client::model::stream_model::Message) -> Self {
+        let content = OpenAIContent::Text(msg.get_text_content());
+        Self {
+            role: msg.role,
+            content,
+        }
+    }
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct OpenAIImageUrl {
-    pub url: String,
-    pub detail: Option<String>,
+impl From<OpenAIMessage> for copilot_client::model::stream_model::Message {
+    fn from(msg: OpenAIMessage) -> Self {
+        let content_text = match msg.content {
+            OpenAIContent::Text(text) => text,
+        };
+        copilot_client::model::stream_model::Message {
+            role: msg.role,
+            content: copilot_client::model::stream_model::MessageContent::Text(content_text),
+            images: None,
+        }
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -33,16 +43,9 @@ pub struct OpenAIChatCompletionRequest {
     pub model: String,
     pub messages: Vec<OpenAIMessage>,
     pub stream: Option<bool>,
-    pub temperature: Option<f32>,
-    pub max_tokens: Option<u32>,
-    pub top_p: Option<f32>,
-    pub frequency_penalty: Option<f32>,
-    pub presence_penalty: Option<f32>,
-    pub stop: Option<Vec<String>>,
 }
 
-// OpenAI-compatible response models
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize)]
 pub struct OpenAIChatCompletionResponse {
     pub id: String,
     pub object: String,
@@ -52,28 +55,7 @@ pub struct OpenAIChatCompletionResponse {
     pub usage: Option<OpenAIUsage>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
-pub struct OpenAIChoice {
-    pub index: u32,
-    pub message: Option<OpenAIMessage>,
-    pub delta: Option<OpenAIDelta>,
-    pub finish_reason: Option<String>,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct OpenAIDelta {
-    pub role: Option<String>,
-    pub content: Option<String>,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct OpenAIUsage {
-    pub prompt_tokens: u32,
-    pub completion_tokens: u32,
-    pub total_tokens: u32,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize)]
 pub struct OpenAIStreamChunk {
     pub id: String,
     pub object: String,
@@ -82,14 +64,39 @@ pub struct OpenAIStreamChunk {
     pub choices: Vec<OpenAIChoice>,
 }
 
-// Models endpoint response
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize)]
+pub struct OpenAIChoice {
+    pub index: u32,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub message: Option<OpenAIMessage>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub delta: Option<OpenAIDelta>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub finish_reason: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct OpenAIDelta {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub role: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub content: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct OpenAIUsage {
+    pub prompt_tokens: u32,
+    pub completion_tokens: u32,
+    pub total_tokens: u32,
+}
+
+#[derive(Debug, Serialize)]
 pub struct OpenAIModelsResponse {
     pub object: String,
     pub data: Vec<OpenAIModel>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize)]
 pub struct OpenAIModel {
     pub id: String,
     pub object: String,
@@ -97,13 +104,12 @@ pub struct OpenAIModel {
     pub owned_by: String,
 }
 
-// Error response
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize)]
 pub struct OpenAIError {
     pub error: OpenAIErrorDetail,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize)]
 pub struct OpenAIErrorDetail {
     pub message: String,
     #[serde(rename = "type")]
@@ -111,76 +117,50 @@ pub struct OpenAIErrorDetail {
     pub code: Option<String>,
 }
 
-// Conversion functions from internal models to OpenAI format
-use copilot_client::model::stream_model::{ContentPart, ImageUrl, Message, MessageContent};
-
-impl From<Message> for OpenAIMessage {
-    fn from(msg: Message) -> Self {
-        let content = match msg.content {
-            MessageContent::Text(text) => OpenAIContent::Text(text),
-            MessageContent::Array(parts) => {
-                let openai_parts: Vec<OpenAIContentPart> = parts
-                    .into_iter()
-                    .map(|part| {
-                        if part.content_type == "text" {
-                            OpenAIContentPart {
-                                content_type: "text".to_string(),
-                                text: part.text,
-                                image_url: None,
-                            }
-                        } else if part.content_type == "image_url" {
-                            OpenAIContentPart {
-                                content_type: "image_url".to_string(),
-                                text: None,
-                                image_url: part.image_url.map(|img| OpenAIImageUrl {
-                                    url: img.url,
-                                    detail: None,
-                                }),
-                            }
-                        } else {
-                            OpenAIContentPart {
-                                content_type: part.content_type,
-                                text: part.text,
-                                image_url: None,
-                            }
-                        }
-                    })
-                    .collect();
-                OpenAIContent::Array(openai_parts)
-            }
-        };
-
-        OpenAIMessage {
-            role: msg.role,
-            content,
-        }
-    }
+// Models for Tool Service
+#[derive(Serialize)]
+pub struct ParameterInfo {
+    pub name: String,
+    pub description: String,
+    pub required: bool,
+    #[serde(rename = "type")]
+    pub param_type: String,
 }
 
-impl From<OpenAIMessage> for Message {
-    fn from(msg: OpenAIMessage) -> Self {
-        let content = match msg.content {
-            OpenAIContent::Text(text) => MessageContent::Text(text),
-            OpenAIContent::Array(parts) => {
-                let internal_parts: Vec<ContentPart> = parts
-                    .into_iter()
-                    .map(|part| ContentPart {
-                        content_type: part.content_type,
-                        text: part.text,
-                        image_url: part.image_url.map(|img| ImageUrl {
-                            url: img.url,
-                            detail: None,
-                        }),
-                    })
-                    .collect();
-                MessageContent::Array(internal_parts)
-            }
-        };
+#[derive(Serialize)]
+pub struct ToolUIInfo {
+    pub name: String,
+    pub description: String,
+    pub parameters: Vec<ParameterInfo>,
+    pub tool_type: String,
+    pub parameter_parsing_strategy: String,
+    pub parameter_regex: Option<String>,
+    pub ai_prompt_template: Option<String>,
+    pub hide_in_selector: bool,
+    pub display_preference: DisplayPreference,
+    pub required_approval: bool,
+}
 
-        Message {
-            role: msg.role,
-            content,
-            images: None,
-        }
-    }
+#[derive(Serialize)]
+pub struct ToolsUIResponse {
+    pub tools: Vec<ToolUIInfo>,
+    pub is_strict_mode: bool,
+}
+
+#[derive(serde::Deserialize, Debug)]
+pub struct ParameterValue {
+    pub name: String,
+    pub value: String,
+}
+
+#[derive(serde::Deserialize)]
+pub struct ToolExecutionRequest {
+    pub tool_name: String,
+    pub parameters: Vec<ParameterValue>,
+}
+
+#[derive(Serialize)]
+pub struct ToolExecutionResult {
+    pub result: String,
+    pub display_preference: DisplayPreference,
 }
