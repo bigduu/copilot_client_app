@@ -10,7 +10,7 @@ use crate::models::{
     OpenAIDelta, OpenAIError, OpenAIErrorDetail, OpenAIMessage, OpenAIModel, OpenAIModelsResponse,
     OpenAIStreamChunk, OpenAIUsage,
 };
-use copilot_client::CopilotClient;
+use copilot_client::api::client::CopilotClient;
 
 /// Helper function to create error response while preserving original error format
 fn create_error_response(error: &anyhow::Error, fallback_message: &str) -> HttpResponse {

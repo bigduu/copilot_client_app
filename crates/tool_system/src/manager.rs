@@ -6,6 +6,8 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
+use log::info;
+
 use crate::registry::GlobalRegistry;
 use crate::types::{Category, CategoryInfo, Tool, ToolConfig};
 
@@ -34,9 +36,22 @@ impl ToolsManager {
     fn register_all(&mut self) {
         // Register all tools to the tools MAP
         self.tools = GlobalRegistry::get_all_tools();
+        info!("Registered {} tools:", self.tools.len());
+        for name in self.tools.keys() {
+            info!("  - Tool: {}", name);
+        }
 
         // Register all categories to the categories MAP
         self.categories = GlobalRegistry::get_all_categories();
+        info!("Registered {} categories:", self.categories.len());
+        for (id, category) in &self.categories {
+            info!(
+                "  - Category: {} (ID: {}), Enabled: {}",
+                category.metadata().display_name,
+                id,
+                category.enable()
+            );
+        }
 
         // Internal tools and categories are automatically included
         // if they exist - no special handling needed!

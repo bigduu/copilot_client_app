@@ -2,11 +2,12 @@ use crate::error::AppError;
 use crate::models::{
     ParameterInfo, ToolExecutionRequest, ToolExecutionResult, ToolUIInfo, ToolsUIResponse,
 };
+use log::debug;
 use std::sync::Arc;
 use tool_system::manager::ToolsManager;
-use tool_system::types::{Parameter, ToolCategory, ToolConfig};
+use tool_system::types::{CategoryInfo, Parameter, ToolCategory, ToolConfig};
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct ToolService {
     tools_manager: Arc<ToolsManager>,
 }
@@ -22,17 +23,26 @@ impl ToolService {
     }
 
     pub fn get_tools_for_ui(&self, category_id: Option<String>) -> ToolsUIResponse {
-        let (tool_configs, is_strict_mode) = self.get_tool_configs_for_category(category_id);
+        let (tool_configs, is_strict_mode) =
+            self.get_tool_configs_for_category(category_id.clone());
+        debug!(
+            "get_tools_for_ui: Found {} tool configs for category_id: {:?}",
+            tool_configs.len(),
+            category_id
+        );
 
         let tools = tool_configs
             .into_iter()
             .filter_map(|config| self.build_tool_ui_info(config))
             .collect();
 
-        ToolsUIResponse {
+        let response = ToolsUIResponse {
             tools,
             is_strict_mode,
-        }
+        };
+
+        debug!("get_tools_for_ui: Responding with: {:?}", response);
+        response
     }
 
     fn get_tool_configs_for_category(
@@ -126,14 +136,6 @@ impl ToolService {
         Ok(execution_result)
     }
 
-    pub fn get_tool_categories(&self) -> Vec<ToolCategory> {
-        let category_infos = self.tools_manager.get_all_category_info();
-        category_infos
-            .into_iter()
-            .map(|info| info.category)
-            .collect()
-    }
-
     pub fn get_category_tools(&self, category_id: String) -> Vec<ToolConfig> {
         self.tools_manager.get_category_tool_configs(&category_id)
     }
@@ -150,7 +152,7 @@ impl ToolService {
 
     pub fn get_tools_documentation(&self) -> String {
         let mut documentation = String::from("Available Tools:\n\n");
-        let category_infos = self.tools_manager.get_enabled_category_info();
+        let category_infos = self.tools_manager.get_enabled_categories();
         for (index, category_info) in category_infos.iter().enumerate() {
             documentation.push_str(&format!(
                 "{}. {} ({})\n",
@@ -165,5 +167,9 @@ impl ToolService {
         }
         documentation.push_str("These tools are available through the chat interface. Simply describe what you want to do, and the AI will use the appropriate tools to help you.");
         documentation
+    }
+
+    pub fn get_categories_for_ui(&self) -> Vec<CategoryInfo> {
+        self.tools_manager.get_enabled_categories()
     }
 }

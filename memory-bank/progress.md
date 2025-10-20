@@ -15,6 +15,10 @@
 
 ## 已完成功能 (最近更新)
 
+- **前端稳定性修复 (2025-10-20)**:
+  - **解决了React无限渲染循环**: 修复了 `SystemPromptSelector` 组件中因不当使用Zustand选择器导致的 `Maximum update depth exceeded` 错误，稳定了应用。
+  - **修复了API调用逻辑**: 重构了 `SystemPromptService`，将其通信方式从过时的Tauri `invoke` 调用更新为对本地Web服务的 `fetch` 请求，并修复了所有相关的类型错误，恢复了数据加载功能。
+
 - **架构重构 (2025-10-19)**:
   - **后端**: 实现了统一的、基于 `thiserror` 和 `ResponseError` trait 的错误处理架构，提高了后端的健壮性。
   - **前端**:
@@ -22,13 +26,32 @@
     - 对 `MessageInput` 组件进行了重构，将图片、拖放和粘贴逻辑提取到独立的自定义 Hooks 中，提高了代码的可维护性和复用性。
   - **文档**: 更新了技术和系统模式文档，以反映最新的架构决策。
 
+- **动态 Prompt 与用户自定义 (2025-10-19)**:
+  - **用户可管理的 System Prompts**:
+    - 将 System Prompts 的管理权从后端完全转移到前端，使用 `localStorage` 进行持久化。
+    - 实现了完整的 UI (`SystemPromptManager`)，允许用户创建、读取、更新和删除他们自己的 prompts。
+    - 重构了 Zustand store (`promptSlice`) 和 `StorageService` 以支持此功能。
+  - **动态工具注入**:
+    - 实现了在运行时动态地将所有可用工具（目前仅内置工具）的定义注入到 System Prompt 中的机制。
+    - 重构了 `SystemPromptEnhancer` 和 `ToolService` 以支持此流程。
+  - **后端解耦**:
+    - 删除了后端用于提供静态 prompt/category 信息的 API 端点，使前端更加独立。
+
+- **后端模块化重构 (2025-10-19)**:
+  - **WebService 初始化**: 重构了 `WebService` 的初始化流程，使其自行管理 `ToolsManager` 依赖。这简化了 Tauri 的 `setup` 函数，增强了 `web_service` crate 的内聚性。
+  - **编译修复**: 解决了因类型别名缺失导致的编译错误。
+
+- **重构后错误修复 (2025-10-19)**:
+  - **后端**: 修复了因 AI 服务配置未加载导致的 `/v1/models` 接口 500 错误。
+  - **前后端 API**: 清理了后端废弃的 "category" 相关 API，并同步更新了前端 `ToolService` 的调用方式，从 `invoke` 改为 `fetch`。
+  - **前端**: 修复了 `ChatSidebar` 中因函数命名不一致和 props 传递错误导致的 `TypeError`，并解决了 `getSnapshot` 性能警告。
+
 ## 待办功能
 
 - **完善工具集**:
-  - 增加更多工具，如 `search_files`, `browser_action` 等。
-  - 完善MCP（模型上下文协议）客户端，以支持可扩展的外部工具。
+  - **实现 `get_mcp_tools`**: 在 Rust 后端实现 `get_mcp_tools` tauri 命令，以将 MCP 工具也动态注入到 prompt 中。
+  - 增加更多内置工具，如 `search_files`, `browser_action` 等。
 - **增强用户体验**:
-  - 实现系统提示词选择器。
   - 增加收藏夹功能。
   - 进一步优化附件处理和图片预览。
 - **健壮性与错误处理**:
@@ -46,4 +69,5 @@
 
 - **通信方式演变**: 项目最初严重依赖Tauri的 `invoke` 机制进行前后端通信。后来，架构演变为在Tauri应用内部启动一个本地的 `actix-web` 服务器。现在，前端主要通过HTTP请求与这个本地服务器交互，将核心业务逻辑与桌面框架解耦，同时保留Tauri用于处理原生操作系统交互（如剪贴板）。
 - **工具系统演变**: 最初，项目可能依赖于一组硬编码的工具。决策已转向使用一个更灵活、可扩展的工具系统，最终通过MCP支持外部工具服务器。
-- **状态管理演变**: 状态管理从简单的React state演变为使用XState，以更好地处理复杂的UI交互逻辑。
+- **状态管理演变**: 状态管理从简单的React state演变为使用XState，以更好地处理复杂的UI交互逻辑。最近，通过引入 Zustand slices，状态管理变得更加模块化和可预测。
+- **Prompt 管理演变**: System Prompts 从后端硬编码的、与“工具类别”紧密耦合的概念，演变为完全由用户在客户端管理的、独立的实体。工具的可用性现在是动态的，在运行时注入，而不是由静态的类别决定。

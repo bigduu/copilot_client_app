@@ -37,7 +37,10 @@ export const isThisWeek = (date: Date): boolean => {
 
 export const isThisMonth = (date: Date): boolean => {
   const today = new Date();
-  return date.getMonth() === today.getMonth() && date.getFullYear() === today.getFullYear();
+  return (
+    date.getMonth() === today.getMonth() &&
+    date.getFullYear() === today.getFullYear()
+  );
 };
 
 export const getDateGroupKey = (date: Date): string => {
@@ -55,8 +58,8 @@ export const getDateGroupKey = (date: Date): string => {
 
 export const getDateGroupWeight = (dateKey: string): number => {
   const weights: Record<string, number> = {
-    "Today": 0,
-    "Yesterday": 1,
+    Today: 0,
+    Yesterday: 1,
     "This Week": 2,
     "This Month": 3,
   };
@@ -140,46 +143,6 @@ export interface DateCategoryGroup {
   };
 }
 
-export const groupChatsByDateAndCategory = (
-  chats: ChatItem[]
-): DateCategoryGroup => {
-  const grouped: DateCategoryGroup = {};
-
-  // Handle pinned chats first - they go in a special "Pinned" section
-  const pinnedChats = chats.filter((chat) => chat.pinned);
-  if (pinnedChats.length > 0) {
-    grouped["Pinned"] = {
-      "Pinned": pinnedChats.sort((a, b) => b.createdAt - a.createdAt),
-    };
-  }
-
-  // Group non-pinned chats by date first, then by category
-  chats
-    .filter((chat) => !chat.pinned)
-    .forEach((chat) => {
-      const chatDate = new Date(chat.createdAt);
-      const dateKey = getDateGroupKey(chatDate);
-      const category = chat.config.toolCategory || "General";
-
-      if (!grouped[dateKey]) {
-        grouped[dateKey] = {};
-      }
-      if (!grouped[dateKey][category]) {
-        grouped[dateKey][category] = [];
-      }
-      grouped[dateKey][category].push(chat);
-    });
-
-  // Sort chats within each category by time (newest first)
-  Object.keys(grouped).forEach((dateKey) => {
-    Object.keys(grouped[dateKey]).forEach((category) => {
-      grouped[dateKey][category].sort((a, b) => b.createdAt - a.createdAt);
-    });
-  });
-
-  return grouped;
-};
-
 /**
  * Get sorted date keys for consistent ordering
  */
@@ -195,151 +158,23 @@ export const getSortedDateKeys = (grouped: DateCategoryGroup): string[] => {
 };
 
 /**
- * Get category display information
- */
-export interface CategoryDisplayInfo {
-  name: string;
-  icon: string;
-  description: string;
-  color?: string;
-}
-
-export const getCategoryDisplayInfo = (
-  category: string
-): CategoryDisplayInfo => {
-  // Fixed special group handling
-  if (category === "Pinned") {
-    return {
-      name: "Pinned Chats",
-      icon: "📌",
-      description: "Important pinned chat records",
-      color: "#f5222d",
-    };
-  }
-
-  // For tool categories, the configuration must be dynamically obtained from the backend
-  throw new Error(`Display information for tool category "${category}" must be obtained from the backend configuration; no hardcoded configuration is provided on the frontend`);
-};
-
-/**
- * Get category display information (async version)
- * Get category display information from the backend
- */
-export const getCategoryDisplayInfoAsync = async (
-  category: string
-): Promise<CategoryDisplayInfo> => {
-  // Fixed special group handling
-  if (category === "Pinned") {
-    return {
-      name: "Pinned Chats",
-      icon: "📌",
-      description: "Important pinned chat records",
-      color: "#f5222d",
-    };
-  }
-
-  // Get category display information from ToolService
-  try {
-    const { ToolService } = await import('../services/ToolService');
-    const toolService = ToolService.getInstance();
-    return await toolService.getCategoryDisplayInfo(category);
-  } catch (error) {
-    console.error('Failed to get tool category display information:', error);
-    throw new Error(`Display information for tool category "${category}" is not configured. Please check if the category is registered in the backend.`);
-  }
-};
-
-/**
- * Get sorting weight for tool categories
- * Sync version: for cases where backend configuration is known to exist
- */
-export const getCategoryWeight = (category: string): number => {
-  // Fixed special group handling
-  if (category === "Pinned") {
-    return 0;
-  }
-
-  // For tool categories, the sort weight must be obtained from the backend configuration
-  throw new Error(`The sort weight for tool category "${category}" must be obtained from the backend configuration; the frontend does not provide a hardcoded configuration.`);
-};
-
-/**
- * Get sorting weight for tool categories (async version)
- * Get category weight from the backend
- */
-export const getCategoryWeightAsync = async (category: string): Promise<number> => {
-  // Fixed special group handling
-  if (category === "Pinned") {
-    return 0;
-  }
-
-  // Get weight from ToolService
-  try {
-    const { ToolService } = await import('../services/ToolService');
-    const toolService = ToolService.getInstance();
-    return await toolService.getCategoryWeight(category);
-  } catch (error) {
-    console.error('Failed to get tool category weight:', error);
-    throw new Error(`Sort weight for tool category "${category}" is not configured. Please check if the category is registered in the backend.`);
-  }
-};
-
-/**
  * Get all chat IDs from a specific date group
  */
 export const getChatIdsByDate = (
-  grouped: DateCategoryGroup,
+  grouped: Record<string, ChatItem[]>,
   dateKey: string
 ): string[] => {
   if (!grouped[dateKey]) return [];
-
-  const chatIds: string[] = [];
-  Object.values(grouped[dateKey]).forEach((chats) => {
-    chats.forEach((chat) => chatIds.push(chat.id));
-  });
-
-  return chatIds;
-};
-
-/**
- * Get all chat IDs from a specific date and category
- */
-export const getChatIdsByDateAndCategory = (
-  grouped: DateCategoryGroup,
-  dateKey: string,
-  category: string
-): string[] => {
-  if (!grouped[dateKey] || !grouped[dateKey][category]) return [];
-
-  return grouped[dateKey][category].map((chat) => chat.id);
+  return grouped[dateKey].map((chat) => chat.id);
 };
 
 /**
  * Get chat count for a date group
  */
 export const getChatCountByDate = (
-  grouped: DateCategoryGroup,
+  grouped: Record<string, ChatItem[]>,
   dateKey: string
 ): number => {
   if (!grouped[dateKey]) return 0;
-
-  return Object.values(grouped[dateKey]).reduce(
-    (total, chats) => total + chats.length,
-    0
-  );
-};
-
-/**
- * Sort grouped results by weight
- */
-export const sortGroupedChatsByWeight = (
-  grouped: Record<string, ChatItem[]>
-): Record<string, ChatItem[]> => {
-  const sortedEntries = Object.entries(grouped).sort(
-    ([categoryA], [categoryB]) => {
-      return getCategoryWeight(categoryA) - getCategoryWeight(categoryB);
-    }
-  );
-
-  return Object.fromEntries(sortedEntries);
+  return grouped[dateKey].length;
 };

@@ -1,11 +1,18 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { App as AntApp } from 'antd';
-import { useAppStore } from '../store';
-import { useMachine } from '@xstate/react';
-import { chatMachine, ChatMachineEvent } from '../core/chatInteractionMachine';
-import { ChatItem, SystemPromptPreset, UserMessage, AssistantTextMessage, MessageImage } from '../types/chat';
-import { ImageFile } from '../utils/imageUtils';
-import { ToolService } from '../services/ToolService';
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { App as AntApp } from "antd";
+import { useAppStore } from "../store";
+import { useMachine } from "@xstate/react";
+import { chatMachine, ChatMachineEvent } from "../core/chatInteractionMachine";
+import {
+  ChatItem,
+  UserSystemPrompt,
+  UserMessage,
+  AssistantTextMessage,
+  MessageImage,
+} from "../types/chat";
+import { ImageFile } from "../utils/imageUtils";
+import { ToolService } from "../services/ToolService";
+import SystemPromptEnhancer from "../services/SystemPromptEnhancer";
 
 const toolService = ToolService.getInstance();
 
@@ -17,32 +24,48 @@ export const useChatManager = () => {
   const { modal } = AntApp.useApp();
 
   // --- STATE SELECTION FROM ZUSTAND ---
-  const chats = useAppStore(state => state.chats);
-  const currentChatId = useAppStore(state => state.currentChatId);
-  const addChat = useAppStore(state => state.addChat);
-  const setMessages = useAppStore(state => state.setMessages);
-  const addMessage = useAppStore(state => state.addMessage);
-  const selectChat = useAppStore(state => state.selectChat);
-  const deleteChat = useAppStore(state => state.deleteChat);
-  const deleteChats = useAppStore(state => state.deleteChats);
-  const deleteMessage = useAppStore(state => state.deleteMessage);
-  const updateChat = useAppStore(state => state.updateChat);
-  const pinChat = useAppStore(state => state.pinChat);
-  const unpinChat = useAppStore(state => state.unpinChat);
-  const loadChats = useAppStore(state => state.loadChats);
-  const saveChats = useAppStore(state => state.saveChats);
-  const updateMessageContent = useAppStore(state => state.updateMessageContent);
+  const chats = useAppStore((state) => state.chats);
+  const currentChatId = useAppStore((state) => state.currentChatId);
+  const addChat = useAppStore((state) => state.addChat);
+  const setMessages = useAppStore((state) => state.setMessages);
+  const addMessage = useAppStore((state) => state.addMessage);
+  const selectChat = useAppStore((state) => state.selectChat);
+  const deleteChat = useAppStore((state) => state.deleteChat);
+  const deleteChats = useAppStore((state) => state.deleteChats);
+  const deleteMessage = useAppStore((state) => state.deleteMessage);
+  const updateChat = useAppStore((state) => state.updateChat);
+  const pinChat = useAppStore((state) => state.pinChat);
+  const unpinChat = useAppStore((state) => state.unpinChat);
+  const loadChats = useAppStore((state) => state.loadChats);
+  const saveChats = useAppStore((state) => state.saveChats);
+  const updateMessageContent = useAppStore(
+    (state) => state.updateMessageContent
+  );
 
   // --- DERIVED STATE ---
-  const currentChat = useMemo(() => chats.find(chat => chat.id === currentChatId) || null, [chats, currentChatId]);
-  const baseMessages = useMemo(() => currentChat?.messages || [], [currentChat]);
-  const pinnedChats = useMemo(() => chats.filter(chat => chat.pinned), [chats]);
-  const unpinnedChats = useMemo(() => chats.filter(chat => !chat.pinned), [chats]);
+  const currentChat = useMemo(
+    () => chats.find((chat) => chat.id === currentChatId) || null,
+    [chats, currentChatId]
+  );
+  const baseMessages = useMemo(
+    () => currentChat?.messages || [],
+    [currentChat]
+  );
+  const pinnedChats = useMemo(
+    () => chats.filter((chat) => chat.pinned),
+    [chats]
+  );
+  const unpinnedChats = useMemo(
+    () => chats.filter((chat) => !chat.pinned),
+    [chats]
+  );
   const chatCount = chats.length;
 
   // --- LOCAL UI STATE FOR STREAMING ---
-  const [streamingText, setStreamingText] = useState('');
-  const [streamingMessageId, setStreamingMessageId] = useState<string | null>(null);
+  const [streamingText, setStreamingText] = useState("");
+  const [streamingMessageId, setStreamingMessageId] = useState<string | null>(
+    null
+  );
 
   // --- CHAT INTERACTION STATE MACHINE ---
   // Provide the concrete implementations for the actions defined in the machine
@@ -50,17 +73,25 @@ export const useChatManager = () => {
     return chatMachine.provide({
       actions: {
         forwardChunkToUI: ({ event }: { event: ChatMachineEvent }) => {
-          if (event.type === 'CHUNK_RECEIVED') {
-            setStreamingText(prev => prev + event.payload.chunk);
+          if (event.type === "CHUNK_RECEIVED") {
+            setStreamingText((prev) => prev + event.payload.chunk);
           }
         },
         finalizeStreamingMessage: ({ event }: { event: ChatMachineEvent }) => {
           const { currentChatId: chatId } = useAppStore.getState();
-          if (event.type === 'STREAM_COMPLETE_TEXT' && streamingMessageId && chatId) {
-            updateMessageContent(chatId, streamingMessageId, event.payload.finalContent);
+          if (
+            event.type === "STREAM_COMPLETE_TEXT" &&
+            streamingMessageId &&
+            chatId
+          ) {
+            updateMessageContent(
+              chatId,
+              streamingMessageId,
+              event.payload.finalContent
+            );
             // Reset local streaming UI state
             setStreamingMessageId(null);
-            setStreamingText('');
+            setStreamingText("");
           }
         },
       },
@@ -78,10 +109,23 @@ export const useChatManager = () => {
       return baseMessages;
     }
     // Ensure the streaming message placeholder is part of the list
-    const messageExists = baseMessages.some(msg => msg.id === streamingMessageId);
-    const list = messageExists ? baseMessages : [...baseMessages, { id: streamingMessageId, role: 'assistant', type: 'text', content: '', createdAt: new Date().toISOString() } as AssistantTextMessage];
+    const messageExists = baseMessages.some(
+      (msg) => msg.id === streamingMessageId
+    );
+    const list = messageExists
+      ? baseMessages
+      : [
+          ...baseMessages,
+          {
+            id: streamingMessageId,
+            role: "assistant",
+            type: "text",
+            content: "",
+            createdAt: new Date().toISOString(),
+          } as AssistantTextMessage,
+        ];
 
-    return list.map(msg =>
+    return list.map((msg) =>
       msg.id === streamingMessageId ? { ...msg, content: streamingText } : msg
     );
   }, [baseMessages, streamingMessageId, streamingText]);
@@ -89,9 +133,9 @@ export const useChatManager = () => {
   // Reset state machine when chat changes
   useEffect(() => {
     if (prevChatIdRef.current && prevChatIdRef.current !== currentChatId) {
-      send({ type: 'CANCEL' });
+      send({ type: "CANCEL" });
       setStreamingMessageId(null);
-      setStreamingText('');
+      setStreamingText("");
     }
     prevChatIdRef.current = currentChatId;
   }, [currentChatId, send]);
@@ -107,22 +151,26 @@ export const useChatManager = () => {
       return;
     }
 
-    console.log(`[ChatManager] State changed from ${JSON.stringify(prevState.value)} to ${JSON.stringify(state.value)}`);
+    console.log(
+      `[ChatManager] State changed from ${JSON.stringify(
+        prevState.value
+      )} to ${JSON.stringify(state.value)}`
+    );
 
     // --- Handle entering THINKING state ---
-    if (state.matches('THINKING') && !prevState.matches('THINKING')) {
+    if (state.matches("THINKING") && !prevState.matches("THINKING")) {
       const newStreamingMessage: AssistantTextMessage = {
         id: crypto.randomUUID(),
-        role: 'assistant',
-        type: 'text',
-        content: '',
+        role: "assistant",
+        type: "text",
+        content: "",
         createdAt: new Date().toISOString(),
       };
       addMessage(chatId, newStreamingMessage);
       setStreamingMessageId(newStreamingMessage.id);
-      setStreamingText('');
+      setStreamingText("");
     }
-    
+
     // --- Sync message list on other state changes ---
     // This ensures that tool calls and other non-streaming updates are reflected.
     if (state.context.messages.length !== prevState.context.messages.length) {
@@ -132,60 +180,69 @@ export const useChatManager = () => {
     prevStateRef.current = state;
   }, [state, addMessage, setMessages]);
 
-
   // --- ACTIONS ---
 
-  const sendMessage = useCallback(async (content: string, images?: ImageFile[]) => {
-    if (!currentChat) {
-      modal.info({
-        title: 'No Active Chat',
-        content: 'Please create or select a chat before sending a message.',
-      });
-      return;
-    }
-    const chatId = currentChat.id;
-    
-    const processedContent = content;
+  const sendMessage = useCallback(
+    async (content: string, images?: ImageFile[]) => {
+      if (!currentChat) {
+        modal.info({
+          title: "No Active Chat",
+          content: "Please create or select a chat before sending a message.",
+        });
+        return;
+      }
+      const chatId = currentChat.id;
 
-    const messageImages: MessageImage[] = images?.map(img => ({
-      id: img.id,
-      base64: img.base64,
-      name: img.name,
-      size: img.size,
-      type: img.type,
-    })) || [];
+      const processedContent = content;
 
-    const userMessage: UserMessage = {
-      role: "user",
-      content: processedContent,
-      id: crypto.randomUUID(),
-      createdAt: new Date().toISOString(),
-      images: messageImages,
-    };
+      const messageImages: MessageImage[] =
+        images?.map((img) => ({
+          id: img.id,
+          base64: img.base64,
+          name: img.name,
+          size: img.size,
+          type: img.type,
+        })) || [];
 
-    addMessage(chatId, userMessage);
-
-    const updatedHistory = [...baseMessages, userMessage];
-    const updatedChat: ChatItem = { ...currentChat, messages: updatedHistory };
-
-    const basicToolCall = toolService.parseUserCommand(processedContent);
-
-    if (basicToolCall) {
-      const toolInfo = await toolService.getToolInfo(basicToolCall.tool_name);
-      const toolCallId = `call_${crypto.randomUUID()}`;
-      const enhancedToolCall = {
-        ...basicToolCall,
-        toolCallId,
-        parameter_parsing_strategy: toolInfo?.parameter_parsing_strategy,
+      const userMessage: UserMessage = {
+        role: "user",
+        content: processedContent,
+        id: crypto.randomUUID(),
+        createdAt: new Date().toISOString(),
+        images: messageImages,
       };
-      send({ type: 'USER_INVOKES_TOOL', payload: { request: enhancedToolCall, messages: updatedHistory } });
-    } else {
-      send({
-        type: 'USER_SUBMITS',
-        payload: { messages: updatedHistory, chat: updatedChat },
-      });
-    }
-  }, [currentChat, addMessage, send, modal, baseMessages]);
+
+      addMessage(chatId, userMessage);
+
+      const updatedHistory = [...baseMessages, userMessage];
+      const updatedChat: ChatItem = {
+        ...currentChat,
+        messages: updatedHistory,
+      };
+
+      const basicToolCall = toolService.parseUserCommand(processedContent);
+
+      if (basicToolCall) {
+        const toolInfo = await toolService.getToolInfo(basicToolCall.tool_name);
+        const toolCallId = `call_${crypto.randomUUID()}`;
+        const enhancedToolCall = {
+          ...basicToolCall,
+          toolCallId,
+          parameter_parsing_strategy: toolInfo?.parameter_parsing_strategy,
+        };
+        send({
+          type: "USER_INVOKES_TOOL",
+          payload: { request: enhancedToolCall, messages: updatedHistory },
+        });
+      } else {
+        send({
+          type: "USER_SUBMITS",
+          payload: { messages: updatedHistory, chat: updatedChat },
+        });
+      }
+    },
+    [currentChat, addMessage, send, modal, baseMessages]
+  );
 
   const retryLastMessage = useCallback(async () => {
     if (!currentChat) return;
@@ -197,78 +254,101 @@ export const useChatManager = () => {
     const lastMessage = history[history.length - 1];
     let messagesToRetry = history;
 
-    if (lastMessage?.role === 'assistant') {
+    if (lastMessage?.role === "assistant") {
       deleteMessage(chatId, lastMessage.id);
       messagesToRetry = history.slice(0, -1);
     }
 
     if (messagesToRetry.length > 0) {
-      const updatedChat: ChatItem = { ...currentChat, messages: messagesToRetry };
+      const updatedChat: ChatItem = {
+        ...currentChat,
+        messages: messagesToRetry,
+      };
       send({
-        type: 'USER_SUBMITS',
+        type: "USER_SUBMITS",
         payload: { messages: messagesToRetry, chat: updatedChat },
       });
     }
   }, [currentChat, baseMessages, deleteMessage, send]);
 
-  const createNewChat = useCallback((title?: string, options?: Partial<Omit<ChatItem, 'id'>>) => {
-    const newChatData: Omit<ChatItem, 'id'> = {
-      title: title || 'New Chat',
-      createdAt: Date.now(),
-      messages: [],
-      config: {
-        systemPromptId: 'general_assistant',
-        toolCategory: 'general_assistant',
-        lastUsedEnhancedPrompt: null,
-      },
-      currentInteraction: null,
-      ...options,
-    };
-    addChat(newChatData);
-    saveChats();
-  }, [addChat, saveChats]);
+  const createNewChat = useCallback(
+    (title?: string, options?: Partial<Omit<ChatItem, "id">>) => {
+      const newChatData: Omit<ChatItem, "id"> = {
+        title: title || "New Chat",
+        createdAt: Date.now(),
+        messages: [],
+        config: {
+          systemPromptId: "default-general",
+          toolCategory: "general", // Keep a general category for now
+          lastUsedEnhancedPrompt: null,
+        },
+        currentInteraction: null,
+        ...options,
+      };
+      addChat(newChatData);
+      saveChats();
+    },
+    [addChat, saveChats]
+  );
 
-  const createChatWithSystemPrompt = useCallback((preset: SystemPromptPreset) => {
-    const newChatData: Omit<ChatItem, 'id'> = {
-      title: `New Chat - ${preset.name}`,
-      createdAt: Date.now(),
-      messages: [{
-        id: 'system-prompt',
-        role: 'system',
-        content: preset.content,
-        createdAt: new Date().toISOString(),
-      }],
-      config: {
-        systemPromptId: preset.id,
-        toolCategory: preset.category,
-        lastUsedEnhancedPrompt: preset.content,
-      },
-      currentInteraction: null,
-    };
-    addChat(newChatData);
-    saveChats();
-  }, [addChat, saveChats]);
+  const createChatWithSystemPrompt = useCallback(
+    async (prompt: UserSystemPrompt) => {
+      const enhancedPrompt = await SystemPromptEnhancer.getEnhancedSystemPrompt(
+        prompt.content
+      );
 
-  const toggleChatPin = useCallback((chatId: string) => {
-    const chat = chats.find(c => c.id === chatId);
-    if (chat) {
-      chat.pinned ? unpinChat(chatId) : pinChat(chatId);
-    }
-  }, [chats, pinChat, unpinChat]);
+      const newChatData: Omit<ChatItem, "id"> = {
+        title: `New Chat - ${prompt.name}`,
+        createdAt: Date.now(),
+        messages: [
+          {
+            id: "system-prompt",
+            role: "system",
+            content: enhancedPrompt,
+            createdAt: new Date().toISOString(),
+          },
+        ],
+        config: {
+          systemPromptId: prompt.id,
+          toolCategory: "dynamic", // A new category to signify dynamic tool usage
+          lastUsedEnhancedPrompt: enhancedPrompt,
+        },
+        currentInteraction: null,
+      };
+      addChat(newChatData);
+      saveChats();
+    },
+    [addChat, saveChats]
+  );
 
-  const updateChatTitle = useCallback((chatId: string, newTitle: string) => {
-    updateChat(chatId, { title: newTitle });
-  }, [updateChat]);
+  const toggleChatPin = useCallback(
+    (chatId: string) => {
+      const chat = chats.find((c) => c.id === chatId);
+      if (chat) {
+        chat.pinned ? unpinChat(chatId) : pinChat(chatId);
+      }
+    },
+    [chats, pinChat, unpinChat]
+  );
+
+  const updateChatTitle = useCallback(
+    (chatId: string, newTitle: string) => {
+      updateChat(chatId, { title: newTitle });
+    },
+    [updateChat]
+  );
 
   const deleteEmptyChats = useCallback(() => {
-    const emptyChatIds = chats.filter(chat => !chat.pinned && chat.messages.length === 0).map(chat => chat.id);
+    const emptyChatIds = chats
+      .filter((chat) => !chat.pinned && chat.messages.length === 0)
+      .map((chat) => chat.id);
     if (emptyChatIds.length > 0) {
       deleteChats(emptyChatIds);
     }
   }, [chats, deleteChats]);
 
   const deleteAllUnpinnedChats = useCallback(() => {
-    const unpinnedChatsIds = unpinnedChats.map(chat => chat.id);
+    const unpinnedChatsIds = unpinnedChats.map((chat) => chat.id);
     if (unpinnedChatsIds.length > 0) {
       deleteChats(unpinnedChatsIds);
     }
@@ -301,10 +381,10 @@ export const useChatManager = () => {
     toggleChatPin,
     updateChatTitle,
     deleteEmptyChats,
-deleteAllUnpinnedChats,
+    deleteAllUnpinnedChats,
     sendMessage,
     retryLastMessage,
-    
+
     // Machine sender
     send,
   };

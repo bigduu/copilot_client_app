@@ -1,16 +1,17 @@
-import { ChatItem, Message } from '../types/chat';
+import { ChatItem, Message, UserSystemPrompt } from "../types/chat";
 
 /**
  * Optimized Storage Service V2
- * 
+ *
  * This service is aligned with the ChatItem V2 data structure.
  * It stores chat metadata and messages separately for performance.
  */
 
 const STORAGE_KEYS = {
-  CHATS: 'copilot_chats_v2', // Key for storing chat metadata
-  MESSAGES_PREFIX: 'copilot_messages_v2_', // Prefix for individual chat messages
-  LATEST_ACTIVE_CHAT: 'copilot_latest_active_chat_id_v2',
+  CHATS: "copilot_chats_v2", // Key for storing chat metadata
+  MESSAGES_PREFIX: "copilot_messages_v2_", // Prefix for individual chat messages
+  LATEST_ACTIVE_CHAT: "copilot_latest_active_chat_id_v2",
+  SYSTEM_PROMPTS: "copilot_system_prompts_v1", // Key for storing user-defined system prompts
 };
 
 // This interface represents the data that is actually saved to localStorage for each chat.
@@ -20,7 +21,7 @@ export interface OptimizedChatItem {
   title: string;
   createdAt: number;
   pinned?: boolean;
-  config: ChatItem['config']; // Store the entire config object
+  config: ChatItem["config"]; // Store the entire config object
   messageCount: number;
   lastMessageAt?: number;
 }
@@ -33,13 +34,16 @@ export class StorageService {
    * Loads all chat metadata and hydrates them into full ChatItem objects.
    * Messages are not loaded here; they are loaded on-demand when a chat is selected.
    */
-  async loadAllData(): Promise<{ chats: ChatItem[], messages: Record<string, Message[]> }> {
+  async loadAllData(): Promise<{
+    chats: ChatItem[];
+    messages: Record<string, Message[]>;
+  }> {
     try {
       const optimizedChats = await this.loadChats();
-      
+
       // Hydrate the optimized chats into full ChatItem objects for the store.
       // Initialize with empty messages and null interaction state.
-      const chats: ChatItem[] = optimizedChats.map(chat => ({
+      const chats: ChatItem[] = optimizedChats.map((chat) => ({
         ...chat,
         messages: [], // Messages will be loaded on-demand
         currentInteraction: null, // This is always transient state
@@ -49,7 +53,7 @@ export class StorageService {
       // Return an empty object to match the expected signature.
       return { chats, messages: {} };
     } catch (error) {
-      console.error('Failed to load all data:', error);
+      console.error("Failed to load all data:", error);
       return { chats: [], messages: {} };
     }
   }
@@ -60,16 +64,19 @@ export class StorageService {
   async saveAllData(chats: ChatItem[]): Promise<void> {
     try {
       // Dehydrate the full ChatItem objects into OptimizedChatItem for storage.
-      const optimizedChats: OptimizedChatItem[] = chats.map(chat => ({
+      const optimizedChats: OptimizedChatItem[] = chats.map((chat) => ({
         id: chat.id,
         title: chat.title,
         createdAt: chat.createdAt,
         pinned: chat.pinned,
         config: chat.config, // Save the entire config object
         messageCount: chat.messages.length,
-        lastMessageAt: chat.messages.length > 0 
-          ? new Date(chat.messages[chat.messages.length - 1].createdAt).getTime() 
-          : chat.createdAt,
+        lastMessageAt:
+          chat.messages.length > 0
+            ? new Date(
+                chat.messages[chat.messages.length - 1].createdAt
+              ).getTime()
+            : chat.createdAt,
       }));
 
       await this.saveChats(optimizedChats);
@@ -83,7 +90,7 @@ export class StorageService {
         }
       }
     } catch (error) {
-      console.error('Failed to save all data:', error);
+      console.error("Failed to save all data:", error);
     }
   }
 
@@ -94,12 +101,12 @@ export class StorageService {
     try {
       const stored = localStorage.getItem(STORAGE_KEYS.CHATS);
       if (!stored) return [];
-      
+
       const chats = JSON.parse(stored) as OptimizedChatItem[];
       // Basic validation can be done here if needed
       return chats;
     } catch (error) {
-      console.error('Failed to load chats:', error);
+      console.error("Failed to load chats:", error);
       return [];
     }
   }
@@ -111,7 +118,7 @@ export class StorageService {
     try {
       localStorage.setItem(STORAGE_KEYS.CHATS, JSON.stringify(chats));
     } catch (error) {
-      console.error('Failed to save chats:', error);
+      console.error("Failed to save chats:", error);
       throw error;
     }
   }
@@ -125,7 +132,9 @@ export class StorageService {
     }
 
     try {
-      const stored = localStorage.getItem(`${STORAGE_KEYS.MESSAGES_PREFIX}${chatId}`);
+      const stored = localStorage.getItem(
+        `${STORAGE_KEYS.MESSAGES_PREFIX}${chatId}`
+      );
       const messages = stored ? JSON.parse(stored) : [];
       this.addToCache(chatId, messages);
       return messages;
@@ -140,7 +149,10 @@ export class StorageService {
    */
   async saveMessages(chatId: string, messages: Message[]): Promise<void> {
     try {
-      localStorage.setItem(`${STORAGE_KEYS.MESSAGES_PREFIX}${chatId}`, JSON.stringify(messages));
+      localStorage.setItem(
+        `${STORAGE_KEYS.MESSAGES_PREFIX}${chatId}`,
+        JSON.stringify(messages)
+      );
       this.addToCache(chatId, messages);
     } catch (error) {
       console.error(`Failed to save messages for chat ${chatId}:`, error);
@@ -170,7 +182,7 @@ export class StorageService {
     try {
       return localStorage.getItem(STORAGE_KEYS.LATEST_ACTIVE_CHAT) || null;
     } catch (error) {
-      console.error('Failed to load latest active chat ID:', error);
+      console.error("Failed to load latest active chat ID:", error);
       return null;
     }
   }
@@ -183,23 +195,29 @@ export class StorageService {
         localStorage.removeItem(STORAGE_KEYS.LATEST_ACTIVE_CHAT);
       }
     } catch (error) {
-      console.error('Failed to save latest active chat ID:', error);
+      console.error("Failed to save latest active chat ID:", error);
     }
   }
 
-  getStorageStats(): { totalChats: number; cacheSize: number; estimatedSize: string } {
+  getStorageStats(): {
+    totalChats: number;
+    cacheSize: number;
+    estimatedSize: string;
+  } {
     const chatsStr = localStorage.getItem(STORAGE_KEYS.CHATS);
-    const totalChats = chatsStr ? (JSON.parse(chatsStr) as OptimizedChatItem[]).length : 0;
-    
+    const totalChats = chatsStr
+      ? (JSON.parse(chatsStr) as OptimizedChatItem[]).length
+      : 0;
+
     let totalSize = 0;
     for (let i = 0; i < localStorage.length; i++) {
       const key = localStorage.key(i);
-      if (key && key.startsWith('copilot_')) {
+      if (key && key.startsWith("copilot_")) {
         const value = localStorage.getItem(key);
         totalSize += (key.length + (value?.length || 0)) * 2;
       }
     }
-    
+
     return {
       totalChats,
       cacheSize: this.messageCache.size,
@@ -216,12 +234,40 @@ export class StorageService {
       this.messageCache.delete(chatId);
     }
     this.messageCache.set(chatId, messages);
-    
+
     if (this.messageCache.size > this.maxCacheSize) {
       const firstKey = this.messageCache.keys().next().value;
       if (firstKey !== undefined) {
         this.messageCache.delete(firstKey);
       }
+    }
+  }
+
+  // --- System Prompt Management ---
+
+  async getSystemPrompts(): Promise<UserSystemPrompt[]> {
+    try {
+      const stored = localStorage.getItem(STORAGE_KEYS.SYSTEM_PROMPTS);
+      if (!stored) return []; // Return empty array if nothing is stored yet
+
+      const prompts = JSON.parse(stored) as UserSystemPrompt[];
+      // Optional: Add validation here
+      return prompts;
+    } catch (error) {
+      console.error("Failed to load system prompts:", error);
+      return [];
+    }
+  }
+
+  async saveSystemPrompts(prompts: UserSystemPrompt[]): Promise<void> {
+    try {
+      localStorage.setItem(
+        STORAGE_KEYS.SYSTEM_PROMPTS,
+        JSON.stringify(prompts)
+      );
+    } catch (error) {
+      console.error("Failed to save system prompts:", error);
+      throw error;
     }
   }
 }

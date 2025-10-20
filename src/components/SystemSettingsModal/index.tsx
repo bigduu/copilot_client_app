@@ -25,6 +25,7 @@ import {
   isMermaidEnhancementEnabled,
   setMermaidEnhancementEnabled,
 } from "../../utils/mermaidUtils";
+import SystemPromptManager from "../SystemPromptManager";
 
 const { Text } = Typography;
 const { useToken } = theme;
@@ -168,6 +169,11 @@ const SystemSettingsModal = ({
         selectedModel={selectedModel}
         onModelChange={setSelectedModel}
       />
+
+      <Divider />
+
+      {/* System Prompt Manager Section */}
+      <SystemPromptManager />
 
       <Divider />
 

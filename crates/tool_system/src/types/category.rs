@@ -66,9 +66,7 @@ pub trait Category: Send + Sync + std::fmt::Debug {
                 auto_prefix: Some(format!("/{}", tool.name())),
                 permissions: vec![],
                 tool_type: match tool.tool_type() {
-                    crate::types::ToolType::AIParameterParsing => {
-                        "AIParameterParsing".to_string()
-                    }
+                    crate::types::ToolType::AIParameterParsing => "AIParameterParsing".to_string(),
                     crate::types::ToolType::RegexParameterExtraction => {
                         "RegexParameterExtraction".to_string()
                     }
@@ -116,7 +114,7 @@ impl ToolCategory {
 }
 
 /// Category information structure
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct CategoryInfo {
     pub category: ToolCategory,
     pub tools: Vec<ToolConfig>,

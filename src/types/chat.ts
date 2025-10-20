@@ -1,4 +1,4 @@
-import { StateValue } from 'xstate';
+import { StateValue } from "xstate";
 
 // Image attachment interface for messages
 export interface MessageImage {
@@ -23,7 +23,11 @@ export interface ToolExecutionResult {
 
 // Type guard to check if an object is a ToolExecutionResult
 export const isToolExecutionResult = (obj: any): obj is ToolExecutionResult => {
-  return obj && typeof obj.result === 'string' && typeof obj.display_preference === 'string';
+  return (
+    obj &&
+    typeof obj.result === "string" &&
+    typeof obj.display_preference === "string"
+  );
 };
 
 // --- NEW V3 DATA STRUCTURES ---
@@ -36,32 +40,32 @@ interface BaseMessage {
 
 // 1. User's Message
 export interface SystemMessage extends BaseMessage {
-  role: 'system';
+  role: "system";
   content: string;
 }
 
 export interface UserMessage extends BaseMessage {
-  role: 'user';
+  role: "user";
   content: string;
   images?: MessageImage[];
 }
 
 // 2. Assistant's Standard Text Response
 export interface AssistantTextMessage extends BaseMessage {
-  role: 'assistant';
-  type: 'text';
+  role: "assistant";
+  type: "text";
   content: string;
   // --- Metadata ---
   model?: string;
-  finishReason?: 'stop' | 'length' | 'error';
-  tokenUsage?: { promptTokens: number; completionTokens: number; };
-  latency?: { firstTokenMs: number; totalDurationMs: number; };
+  finishReason?: "stop" | "length" | "error";
+  tokenUsage?: { promptTokens: number; completionTokens: number };
+  latency?: { firstTokenMs: number; totalDurationMs: number };
 }
 
 // 3. Assistant's Request to Call a Tool
 export interface AssistantToolCallMessage extends BaseMessage {
-  role: 'assistant';
-  type: 'tool_call';
+  role: "assistant";
+  type: "tool_call";
   toolCalls: {
     toolCallId: string;
     toolName: string;
@@ -69,14 +73,14 @@ export interface AssistantToolCallMessage extends BaseMessage {
   }[]; // Support for multiple tool calls in one turn
   // --- Metadata ---
   model?: string;
-  finishReason?: 'tool_calls';
+  finishReason?: "tool_calls";
   // ... other metadata
 }
 
 // 4. Assistant's Report of a Tool's Result
 export interface AssistantToolResultMessage extends BaseMessage {
-  role: 'assistant';
-  type: 'tool_result';
+  role: "assistant";
+  type: "tool_result";
   toolName: string;
   toolCallId: string; // Links back to the specific call request.
   result: ToolExecutionResult;
@@ -84,8 +88,12 @@ export interface AssistantToolResultMessage extends BaseMessage {
 }
 
 // The complete, type-safe Message union
-export type Message = UserMessage | AssistantTextMessage | AssistantToolCallMessage | AssistantToolResultMessage | SystemMessage;
-
+export type Message =
+  | UserMessage
+  | AssistantTextMessage
+  | AssistantToolCallMessage
+  | AssistantToolResultMessage
+  | SystemMessage;
 
 // --- NEW ChatItem V2 ---
 
@@ -94,14 +102,14 @@ export interface ChatItem {
   title: string;
   createdAt: number;
   pinned?: boolean;
-  
+
   // The full conversation history
   messages: Message[];
 
   // The configuration for this chat
   config: {
     // The base system prompt ID from the library
-    systemPromptId: string; 
+    systemPromptId: string;
     // The actual, enhanced prompt content used in the last interaction
     lastUsedEnhancedPrompt: string | null;
     // The tool category active for this chat
@@ -113,7 +121,7 @@ export interface ChatItem {
   currentInteraction: {
     // The state machine's current position (e.g., 'generatingResponse.streaming')
     machineState: StateValue;
-    
+
     // The ID of the assistant message being streamed into
     streamingMessageId: string | null;
 
@@ -135,15 +143,26 @@ export interface ChatItem {
   } | null;
 }
 
-
 // --- Utility functions and Type Guards ---
 
-export const isAssistantToolResultMessage = (message: Message): message is AssistantToolResultMessage => {
-  return message.role === 'assistant' && 'type'in message && message.type === 'tool_result';
+export const isAssistantToolResultMessage = (
+  message: Message
+): message is AssistantToolResultMessage => {
+  return (
+    message.role === "assistant" &&
+    "type" in message &&
+    message.type === "tool_result"
+  );
 };
 
-export const isAssistantToolCallMessage = (message: Message): message is AssistantToolCallMessage => {
-  return message.role === 'assistant' && 'type' in message && message.type === 'tool_call';
+export const isAssistantToolCallMessage = (
+  message: Message
+): message is AssistantToolCallMessage => {
+  return (
+    message.role === "assistant" &&
+    "type" in message &&
+    message.type === "tool_call"
+  );
 };
 
 // --- Other existing types to keep ---
@@ -176,7 +195,7 @@ export interface Choice {
   finish_reason: string;
   index?: number;
   delta?: { content?: string };
-  message?: { role: 'assistant'; content: string | null; tool_calls?: any[] };
+  message?: { role: "assistant"; content: string | null; tool_calls?: any[] };
 }
 
 export interface Usage {
@@ -185,16 +204,9 @@ export interface Usage {
   total_tokens: number;
 }
 
-export interface SystemPromptPreset {
-  id: string; // uuid
+export interface UserSystemPrompt {
+  id: string; // UUID
   name: string;
   content: string;
-  description: string;
-  category: string;
-  mode: "general" | "tool_specific";
-  autoToolPrefix?: string;
-  allowedTools?: string[];
-  restrictConversation?: boolean;
+  isDefault?: boolean; // To mark built-in prompts
 }
-
-export type SystemPromptPresetList = SystemPromptPreset[];

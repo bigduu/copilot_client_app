@@ -1,8 +1,4 @@
-import {
-  SystemPromptPreset,
-  SystemPromptPresetList,
-} from "../types/chat";
-import { invoke } from "@tauri-apps/api/core";
+import { UserSystemPrompt } from "../types/chat";
 
 const SYSTEM_PROMPT_KEY = "system_prompt";
 const SYSTEM_PROMPT_SELECTED_ID_KEY = "system_prompt_selected_id";
@@ -30,12 +26,16 @@ export class SystemPromptService {
     try {
       const storedPrompt = localStorage.getItem(SYSTEM_PROMPT_KEY);
       if (!storedPrompt) {
-        throw new Error("System prompt not configured, please configure it first");
+        throw new Error(
+          "System prompt not configured, please configure it first"
+        );
       }
       return storedPrompt;
     } catch (error) {
       console.error("Error loading global system prompt:", error);
-      throw new Error("System prompt not configured, please configure it first");
+      throw new Error(
+        "System prompt not configured, please configure it first"
+      );
     }
   }
 
@@ -61,12 +61,16 @@ export class SystemPromptService {
     try {
       const id = localStorage.getItem(SYSTEM_PROMPT_SELECTED_ID_KEY);
       if (!id) {
-        throw new Error("System prompt preset ID not set, must be configured from the backend first");
+        throw new Error(
+          "System prompt preset ID not set, must be configured from the backend first"
+        );
       }
       return id;
     } catch (error) {
       console.error("Error loading selected system prompt preset ID:", error);
-      throw new Error("System prompt preset ID configuration is missing, no frontend default is provided");
+      throw new Error(
+        "System prompt preset ID configuration is missing, no frontend default is provided"
+      );
     }
   }
 
@@ -84,29 +88,37 @@ export class SystemPromptService {
   /**
    * Get ToolCategory configuration from backend to generate preset list
    */
-  async getSystemPromptPresets(): Promise<SystemPromptPresetList> {
+  async getSystemPromptPresets(): Promise<any[]> {
     try {
-      // Call backend API to get tool categories
-      const categories = await invoke<any[]>("get_tool_categories");
+      // Call backend web service to get tool categories
+      const response = await fetch("http://localhost:8080/tools/categories");
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      const categoryInfos = await response.json();
 
-      const presets: SystemPromptPresetList = categories.map((category) => {
+      const presets = categoryInfos.map((info: any) => {
+        const category = info.category;
         return {
           id: category.id,
-          name: category.name,
+          name: category.display_name,
           content: category.system_prompt,
           description: category.description,
-          category: category.id, // Directly use the category ID from the backend, no longer mapping
-          mode: category.restrict_conversation ? "tool_specific" : "general",
-          autoToolPrefix: category.auto_prefix,
-          allowedTools: category.tools || [],
+          category: category.id,
+          mode: category.strict_tools_mode ? "tool_specific" : "general",
+          autoToolPrefix: category.auto_tool_prefix,
+          allowedTools: info.tools.map((t: any) => t.name) || [],
           restrictConversation: category.restrict_conversation,
+          isDefault: category.is_default,
         };
       });
 
       return presets;
     } catch (error) {
       console.error("Failed to get categories from backend:", error);
-      throw new Error("Cannot get system prompt preset configuration from the backend, no default configuration is provided on the frontend");
+      throw new Error(
+        "Cannot get system prompt preset configuration from the backend, no default configuration is provided on the frontend"
+      );
     }
   }
 
@@ -115,13 +127,12 @@ export class SystemPromptService {
    * No longer provides any hardcoded default values
    */
 
-
   /**
    * Find preset by preset ID
    */
-  async findPresetById(id: string): Promise<SystemPromptPreset | undefined> {
+  async findPresetById(id: string): Promise<any | undefined> {
     const presets = await this.getSystemPromptPresets();
-    return presets.find((preset) => preset.id === id);
+    return presets.find((preset: any) => preset.id === id);
   }
 
   /**
@@ -172,10 +183,8 @@ export class SystemPromptService {
   /**
    * Get presets by category
    */
-  async getPresetsByCategory(
-    category: string
-  ): Promise<SystemPromptPresetList> {
+  async getPresetsByCategory(category: string): Promise<any[]> {
     const presets = await this.getSystemPromptPresets();
-    return presets.filter((preset) => preset.category === category);
+    return presets.filter((preset: any) => preset.category === category);
   }
 }

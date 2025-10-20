@@ -6,12 +6,13 @@ use tokio::sync::oneshot;
 
 use crate::controllers::{chat_controller, system_controller, tool_controller};
 use crate::services::tool_service::ToolService;
-use copilot_client::CopilotClient;
-use tool_system::manager::ToolsManager;
+use copilot_client::api::client::CopilotClient;
+use tool_system::{create_tools_manager, manager::ToolsManager};
 
 pub struct WebService {
     shutdown_tx: Option<oneshot::Sender<()>>,
     server_handle: Option<tokio::task::JoinHandle<()>>,
+    tools_manager: Arc<ToolsManager>,
 }
 
 impl WebService {
@@ -19,22 +20,20 @@ impl WebService {
         Self {
             shutdown_tx: None,
             server_handle: None,
+            tools_manager: Arc::new(create_tools_manager()),
         }
     }
 
-    pub async fn start(
-        &mut self,
-        copilot_client: Arc<CopilotClient>,
-        tools_manager: Arc<ToolsManager>,
-    ) -> Result<(), String> {
+    pub async fn start(&mut self, copilot_client: Arc<CopilotClient>) -> Result<(), String> {
+        info!("Starting web service...");
         if self.server_handle.is_some() {
             return Err("Web service is already running".to_string());
         }
 
         let (shutdown_tx, mut shutdown_rx) = oneshot::channel::<()>();
 
-        let copilot_client_data = web::Data::from(copilot_client);
-        let tool_service = ToolService::new(tools_manager);
+        let copilot_client_data = web::Data::new(copilot_client);
+        let tool_service = ToolService::new(self.tools_manager.clone());
         let tool_service_data = web::Data::new(tool_service);
 
         let server = HttpServer::new(move || {
@@ -49,12 +48,9 @@ impl WebService {
                         .allow_any_header()
                         .max_age(3600),
                 )
-                .service(
-                    web::scope("/v1")
-                        .configure(tool_controller::config)
-                        .configure(chat_controller::config)
-                        .configure(system_controller::config),
-                )
+                .configure(tool_controller::config)
+                .configure(system_controller::config)
+                .service(web::scope("/v1").configure(chat_controller::config))
         })
         .bind("127.0.0.1:8080")
         .map_err(|e| format!("Failed to bind server: {}", e))?

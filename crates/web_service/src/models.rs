@@ -118,7 +118,7 @@ pub struct OpenAIErrorDetail {
 }
 
 // Models for Tool Service
-#[derive(Serialize)]
+#[derive(Serialize, Debug)]
 pub struct ParameterInfo {
     pub name: String,
     pub description: String,
@@ -127,7 +127,7 @@ pub struct ParameterInfo {
     pub param_type: String,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Debug)]
 pub struct ToolUIInfo {
     pub name: String,
     pub description: String,
@@ -141,7 +141,7 @@ pub struct ToolUIInfo {
     pub required_approval: bool,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Debug)]
 pub struct ToolsUIResponse {
     pub tools: Vec<ToolUIInfo>,
     pub is_strict_mode: bool,

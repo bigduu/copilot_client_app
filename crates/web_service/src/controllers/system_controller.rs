@@ -1,5 +1,5 @@
 use actix_web::{web, HttpResponse, Responder};
-use mcp_client::client::{McpClientStatus, MCP_CLIENT_MANAGER};
+use mcp_client::client::MCP_CLIENT_MANAGER;
 use mcp_client::model::McpServersConfig;
 use std::fs;
 use std::path::PathBuf;
