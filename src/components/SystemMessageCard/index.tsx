@@ -3,30 +3,25 @@ import { Card, Space, Typography, theme } from "antd";
 import ReactMarkdown from "react-markdown";
 import { useChatManager } from "../../hooks/useChatManager";
 import { SystemPromptService } from "../../services/SystemPromptService";
+import { Message } from "../../types/chat";
 
 const { Text } = Typography;
 const { useToken } = theme;
 
-interface SystemMessageProps {
-  // Removed collapsible props since we're not using them anymore
+interface SystemMessageCardProps {
+  message: Message;
 }
 
-const SystemMessage: React.FC<SystemMessageProps> = () => {
+const SystemMessageCard: React.FC<SystemMessageCardProps> = ({ message }) => {
   const { token } = useToken();
-
-  // Get the current chat context from the new hook
   const { currentChat } = useChatManager();
-
-  // State for category description
   const [categoryDescription, setCategoryDescription] = useState<string>("");
 
-  // Get system prompt service
   const systemPromptService = React.useMemo(
     () => SystemPromptService.getInstance(),
     []
   );
 
-  // Effect to load category description
   useEffect(() => {
     const loadCategoryDescription = async () => {
       if (!currentChat?.config) return;
@@ -54,7 +49,6 @@ const SystemMessage: React.FC<SystemMessageProps> = () => {
             return;
           }
         }
-        // If no description is found, clear it.
         setCategoryDescription("");
       } catch (error) {
         console.error("Failed to load category description:", error);
@@ -65,34 +59,22 @@ const SystemMessage: React.FC<SystemMessageProps> = () => {
     loadCategoryDescription();
   }, [currentChat?.config, systemPromptService]);
 
-  // Content to display: prioritize category description, then fallback
   const promptToDisplay = React.useMemo(() => {
     if (categoryDescription) {
       return categoryDescription;
     }
-    // The actual system prompt is now stored in the messages array.
-    // This component should primarily show the description or a placeholder.
-    const systemMessage = currentChat?.messages.find(
-      (m) => m.role === "system"
-    );
-    if (systemMessage) {
-      return systemMessage.content;
+    if (message.role === "system") {
+      return message.content;
     }
-
     return "System prompt is being prepared...";
-  }, [categoryDescription, currentChat?.messages]);
-
-  // If there's no active chat, don't render anything.
-  if (!currentChat) {
-    return null;
-  }
+  }, [categoryDescription, message]);
 
   return (
     <Card
       style={{
-        position: "relative",
         width: "100%",
         maxWidth: "100%",
+        background: token.colorBgContainer,
         borderRadius: token.borderRadiusLG,
         boxShadow: token.boxShadow,
       }}
@@ -107,55 +89,53 @@ const SystemMessage: React.FC<SystemMessageProps> = () => {
         </Text>
         <div
           style={{
-            display: "flex",
-            gap: token.marginSM,
-            alignItems: "flex-start",
+            maxHeight: "200px", // Limit height
+            overflowY: "auto", // Add scrollbar
+            paddingRight: token.paddingXS, // Add some padding for the scrollbar
           }}
         >
-          <div style={{ flex: 1 }}>
-            <ReactMarkdown
-              components={{
-                p: ({ children }) => (
-                  <Text
-                    style={{ marginBottom: token.marginSM, display: "block" }}
-                  >
-                    {children}
-                  </Text>
-                ),
-                ol: ({ children }) => (
-                  <ol style={{ marginBottom: token.marginSM, paddingLeft: 20 }}>
-                    {children}
-                  </ol>
-                ),
-                ul: ({ children }) => (
-                  <ul style={{ marginBottom: token.marginSM, paddingLeft: 20 }}>
-                    {children}
-                  </ul>
-                ),
-                li: ({ children }) => (
-                  <li style={{ marginBottom: token.marginXS }}>{children}</li>
-                ),
-                h1: ({ children }) => (
-                  <Text
-                    strong
-                    style={{
-                      fontSize: token.fontSizeHeading3,
-                      marginBottom: token.marginSM,
-                      display: "block",
-                    }}
-                  >
-                    {children}
-                  </Text>
-                ),
-              }}
-            >
-              {promptToDisplay}
-            </ReactMarkdown>
-          </div>
+          <ReactMarkdown
+            components={{
+              p: ({ children }) => (
+                <Text
+                  style={{ marginBottom: token.marginSM, display: "block" }}
+                >
+                  {children}
+                </Text>
+              ),
+              ol: ({ children }) => (
+                <ol style={{ marginBottom: token.marginSM, paddingLeft: 20 }}>
+                  {children}
+                </ol>
+              ),
+              ul: ({ children }) => (
+                <ul style={{ marginBottom: token.marginSM, paddingLeft: 20 }}>
+                  {children}
+                </ul>
+              ),
+              li: ({ children }) => (
+                <li style={{ marginBottom: token.marginXS }}>{children}</li>
+              ),
+              h1: ({ children }) => (
+                <Text
+                  strong
+                  style={{
+                    fontSize: token.fontSizeHeading3,
+                    marginBottom: token.marginSM,
+                    display: "block",
+                  }}
+                >
+                  {children}
+                </Text>
+              ),
+            }}
+          >
+            {promptToDisplay}
+          </ReactMarkdown>
         </div>
       </Space>
     </Card>
   );
 };
 
-export default SystemMessage;
+export default SystemMessageCard;

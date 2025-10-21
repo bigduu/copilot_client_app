@@ -1,12 +1,7 @@
-import React, {
-  useEffect,
-  useRef,
-  useState,
-  useCallback,
-} from "react";
+import React, { useEffect, useRef, useState, useCallback } from "react";
 import { Layout, Empty, Space, theme, Button, Grid, Flex } from "antd";
 import { useChatController } from "../../contexts/ChatControllerContext";
-import SystemMessage from "../SystemMessage";
+import SystemMessageCard from "../SystemMessageCard";
 import { DownOutlined } from "@ant-design/icons";
 import { InputContainer } from "../InputContainer";
 import { ApprovalModal } from "../ApprovalModal";
@@ -178,54 +173,6 @@ export const ChatView: React.FC = () => {
           height: "100vh",
         }}
       >
-        {/* System Message Area */}
-        <Flex
-          justify="center"
-          className={`chat-view-system-message-container ${
-            showMessagesView ? "messages-view" : "centered-view"
-          }`}
-          style={{
-            paddingTop: showMessagesView
-              ? getContainerPadding()
-              : token.paddingXL,
-            paddingLeft: getContainerPadding(),
-            paddingRight: getContainerPadding(),
-            paddingBottom: showMessagesView ? 0 : token.marginXL,
-            width: "100%",
-            maxWidth: showMessagesView ? getContainerMaxWidth() : "100%",
-          }}
-        >
-          {currentChatId ? (
-            <Flex
-              vertical
-              style={{
-                width: "100%",
-                maxWidth: showMessagesView ? getContainerMaxWidth() : "100%",
-              }}
-            >
-              <SystemMessage />
-              {!showMessagesView && !hasMessages && (
-                <Empty
-                  description="Send a message to start the conversation."
-                  image={Empty.PRESENTED_IMAGE_SIMPLE}
-                  style={{
-                    marginTop: token.marginMD,
-                    textAlign: "center",
-                  }}
-                />
-              )}
-            </Flex>
-          ) : (
-            !showMessagesView && (
-              <Empty
-                description="Select a chat or start a new one"
-                image={Empty.PRESENTED_IMAGE_SIMPLE}
-                style={{ textAlign: "center" }}
-              />
-            )
-          )}
-        </Flex>
-
         {/* Messages List Area */}
         <Content
           className={`chat-view-messages-list ${
@@ -252,9 +199,14 @@ export const ChatView: React.FC = () => {
               {currentMessages
                 .filter(
                   (message) =>
-                    message.role === "user" || message.role === "assistant"
+                    message.role === "user" ||
+                    message.role === "assistant" ||
+                    message.role === "system"
                 )
                 .map((message, index) => {
+                  if (message.role === "system") {
+                    return <SystemMessageCard key={index} message={message} />;
+                  }
 
                   return (
                     <Flex

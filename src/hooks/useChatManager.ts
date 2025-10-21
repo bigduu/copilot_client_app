@@ -41,6 +41,10 @@ export const useChatManager = () => {
   const updateMessageContent = useAppStore(
     (state) => state.updateMessageContent
   );
+  const lastSelectedPromptId = useAppStore(
+    (state) => state.lastSelectedPromptId
+  );
+  const systemPrompts = useAppStore((state) => state.systemPrompts);
 
   // --- DERIVED STATE ---
   const currentChat = useMemo(
@@ -191,6 +195,10 @@ export const useChatManager = () => {
         });
         return;
       }
+      console.log(
+        "[ChatManager] sendMessage: currentChat.config on entry:",
+        currentChat.config
+      );
       const chatId = currentChat.id;
 
       const processedContent = content;
@@ -237,11 +245,11 @@ export const useChatManager = () => {
       } else {
         send({
           type: "USER_SUBMITS",
-          payload: { messages: updatedHistory, chat: updatedChat },
+          payload: { messages: updatedHistory, chat: updatedChat, systemPrompts },
         });
       }
     },
-    [currentChat, addMessage, send, modal, baseMessages]
+    [currentChat, addMessage, send, modal, baseMessages, systemPrompts]
   );
 
   const retryLastMessage = useCallback(async () => {
@@ -266,20 +274,26 @@ export const useChatManager = () => {
       };
       send({
         type: "USER_SUBMITS",
-        payload: { messages: messagesToRetry, chat: updatedChat },
+        payload: { messages: messagesToRetry, chat: updatedChat, systemPrompts },
       });
     }
-  }, [currentChat, baseMessages, deleteMessage, send]);
+  }, [currentChat, baseMessages, deleteMessage, send, systemPrompts]);
 
   const createNewChat = useCallback(
     (title?: string, options?: Partial<Omit<ChatItem, "id">>) => {
+      const selectedPrompt = systemPrompts.find(
+        (p) => p.id === lastSelectedPromptId
+      );
+
       const newChatData: Omit<ChatItem, "id"> = {
         title: title || "New Chat",
         createdAt: Date.now(),
         messages: [],
         config: {
-          systemPromptId: "default-general",
-          toolCategory: "general", // Keep a general category for now
+          systemPromptId: selectedPrompt?.id || "default-general",
+          baseSystemPrompt:
+            selectedPrompt?.content || "You are a helpful assistant.",
+          toolCategory: "general",
           lastUsedEnhancedPrompt: null,
         },
         currentInteraction: null,
@@ -288,11 +302,15 @@ export const useChatManager = () => {
       addChat(newChatData);
       saveChats();
     },
-    [addChat, saveChats]
+    [addChat, saveChats, lastSelectedPromptId, systemPrompts]
   );
 
   const createChatWithSystemPrompt = useCallback(
     async (prompt: UserSystemPrompt) => {
+      console.log(
+        "[ChatManager] createChatWithSystemPrompt started with prompt:",
+        prompt
+      );
       const enhancedPrompt = await SystemPromptEnhancer.getEnhancedSystemPrompt(
         prompt.content
       );
@@ -310,11 +328,16 @@ export const useChatManager = () => {
         ],
         config: {
           systemPromptId: prompt.id,
+          baseSystemPrompt: prompt.content, // Store the original prompt content
           toolCategory: "dynamic", // A new category to signify dynamic tool usage
           lastUsedEnhancedPrompt: enhancedPrompt,
         },
         currentInteraction: null,
       };
+      console.log(
+        "[ChatManager] Calling addChat with newChatData.config:",
+        newChatData.config
+      );
       addChat(newChatData);
       saveChats();
     },

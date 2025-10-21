@@ -55,6 +55,10 @@ export const createChatSlice =
 
     // Chat management actions
     addChat: (chatData) => {
+      console.log(
+        "[ChatSlice] addChat action triggered with chatData.config:",
+        (chatData as ChatItem).config
+      );
       // This function now strictly expects the new ChatItem structure.
       // The ID is generated here, and the rest of the data comes from the input.
       const newChat: ChatItem = {

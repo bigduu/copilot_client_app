@@ -110,6 +110,8 @@ export interface ChatItem {
   config: {
     // The base system prompt ID from the library
     systemPromptId: string;
+    // The original, un-enhanced system prompt content
+    baseSystemPrompt: string;
     // The actual, enhanced prompt content used in the last interaction
     lastUsedEnhancedPrompt: string | null;
     // The tool category active for this chat

@@ -14,17 +14,10 @@ import { useAppStore } from "../../store";
 import { UserSystemPrompt } from "../../types/chat";
 
 const SystemPromptManager = () => {
-  const {
-    systemPrompts,
-    addSystemPrompt,
-    updateSystemPrompt,
-    deleteSystemPrompt,
-  } = useAppStore((state) => ({
-    systemPrompts: state.systemPrompts,
-    addSystemPrompt: state.addSystemPrompt,
-    updateSystemPrompt: state.updateSystemPrompt,
-    deleteSystemPrompt: state.deleteSystemPrompt,
-  }));
+  const systemPrompts = useAppStore((state) => state.systemPrompts);
+  const addSystemPrompt = useAppStore((state) => state.addSystemPrompt);
+  const updateSystemPrompt = useAppStore((state) => state.updateSystemPrompt);
+  const deleteSystemPrompt = useAppStore((state) => state.deleteSystemPrompt);
 
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [editingPrompt, setEditingPrompt] = useState<UserSystemPrompt | null>(

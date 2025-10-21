@@ -99,10 +99,16 @@ export class SystemPromptService {
 
       const presets = categoryInfos.map((info: any) => {
         const category = info.category;
+        const promptContent =
+          typeof category.system_prompt === "object" &&
+          category.system_prompt !== null
+            ? category.system_prompt.content
+            : category.system_prompt;
+
         return {
           id: category.id,
           name: category.display_name,
-          content: category.system_prompt,
+          content: promptContent || "",
           description: category.description,
           category: category.id,
           mode: category.strict_tools_mode ? "tool_specific" : "general",
