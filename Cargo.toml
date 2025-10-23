@@ -1,4 +1,11 @@
 [workspace]
-members = ["crates/copilot_client", "crates/tool_system", "crates/mcp_client", "crates/web_service", "src-tauri"]
+members = [
+    "crates/copilot_client",
+    "crates/tool_system",
+    "crates/mcp_client",
+    "crates/web_service",
+    "src-tauri",
+    "crates/web_service_standalone",
+]
 resolver = "2"
 default-members = ["src-tauri"]

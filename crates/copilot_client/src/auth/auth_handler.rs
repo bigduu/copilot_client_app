@@ -113,6 +113,7 @@ impl CopilotAuthHandler {
             "User code '{}' has been copied to your clipboard. Please paste it into the GitHub page that will open next.",
             device_code.user_code
         );
+
         rfd::MessageDialog::new()
             .set_title("User Code Copied")
             .set_description(&dialog_message)
