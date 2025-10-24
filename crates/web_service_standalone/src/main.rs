@@ -3,12 +3,6 @@ use std::path::PathBuf;
 
 #[tokio::main]
 async fn main() {
-    rfd::MessageDialog::new()
-        .set_title("User Code Copied")
-        .set_description("test")
-        .set_level(rfd::MessageLevel::Info)
-        .set_buttons(rfd::MessageButtons::Ok)
-        .show();
     dotenvy::dotenv().ok();
     // Initialize the logger
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();

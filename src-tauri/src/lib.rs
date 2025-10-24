@@ -1,5 +1,4 @@
 use crate::command::copy::copy_to_clipboard;
-use copilot_client::{Config, CopilotClient};
 use log::{info, LevelFilter};
 use mcp_client::client::init_all_clients;
 use tauri::{App, Manager, Runtime};
