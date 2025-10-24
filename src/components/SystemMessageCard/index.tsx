@@ -4,6 +4,7 @@ import ReactMarkdown from "react-markdown";
 import { useChatManager } from "../../hooks/useChatManager";
 import { SystemPromptService } from "../../services/SystemPromptService";
 import { Message } from "../../types/chat";
+import { useAppStore } from "../../store";
 
 const { Text } = Typography;
 const { useToken } = theme;
@@ -15,6 +16,7 @@ interface SystemMessageCardProps {
 const SystemMessageCard: React.FC<SystemMessageCardProps> = ({ message }) => {
   const { token } = useToken();
   const { currentChat } = useChatManager();
+  const systemPrompts = useAppStore((state) => state.systemPrompts);
   const [categoryDescription, setCategoryDescription] = useState<string>("");
 
   const systemPromptService = React.useMemo(
@@ -29,6 +31,16 @@ const SystemMessageCard: React.FC<SystemMessageCardProps> = ({ message }) => {
       try {
         const { systemPromptId, toolCategory } = currentChat.config;
 
+        // 1. First, try to find the description in the user-defined prompts from Zustand
+        if (systemPromptId) {
+          const userPrompt = systemPrompts.find((p) => p.id === systemPromptId);
+          if (userPrompt?.description) {
+            setCategoryDescription(userPrompt.description);
+            return;
+          }
+        }
+
+        // 2. If not found, then try the original logic with the service
         if (systemPromptId) {
           const preset = await systemPromptService.findPresetById(
             systemPromptId

@@ -27,7 +27,7 @@ const SystemPromptManager = () => {
 
   const showModal = (prompt: UserSystemPrompt | null = null) => {
     setEditingPrompt(prompt);
-    form.setFieldsValue(prompt || { name: "", content: "" });
+    form.setFieldsValue(prompt || { name: "", description: "", content: "" });
     setIsModalVisible(true);
   };
 
@@ -103,8 +103,9 @@ const SystemPromptManager = () => {
             <List.Item.Meta
               title={item.name}
               description={
-                item.content.substring(0, 100) +
-                (item.content.length > 100 ? "..." : "")
+                item.description ||
+                item.content.substring(0, 200) +
+                  (item.content.length > 200 ? "..." : "")
               }
             />
             {item.isDefault && <Tag>Default</Tag>}
@@ -116,6 +117,7 @@ const SystemPromptManager = () => {
         open={isModalVisible}
         onOk={handleOk}
         onCancel={handleCancel}
+        width="60%"
       >
         <Form form={form} layout="vertical" name="system_prompt_form">
           <Form.Item
@@ -131,6 +133,18 @@ const SystemPromptManager = () => {
             <Input />
           </Form.Item>
           <Form.Item
+            name="description"
+            label="Prompt Description"
+            rules={[
+              {
+                required: false,
+                message: "Please input the description of the prompt!",
+              },
+            ]}
+          >
+            <Input.TextArea rows={3} />
+          </Form.Item>
+          <Form.Item
             name="content"
             label="Prompt Content"
             rules={[
@@ -140,7 +154,7 @@ const SystemPromptManager = () => {
               },
             ]}
           >
-            <Input.TextArea rows={6} />
+            <Input.TextArea rows={10} />
           </Form.Item>
         </Form>
       </Modal>

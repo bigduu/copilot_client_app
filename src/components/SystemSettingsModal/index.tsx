@@ -157,127 +157,125 @@ const SystemSettingsModal = ({
       open={open}
       onCancel={onClose}
       footer={null}
-      width={520}
+      width="80%"
     >
       {contextHolder}
 
-      {/* Model Selection Section */}
-      <ModelSelection
-        isLoadingModels={isLoadingModels}
-        modelsError={modelsError}
-        models={models}
-        selectedModel={selectedModel}
-        onModelChange={setSelectedModel}
-      />
+      <Flex vertical gap="large">
+        {/* Model Selection Section */}
+        <ModelSelection
+          isLoadingModels={isLoadingModels}
+          modelsError={modelsError}
+          models={models}
+          selectedModel={selectedModel}
+          onModelChange={setSelectedModel}
+        />
 
-      <Divider />
+        {/* System Prompt Manager Section */}
+        <SystemPromptManager />
 
-      {/* System Prompt Manager Section */}
-      <SystemPromptManager />
-
-      <Divider />
-
-      {/* Settings Section */}
-      <Space
-        direction="vertical"
-        size={token.marginSM}
-        style={{ width: "100%" }}
-      >
-        <Flex align="center" gap={token.marginSM}>
-          <Text strong>Service Mode</Text>
-          <Switch
-            checked={isOpenAIMode}
-            onChange={(checked) => {
-              const mode = checked ? "openai" : "tauri";
-              setServiceMode(mode);
-              msgApi.success(
-                `Switched to ${checked ? "OpenAI API" : "Tauri"} mode`
-              );
-            }}
-            checkedChildren={
-              <Flex align="center" gap={4}>
-                <ApiOutlined />
-                OpenAI
-              </Flex>
-            }
-            unCheckedChildren={
-              <Flex align="center" gap={4}>
-                <DesktopOutlined />
-                Tauri
-              </Flex>
-            }
-          />
-        </Flex>
-        <Text type="secondary" style={{ fontSize: token.fontSizeSM }}>
-          OpenAI mode uses standard HTTP API calls, Tauri mode uses native
-          commands
-        </Text>
-        <Flex align="center" gap={token.marginSM}>
-          <Text strong>Dark Mode</Text>
-          <Switch
-            checked={themeMode === "dark"}
-            onChange={(checked) => {
-              const mode = checked ? "dark" : "light";
-              onThemeModeChange(mode);
-              localStorage.setItem(DARK_MODE_KEY, mode);
-            }}
-            checkedChildren="Dark"
-            unCheckedChildren="Light"
-          />
-        </Flex>
-        <Flex align="center" gap={token.marginSM}>
-          <Text strong>Mermaid Diagrams Enhancement</Text>
-          <Switch
-            checked={mermaidEnhancementEnabled}
-            onChange={(checked) => {
-              setMermaidEnhancementEnabledState(checked);
-              setMermaidEnhancementEnabled(checked);
-            }}
-            checkedChildren="ON"
-            unCheckedChildren="OFF"
-          />
-        </Flex>
-        <Text type="secondary" style={{ fontSize: token.fontSizeSM }}>
-          When enabled, AI will be encouraged to use Mermaid diagrams for visual
-          explanations
-        </Text>
-        <Popconfirm
-          title="Delete all chats"
-          description="Are you sure? This will delete all chats except pinned."
-          onConfirm={handleDeleteAll}
-          okText="Yes, delete all"
-          cancelText="Cancel"
-          placement="top"
+        {/* Settings Section */}
+        <Space
+          direction="vertical"
+          size={token.marginSM}
+          style={{ width: "100%" }}
         >
-          <Button danger block icon={<DeleteOutlined />}>
-            Delete All Chats
-          </Button>
-        </Popconfirm>
-        <Popconfirm
-          title="Delete empty chats"
-          description="Are you sure? This will delete all chats with no messages (except pinned)."
-          onConfirm={handleDeleteEmpty}
-          okText="Yes, delete empty"
-          cancelText="Cancel"
-          placement="top"
-        >
-          <Button danger block icon={<DeleteOutlined />}>
-            Delete Empty Chats
-          </Button>
-        </Popconfirm>
-        <Popconfirm
-          title="Clear Local Storage"
-          description="Are you sure? This will delete all local storage data and reset the application."
-          onConfirm={handleClearLocalStorage}
-          okText="Yes, clear it"
-          cancelText="Cancel"
-          placement="top"
-        >
-          <Button danger block icon={<DeleteOutlined />}>
-            Clear Local Storage
-          </Button>
-        </Popconfirm>
-      </Space>
+          <Flex align="center" gap={token.marginSM}>
+            <Text strong>Service Mode</Text>
+            <Switch
+              checked={isOpenAIMode}
+              onChange={(checked) => {
+                const mode = checked ? "openai" : "tauri";
+                setServiceMode(mode);
+                msgApi.success(
+                  `Switched to ${checked ? "OpenAI API" : "Tauri"} mode`
+                );
+              }}
+              checkedChildren={
+                <Flex align="center" gap={4}>
+                  <ApiOutlined />
+                  OpenAI
+                </Flex>
+              }
+              unCheckedChildren={
+                <Flex align="center" gap={4}>
+                  <DesktopOutlined />
+                  Tauri
+                </Flex>
+              }
+            />
+          </Flex>
+          <Text type="secondary" style={{ fontSize: token.fontSizeSM }}>
+            OpenAI mode uses standard HTTP API calls, Tauri mode uses native
+            commands
+          </Text>
+          <Flex align="center" gap={token.marginSM}>
+            <Text strong>Dark Mode</Text>
+            <Switch
+              checked={themeMode === "dark"}
+              onChange={(checked) => {
+                const mode = checked ? "dark" : "light";
+                onThemeModeChange(mode);
+                localStorage.setItem(DARK_MODE_KEY, mode);
+              }}
+              checkedChildren="Dark"
+              unCheckedChildren="Light"
+            />
+          </Flex>
+          <Flex align="center" gap={token.marginSM}>
+            <Text strong>Mermaid Diagrams Enhancement</Text>
+            <Switch
+              checked={mermaidEnhancementEnabled}
+              onChange={(checked) => {
+                setMermaidEnhancementEnabledState(checked);
+                setMermaidEnhancementEnabled(checked);
+              }}
+              checkedChildren="ON"
+              unCheckedChildren="OFF"
+            />
+          </Flex>
+          <Text type="secondary" style={{ fontSize: token.fontSizeSM }}>
+            When enabled, AI will be encouraged to use Mermaid diagrams for
+            visual explanations
+          </Text>
+          <Popconfirm
+            title="Delete all chats"
+            description="Are you sure? This will delete all chats except pinned."
+            onConfirm={handleDeleteAll}
+            okText="Yes, delete all"
+            cancelText="Cancel"
+            placement="top"
+          >
+            <Button danger block icon={<DeleteOutlined />}>
+              Delete All Chats
+            </Button>
+          </Popconfirm>
+          <Popconfirm
+            title="Delete empty chats"
+            description="Are you sure? This will delete all chats with no messages (except pinned)."
+            onConfirm={handleDeleteEmpty}
+            okText="Yes, delete empty"
+            cancelText="Cancel"
+            placement="top"
+          >
+            <Button danger block icon={<DeleteOutlined />}>
+              Delete Empty Chats
+            </Button>
+          </Popconfirm>
+          <Popconfirm
+            title="Clear Local Storage"
+            description="Are you sure? This will delete all local storage data and reset the application."
+            onConfirm={handleClearLocalStorage}
+            okText="Yes, clear it"
+            cancelText="Cancel"
+            placement="top"
+          >
+            <Button danger block icon={<DeleteOutlined />}>
+              Clear Local Storage
+            </Button>
+          </Popconfirm>
+        </Space>
+      </Flex>
     </Modal>
   );
 };

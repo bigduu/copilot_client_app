@@ -209,6 +209,7 @@ export interface Usage {
 export interface UserSystemPrompt {
   id: string; // UUID
   name: string;
+  description?: string;
   content: string;
   isDefault?: boolean; // To mark built-in prompts
 }
