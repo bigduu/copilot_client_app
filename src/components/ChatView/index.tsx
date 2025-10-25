@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState, useCallback } from "react";
-import { Layout, Empty, Space, theme, Button, Grid, Flex } from "antd";
+import { Layout, Space, theme, Button, Grid, Flex } from "antd";
 import { useChatController } from "../../contexts/ChatControllerContext";
 import SystemMessageCard from "../SystemMessageCard";
 import { DownOutlined } from "@ant-design/icons";

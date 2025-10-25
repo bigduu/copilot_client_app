@@ -3,7 +3,10 @@
 use anyhow::Result;
 use async_trait::async_trait;
 
-use crate::{registry::macros::auto_register_tool, types::{DisplayPreference, Parameter, Tool, ToolType}};
+use crate::{
+    registry::macros::auto_register_tool,
+    types::{DisplayPreference, Parameter, Tool, ToolType},
+};
 
 #[derive(Debug)]
 pub struct DemoTool;
@@ -13,6 +16,12 @@ impl DemoTool {
 
     pub fn new() -> Self {
         Self
+    }
+}
+
+impl Default for DemoTool {
+    fn default() -> Self {
+        Self::new()
     }
 }
 

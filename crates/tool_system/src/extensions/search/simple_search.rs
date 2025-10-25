@@ -1,4 +1,7 @@
-use crate::{registry::macros::auto_register_tool, types::{Parameter, Tool, ToolType}};
+use crate::{
+    registry::macros::auto_register_tool,
+    types::{Parameter, Tool, ToolType},
+};
 use anyhow::{Context, Result};
 use async_trait::async_trait;
 use std::fs;
@@ -13,6 +16,12 @@ impl SimpleSearchTool {
 
     pub fn new() -> Self {
         Self
+    }
+}
+
+impl Default for SimpleSearchTool {
+    fn default() -> Self {
+        Self::new()
     }
 }
 

@@ -1,4 +1,7 @@
-use crate::{registry::macros::auto_register_tool, types::{Parameter, Tool, ToolType}};
+use crate::{
+    registry::macros::auto_register_tool,
+    types::{Parameter, Tool, ToolType},
+};
 use anyhow::Result;
 use async_trait::async_trait;
 use tokio::fs as tokio_fs;
@@ -12,6 +15,12 @@ impl DeleteFileTool {
 
     pub fn new() -> Self {
         Self
+    }
+}
+
+impl Default for DeleteFileTool {
+    fn default() -> Self {
+        Self::new()
     }
 }
 

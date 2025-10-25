@@ -1,4 +1,7 @@
-use crate::{registry::macros::auto_register_tool, types::{DisplayPreference, Parameter, Tool, ToolType}};
+use crate::{
+    registry::macros::auto_register_tool,
+    types::{DisplayPreference, Parameter, Tool, ToolType},
+};
 use anyhow::{Context, Result};
 use async_trait::async_trait;
 
@@ -11,6 +14,12 @@ impl ExecuteCommandTool {
 
     pub fn new() -> Self {
         Self
+    }
+}
+
+impl Default for ExecuteCommandTool {
+    fn default() -> Self {
+        Self::new()
     }
 }
 

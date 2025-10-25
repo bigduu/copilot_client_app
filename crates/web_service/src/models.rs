@@ -27,9 +27,7 @@ impl From<copilot_client::model::stream_model::Message> for OpenAIMessage {
 
 impl From<OpenAIMessage> for copilot_client::model::stream_model::Message {
     fn from(msg: OpenAIMessage) -> Self {
-        let content_text = match msg.content {
-            OpenAIContent::Text(text) => text,
-        };
+        let OpenAIContent::Text(content_text) = msg.content;
         copilot_client::model::stream_model::Message {
             role: msg.role,
             content: copilot_client::model::stream_model::MessageContent::Text(content_text),

@@ -67,8 +67,8 @@ impl ToolsManager {
     }
 
     /// Get a category by ID
-    pub fn get_category(&self, id: &str) -> Option<&Box<dyn Category>> {
-        self.categories.get(id)
+    pub fn get_category(&self, id: &str) -> Option<Box<&dyn Category>> {
+        self.categories.get(id).map(|cat| Box::new(cat.as_ref()))
     }
 
     /// Get all tools for a specific category
