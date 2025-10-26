@@ -31,7 +31,7 @@ fn required_tools(&self) -> &'static [&'static str] {
 ## ✅ 解决方案
 
 ### 更新 General Assistant
-修改 `src-tauri/src/extension_system/categories/general_assistant.rs`：
+修改 `src-tauri/src/tool_system/categories/general_assistant.rs`：
 
 ```rust
 fn required_tools(&self) -> &'static [&'static str] {

@@ -1251,6 +1251,7 @@ dependencies = [
  "log",
  "native-dialog",
  "reqwest",
+ "reqwest-sse",
  "rfd",
  "serde",
  "serde_json",

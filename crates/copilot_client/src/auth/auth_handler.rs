@@ -10,11 +10,77 @@ use std::{
     sync::Arc,
     time::Duration,
 };
+use serde::{Deserialize, Serialize};
 use tokio::sync::Mutex;
 use tokio::time::sleep;
 
-// This will be adjusted later once model/stream_model.rs is in place
-use crate::model::stream_model::{AccessTokenResponse, CopilotConfig, DeviceCodeResponse};
+// Models for GitHub authentication flow
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub(crate) struct CopilotConfig {
+    pub token: String,
+    // Other fields are not used directly by the auth handler, but are kept for completeness
+    pub annotations_enabled: bool,
+    pub chat_enabled: bool,
+    pub chat_jetbrains_enabled: bool,
+    pub code_quote_enabled: bool,
+    pub code_review_enabled: bool,
+    pub codesearch: bool,
+    pub copilotignore_enabled: bool,
+    pub endpoints: Endpoints,
+    pub expires_at: u64,
+    pub individual: bool,
+    pub limited_user_quotas: Option<String>,
+    pub limited_user_reset_date: Option<String>,
+    pub prompt_8k: bool,
+    pub public_suggestions: String,
+    pub refresh_in: u64,
+    pub sku: String,
+    pub snippy_load_test_enabled: bool,
+    pub telemetry: String,
+    pub tracking_id: String,
+    pub vsc_electron_fetcher_v2: bool,
+    pub xcode: bool,
+    pub xcode_chat: bool,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub(crate) struct Endpoints {
+    pub api: Option<String>,
+    pub origin_tracker: Option<String>,
+    pub proxy: Option<String>,
+    pub telemetry: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub(crate) struct DeviceCodeResponse {
+    pub device_code: String,
+    pub user_code: String,
+    pub verification_uri: String,
+    pub expires_in: u64,
+    pub interval: u64,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub(crate) struct AccessTokenResponse {
+    pub access_token: Option<String>,
+    pub token_type: Option<String>,
+    pub expires_in: Option<u64>,
+    pub interval: Option<u64>,
+    pub scope: Option<String>,
+    pub error: Option<String>,
+}
+impl AccessTokenResponse {
+    pub(crate) fn from_token(token: String) -> Self {
+        Self {
+            access_token: Some(token),
+            token_type: None,
+            expires_in: None,
+            interval: None,
+            scope: None,
+            error: None,
+        }
+    }
+}
 
 // Global static lock for get_chat_token
 lazy_static! {

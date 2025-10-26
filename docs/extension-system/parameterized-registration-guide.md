@@ -34,7 +34,7 @@ impl ConfigurableTool {
 最直接的解决方案是使用新的 `auto_register_tool_with_constructor!` 和 `auto_register_category_with_constructor!` 宏：
 
 ```rust
-use crate::extension_system::auto_register_tool_with_constructor;
+use crate::tool_system::auto_register_tool_with_constructor;
 
 // 注册带参数的工具
 auto_register_tool_with_constructor!(
@@ -51,7 +51,7 @@ auto_register_tool_with_constructor!(
 更灵活的解决方案是使用 `auto_register_tool_advanced!` 宏，它支持两种语法：
 
 ```rust
-use crate::extension_system::auto_register_tool_advanced;
+use crate::tool_system::auto_register_tool_advanced;
 
 // 无参数（等同于原始宏）
 auto_register_tool_advanced!(SimpleTool);

@@ -12,9 +12,9 @@ All development work within this project, which utilizes the Tauri framework (Ru
 | Rule | Requirement | Rationale |
 | :--- | :--- | :--- |
 | **1.1 Local Testing Command** | The local development environment **MUST** be initiated using the command `yarn tauri dev`. | Standard project practice. |
-| **1.2 Real-time Log Monitoring** | Since `tauri dev` auto-compiles, for continuous monitoring, you **MUST** find the relevant log file (if redirected) or process output and use `tail -f &lt;log_file&gt;` to track runtime status, compilation errors, and application output. | Avoids repetitive restarts and ensures immediate feedback. |
+| **1.2 Real-time Log Monitoring** | Since `tauri dev` auto-compiles, for continuous monitoring, you **MUST** find the relevant log file (if redirected) or process output and use `tail -f &lt;log_file>` to track runtime status, compilation errors, and application output. | Avoids repetitive restarts and ensures immediate feedback. |
 | **1.3 Process Management** | If the `tauri dev` process needs to be restarted or is running in the background, you **MUST** use appropriate shell commands (e.g., `pgrep tauri`, `kill`) to manage or terminate the process cleanly. | Ensures reliable process state before new actions. |
-| **1.4 Background Logging (Optional)** | When running tests or processes in a non-interactive shell context, you **MAY** use `nohup &lt;command&gt; &gt; &lt;log_file&gt; 2&gt;&amp;1 &amp;` to redirect output to a file, immediately followed by `tail -f &lt;log_file&gt;` for monitoring. | Maintains history and allows background execution tracking. |
+| **1.4 Background Logging (Optional)** | When running tests or processes in a non-interactive shell context, you **MAY** use `nohup &lt;command> > &lt;log_file> 2>&amp;1 &amp;` to redirect output to a file, immediately followed by `tail -f &lt;log_file>` for monitoring. | Maintains history and allows background execution tracking. |
 
 ---
 

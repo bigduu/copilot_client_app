@@ -13,7 +13,7 @@
 | 统一聊天流程 | 聊天流程架构设计 | [`architecture/UNIFIED_CHAT_FLOW_ARCHITECTURE.md`](./architecture/UNIFIED_CHAT_FLOW_ARCHITECTURE.md) |
 
 
-### 🔧 扩展系统
+### 🔧 工具系统 (Tool System)
 | 文档 | 描述 | 路径 |
 |------|------|------|
 | 注册宏总结 | 工具注册宏使用指南 | [`extension-system/registration-macros-summary.md`](./extension-system/registration-macros-summary.md) |
@@ -34,14 +34,6 @@
 |------|------|------|
 | 样式指南 | 代码样式和格式规范 | [`development/STYLING_GUIDELINES.md`](./development/STYLING_GUIDELINES.md) |
 | 库集成计划 | 第三方库集成计划 | [`development/LIBRARY_INTEGRATION_PLAN.md`](./development/LIBRARY_INTEGRATION_PLAN.md) |
-
-### 📖 开发指南
-| 文档 | 描述 | 路径 |
-|------|------|------|
-| 最终解决方案 | 项目最终解决方案总结 | [`guides/FINAL_SOLUTION_SUMMARY.md`](./guides/FINAL_SOLUTION_SUMMARY.md) |
-| 内部解决方案 | 内部模块解决方案 | [`guides/INTERNAL_SOLUTION_SUMMARY.md`](./guides/INTERNAL_SOLUTION_SUMMARY.md) |
-| 上下文开发指南 | 基于上下文的开发模式 | [`guides/CONTEXT_BASED_INTERNAL_GUIDE.md`](./guides/CONTEXT_BASED_INTERNAL_GUIDE.md) |
-| 内部模块指南 | 内部模块开发指南 | [`guides/INTERNAL_MODULE_GUIDE.md`](./guides/INTERNAL_MODULE_GUIDE.md) |
 
 ### 🧪 测试文档
 | 文档 | 描述 | 路径 |
@@ -85,7 +77,7 @@
 ## 📋 文档状态
 
 ### ✅ 最新文档
-- 扩展系统相关文档
+- 工具系统相关文档
 - 配置管理文档
 - 架构设计文档
 

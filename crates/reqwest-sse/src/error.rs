@@ -17,6 +17,8 @@ impl Display for EventError {
     }
 }
 
+impl std::error::Error for EventError {}
+
 #[derive(Debug, PartialEq, Eq)]
 pub enum EventSourceError {
     BadStatus(StatusCode),
@@ -52,3 +54,5 @@ impl Display for EventSourceError {
         }
     }
 }
+
+impl std::error::Error for EventSourceError {}

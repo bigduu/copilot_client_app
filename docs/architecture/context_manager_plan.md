@@ -1,3 +1,5 @@
+> **Note:** This document is a historical design plan. While it provides valuable context for the design decisions, the canonical and up-to-date description of the current system architecture can be found in `.kilocode/rules/memory-bank/architecture.md`.
+
 # `context_manager` Crate: The Definitive Architecture
 
 ## 1. Vision &amp; Core Principles
@@ -18,15 +20,15 @@ graph TD
     subgraph Ctx [ChatContext]
         direction LR
         Cfg(Config <br> model, mode)
-        Pool[Message Pool <br> HashMap&lt;Uuid, Node&gt;]
+        Pool[Message Pool <br> HashMap&lt;Uuid, Node>]
 
         subgraph Branches [Branches]
             direction TB
             BranchA["Branch 'main'"]
             BranchB["Branch 'refactor-idea'"]
             
-            BranchA -- Owns --> HistA(History A <br> Vec&lt;Uuid&gt;)
-            BranchB -- Owns --> HistB(History B <br> Vec&lt;Uuid&gt;)
+            BranchA -- Owns --> HistA(History A <br> Vec&lt;Uuid>)
+            BranchB -- Owns --> HistB(History B <br> Vec&lt;Uuid>)
             
             BranchA -- Has a --> SP_A(SystemPrompt A)
             BranchB -- Has a --> SP_B(SystemPrompt B)

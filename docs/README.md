@@ -16,7 +16,7 @@
 - 样式指南和最佳实践
 - 库集成计划
 
-### 🔧 扩展系统文档 (`extension-system/`)
+### 🔧 工具系统文档 (`extension-system/`)
 - 工具和类别注册机制
 - 参数化注册详细指南
 - 翻译类别使用指南
@@ -27,12 +27,6 @@
 - 技术栈配置总结
 - 服务配置和环境变量
 - OpenAI 和双服务配置
-
-### 📖 指南文档 (`guides/`)
-- 内部模块开发指南
-- 解决方案总结和架构
-- 基于上下文的开发模式
-- 代码同步工作流
 
 ### 🧪 测试文档 (`testing/`)
 - 测试指南和策略
@@ -57,7 +51,7 @@
 ### 🚀 新手入门
 1. [架构概览](./architecture/README.md) - 了解系统整体架构
 2. [开发指南](./development/README.md) - 开发规范和最佳实践
-3. [扩展系统](./extension-system/README.md) - 工具和类别开发
+3. [工具系统](./extension-system/README.md) - 工具和类别开发
 
 ### 👨‍💻 开发者指南
 - [样式规范](./development/STYLING_GUIDELINES.md) - 代码样式和格式规范
@@ -67,7 +61,6 @@
 ### 🏗️ 架构师参考
 - [系统架构](./architecture/README.md) - 完整的架构文档
 - [配置管理](./configuration/README.md) - 系统配置和提示词
-- [内部模块](./guides/README.md) - 内部开发和解决方案
 
 ### 🔧 运维配置
 - [技术栈配置](./configuration/final-tech-stack-update.md) - 完整技术栈总结
