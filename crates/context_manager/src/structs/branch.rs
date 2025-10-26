@@ -17,6 +17,17 @@ pub struct Branch {
     pub user_prompt: Option<String>,
 }
 
+impl Branch {
+    pub fn new(name: String) -> Self {
+        Self {
+            name,
+            message_ids: Vec::new(),
+            system_prompt: None,
+            user_prompt: None,
+        }
+    }
+}
+
 /// A specific system prompt definition.
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct SystemPrompt {

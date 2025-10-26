@@ -1,14 +1,10 @@
 pub mod categories;
-pub mod compat;
 pub mod examples;
 pub mod extensions;
 pub mod internal;
-pub mod manager;
 pub mod registry;
 pub mod types;
+pub mod executor;
 
-use crate::manager::ToolsManager;
-
-pub fn create_tools_manager() -> ToolsManager {
-    ToolsManager::new()
-}
+pub use executor::ToolExecutor;
+pub use registry::ToolRegistry;

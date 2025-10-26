@@ -1,9 +1,11 @@
 use crate::{
     registry::macros::auto_register_tool,
-    types::{DisplayPreference, Parameter, Tool, ToolType},
+    types::{
+        DisplayPreference, Parameter, Tool, ToolArguments, ToolDefinition, ToolError, ToolType,
+    },
 };
-use anyhow::{Context, Result};
 use async_trait::async_trait;
+use serde_json::json;
 
 // Command execution tool
 #[derive(Debug)]
@@ -25,61 +27,19 @@ impl Default for ExecuteCommandTool {
 
 #[async_trait]
 impl Tool for ExecuteCommandTool {
-    fn name(&self) -> String {
-        Self::TOOL_NAME.to_string()
-    }
-
-    fn description(&self) -> String {
-        "Executes a shell command and returns the output".to_string()
-    }
-
-    fn display_preference(&self) -> DisplayPreference {
-        DisplayPreference::Hidden
-    }
-
-    fn parameters(&self) -> Vec<Parameter> {
-        vec![Parameter {
-            name: "command".to_string(),
-            description: "The shell command to execute".to_string(),
-            required: true,
-            value: "".to_string(),
-        }]
-    }
-
-    fn required_approval(&self) -> bool {
-        true
-    }
-
-    fn tool_type(&self) -> ToolType {
-        ToolType::AIParameterParsing
-    }
-
-    fn hide_in_selector(&self) -> bool {
-        false
-    }
-
-    fn get_ai_prompt_template(&self) -> Option<String> {
-        let parameters_desc = self
-            .parameters()
-            .iter()
-            .map(|p| {
-                format!(
-                    "- {}: {} ({})",
-                    p.name,
-                    p.description,
-                    if p.required { "required" } else { "optional" }
-                )
-            })
-            .collect::<Vec<_>>()
-            .join("\n");
-
-        let template = format!(
-            r#"You are a command parameter parser. Your task is to extract the shell command from user input.
-
-Tool: {}
-Description: {}
-Parameters:
-{}
+    fn definition(&self) -> ToolDefinition {
+        ToolDefinition {
+            name: Self::TOOL_NAME.to_string(),
+            description: "Executes a shell command and returns the output".to_string(),
+            parameters: vec![Parameter {
+                name: "command".to_string(),
+                description: "The shell command to execute".to_string(),
+                required: true,
+            }],
+            requires_approval: true,
+            tool_type: ToolType::AIParameterParsing,
+            parameter_regex: None,
+            custom_prompt: Some(r#"You are a command parameter parser. Your task is to extract the shell command from user input.
 
 RULES:
 - The user input is the command they want to execute
@@ -89,27 +49,22 @@ RULES:
 
 User wants to execute: "{{user_description}}"
 
-Command:"#,
-            self.name(),
-            self.description(),
-            parameters_desc
-        );
-
-        Some(template)
+Command:"#.to_string()),
+            hide_in_selector: false,
+            display_preference: DisplayPreference::Hidden,
+        }
     }
 
-    async fn execute(&self, parameters: Vec<Parameter>) -> Result<String> {
-        let mut command = String::new();
-
-        for param in parameters {
-            if param.name == "command" {
-                command = param.value;
-            }
-        }
-
-        if command.is_empty() {
-            return Err(anyhow::anyhow!("Command parameter is required"));
-        }
+    async fn execute(&self, args: ToolArguments) -> Result<serde_json::Value, ToolError> {
+        let command = match args {
+            ToolArguments::String(command) => command,
+            ToolArguments::Json(json) => json
+                .get("command")
+                .and_then(|v| v.as_str())
+                .ok_or_else(|| ToolError::InvalidArguments("Missing command".to_string()))?
+                .to_string(),
+            _ => return Err(ToolError::InvalidArguments("Expected a single string command or a JSON object with a command".to_string())),
+        };
 
         // Execute the command
         let output = tokio::process::Command::new("sh")
@@ -117,24 +72,30 @@ Command:"#,
             .arg(&command)
             .output()
             .await
-            .with_context(|| format!("Failed to execute command: {}", command))?;
+            .map_err(|e| ToolError::ExecutionFailed(e.to_string()))?;
 
-        let stdout = String::from_utf8_lossy(&output.stdout);
-        let stderr = String::from_utf8_lossy(&output.stderr);
+        let stdout = String::from_utf8_lossy(&output.stdout).to_string();
+        let stderr = String::from_utf8_lossy(&output.stderr).to_string();
 
         if output.status.success() {
             if stdout.is_empty() {
-                Ok("Command executed successfully (no output)".to_string())
+                Ok(json!({
+                    "status": "success",
+                    "message": "Command executed successfully (no output)"
+                }))
             } else {
-                Ok(format!("Command output:\n{}", stdout))
+                Ok(json!({
+                    "status": "success",
+                    "stdout": stdout
+                }))
             }
         } else {
             let error_msg = if stderr.is_empty() {
                 format!("Command failed with exit code: {}", output.status)
             } else {
-                format!("Command failed:\n{}", stderr)
+                stderr
             };
-            Err(anyhow::anyhow!(error_msg))
+            Err(ToolError::ExecutionFailed(error_msg))
         }
     }
 }

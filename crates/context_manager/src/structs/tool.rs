@@ -1,11 +1,12 @@
 use serde::{Serialize, Deserialize};
+use tool_system::types::ToolArguments;
 
 /// A request from the Assistant to call a single tool.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub struct ToolCallRequest {
     pub id: String, // Unique ID for this specific call
     pub tool_name: String,
-    pub arguments: serde_json::Value,
+    pub arguments: ToolArguments,
     pub approval_status: ApprovalStatus,
 }
 

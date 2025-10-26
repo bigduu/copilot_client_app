@@ -1,5 +1,6 @@
 use serde::{Deserialize, Serialize};
 use tool_system::types::DisplayPreference;
+use context_manager::structs::message::{ContentPart, InternalMessage, Role};
 
 // Models for OpenAI compatibility
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -15,23 +16,40 @@ pub enum OpenAIContent {
     // TODO: Add support for image content if needed
 }
 
-impl From<copilot_client::model::stream_model::Message> for OpenAIMessage {
-    fn from(msg: copilot_client::model::stream_model::Message) -> Self {
-        let content = OpenAIContent::Text(msg.get_text_content());
+impl From<InternalMessage> for OpenAIMessage {
+    fn from(msg: InternalMessage) -> Self {
+        let content_text = msg
+            .content
+            .iter()
+            .find_map(|part| part.text_content())
+            .unwrap_or_default()
+            .to_string();
+
         Self {
-            role: msg.role,
-            content,
+            role: msg.role.to_string(),
+            content: OpenAIContent::Text(content_text),
         }
     }
 }
 
-impl From<OpenAIMessage> for copilot_client::model::stream_model::Message {
+impl From<OpenAIMessage> for InternalMessage {
     fn from(msg: OpenAIMessage) -> Self {
-        let OpenAIContent::Text(content_text) = msg.content;
-        copilot_client::model::stream_model::Message {
-            role: msg.role,
-            content: copilot_client::model::stream_model::MessageContent::Text(content_text),
-            images: None,
+        let role = match msg.role.as_str() {
+            "user" => Role::User,
+            "assistant" => Role::Assistant,
+            "system" => Role::System,
+            "tool" => Role::Tool,
+            _ => Role::User, // Defaulting to user
+        };
+        let content = if let OpenAIContent::Text(text) = msg.content {
+            vec![ContentPart::Text(text)]
+        } else {
+            vec![]
+        };
+        InternalMessage {
+            role,
+            content,
+            ..Default::default()
         }
     }
 }

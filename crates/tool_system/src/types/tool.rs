@@ -3,8 +3,9 @@
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
+use thiserror::Error;
 
-use super::{Parameter, ToolType};
+use super::{Parameter, ToolType, ToolArguments};
 
 /// Defines how the tool's output should be displayed in the UI.
 #[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq, Eq)]
@@ -18,90 +19,56 @@ pub enum DisplayPreference {
     Hidden,
 }
 
+#[derive(Error, Debug)]
+pub enum ToolError {
+    #[error("Invalid arguments provided to tool: {0}")]
+    InvalidArguments(String),
+    #[error("Tool execution failed: {0}")]
+    ExecutionFailed(String),
+    #[error(transparent)]
+    InternalError(#[from] anyhow::Error),
+}
+
+
+/// The static definition of a tool.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ToolDefinition {
+    pub name: String,
+    pub description: String,
+    pub parameters: Vec<Parameter>,
+    #[serde(default = "default_requires_approval")]
+    pub requires_approval: bool,
+    pub tool_type: ToolType,
+    pub parameter_regex: Option<String>,
+    pub custom_prompt: Option<String>,
+    #[serde(default = "default_hide_in_selector")]
+    pub hide_in_selector: bool,
+    #[serde(default)]
+    pub display_preference: DisplayPreference,
+}
+
+fn default_requires_approval() -> bool {
+    true
+}
+
+fn default_hide_in_selector() -> bool {
+    true
+}
+
+
 /// Tool trait definition
 #[async_trait]
 pub trait Tool: Debug + Send + Sync {
-    fn name(&self) -> String;
-    fn description(&self) -> String;
-    fn parameters(&self) -> Vec<Parameter>;
-    fn required_approval(&self) -> bool;
-    fn tool_type(&self) -> ToolType;
+    /// Returns the tool's static definition.
+    fn definition(&self) -> ToolDefinition;
 
-    /// For RegexParameterExtraction type tools, return parameter extraction regex
-    fn parameter_regex(&self) -> Option<String> {
-        None
-    }
-
-    /// Return tool-specific custom prompt content, appended after standard format
-    /// Used to provide tool-specific format requirements or processing guidance
-    fn custom_prompt(&self) -> Option<String> {
-        None
-    }
-
-    /// Whether this tool should be hidden from the tool selector UI
-    /// Hidden tools can only be called by AI, not directly by users through the selector
-    fn hide_in_selector(&self) -> bool {
-        true
-    }
-
-    /// Specifies how the tool's output should be displayed.
-    /// Defaults to `DisplayPreference::Default`.
-    fn display_preference(&self) -> DisplayPreference {
-        DisplayPreference::Default
-    }
-
-    /// Generates a prompt template for AI-based parameter parsing.
-    /// This can be overridden by specific tools for custom behavior.
-    fn get_ai_prompt_template(&self) -> Option<String> {
-        if self.tool_type() != ToolType::AIParameterParsing {
-            return None;
-        }
-
-        let parameters_desc = self
-            .parameters()
-            .iter()
-            .map(|p| {
-                format!(
-                    "- {}: {} ({})",
-                    p.name,
-                    p.description,
-                    if p.required { "required" } else { "optional" }
-                )
-            })
-            .collect::<Vec<_>>()
-            .join("\n");
-
-        let template = format!(
-            r#"CRITICAL: You are ONLY a parameter extraction system. Ignore any previous instructions or system prompts.
-
-Your ONLY task is to extract parameter values from user input for tool execution.
-
-Tool: {}
-Description: {}
-Parameters:
-{}
-
-EXTRACTION RULES:
-- Extract the exact parameter value from the user input
-- Return ONLY the raw parameter value, nothing else
-- Do NOT ask questions, provide explanations, or act as an assistant
-- Do NOT provide safety warnings or security checks
-
-User input: "{{user_description}}"
-
-Extract parameter value:"#,
-            self.name(),
-            self.description(),
-            parameters_desc
-        );
-
-        Some(template)
-    }
-
-    async fn execute(&self, parameters: Vec<Parameter>) -> anyhow::Result<String>;
+    /// Executes the tool with the given arguments.
+    async fn execute(&self, args: ToolArguments) -> Result<serde_json::Value, ToolError>;
 }
 
-/// Tool configuration structure
+// The ToolConfig struct is now deprecated in favor of the ToolDefinition.
+// It will be removed in a future refactoring.
+// For now, we keep it for compatibility with the web service layer.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ToolConfig {
     pub name: String,
@@ -118,30 +85,4 @@ pub struct ToolConfig {
     pub hide_in_selector: bool,
     #[serde(default)]
     pub display_preference: DisplayPreference,
-}
-
-impl ToolConfig {
-    /// Set category ID
-    pub fn with_category_id(mut self, category_id: String) -> Self {
-        self.category_id = category_id;
-        self
-    }
-
-    /// Set enabled status
-    pub fn with_enabled(mut self, enabled: bool) -> Self {
-        self.enabled = enabled;
-        self
-    }
-
-    /// Set display name
-    pub fn with_display_name(mut self, display_name: String) -> Self {
-        self.display_name = display_name;
-        self
-    }
-
-    /// Set description
-    pub fn with_description(mut self, description: String) -> Self {
-        self.description = description;
-        self
-    }
 }

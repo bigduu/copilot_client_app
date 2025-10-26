@@ -1,10 +1,11 @@
 //! Global registration tables for tools and categories
 
 use inventory;
+use once_cell::sync::Lazy;
 use std::collections::HashMap;
-use std::sync::Arc;
+use std::sync::{Arc, RwLock};
 
-use crate::types::{Tool, Category};
+use crate::types::{Tool, Category, ToolDefinition};
 
 /// Tool registration information
 pub struct ToolRegistration {
@@ -26,61 +27,38 @@ pub struct CategoryRegistration {
 inventory::collect!(ToolRegistration);
 inventory::collect!(CategoryRegistration);
 
-/// Global registry for tools and categories
-pub struct GlobalRegistry;
+/// A thread-safe, caching registry for all tools.
+#[derive(Debug)]
+pub struct ToolRegistry {
+    tools: RwLock<HashMap<String, Arc<dyn Tool>>>,
+}
 
-impl GlobalRegistry {
-    /// Get all registered tools as a HashMap
-    pub fn get_all_tools() -> HashMap<String, Arc<dyn Tool>> {
-        inventory::iter::<ToolRegistration>()
+impl ToolRegistry {
+    pub fn new() -> Self {
+        let tools = inventory::iter::<ToolRegistration>()
             .map(|reg| (reg.name.to_string(), (reg.constructor)()))
+            .collect();
+        Self {
+            tools: RwLock::new(tools),
+        }
+    }
+
+    pub fn get_tool(&self, name: &str) -> Option<Arc<dyn Tool>> {
+        self.tools.read().unwrap().get(name).cloned()
+    }
+
+    pub fn list_tool_definitions(&self) -> Vec<ToolDefinition> {
+        self.tools
+            .read()
+            .unwrap()
+            .values()
+            .map(|tool| tool.definition())
             .collect()
     }
-    
-    /// Get all registered categories as a HashMap
-    pub fn get_all_categories() -> HashMap<String, Box<dyn Category>> {
-        inventory::iter::<CategoryRegistration>()
-            .map(|reg| (reg.id.to_string(), (reg.constructor)()))
-            .collect()
-    }
-    
-    /// Create a specific tool by name
-    pub fn create_tool(name: &str) -> Option<Arc<dyn Tool>> {
-        inventory::iter::<ToolRegistration>()
-            .find(|reg| reg.name == name)
-            .map(|reg| (reg.constructor)())
-    }
-    
-    /// Create a specific category by ID
-    pub fn create_category(id: &str) -> Option<Box<dyn Category>> {
-        inventory::iter::<CategoryRegistration>()
-            .find(|reg| reg.id == id)
-            .map(|reg| (reg.constructor)())
-    }
-    
-    /// Check if a tool with the given name is registered
-    pub fn has_tool(name: &str) -> bool {
-        inventory::iter::<ToolRegistration>()
-            .any(|reg| reg.name == name)
-    }
-    
-    /// Check if a category with the given ID is registered
-    pub fn has_category(id: &str) -> bool {
-        inventory::iter::<CategoryRegistration>()
-            .any(|reg| reg.id == id)
-    }
-    
-    /// Get all registered tool names
-    pub fn get_tool_names() -> Vec<String> {
-        inventory::iter::<ToolRegistration>()
-            .map(|reg| reg.name.to_string())
-            .collect()
-    }
-    
-    /// Get all registered category IDs
-    pub fn get_category_ids() -> Vec<String> {
-        inventory::iter::<CategoryRegistration>()
-            .map(|reg| reg.id.to_string())
-            .collect()
+}
+
+impl Default for ToolRegistry {
+    fn default() -> Self {
+        Self::new()
     }
 }

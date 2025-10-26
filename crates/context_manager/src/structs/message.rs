@@ -1,10 +1,11 @@
 use serde::{Serialize, Deserialize};
+use std::fmt;
 use uuid::Uuid;
 use crate::structs::metadata::MessageMetadata;
 use crate::structs::tool::{ToolCallRequest, ToolCallResult};
 
 /// A node in the message graph, stored in the message_pool.
-#[derive(Serialize, Deserialize, Clone, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug, Default)]
 pub struct MessageNode {
     pub id: Uuid,
     pub message: InternalMessage,
@@ -12,7 +13,7 @@ pub struct MessageNode {
 }
 
 /// The unified internal message structure.
-#[derive(Serialize, Deserialize, Clone, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug, Default)]
 pub struct InternalMessage {
     pub role: Role,
     pub content: Vec<ContentPart>,
@@ -28,21 +29,51 @@ pub struct InternalMessage {
     pub metadata: Option<MessageMetadata>,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Default)]
 pub enum Role {
     System,
+    #[default]
     User,
     Assistant,
     Tool,
 }
 
+impl fmt::Display for Role {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Role::System => write!(f, "system"),
+            Role::User => write!(f, "user"),
+            Role::Assistant => write!(f, "assistant"),
+            Role::Tool => write!(f, "tool"),
+        }
+    }
+}
+
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum ContentPart {
-    Text { text: String },
+    Text(String),
     Image {
         url: String,
         #[serde(skip_serializing_if = "Option::is_none")]
         detail: Option<String>,
     },
+}
+
+impl ContentPart {
+    pub fn text(s: &str) -> Self {
+        ContentPart::Text(s.to_string())
+    }
+
+    pub fn text_owned(s: String) -> Self {
+        ContentPart::Text(s)
+    }
+
+    pub fn text_content(&self) -> Option<&str> {
+        if let ContentPart::Text(text) = self {
+            Some(text)
+        } else {
+            None
+        }
+    }
 }

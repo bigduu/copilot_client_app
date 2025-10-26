@@ -1,11 +1,13 @@
 //! Example of a tool that returns a large block of text for summarization.
 
-use anyhow::Result;
 use async_trait::async_trait;
+use serde_json::json;
 
 use crate::{
     registry::macros::auto_register_tool,
-    types::{DisplayPreference, Parameter, Tool, ToolType},
+    types::{
+        DisplayPreference, Parameter, Tool, ToolArguments, ToolDefinition, ToolError, ToolType,
+    },
 };
 
 #[derive(Debug)]
@@ -27,50 +29,34 @@ impl Default for DemoTool {
 
 #[async_trait]
 impl Tool for DemoTool {
-    fn name(&self) -> String {
-        Self::TOOL_NAME.to_string()
+    fn definition(&self) -> ToolDefinition {
+        ToolDefinition {
+            name: Self::TOOL_NAME.to_string(),
+            description: "A demo tool that returns a large block of text for the AI to summarize."
+                .to_string(),
+            parameters: vec![], // No parameters needed for this simple tool
+            requires_approval: false,
+            tool_type: ToolType::RegexParameterExtraction,
+            parameter_regex: None,
+            custom_prompt: None,
+            hide_in_selector: false,
+            display_preference: DisplayPreference::Collapsible,
+        }
     }
 
-    fn display_preference(&self) -> DisplayPreference {
-        DisplayPreference::Collapsible
-    }
-
-    fn description(&self) -> String {
-        "A demo tool that returns a large block of text for the AI to summarize.".to_string()
-    }
-
-    fn parameters(&self) -> Vec<Parameter> {
-        vec![] // No parameters needed for this simple tool
-    }
-
-    fn required_approval(&self) -> bool {
-        // Since this is a simple, read-only tool, it doesn't require approval by default.
-        false
-    }
-
-    fn hide_in_selector(&self) -> bool {
-        false
-    }
-
-    fn tool_type(&self) -> ToolType {
-        // This tool can be triggered by a simple command.
-        // We'll use AIParameterParsing for now to fit the existing flow,
-        // but the new state machine logic will handle this distinction.
-        ToolType::RegexParameterExtraction
-    }
-
-    async fn execute(&self, _parameters: Vec<Parameter>) -> Result<String> {
-        Ok(r#"
+    async fn execute(&self, _args: ToolArguments) -> Result<serde_json::Value, ToolError> {
+        Ok(json!({
+            "report": r#"
         Project Titan: A Comprehensive Report on Modern AI Development
 
         Introduction:
-        Project Titan represents a significant leap forward in the field of artificial intelligence. 
-        This report outlines the project's architecture, key innovations, and future implications. 
-        Our goal was to create a scalable, efficient, and adaptable AI ecosystem capable of handling 
+        Project Titan represents a significant leap forward in the field of artificial intelligence.
+        This report outlines the project's architecture, key innovations, and future implications.
+        Our goal was to create a scalable, efficient, and adaptable AI ecosystem capable of handling
         diverse tasks, from natural language processing to complex problem-solving.
 
         Core Architecture:
-        The architecture is built upon a microservices-based design, where each component is a specialized 
+        The architecture is built upon a microservices-based design, where each component is a specialized
         "cognitive module." These modules include:
         1.  **Natural Language Understanding (NLU) Core:** Processes and interprets user input.
         2.  **State Management Engine:** Tracks conversation context and user history.
@@ -84,7 +70,8 @@ impl Tool for DemoTool {
 
         Conclusion:
         Project Titan is more than just a single model; it's a blueprint for the next generation of intelligent assistants. Its modular design and dynamic capabilities make it a powerful platform for future innovation.
-        "#.to_string())
+        "#
+        }))
     }
 }
 

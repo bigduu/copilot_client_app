@@ -1,9 +1,12 @@
 use crate::{
     registry::macros::auto_register_tool,
-    types::{Parameter, Tool, ToolType},
+    types::{
+        DisplayPreference, Parameter, Tool, ToolArguments, ToolDefinition, ToolError, ToolType,
+    },
 };
-use anyhow::{Context, Result};
+use anyhow::Context;
 use async_trait::async_trait;
+use serde_json::json;
 use std::fs;
 use std::path::Path;
 
@@ -27,39 +30,20 @@ impl Default for SimpleSearchTool {
 
 #[async_trait]
 impl Tool for SimpleSearchTool {
-    fn name(&self) -> String {
-        Self::TOOL_NAME.to_string()
-    }
-
-    fn description(&self) -> String {
-        "Search for files or content. Usage: /search <query>".to_string()
-    }
-
-    fn parameters(&self) -> Vec<Parameter> {
-        vec![Parameter {
-            name: "query".to_string(),
-            description: "The search query".to_string(),
-            required: true,
-            value: "".to_string(),
-        }]
-    }
-
-    fn required_approval(&self) -> bool {
-        false
-    }
-
-    fn tool_type(&self) -> ToolType {
-        ToolType::RegexParameterExtraction
-    }
-
-    fn parameter_regex(&self) -> Option<String> {
-        // Match all content after /search as query parameter
-        Some(r"^/search\s+(.+)$".to_string())
-    }
-
-    fn custom_prompt(&self) -> Option<String> {
-        Some(
-            r#"
+    fn definition(&self) -> ToolDefinition {
+        ToolDefinition {
+            name: Self::TOOL_NAME.to_string(),
+            description: "Search for files or content. Usage: /search <query>".to_string(),
+            parameters: vec![Parameter {
+                name: "query".to_string(),
+                description: "The search query".to_string(),
+                required: true,
+            }],
+            requires_approval: false,
+            tool_type: ToolType::RegexParameterExtraction,
+            parameter_regex: Some(r"^/search\s+(.+)$".to_string()),
+            custom_prompt: Some(
+                r#"
 Please format your response as follows:
 
 1. **Search Summary**: Briefly explain what was searched for
@@ -68,32 +52,32 @@ Please format your response as follows:
 4. **Suggestions**: If appropriate, suggest next steps or related searches
 
 Keep your response concise and user-friendly."#
-                .to_string(),
-        )
+                    .to_string(),
+            ),
+            hide_in_selector: true,
+            display_preference: DisplayPreference::Default,
+        }
     }
 
-    async fn execute(&self, parameters: Vec<Parameter>) -> Result<String> {
-        let mut query = String::new();
-
-        for param in parameters {
-            if param.name == "query" {
-                query = param.value;
-            }
-        }
-
-        if query.is_empty() {
-            return Err(anyhow::anyhow!("Query parameter is required"));
-        }
+    async fn execute(&self, args: ToolArguments) -> Result<serde_json::Value, ToolError> {
+        let query = match args {
+            ToolArguments::String(query) => query,
+            _ => return Err(ToolError::InvalidArguments("Expected a single string query".to_string())),
+        };
 
         // Simple file search implementation
-        let current_dir =
-            std::env::current_dir().with_context(|| "Failed to get current directory")?;
+        let current_dir = std::env::current_dir()
+            .map_err(|e| ToolError::ExecutionFailed(e.to_string()))?;
 
         let mut results = Vec::new();
-        search_in_directory(&current_dir, &query, &mut results, 0)?;
+        search_in_directory(&current_dir, &query, &mut results, 0)
+            .map_err(|e| ToolError::ExecutionFailed(e.to_string()))?;
 
         if results.is_empty() {
-            Ok(format!("No files found matching '{}'", query))
+            Ok(json!({
+                "status": "success",
+                "message": format!("No files found matching '{}'", query)
+            }))
         } else {
             let result_count = results.len();
             let result_text = results
@@ -101,11 +85,10 @@ Keep your response concise and user-friendly."#
                 .take(20) // Limit result count
                 .collect::<Vec<_>>()
                 .join("\n");
-            Ok(format!(
-                "Found {} matches:\n{}",
-                std::cmp::min(20, result_count),
-                result_text
-            ))
+            Ok(json!({
+                "status": "success",
+                "message": format!("Found {} matches:\n{}", std::cmp::min(20, result_count), result_text)
+            }))
         }
     }
 }
@@ -115,7 +98,7 @@ fn search_in_directory(
     query: &str,
     results: &mut Vec<String>,
     depth: usize,
-) -> Result<()> {
+) -> Result<(), anyhow::Error> {
     // Limit search depth
     if depth > 3 {
         return Ok(());

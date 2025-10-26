@@ -1,9 +1,11 @@
 use crate::{
     registry::macros::auto_register_tool,
-    types::{Parameter, Tool, ToolType},
+    types::{
+        Parameter, Tool, ToolArguments, ToolDefinition, ToolError, ToolType, DisplayPreference,
+    },
 };
-use anyhow::Result;
 use async_trait::async_trait;
+use serde_json::json;
 use tokio::fs as tokio_fs;
 
 // File deletion tool
@@ -26,48 +28,44 @@ impl Default for DeleteFileTool {
 
 #[async_trait]
 impl Tool for DeleteFileTool {
-    fn name(&self) -> String {
-        Self::TOOL_NAME.to_string()
-    }
-
-    fn description(&self) -> String {
-        "Deletes a file from the filesystem".to_string()
-    }
-
-    fn parameters(&self) -> Vec<Parameter> {
-        vec![Parameter {
-            name: "path".to_string(),
-            description: "The path of the file to delete".to_string(),
-            required: true,
-            value: "".to_string(),
-        }]
-    }
-
-    fn required_approval(&self) -> bool {
-        true
-    }
-
-    fn tool_type(&self) -> ToolType {
-        ToolType::AIParameterParsing
-    }
-
-    async fn execute(&self, parameters: Vec<Parameter>) -> Result<String> {
-        let mut path = String::new();
-
-        for param in parameters {
-            if param.name == "path" {
-                path = param.value;
-            }
+    fn definition(&self) -> ToolDefinition {
+        ToolDefinition {
+            name: Self::TOOL_NAME.to_string(),
+            description: "Deletes a file from the filesystem".to_string(),
+            parameters: vec![Parameter {
+                name: "path".to_string(),
+                description: "The path of the file to delete".to_string(),
+                required: true,
+            }],
+            requires_approval: true,
+            tool_type: ToolType::AIParameterParsing,
+            parameter_regex: None,
+            custom_prompt: None,
+            hide_in_selector: true,
+            display_preference: DisplayPreference::Default,
         }
+    }
 
-        if path.is_empty() {
-            return Err(anyhow::anyhow!("Path parameter is required"));
-        }
+    async fn execute(&self, args: ToolArguments) -> Result<serde_json::Value, ToolError> {
+        let path = match args {
+            ToolArguments::String(path) => path,
+            ToolArguments::Json(json) => json
+                .get("path")
+                .and_then(|v| v.as_str())
+                .ok_or_else(|| ToolError::InvalidArguments("Missing path".to_string()))?
+                .to_string(),
+            _ => return Err(ToolError::InvalidArguments("Expected a single string path or a JSON object with a path".to_string())),
+        };
 
         // Delete the file
-        tokio_fs::remove_file(&path).await?;
+        tokio_fs::remove_file(&path)
+            .await
+            .map_err(|e| ToolError::ExecutionFailed(e.to_string()))?;
 
-        Ok(format!("File deleted successfully: {}", path))
+        Ok(json!({
+            "status": "success",
+            "message": format!("File deleted successfully: {}", path)
+        }))
     }
 }
 

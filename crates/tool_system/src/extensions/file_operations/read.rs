@@ -1,9 +1,11 @@
 use crate::{
     registry::macros::auto_register_tool,
-    types::{Parameter, Tool, ToolType},
+    types::{
+        Parameter, Tool, ToolArguments, ToolDefinition, ToolError, ToolType, DisplayPreference,
+    },
 };
-use anyhow::{Context, Result};
 use async_trait::async_trait;
+use serde_json::json;
 use tokio::fs as tokio_fs;
 
 // File reading tool (supports partial reading)
@@ -26,90 +28,68 @@ impl Default for ReadFileTool {
 
 #[async_trait]
 impl Tool for ReadFileTool {
-    fn name(&self) -> String {
-        Self::TOOL_NAME.to_string()
+    fn definition(&self) -> ToolDefinition {
+        ToolDefinition {
+            name: Self::TOOL_NAME.to_string(),
+            description: "Reads the content of a file, optionally a specific range".to_string(),
+            parameters: vec![
+                Parameter {
+                    name: "path".to_string(),
+                    description: "The path of the file to read".to_string(),
+                    required: true,
+                },
+                Parameter {
+                    name: "start_line".to_string(),
+                    description: "The line number to start reading from (1-based, optional)"
+                        .to_string(),
+                    required: false,
+                },
+                Parameter {
+                    name: "end_line".to_string(),
+                    description: "The line number to end reading at (1-based, optional)"
+                        .to_string(),
+                    required: false,
+                },
+            ],
+            requires_approval: false,
+            tool_type: ToolType::AIParameterParsing,
+            parameter_regex: None,
+            custom_prompt: None,
+            hide_in_selector: true,
+            display_preference: DisplayPreference::Default,
+        }
     }
 
-    fn description(&self) -> String {
-        "Reads the content of a file, optionally a specific range".to_string()
-    }
-
-    fn parameters(&self) -> Vec<Parameter> {
-        vec![
-            Parameter {
-                name: "path".to_string(),
-                description: "The path of the file to read".to_string(),
-                required: true,
-                value: "".to_string(),
-            },
-            Parameter {
-                name: "start_line".to_string(),
-                description: "The line number to start reading from (1-based, optional)"
-                    .to_string(),
-                required: false,
-                value: "".to_string(),
-            },
-            Parameter {
-                name: "end_line".to_string(),
-                description: "The line number to end reading at (1-based, optional)".to_string(),
-                required: false,
-                value: "".to_string(),
-            },
-        ]
-    }
-
-    fn required_approval(&self) -> bool {
-        false
-    }
-
-    fn tool_type(&self) -> ToolType {
-        ToolType::AIParameterParsing
-    }
-
-    async fn execute(&self, parameters: Vec<Parameter>) -> Result<String> {
-        let mut path = String::new();
-        let mut start_line: Option<usize> = None;
-        let mut end_line: Option<usize> = None;
-
-        for param in parameters {
-            match param.name.as_str() {
-                "path" => path = param.value,
-                "start_line" => {
-                    if !param.value.is_empty() {
-                        start_line = Some(
-                            param
-                                .value
-                                .parse::<usize>()
-                                .with_context(|| "Invalid start_line parameter")?,
-                        );
-                    }
-                }
-                "end_line" => {
-                    if !param.value.is_empty() {
-                        end_line = Some(
-                            param
-                                .value
-                                .parse::<usize>()
-                                .with_context(|| "Invalid end_line parameter")?,
-                        );
-                    }
-                }
-                _ => (),
+    async fn execute(&self, args: ToolArguments) -> Result<serde_json::Value, ToolError> {
+        let (path, start_line, end_line) = match args {
+            ToolArguments::Json(json) => {
+                let path = json
+                    .get("path")
+                    .and_then(|v| v.as_str())
+                    .ok_or_else(|| ToolError::InvalidArguments("Missing path".to_string()))?
+                    .to_string();
+                let start_line = json
+                    .get("start_line")
+                    .and_then(|v| v.as_str())
+                    .and_then(|s| s.parse::<usize>().ok());
+                let end_line = json
+                    .get("end_line")
+                    .and_then(|v| v.as_str())
+                    .and_then(|s| s.parse::<usize>().ok());
+                (path, start_line, end_line)
             }
-        }
-
-        if path.is_empty() {
-            return Err(anyhow::anyhow!("Path parameter is required"));
-        }
+            ToolArguments::String(path) => (path, None, None),
+            _ => return Err(ToolError::InvalidArguments("Expected a single string path or a JSON object".to_string())),
+        };
 
         // Read the file
         let content = tokio_fs::read_to_string(&path)
             .await
-            .with_context(|| format!("Failed to read file: {}", path))?;
+            .map_err(|e| ToolError::ExecutionFailed(e.to_string()))?;
 
         // If no range is specified, return the entire file
         if start_line.is_none() && end_line.is_none() {
-            return Ok(content);
+            return Ok(json!({ "content": content }));
         }
 
         // Extract the specified range
@@ -118,19 +98,16 @@ impl Tool for ReadFileTool {
         let end = end_line.unwrap_or(lines.len());
 
         if start >= lines.len() {
-            return Err(anyhow::anyhow!("Start line exceeds file length"));
+            return Err(ToolError::InvalidArguments("Start line exceeds file length".to_string()));
         }
 
         let end = end.min(lines.len());
         let selected_lines = lines[start..end].join("\n");
 
-        Ok(format!(
-            "Lines {}-{} of file {}:\n{}",
-            start + 1,
-            end,
-            path,
-            selected_lines
-        ))
+        Ok(json!({
+            "status": "success",
+            "message": format!("Lines {}-{} of file {}:\n{}", start + 1, end, path, selected_lines)
+        }))
     }
 }
 

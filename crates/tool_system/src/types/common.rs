@@ -39,7 +39,7 @@ impl CategoryId {
 }
 
 /// Tool type enumeration
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum ToolType {
     /// Tools that require AI parameter analysis
     AIParameterParsing,
@@ -48,10 +48,9 @@ pub enum ToolType {
 }
 
 /// Tool parameter definition
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Parameter {
     pub name: String,
     pub description: String,
     pub required: bool,
-    pub value: String,
 }

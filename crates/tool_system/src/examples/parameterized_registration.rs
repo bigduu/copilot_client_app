@@ -3,12 +3,14 @@
 //! This file demonstrates different ways to register tools and categories
 //! that require constructor parameters.
 
-use anyhow::Result;
 use async_trait::async_trait;
+use serde_json::json;
 
 use crate::{
     registry::macros::auto_register_tool,
-    types::{Parameter, Tool, ToolType},
+    types::{
+        DisplayPreference, Parameter, Tool, ToolArguments, ToolDefinition, ToolError, ToolType,
+    },
 };
 
 // ============================================================================
@@ -34,32 +36,22 @@ impl Default for SimpleTool {
 
 #[async_trait]
 impl Tool for SimpleTool {
-    fn name(&self) -> String {
-        Self::TOOL_NAME.to_string()
+    fn definition(&self) -> ToolDefinition {
+        ToolDefinition {
+            name: Self::TOOL_NAME.to_string(),
+            description: "A simple tool with no constructor parameters".to_string(),
+            parameters: vec![],
+            requires_approval: false,
+            tool_type: ToolType::AIParameterParsing,
+            parameter_regex: None,
+            custom_prompt: None,
+            hide_in_selector: false,
+            display_preference: DisplayPreference::Default,
+        }
     }
 
-    fn description(&self) -> String {
-        "A simple tool with no constructor parameters".to_string()
-    }
-
-    fn parameters(&self) -> Vec<Parameter> {
-        vec![]
-    }
-
-    fn required_approval(&self) -> bool {
-        false
-    }
-
-    fn hide_in_selector(&self) -> bool {
-        false
-    }
-
-    fn tool_type(&self) -> ToolType {
-        ToolType::AIParameterParsing
-    }
-
-    async fn execute(&self, _parameters: Vec<Parameter>) -> Result<String> {
-        Ok("Simple tool executed".to_string())
+    async fn execute(&self, _args: ToolArguments) -> Result<serde_json::Value, ToolError> {
+        Ok(json!({"status": "Simple tool executed"}))
     }
 }
 
@@ -89,46 +81,41 @@ impl Default for ConfigurableTool {
 
 #[async_trait]
 impl Tool for ConfigurableTool {
-    fn name(&self) -> String {
-        Self::TOOL_NAME.to_string()
+    fn definition(&self) -> ToolDefinition {
+        ToolDefinition {
+            name: Self::TOOL_NAME.to_string(),
+            description: format!("A configurable tool connecting to {}", "123"),
+            parameters: vec![Parameter {
+                name: "action".to_string(),
+                description: "The action to perform".to_string(),
+                required: true,
+            }],
+            requires_approval: false,
+            tool_type: ToolType::AIParameterParsing,
+            parameter_regex: None,
+            custom_prompt: None,
+            hide_in_selector: false,
+            display_preference: DisplayPreference::Default,
+        }
     }
 
-    fn description(&self) -> String {
-        format!("A configurable tool connecting to {}", "123")
-    }
+    async fn execute(&self, args: ToolArguments) -> Result<serde_json::Value, ToolError> {
+        let action = match args {
+            ToolArguments::String(action) => action,
+            ToolArguments::Json(json) => json
+                .get("action")
+                .and_then(|v| v.as_str())
+                .unwrap_or("default")
+                .to_string(),
+            _ => "default".to_string(),
+        };
 
-    fn parameters(&self) -> Vec<Parameter> {
-        vec![Parameter {
-            name: "action".to_string(),
-            description: "The action to perform".to_string(),
-            required: true,
-            value: "".to_string(),
-        }]
-    }
-
-    fn required_approval(&self) -> bool {
-        false
-    }
-
-    fn hide_in_selector(&self) -> bool {
-        false
-    }
-
-    fn tool_type(&self) -> ToolType {
-        ToolType::AIParameterParsing
-    }
-
-    async fn execute(&self, parameters: Vec<Parameter>) -> Result<String> {
-        let action: &str = parameters
-            .iter()
-            .find(|p| p.name == "action")
-            .map(|p| &p.value)
-            .map_or("default", |v| v);
-
-        Ok(format!(
-            "Configurable tool executed action '{}' on {} with timeout {}s",
-            action, "www", 10
-        ))
+        Ok(json!({
+            "status": format!(
+                "Configurable tool executed action '{}' on {} with timeout {}s",
+                action, "www", 10
+            )
+        }))
     }
 }
 

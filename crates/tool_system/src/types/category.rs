@@ -56,25 +56,28 @@ pub trait Category: Send + Sync + std::fmt::Debug {
         self.required_tools()
             .iter()
             .filter_map(|tool_name| tools.get(*tool_name))
-            .map(|tool| ToolConfig {
-                name: tool.name(),
-                display_name: tool.name(),
-                description: tool.description(),
-                category_id: category_id.to_string(),
-                enabled: true,
-                requires_approval: tool.required_approval(),
-                auto_prefix: Some(format!("/{}", tool.name())),
-                permissions: vec![],
-                tool_type: match tool.tool_type() {
-                    crate::types::ToolType::AIParameterParsing => "AIParameterParsing".to_string(),
-                    crate::types::ToolType::RegexParameterExtraction => {
-                        "RegexParameterExtraction".to_string()
-                    }
-                },
-                parameter_regex: tool.parameter_regex(),
-                custom_prompt: tool.custom_prompt(),
-                hide_in_selector: tool.hide_in_selector(),
-                display_preference: tool.display_preference(),
+            .map(|tool| {
+                let def = tool.definition();
+                ToolConfig {
+                    name: def.name.clone(),
+                    display_name: def.name.clone(),
+                    description: def.description,
+                    category_id: category_id.to_string(),
+                    enabled: true,
+                    requires_approval: def.requires_approval,
+                    auto_prefix: Some(format!("/{}", def.name)),
+                    permissions: vec![],
+                    tool_type: match def.tool_type {
+                        crate::types::ToolType::AIParameterParsing => "AIParameterParsing".to_string(),
+                        crate::types::ToolType::RegexParameterExtraction => {
+                            "RegexParameterExtraction".to_string()
+                        }
+                    },
+                    parameter_regex: def.parameter_regex,
+                    custom_prompt: def.custom_prompt,
+                    hide_in_selector: def.hide_in_selector,
+                    display_preference: def.display_preference,
+                }
             })
             .collect()
     }

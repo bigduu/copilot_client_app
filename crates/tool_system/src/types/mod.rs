@@ -6,8 +6,10 @@
 pub mod tool;
 pub mod category;
 pub mod common;
+pub mod arguments;
 
 // Re-export all types for convenience
 pub use tool::*;
 pub use category::*;
 pub use common::*;
+pub use arguments::*;

@@ -16,6 +16,16 @@ tokio = { version = "1", features = ["full"] }
 uuid = { version = "1.8.0", features = ["v4"] }
 async-stream = "0.3"
 
-copilot_client = { path = "../copilot_client" }
+async-trait = "0.1.1"
+
+context_manager = { path = "../context_manager" }
 tool_system = { path = "../tool_system" }
 mcp_client = { path = "../mcp_client" }
+
+[dev-dependencies]
+axum = "0.7"
+
+[[test]]
+name = "fsm_integration_tests"
+path = "tests/fsm_integration_tests.rs"
+harness = true
