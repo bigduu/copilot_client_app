@@ -1,72 +1,28 @@
-# Architecture Plan: `context_manager` State Machine (v6 - Final)
+# Context Manager FSM Plan
 
-## 1. Vision &amp; Goal
+## 1. Overview
 
-This document proposes the integration of a formal Finite State Machine (FSM) into the `context_manager` crate. The FSM will explicitly manage the conversation lifecycle, ensuring robustness across tool-calling, streaming, error handling, auto-approval, and retry scenarios.
+This document proposes a Finite State Machine (FSM) to manage the lifecycle of a `ChatContext` within the `context_manager` crate. Introducing an FSM will bring robustness, predictability, and clarity to the complex flow of a conversation, especially when dealing with asynchronous operations like LLM calls and tool executions.
 
-**Goal**: To create a resilient, predictable, and flexible system by making the conversation state explicit and unifying the handling of all LLM response types and tool execution policies.
+This plan is based on the existing architecture and aims to formalize the state management, including support for streaming LLM responses.
 
-## 2. Data Structure Enhancements
+## 2. FSM States
 
-### 2.1. `ChatContext` State
+The `ContextState` enum will represent the various states a chat session can be in.
 
-```rust
-// In crates/context_manager/src/structs/context.rs
-pub enum ContextState {
-    Idle,
-    ProcessingUserMessage,
-    AwaitingLLMResponse,
-    ProcessingLLMResponse,
-    AwaitingToolApproval,
-    ExecutingTools,
-    ProcessingToolResults,
-    HandlingToolError { tool_name: String, error: String },
-    GeneratingResponse,
-    TransientFailure { error: String, retry_count: u8 },
-    Failed { error: String },
-}
-```
+-   **`Idle`**: The default state. The context is waiting for user input.
+-   **`ProcessingUserMessage`**: The system has received a new user message and is preparing it to be sent to the LLM.
+-   **`AwaitingLLMResponse`**: The context has been sent to the LLM, and the system is waiting for a response. This state initiates the connection.
+-   **`StreamingLLMResponse`**: The system is actively receiving and processing a stream of response chunks (SSE) from the LLM.
+-   **`ProcessingLLMResponse`**: The LLM response (either full or streamed) is complete, and the system is processing the final output (e.g., for tool calls).
+-   **`AwaitingToolApproval`**: The LLM has requested to use tools that require user approval.
+-   **`ExecutingTools`**: The system is executing approved tool calls.
+-   **`ProcessingToolResults`**: Tool executions have finished, and the system is processing their results.
+-   **`GeneratingResponse`**: The system is preparing a new request to the LLM after a tool call or generating a final answer.
+-   **`TransientFailure`**: A recoverable error occurred (e.g., network issue).
+-   **`Failed`**: An unrecoverable error occurred. This is a terminal state.
 
-### 2.2. Tool Definition &amp; Arguments
-
-To support configurable tool approval and more ergonomic argument handling, we will enhance the core tool-related structs.
-
-```rust
-// In crates/context_manager/src/structs/tool.rs
-// This struct is what the LLM responds with.
-pub struct ToolCallRequest {
-    pub id: String,
-    pub tool_name: String,
-    // This now uses the more flexible ToolArguments enum.
-    pub arguments: ToolArguments,
-    pub approval_status: ApprovalStatus,
-}
-
-// In crates/tool_system/src/types.rs
-/// A flexible enum for tool arguments, making simple tools easier to define and call.
-#[derive(Serialize, Deserialize, Clone, Debug)]
-#[serde(untagged)]
-pub enum ToolArguments {
-    /// A single, unnamed string argument.
-    String(String),
-    /// A list of unnamed string arguments.
-    StringList(Vec<String>),
-    /// A complex, structured set of named arguments.
-    Json(serde_json::Value),
-}
-
-pub struct ToolDefinition {
-    // ... existing fields like name, description, parameters ...
-    #[serde(default = "default_requires_approval")]
-    pub requires_approval: bool,
-}
-```
-
-## 3. Conversation Lifecycle FSM Design
-
-The FSM is updated to distinguish between transient and terminal failures and to handle auto-approval.
-
-### 3.1. State Machine Diagram
+## 3. State Transition Diagram
 
 ```mermaid
 stateDiagram-v2
@@ -74,62 +30,50 @@ stateDiagram-v2
     [*] --> Idle
     Idle --> ProcessingUserMessage: User sends message
     ProcessingUserMessage --> AwaitingLLMResponse: Send to LLM
-    AwaitingLLMResponse --> ProcessingLLMResponse: LLM response complete
-    AwaitingLLMResponse --> TransientFailure: Recoverable network error
+    AwaitingLLMResponse --> StreamingLLMResponse: SSE stream starts
+    AwaitingLLMResponse --> ProcessingLLMResponse: Full response received
+    AwaitingLLMResponse --> TransientFailure: Connection error
+    
+    StreamingLLMResponse --> StreamingLLMResponse: Receives chunk
+    StreamingLLMResponse --> ProcessingLLMResponse: Stream ends [DONE]
+    StreamingLLMResponse --> TransientFailure: Stream error
+
     ProcessingLLMResponse --> AwaitingToolApproval: Tool calls require approval
     ProcessingLLMResponse --> ExecutingTools: Tool calls are auto-approved
-    ProcessingLLMResponse --> HandlingToolError: Invalid tool calls
     ProcessingLLMResponse --> Idle: Final text answer
+    
     AwaitingToolApproval --> ExecutingTools: User approves
     AwaitingToolApproval --> GeneratingResponse: User denies
+    
     ExecutingTools --> ProcessingToolResults: Tools succeed
     ExecutingTools --> TransientFailure: Recoverable tool error
     ExecutingTools --> Failed: Unrecoverable tool error
+    
     ProcessingToolResults --> GeneratingResponse: Results added to context
-    HandlingToolError --> GeneratingResponse: Error message added to context
     GeneratingResponse --> AwaitingLLMResponse: Send updated context to LLM
-    TransientFailure --> AwaitingLLMResponse: Retry (from LLM error)
-    TransientFailure --> ExecutingTools: Retry (from tool error)
+    
+    TransientFailure --> AwaitingLLMResponse: Retry [from LLM error]
+    TransientFailure --> ExecutingTools: Retry [from tool error]
     TransientFailure --> Failed: Max retries exceeded
+    
     state "Terminal Error" as Failed
 ```
 
-## 4. `tool_system` Crate Refactoring Plan
+## 4. Implementation Details
 
-### 4.1. Unified `Tool` Trait
+-   The `ContextState` enum will be updated in the `context_manager` crate to include `StreamingLLMResponse`.
+-   The `ChatContext` struct will hold the current `ContextState`.
+-   A `handle_event` method on `ChatContext` will manage state transitions.
 
-The `Tool` trait will be updated to use the new `ToolArguments` enum, improving developer ergonomics.
+## 5. Streaming with `reqwest-sse`
 
-```rust
-// In crates/tool_system/src/lib.rs
-use async_trait::async_trait;
-use crate::types::{ToolDefinition, ToolArguments, ToolError};
+To handle streaming responses, we will integrate the `reqwest-sse` crate.
 
-#[async_trait]
-pub trait Tool: Send + Sync {
-    /// Returns the tool's static definition.
-    fn definition(&self) -> ToolDefinition;
-
-    /// Executes the tool with the given arguments.
-    async fn execute(&self, args: ToolArguments) -> Result<serde_json::Value, ToolError>;
-}
-```
-A simple tool can now be implemented cleanly:
-```rust
-async fn execute(&self, args: ToolArguments) -> Result<serde_json::Value, ToolError> {
-    if let ToolArguments::String(path) = args {
-        // ... logic for single string argument ...
-        Ok(serde_json::json!({"status": "ok"}))
-    } else {
-        Err(ToolError::InvalidArguments)
-    }
-}
-```
-
-### 4.2. Central `ToolRegistry` & Stateless `ToolExecutor`
-
-The `ToolRegistry` and `ToolExecutor` will be implemented as previously described, forming the core of the decoupled tool execution engine. The `ToolExecutor` will now pass the `ToolArguments` enum directly to the tool's `execute` method.
-
-## 5. Error Handling & Retry Strategy
-
-This section remains a critical part of the design, distinguishing between `TransientFailure` (with retries) and the terminal `Failed` state.
+-   **Transition to Streaming**: When the `AwaitingLLMResponse` state receives a successful HTTP response that indicates an SSE stream, it will transition to `StreamingLLMResponse`.
+-   **Event Consumption**: In the `StreamingLLMResponse` state, the FSM will use `response.events()` from `reqwest-sse` to consume the stream.
+-   **Processing Chunks**: For each event received from the stream:
+    -   The FSM will parse the event data (a JSON chunk).
+    -   It will incrementally append the content from the chunk to the assistant's message within the `ChatContext`.
+    -   The UI will be notified of the update to provide a real-time typing effect.
+-   **Stream Completion**: When the stream sends a `[DONE]` message or closes, the FSM will transition from `StreamingLLMResponse` to `ProcessingLLMResponse` to finalize the message and check for tool calls.
+-   **Error Handling**: Any errors during the stream will cause a transition to `TransientFailure`, allowing for potential retries.

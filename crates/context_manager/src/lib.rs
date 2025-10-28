@@ -4,10 +4,13 @@
 // Declare the modules
 pub mod structs;
 pub mod traits;
+pub mod fsm;
 
 // Re-export the public API
+pub use fsm::ChatEvent;
 pub use structs::branch::{Branch, SystemPrompt};
 pub use structs::context::{ChatConfig, ChatContext};
+pub use structs::state::ContextState;
 pub use structs::message::{ContentPart, InternalMessage, MessageNode, Role};
 pub use structs::metadata::{MessageMetadata, TokenUsage};
 pub use structs::tool::{ApprovalStatus, ToolCallRequest, ToolCallResult};

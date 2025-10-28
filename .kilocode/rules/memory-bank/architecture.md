@@ -99,12 +99,17 @@ graph TD
 `context_manager` 内置一个正式的有限状态机，用于明确管理对话生命周期，确保在工具调用、流式响应、错误处理和重试等复杂场景下的健壮性。
 
 **`ContextState` 枚举** 定义了所有可能的状态，例如：
--   `Idle`
--   `AwaitingLLMResponse`
--   `AwaitingToolApproval`
--   `ExecutingTools`
--   `TransientFailure` (可重试的临时错误)
--   `Failed` (不可恢复的终端错误)
+-   **`Idle`**: The default state. The context is waiting for user input.
+-   **`ProcessingUserMessage`**: The system has received a new user message and is preparing it to be sent to the LLM.
+-   **`AwaitingLLMResponse`**: The context has been sent to the LLM, and the system is waiting for a response. This state initiates the connection.
+-   **`StreamingLLMResponse`**: The system is actively receiving and processing a stream of response chunks (SSE) from the LLM.
+-   **`ProcessingLLMResponse`**: The LLM response (either full or streamed) is complete, and the system is processing the final output (e.g., for tool calls).
+-   **`AwaitingToolApproval`**: The LLM has requested to use tools that require user approval.
+-   **`ExecutingTools`**: The system is executing approved tool calls.
+-   **`ProcessingToolResults`**: Tool executions have finished, and the system is processing their results.
+-   **`GeneratingResponse`**: The system is preparing a new request to the LLM after a tool call or generating a final answer.
+-   **`TransientFailure`**: A recoverable error occurred (e.g., network issue).
+-   **`Failed`**: An unrecoverable error occurred. This is a terminal state.
 
 **FSM 状态转换图:**
 
@@ -114,23 +119,32 @@ stateDiagram-v2
     [*] --> Idle
     Idle --> ProcessingUserMessage: User sends message
     ProcessingUserMessage --> AwaitingLLMResponse: Send to LLM
-    AwaitingLLMResponse --> ProcessingLLMResponse: LLM response complete
-    AwaitingLLMResponse --> TransientFailure: Recoverable network error
+    AwaitingLLMResponse --> StreamingLLMResponse: SSE stream starts
+    AwaitingLLMResponse --> ProcessingLLMResponse: Full response received
+    AwaitingLLMResponse --> TransientFailure: Connection error
+    
+    StreamingLLMResponse --> StreamingLLMResponse: Receives chunk
+    StreamingLLMResponse --> ProcessingLLMResponse: Stream ends [DONE]
+    StreamingLLMResponse --> TransientFailure: Stream error
+
     ProcessingLLMResponse --> AwaitingToolApproval: Tool calls require approval
     ProcessingLLMResponse --> ExecutingTools: Tool calls are auto-approved
-    ProcessingLLMResponse --> HandlingToolError: Invalid tool calls
     ProcessingLLMResponse --> Idle: Final text answer
+    
     AwaitingToolApproval --> ExecutingTools: User approves
     AwaitingToolApproval --> GeneratingResponse: User denies
+    
     ExecutingTools --> ProcessingToolResults: Tools succeed
     ExecutingTools --> TransientFailure: Recoverable tool error
     ExecutingTools --> Failed: Unrecoverable tool error
+    
     ProcessingToolResults --> GeneratingResponse: Results added to context
-    HandlingToolError --> GeneratingResponse: Error message added to context
     GeneratingResponse --> AwaitingLLMResponse: Send updated context to LLM
+    
     TransientFailure --> AwaitingLLMResponse: Retry [from LLM error]
     TransientFailure --> ExecutingTools: Retry [from tool error]
     TransientFailure --> Failed: Max retries exceeded
+    
     state "Terminal Error" as Failed
 ```
 

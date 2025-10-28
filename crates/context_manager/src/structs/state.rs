@@ -7,8 +7,10 @@ pub enum ContextState {
     Idle,
     /// The system is processing a new user message before sending it to the LLM.
     ProcessingUserMessage,
-    /// The system is awaiting or actively receiving a response from the LLM (unified state for streaming/non-streaming).
+    /// The system is awaiting a response from the LLM.
     AwaitingLLMResponse,
+    /// The system is actively receiving and processing a stream of response chunks from the LLM.
+    StreamingLLMResponse,
     /// The complete LLM response has been received and is being inspected for next steps (tool calls, final answer).
     ProcessingLLMResponse,
     /// The LLM has requested tool calls that require user approval.
@@ -17,8 +19,6 @@ pub enum ContextState {
     ExecutingTools,
     /// The results of tool execution are being processed and added to the context.
     ProcessingToolResults,
-    /// The LLM has returned an invalid tool call, and the system is preparing feedback for the model.
-    HandlingToolError { tool_name: String, error: String },
     /// The context (with tool results or error feedback) is being sent to the LLM for a subsequent response.
     GeneratingResponse,
     /// A recoverable error occurred. The system will attempt to retry.
