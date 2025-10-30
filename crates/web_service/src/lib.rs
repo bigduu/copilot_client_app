@@ -3,6 +3,7 @@ pub mod error;
 pub mod models;
 pub mod server;
 pub mod services;
+pub mod storage;
 
 use std::sync::Arc;
 use tokio::sync::Mutex;

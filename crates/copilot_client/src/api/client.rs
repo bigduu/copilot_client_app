@@ -6,18 +6,17 @@ use std::{path::PathBuf, sync::Arc};
 use tauri::http::HeaderMap;
 use tokio::sync::mpsc::Sender;
 
-use crate::api::models::{
-    ChatCompletionRequest, ChatCompletionResponse, ChatCompletionStreamChunk, ChatMessage, Content,
-    ContentPart,
-};
+use crate::api::models::{ChatCompletionRequest, ChatCompletionStreamChunk};
 use crate::auth::auth_handler::CopilotAuthHandler;
 use crate::config::Config;
 use crate::utils::http_utils::execute_request_with_vision;
-use crate::utils::sse::extract_sse_message;
 use futures_util::StreamExt;
 use reqwest_sse::EventSource;
 
 use super::models_handler::CopilotModelsHandler;
+use crate::api::models::{Content, ContentPart};
+use crate::client_trait::CopilotClientTrait;
+use async_trait::async_trait;
 
 const DEFAULT_COPILOT_MODEL: &str = "gpt-4.1";
 
@@ -27,6 +26,7 @@ pub struct CopilotClient {
     client: Arc<Client>,
     auth_handler: CopilotAuthHandler,
     models_handler: CopilotModelsHandler,
+    config: Config,
 }
 
 impl CopilotClient {
@@ -49,6 +49,7 @@ impl CopilotClient {
             client: shared_client,
             auth_handler,
             models_handler,
+            config,
         }
     }
 
@@ -57,7 +58,24 @@ impl CopilotClient {
         self.models_handler.get_models(chat_token).await
     }
 
-    pub async fn send_chat_completion_request(
+    pub fn get_default_headers() -> HeaderMap {
+        let mut header: HeaderMap = HeaderMap::new();
+        header.insert("editor-version", "vscode/1.99.2".parse().unwrap());
+        header.insert(
+            "editor-plugin-version",
+            "copilot-chat/0.20.3".parse().unwrap(),
+        );
+        header.insert("accept-encoding", "gzip, deflate, br".parse().unwrap());
+        header.insert("user-agent", "GithubCopilot/1.155.0".parse().unwrap());
+        header.insert("accept", "application/json".parse().unwrap());
+        header.insert("content-type", "application/json".parse().unwrap());
+        header
+    }
+}
+
+#[async_trait]
+impl CopilotClientTrait for CopilotClient {
+    async fn send_chat_completion_request(
         &self,
         mut request: ChatCompletionRequest,
     ) -> anyhow::Result<Response> {
@@ -79,7 +97,12 @@ impl CopilotClient {
             _ => false,
         });
 
-        let url = "https://api.githubcopilot.com/chat/completions";
+        let base_url = self
+            .config
+            .api_base
+            .as_deref()
+            .unwrap_or("https://api.githubcopilot.com");
+        let url = format!("{}/chat/completions", base_url);
         info!("Preparing request with {} messages", request.messages.len());
         if has_images {
             info!("Request contains images, adding vision header");
@@ -88,7 +111,7 @@ impl CopilotClient {
         execute_request_with_vision(
             &self.client,
             reqwest::Method::POST,
-            url,
+            &url,
             Some(&access_token),
             Some(&request),
             has_images,
@@ -96,7 +119,7 @@ impl CopilotClient {
         .await
     }
 
-    pub async fn process_chat_completion_stream(
+    async fn process_chat_completion_stream(
         &self,
         response: Response,
         tx: Sender<anyhow::Result<Bytes>>,
@@ -131,20 +154,5 @@ impl CopilotClient {
             }
         }
         Ok(())
-    }
-
-
-    pub fn get_default_headers() -> HeaderMap {
-        let mut header: HeaderMap = HeaderMap::new();
-        header.insert("editor-version", "vscode/1.99.2".parse().unwrap());
-        header.insert(
-            "editor-plugin-version",
-            "copilot-chat/0.20.3".parse().unwrap(),
-        );
-        header.insert("accept-encoding", "gzip, deflate, br".parse().unwrap());
-        header.insert("user-agent", "GithubCopilot/1.155.0".parse().unwrap());
-        header.insert("accept", "application/json".parse().unwrap());
-        header.insert("content-type", "application/json".parse().unwrap());
-        header
     }
 }

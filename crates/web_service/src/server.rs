@@ -2,40 +2,53 @@ use actix_cors::Cors;
 use actix_web::{middleware::Logger, web, App, HttpServer};
 use log::{error, info};
 use std::{
-    collections::HashMap,
     path::PathBuf,
     sync::{Arc, Mutex},
 };
-use tokio::sync::{mpsc, oneshot};
-use uuid::Uuid;
+use tokio::sync::oneshot;
 
-use crate::controllers::{chat_controller, system_controller, tool_controller};
-use crate::services::tool_service::ToolService;
-use context_manager::ChatContext;
-use tool_system::registry::ToolRegistry;
-use tool_system::ToolExecutor;
+use crate::controllers::{chat_controller, openai_controller, system_controller, tool_controller};
+use crate::services::{session_manager::ChatSessionManager, tool_service::ToolService};
+use crate::storage::file_provider::FileStorageProvider;
+use copilot_client::{config::Config, CopilotClient, CopilotClientTrait};
+use tool_system::{registry::ToolRegistry, ToolExecutor};
 
 pub struct AppState {
-    pub conversations: Mutex<HashMap<Uuid, ChatContext>>,
-    pub tool_registry: Arc<Mutex<ToolRegistry>>,
+    pub session_manager: Arc<ChatSessionManager<FileStorageProvider>>,
+    pub copilot_client: Arc<dyn CopilotClientTrait>,
     pub tool_executor: Arc<ToolExecutor>,
-    pub event_sender: mpsc::Sender<String>,
 }
 
-pub async fn run(_app_data: PathBuf, port: u16) -> Result<(), String> {
+pub fn app_config(cfg: &mut web::ServiceConfig) {
+    cfg.service(
+        web::scope("/v1")
+            .configure(chat_controller::config)
+            .configure(openai_controller::config)
+            .configure(system_controller::config)
+            .configure(tool_controller::config)
+    );
+}
+
+pub async fn run(app_data_dir: PathBuf, port: u16) -> Result<(), String> {
     info!("Starting web service...");
 
     let tool_registry = Arc::new(Mutex::new(ToolRegistry::new()));
     let tool_executor = Arc::new(ToolExecutor::new(tool_registry.clone()));
-    let tool_service = ToolService::new(tool_registry.clone(), tool_executor);
+    let tool_service = ToolService::new(tool_registry.clone(), tool_executor.clone());
     let tool_service_data = web::Data::new(tool_service);
 
-    let (event_tx, _event_rx) = mpsc::channel(100);
+    let storage_provider =
+        Arc::new(FileStorageProvider::new(app_data_dir.join("conversations")));
+    let session_manager = Arc::new(ChatSessionManager::new(storage_provider, 100)); // Cache up to 100 sessions
+
+    let config = Config::new();
+    let copilot_client: Arc<dyn CopilotClientTrait> =
+        Arc::new(CopilotClient::new(config, app_data_dir.clone()));
+
     let app_state = web::Data::new(AppState {
-        conversations: Mutex::new(HashMap::new()),
-        tool_registry: tool_registry.clone(),
-        tool_executor: Arc::new(ToolExecutor::new(tool_registry.clone())),
-        event_sender: event_tx,
+        session_manager,
+        tool_executor,
+        copilot_client,
     });
 
     let server = HttpServer::new(move || {
@@ -50,9 +63,7 @@ pub async fn run(_app_data: PathBuf, port: u16) -> Result<(), String> {
                     .allow_any_header()
                     .max_age(3600),
             )
-            .configure(tool_controller::config)
-            .configure(system_controller::config)
-            .service(web::scope("/v1").configure(chat_controller::config))
+            .configure(app_config)
     })
     .bind(format!("127.0.0.1:{}", port))
     .map_err(|e| format!("Failed to bind server: {}", e))?
@@ -71,13 +82,15 @@ pub async fn run(_app_data: PathBuf, port: u16) -> Result<(), String> {
 pub struct WebService {
     shutdown_tx: Option<oneshot::Sender<()>>,
     server_handle: Option<tokio::task::JoinHandle<()>>,
+    app_data_dir: PathBuf,
 }
 
 impl WebService {
-    pub fn new() -> Self {
+    pub fn new(app_data_dir: PathBuf) -> Self {
         Self {
             shutdown_tx: None,
             server_handle: None,
+            app_data_dir,
         }
     }
 
@@ -91,15 +104,22 @@ impl WebService {
 
         let tool_registry = Arc::new(Mutex::new(ToolRegistry::new()));
         let tool_executor = Arc::new(ToolExecutor::new(tool_registry.clone()));
-        let tool_service = ToolService::new(tool_registry.clone(), tool_executor);
+        let tool_service = ToolService::new(tool_registry.clone(), tool_executor.clone());
         let tool_service_data = web::Data::new(tool_service);
 
-        let (event_tx, _event_rx) = mpsc::channel(100);
+        let storage_provider = Arc::new(FileStorageProvider::new(
+            self.app_data_dir.join("conversations"),
+        ));
+        let session_manager = Arc::new(ChatSessionManager::new(storage_provider, 100));
+
+        let config = Config::new();
+        let copilot_client: Arc<dyn CopilotClientTrait> =
+            Arc::new(CopilotClient::new(config, self.app_data_dir.clone()));
+
         let app_state = web::Data::new(AppState {
-            conversations: Mutex::new(HashMap::new()),
-            tool_registry: tool_registry.clone(),
-            tool_executor: Arc::new(ToolExecutor::new(tool_registry.clone())),
-            event_sender: event_tx,
+            session_manager,
+            tool_executor,
+            copilot_client,
         });
 
         let server = HttpServer::new(move || {
@@ -114,9 +134,7 @@ impl WebService {
                         .allow_any_header()
                         .max_age(3600),
                 )
-                .configure(tool_controller::config)
-                .configure(system_controller::config)
-                .service(web::scope("/v1").configure(chat_controller::config))
+                .configure(app_config)
         })
         .bind(format!("127.0.0.1:{}", port))
         .map_err(|e| format!("Failed to bind server: {}", e))?
@@ -167,11 +185,6 @@ impl WebService {
     }
 }
 
-impl Default for WebService {
-    fn default() -> Self {
-        Self::new()
-    }
-}
 
 impl Drop for WebService {
     fn drop(&mut self) {

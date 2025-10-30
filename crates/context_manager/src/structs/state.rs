@@ -1,9 +1,10 @@
 use serde::{Deserialize, Serialize};
 
 /// Defines the possible states of a ChatContext's lifecycle.
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Default)]
 pub enum ContextState {
     /// The context is idle, awaiting user input.
+    #[default]
     Idle,
     /// The system is processing a new user message before sending it to the LLM.
     ProcessingUserMessage,
@@ -25,10 +26,4 @@ pub enum ContextState {
     TransientFailure { error: String, retry_count: u8 },
     /// A terminal, unrecoverable error has occurred.
     Failed { error: String },
-}
-
-impl Default for ContextState {
-    fn default() -> Self {
-        ContextState::Idle
-    }
 }

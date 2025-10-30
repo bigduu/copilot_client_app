@@ -27,7 +27,7 @@ pub struct ChatCompletionRequest {
 
 // ========== Message and Content Structures ==========
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct ChatMessage {
     /// The role of the message author.
     pub role: Role,
@@ -77,14 +77,14 @@ pub struct ImageUrl {
 
 // ========== Tool-Related Structures ==========
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct Tool {
     #[serde(rename = "type")]
     pub tool_type: String, // Always "function"
     pub function: FunctionDefinition,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct FunctionDefinition {
     pub name: String,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -92,7 +92,7 @@ pub struct FunctionDefinition {
     pub parameters: serde_json::Value, // JSON Schema
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 #[serde(untagged)]
 pub enum ToolChoice {
     String(String), // e.g., "none", "auto"
@@ -103,12 +103,12 @@ pub enum ToolChoice {
     },
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct FunctionChoice {
     pub name: String,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct ToolCall {
     pub id: String,
     #[serde(rename = "type")]
@@ -116,7 +116,7 @@ pub struct ToolCall {
     pub function: FunctionCall,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct FunctionCall {
     pub name: String,
     pub arguments: String, // JSON string
@@ -125,7 +125,7 @@ pub struct FunctionCall {
 // ========== Response Structures ==========
 
 // For Block Responses
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct ChatCompletionResponse {
     pub id: String,
     pub object: String,
@@ -137,14 +137,14 @@ pub struct ChatCompletionResponse {
     pub system_fingerprint: Option<String>,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct ResponseChoice {
     pub index: u32,
     pub message: ChatMessage,
     pub finish_reason: String,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct Usage {
     pub prompt_tokens: u32,
     pub completion_tokens: u32,
@@ -152,7 +152,7 @@ pub struct Usage {
 }
 
 // For Stream Responses
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct ChatCompletionStreamChunk {
     pub id: String,
     pub object: String,
@@ -161,7 +161,7 @@ pub struct ChatCompletionStreamChunk {
     pub choices: Vec<StreamChoice>,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct StreamChoice {
     pub index: u32,
     pub delta: StreamDelta,
@@ -169,7 +169,7 @@ pub struct StreamChoice {
     pub finish_reason: Option<String>,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, Default)]
+#[derive(Debug, Serialize, Deserialize, Clone, Default, PartialEq)]
 pub struct StreamDelta {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub role: Option<Role>,
