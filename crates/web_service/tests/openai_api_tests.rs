@@ -60,7 +60,7 @@ impl CopilotClientTrait for MockCopilotClient {
     ) -> Result<()> {
         // Read the entire response body instead of using SSE parser (for test compatibility)
         let body = response.text().await?;
-        
+
         // Manually parse SSE format
         for line in body.lines() {
             if line.starts_with("data: ") {

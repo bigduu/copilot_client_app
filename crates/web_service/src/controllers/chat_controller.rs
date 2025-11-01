@@ -1,11 +1,12 @@
 use crate::{
+    middleware::extract_trace_id,
     models::CreateSessionRequest,
     server::AppState,
     services::chat_service::{ChatService, ServiceResponse},
 };
 use actix_web::{
     web::{self, Data},
-    HttpResponse, Result,
+    HttpRequest, HttpResponse, Result,
 };
 use log::info;
 use serde_json::json;
@@ -14,13 +15,15 @@ use uuid::Uuid;
 pub async fn create_chat_session(
     app_state: Data<AppState>,
     req: web::Json<CreateSessionRequest>,
+    http_req: HttpRequest,
 ) -> Result<HttpResponse> {
+    let trace_id = extract_trace_id(&http_req);
     let session = app_state
         .session_manager
-        .create_session(req.model_id.clone(), req.mode.clone())
+        .create_session(req.model_id.clone(), req.mode.clone(), trace_id)
         .await
         .unwrap();
-    let session_id = session.lock().await.id;
+    let session_id = session.read().await.id;
     info!("Created new chat session: {}", session_id);
     Ok(HttpResponse::Ok().json(json!({ "session_id": session_id })))
 }

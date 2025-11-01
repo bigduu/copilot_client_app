@@ -7,6 +7,8 @@ edition = "2021"
 tokio = { version = "1", features = ["full"] }
 log = "0.4"
 env_logger = "0.9"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt", "json"] }
 dotenvy = "0.15"
 
 web_service = { path = "../web_service" }

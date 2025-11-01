@@ -38,5 +38,7 @@ pub fn config(cfg: &mut web::ServiceConfig) {
     cfg.service(web::resource("/tools/available").route(web::get().to(get_tools_for_ui)))
         .service(web::resource("/tools/execute").route(web::post().to(execute_tool)))
         .service(web::resource("/tools/categories").route(web::get().to(get_categories)))
-        .service(web::resource("/tools/category/{id}/info").route(web::get().to(get_category_info)));
+        .service(
+            web::resource("/tools/category/{id}/info").route(web::get().to(get_category_info)),
+        );
 }

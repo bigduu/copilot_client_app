@@ -1,6 +1,7 @@
 use crate::{ChatContext, ContextState};
 
 /// Defines the events that can trigger state transitions in the ChatContext FSM.
+#[derive(Debug)]
 pub enum ChatEvent {
     UserMessageSent,
     LLMRequestInitiated,
@@ -20,38 +21,123 @@ pub enum ChatEvent {
 impl ChatContext {
     /// Handles an event and transitions the context to a new state.
     pub fn handle_event(&mut self, event: ChatEvent) {
+        tracing::debug!(
+            context_id = %self.id,
+            current_state = ?self.current_state,
+            event = ?event,
+            "FSM: handle_event called"
+        );
+
+        let old_state = self.current_state.clone();
         let new_state = match (&self.current_state, event) {
             (ContextState::Idle, ChatEvent::UserMessageSent) => ContextState::ProcessingUserMessage,
-            (ContextState::ProcessingUserMessage, ChatEvent::LLMRequestInitiated) => ContextState::AwaitingLLMResponse,
-            (ContextState::AwaitingLLMResponse, ChatEvent::LLMStreamStarted) => ContextState::StreamingLLMResponse,
-            (ContextState::AwaitingLLMResponse, ChatEvent::LLMFullResponseReceived) => ContextState::ProcessingLLMResponse,
-            (ContextState::AwaitingLLMResponse, ChatEvent::FatalError { error }) => ContextState::Failed { error },
-            (ContextState::AwaitingLLMResponse, ChatEvent::ToolExecutionFailed { error, retry_count }) => ContextState::TransientFailure { error, retry_count },
+            (ContextState::ProcessingUserMessage, ChatEvent::LLMRequestInitiated) => {
+                ContextState::AwaitingLLMResponse
+            }
+            (ContextState::AwaitingLLMResponse, ChatEvent::LLMStreamStarted) => {
+                ContextState::StreamingLLMResponse
+            }
+            (ContextState::AwaitingLLMResponse, ChatEvent::LLMFullResponseReceived) => {
+                ContextState::ProcessingLLMResponse
+            }
+            (ContextState::AwaitingLLMResponse, ChatEvent::FatalError { error }) => {
+                ContextState::Failed { error }
+            }
+            (
+                ContextState::AwaitingLLMResponse,
+                ChatEvent::ToolExecutionFailed { error, retry_count },
+            ) => ContextState::TransientFailure { error, retry_count },
 
-            (ContextState::StreamingLLMResponse, ChatEvent::LLMStreamChunkReceived) => ContextState::StreamingLLMResponse,
-            (ContextState::StreamingLLMResponse, ChatEvent::LLMStreamEnded) => ContextState::ProcessingLLMResponse,
-            (ContextState::StreamingLLMResponse, ChatEvent::FatalError { error }) => ContextState::Failed { error },
-            (ContextState::StreamingLLMResponse, ChatEvent::ToolExecutionFailed { error, retry_count }) => ContextState::TransientFailure { error, retry_count },
+            (ContextState::StreamingLLMResponse, ChatEvent::LLMStreamChunkReceived) => {
+                ContextState::StreamingLLMResponse
+            }
+            (ContextState::StreamingLLMResponse, ChatEvent::LLMStreamEnded) => {
+                ContextState::ProcessingLLMResponse
+            }
+            (ContextState::StreamingLLMResponse, ChatEvent::FatalError { error }) => {
+                ContextState::Failed { error }
+            }
+            (
+                ContextState::StreamingLLMResponse,
+                ChatEvent::ToolExecutionFailed { error, retry_count },
+            ) => ContextState::TransientFailure { error, retry_count },
 
-            (ContextState::ProcessingLLMResponse, ChatEvent::LLMResponseProcessed { has_tool_calls: true }) => ContextState::AwaitingToolApproval,
-            (ContextState::ProcessingLLMResponse, ChatEvent::LLMResponseProcessed { has_tool_calls: false }) => ContextState::Idle,
+            (
+                ContextState::ProcessingLLMResponse,
+                ChatEvent::LLMResponseProcessed {
+                    has_tool_calls: true,
+                },
+            ) => ContextState::AwaitingToolApproval,
+            (
+                ContextState::ProcessingLLMResponse,
+                ChatEvent::LLMResponseProcessed {
+                    has_tool_calls: false,
+                },
+            ) => ContextState::Idle,
 
-            (ContextState::AwaitingToolApproval, ChatEvent::ToolCallsApproved) => ContextState::ExecutingTools,
-            (ContextState::AwaitingToolApproval, ChatEvent::ToolCallsDenied) => ContextState::GeneratingResponse,
+            (ContextState::AwaitingToolApproval, ChatEvent::ToolCallsApproved) => {
+                ContextState::ExecutingTools
+            }
+            (ContextState::AwaitingToolApproval, ChatEvent::ToolCallsDenied) => {
+                ContextState::GeneratingResponse
+            }
 
-            (ContextState::ExecutingTools, ChatEvent::ToolExecutionCompleted) => ContextState::ProcessingToolResults,
-            (ContextState::ExecutingTools, ChatEvent::ToolExecutionFailed { error, retry_count }) => ContextState::TransientFailure { error, retry_count },
-            (ContextState::ExecutingTools, ChatEvent::FatalError { error }) => ContextState::Failed { error },
+            (ContextState::ExecutingTools, ChatEvent::ToolExecutionCompleted) => {
+                ContextState::ProcessingToolResults
+            }
+            (
+                ContextState::ExecutingTools,
+                ChatEvent::ToolExecutionFailed { error, retry_count },
+            ) => ContextState::TransientFailure { error, retry_count },
+            (ContextState::ExecutingTools, ChatEvent::FatalError { error }) => {
+                ContextState::Failed { error }
+            }
 
-            (ContextState::ProcessingToolResults, ChatEvent::LLMRequestInitiated) => ContextState::GeneratingResponse,
-            (ContextState::GeneratingResponse, ChatEvent::LLMRequestInitiated) => ContextState::AwaitingLLMResponse,
+            (ContextState::ProcessingToolResults, ChatEvent::LLMRequestInitiated) => {
+                ContextState::GeneratingResponse
+            }
+            (ContextState::GeneratingResponse, ChatEvent::LLMRequestInitiated) => {
+                ContextState::AwaitingLLMResponse
+            }
 
-            (ContextState::TransientFailure { retry_count, .. }, ChatEvent::Retry) if *retry_count < 3 => ContextState::AwaitingLLMResponse,
-            (ContextState::TransientFailure { error, .. }, ChatEvent::Retry) => ContextState::Failed { error: format!("Max retries exceeded. Last error: {}", error) },
+            (ContextState::TransientFailure { retry_count, .. }, ChatEvent::Retry)
+                if *retry_count < 3 =>
+            {
+                ContextState::AwaitingLLMResponse
+            }
+            (ContextState::TransientFailure { error, .. }, ChatEvent::Retry) => {
+                ContextState::Failed {
+                    error: format!("Max retries exceeded. Last error: {}", error),
+                }
+            }
 
             // Default case: remain in the current state if the event is not applicable
-            _ => self.current_state.clone(),
+            _ => {
+                tracing::debug!(
+                    context_id = %self.id,
+                    current_state = ?self.current_state,
+                    event = "unhandled",
+                    "FSM: Event does not trigger state change"
+                );
+                self.current_state.clone()
+            }
         };
+
+        if old_state != new_state {
+            tracing::info!(
+                context_id = %self.id,
+                old_state = ?old_state,
+                new_state = ?new_state,
+                "FSM: State transition"
+            );
+        } else {
+            tracing::debug!(
+                context_id = %self.id,
+                state = ?self.current_state,
+                "FSM: State unchanged"
+            );
+        }
+
         self.current_state = new_state;
     }
 }

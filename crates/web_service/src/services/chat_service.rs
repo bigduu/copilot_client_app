@@ -4,12 +4,15 @@ use context_manager::structs::{
     state::ContextState,
     tool::ToolCallRequest,
 };
-use copilot_client::api::models::{ChatCompletionRequest, ChatMessage, Content, Role as ClientRole};
+use copilot_client::api::models::{
+    ChatCompletionRequest, ChatMessage, Content, Role as ClientRole,
+};
 use copilot_client::CopilotClientTrait;
 use log::{debug, error, info};
 use serde::Serialize;
 use std::sync::Arc;
 use tool_system::ToolExecutor;
+use tracing;
 use uuid::Uuid;
 
 use super::session_manager::ChatSessionManager;
@@ -45,23 +48,25 @@ fn convert_content(parts: &[ContentPart]) -> Content {
             return Content::Text(text.clone());
         }
     }
-    
+
     // Multiple parts or complex content
     let client_parts: Vec<copilot_client::api::models::ContentPart> = parts
         .iter()
         .filter_map(|part| match part {
-            ContentPart::Text { text } => Some(copilot_client::api::models::ContentPart::Text { 
-                text: text.clone() 
-            }),
-            ContentPart::Image { url, detail } => Some(copilot_client::api::models::ContentPart::ImageUrl {
-                image_url: copilot_client::api::models::ImageUrl {
-                    url: url.clone(),
-                    detail: detail.clone(),
-                },
-            }),
+            ContentPart::Text { text } => {
+                Some(copilot_client::api::models::ContentPart::Text { text: text.clone() })
+            }
+            ContentPart::Image { url, detail } => {
+                Some(copilot_client::api::models::ContentPart::ImageUrl {
+                    image_url: copilot_client::api::models::ImageUrl {
+                        url: url.clone(),
+                        detail: detail.clone(),
+                    },
+                })
+            }
         })
         .collect();
-    
+
     Content::Parts(client_parts)
 }
 
@@ -94,31 +99,49 @@ impl<T: StorageProvider> ChatService<T> {
         log::info!("=== ChatService::process_message START ===");
         log::info!("Conversation ID: {}", self.conversation_id);
         log::info!("User message: {}", message);
-        
+
         let context = self
             .session_manager
-            .load_context(self.conversation_id)
+            .load_context(self.conversation_id, None)
             .await?
             .ok_or_else(|| {
                 log::error!("Session not found: {}", self.conversation_id);
                 AppError::InternalError(anyhow::anyhow!("Session not found"))
             })?;
-        
+
         log::info!("Context loaded successfully");
-        
-        let mut context_lock = context.lock().await;
-        log::info!("Current context state before adding message: {:?}", context_lock.current_state);
+
+        let mut context_lock = context.write().await;
+        let trace_id = context_lock.get_trace_id().map(|s| s.to_string());
+
+        tracing::info!(
+            trace_id = ?trace_id,
+            context_id = %context_lock.id,
+            state_before = ?context_lock.current_state,
+            message_pool_size = context_lock.message_pool.len(),
+            "ChatService: process_message starting"
+        );
+
+        log::info!(
+            "Current context state before adding message: {:?}",
+            context_lock.current_state
+        );
         log::info!("Message pool size: {}", context_lock.message_pool.len());
 
         let user_message = InternalMessage {
             role: Role::User,
-            content: vec![ContentPart::Text { text: message.clone() }],
+            content: vec![ContentPart::Text {
+                text: message.clone(),
+            }],
             ..Default::default()
         };
         context_lock.add_message_to_branch("main", user_message);
         log::info!("User message added to branch 'main'");
-        log::info!("Message pool size after add: {}", context_lock.message_pool.len());
-        
+        log::info!(
+            "Message pool size after add: {}",
+            context_lock.message_pool.len()
+        );
+
         // Transition state to ProcessingUserMessage so FSM will process it
         context_lock.current_state = ContextState::ProcessingUserMessage;
         log::info!("State transitioned: Idle -> ProcessingUserMessage");
@@ -132,12 +155,12 @@ impl<T: StorageProvider> ChatService<T> {
 
         log::info!("Starting FSM run");
         let result = self.run_fsm(context).await;
-        
+
         match &result {
             Ok(response) => log::info!("FSM completed successfully: {:?}", response),
             Err(e) => log::error!("FSM failed with error: {:?}", e),
         }
-        
+
         log::info!("=== ChatService::process_message END ===");
         result
     }
@@ -148,10 +171,10 @@ impl<T: StorageProvider> ChatService<T> {
     ) -> Result<ServiceResponse, AppError> {
         let context = self
             .session_manager
-            .load_context(self.conversation_id)
+            .load_context(self.conversation_id, None)
             .await?
             .ok_or_else(|| AppError::InternalError(anyhow::anyhow!("Session not found")))?;
-        let context_lock = context.lock().await;
+        let context_lock = context.write().await;
 
         // if let Some(branch) = context_lock.get_active_branch_mut() {
         //     if let Some(last_message_id) = branch.message_ids.last() {
@@ -177,29 +200,42 @@ impl<T: StorageProvider> ChatService<T> {
 
     async fn run_fsm(
         &mut self,
-        context: Arc<tokio::sync::Mutex<context_manager::structs::context::ChatContext>>,
+        context: Arc<tokio::sync::RwLock<context_manager::structs::context::ChatContext>>,
     ) -> Result<ServiceResponse, AppError> {
         log::info!("=== FSM Loop Starting ===");
         let mut iteration_count = 0;
-        
+
+        let (context_id, trace_id) = {
+            let ctx = context.write().await;
+            (ctx.id, ctx.get_trace_id().map(|s| s.to_string()))
+        };
+
         loop {
             iteration_count += 1;
             log::info!("FSM iteration #{}", iteration_count);
-            
+
             let current_state = {
-                let context_lock = context.lock().await;
+                let context_lock = context.write().await;
                 context_lock.current_state.clone()
             };
-            
+
+            tracing::debug!(
+                trace_id = ?trace_id,
+                context_id = %context_id,
+                iteration = iteration_count,
+                state = ?current_state,
+                "ChatService: FSM iteration"
+            );
+
             log::info!("Current FSM state: {:?}", current_state);
 
             match current_state {
                 ContextState::ProcessingUserMessage => {
                     log::info!("FSM: Entered ProcessingUserMessage state");
-                    
+
                     // Extract messages and config from context
                     let (model_id, messages) = {
-                        let ctx = context.lock().await;
+                        let ctx = context.write().await;
                         let msgs: Vec<InternalMessage> = ctx
                             .get_active_branch()
                             .map(|branch| {
@@ -213,15 +249,17 @@ impl<T: StorageProvider> ChatService<T> {
                             .unwrap_or_default();
                         (ctx.config.model_id.clone(), msgs)
                     };
-                    
-                    log::info!("Calling real LLM with {} messages, model: {}", messages.len(), model_id);
-                    
+
+                    log::info!(
+                        "Calling real LLM with {} messages, model: {}",
+                        messages.len(),
+                        model_id
+                    );
+
                     // Convert to LLM client format
-                    let chat_messages: Vec<ChatMessage> = messages
-                        .iter()
-                        .map(convert_to_chat_message)
-                        .collect();
-                    
+                    let chat_messages: Vec<ChatMessage> =
+                        messages.iter().map(convert_to_chat_message).collect();
+
                     // Build request
                     let request = ChatCompletionRequest {
                         model: model_id,
@@ -231,12 +269,16 @@ impl<T: StorageProvider> ChatService<T> {
                         tool_choice: None,
                         ..Default::default()
                     };
-                    
+
                     // Call the real LLM
-                    match self.copilot_client.send_chat_completion_request(request).await {
+                    match self
+                        .copilot_client
+                        .send_chat_completion_request(request)
+                        .await
+                    {
                         Ok(response) => {
                             let status = response.status();
-                            
+
                             match response.bytes().await {
                                 Ok(body) => {
                                     if !status.is_success() {
@@ -246,106 +288,130 @@ impl<T: StorageProvider> ChatService<T> {
                                             String::from_utf8_lossy(&body)
                                         );
                                         error!("{}", error_msg);
-                                        
+
                                         // Add error message to context
-                                        let mut context_lock = context.lock().await;
+                                        let mut context_lock = context.write().await;
                                         let error_message = InternalMessage {
                                             role: Role::Assistant,
-                                            content: vec![ContentPart::Text { 
-                                                text: format!("Sorry, I encountered an error: {}", error_msg)
+                                            content: vec![ContentPart::Text {
+                                                text: format!(
+                                                    "Sorry, I encountered an error: {}",
+                                                    error_msg
+                                                ),
                                             }],
                                             ..Default::default()
                                         };
                                         context_lock.add_message_to_branch("main", error_message);
                                         context_lock.current_state = ContextState::Idle;
                                         drop(context_lock);
-                                        
+
                                         self.auto_save_context(&context).await?;
-                                        return Err(AppError::InternalError(anyhow::anyhow!(error_msg)));
+                                        return Err(AppError::InternalError(anyhow::anyhow!(
+                                            error_msg
+                                        )));
                                     }
-                                    
+
                                     // Parse response
                                     match serde_json::from_slice::<serde_json::Value>(&body) {
                                         Ok(json) => {
-                                            let assistant_text = json["choices"][0]["message"]["content"]
+                                            let assistant_text = json["choices"][0]["message"]
+                                                ["content"]
                                                 .as_str()
                                                 .unwrap_or("(empty response)")
                                                 .to_string();
-                                            
-                                            info!("✅ LLM response received: {} chars", assistant_text.len());
-                                            
+
+                                            info!(
+                                                "✅ LLM response received: {} chars",
+                                                assistant_text.len()
+                                            );
+
                                             // Add LLM response to context
-                                            let mut context_lock = context.lock().await;
+                                            let mut context_lock = context.write().await;
                                             let assistant_message = InternalMessage {
                                                 role: Role::Assistant,
-                                                content: vec![ContentPart::Text { text: assistant_text }],
+                                                content: vec![ContentPart::Text {
+                                                    text: assistant_text,
+                                                }],
                                                 ..Default::default()
                                             };
-                                            context_lock.add_message_to_branch("main", assistant_message);
+                                            context_lock
+                                                .add_message_to_branch("main", assistant_message);
                                             log::info!("Assistant message added to branch, message pool size: {}", context_lock.message_pool.len());
-                                            
+
                                             // Transition to Idle state
                                             context_lock.current_state = ContextState::Idle;
-                                            log::info!("State transitioned: ProcessingUserMessage -> Idle");
+                                            log::info!(
+                                                "State transitioned: ProcessingUserMessage -> Idle"
+                                            );
                                             drop(context_lock);
-                                            
+
                                             // Auto-save
                                             log::info!("Auto-saving after ProcessingUserMessage");
                                             self.auto_save_context(&context).await?;
                                             log::info!("Auto-save completed");
                                         }
                                         Err(e) => {
-                                            let error_msg = format!("Failed to parse LLM response: {}", e);
+                                            let error_msg =
+                                                format!("Failed to parse LLM response: {}", e);
                                             error!("{}", error_msg);
-                                            
-                                            let mut context_lock = context.lock().await;
+
+                                            let mut context_lock = context.write().await;
                                             let error_message = InternalMessage {
                                                 role: Role::Assistant,
-                                                content: vec![ContentPart::Text { 
-                                                    text: format!("Sorry, I couldn't parse the response: {}", e)
+                                                content: vec![ContentPart::Text {
+                                                    text: format!(
+                                                        "Sorry, I couldn't parse the response: {}",
+                                                        e
+                                                    ),
                                                 }],
                                                 ..Default::default()
                                             };
-                                            context_lock.add_message_to_branch("main", error_message);
+                                            context_lock
+                                                .add_message_to_branch("main", error_message);
                                             context_lock.current_state = ContextState::Idle;
                                             drop(context_lock);
-                                            
+
                                             self.auto_save_context(&context).await?;
-                                            return Err(AppError::InternalError(anyhow::anyhow!(error_msg)));
+                                            return Err(AppError::InternalError(anyhow::anyhow!(
+                                                error_msg
+                                            )));
                                         }
                                     }
                                 }
                                 Err(e) => {
-                                    let error_msg = format!("Failed to read LLM response body: {}", e);
+                                    let error_msg =
+                                        format!("Failed to read LLM response body: {}", e);
                                     error!("{}", error_msg);
-                                    return Err(AppError::InternalError(anyhow::anyhow!(error_msg)));
+                                    return Err(AppError::InternalError(anyhow::anyhow!(
+                                        error_msg
+                                    )));
                                 }
                             }
                         }
                         Err(e) => {
                             let error_msg = format!("LLM call failed: {:?}", e);
                             error!("{}", error_msg);
-                            
+
                             // Add error message to context
-                            let mut context_lock = context.lock().await;
+                            let mut context_lock = context.write().await;
                             let error_message = InternalMessage {
                                 role: Role::Assistant,
-                                content: vec![ContentPart::Text { 
-                                    text: format!("Sorry, I couldn't connect to the LLM: {}", e)
+                                content: vec![ContentPart::Text {
+                                    text: format!("Sorry, I couldn't connect to the LLM: {}", e),
                                 }],
                                 ..Default::default()
                             };
                             context_lock.add_message_to_branch("main", error_message);
                             context_lock.current_state = ContextState::Idle;
                             drop(context_lock);
-                            
+
                             self.auto_save_context(&context).await?;
                             return Err(AppError::InternalError(anyhow::anyhow!(error_msg)));
                         }
                     }
                 }
                 ContextState::ProcessingLLMResponse => {
-                    let context_lock = context.lock().await;
+                    let context_lock = context.write().await;
                     debug!("FSM: ProcessingLLMResponse");
                     let _has_tool_calls = context_lock
                         .get_active_branch()
@@ -355,32 +421,32 @@ impl<T: StorageProvider> ChatService<T> {
 
                     // context_lock.handle_event(ChatEvent::LLMResponseProcessed { has_tool_calls });
                     drop(context_lock);
-                    
+
                     // Auto-save after state transition
                     self.auto_save_context(&context).await?;
                 }
                 ContextState::ExecutingTools => {
-                    let _context_lock = context.lock().await;
+                    let _context_lock = context.write().await;
                     debug!("FSM: ExecutingTools");
                     // Placeholder for executing tools
                     // context_lock.handle_event(ChatEvent::ToolExecutionCompleted);
                     drop(_context_lock);
-                    
+
                     // Auto-save after state transition
                     self.auto_save_context(&context).await?;
                 }
                 ContextState::ProcessingToolResults => {
-                    let _context_lock = context.lock().await;
+                    let _context_lock = context.write().await;
                     debug!("FSM: ProcessingToolResults");
                     // Placeholder for adding tool results
                     // context_lock.handle_event(ChatEvent::LLMRequestInitiated);
                     drop(_context_lock);
-                    
+
                     // Auto-save after state transition
                     self.auto_save_context(&context).await?;
                 }
                 ContextState::GeneratingResponse => {
-                    let mut context_lock = context.lock().await;
+                    let mut context_lock = context.write().await;
                     debug!("FSM: GeneratingResponse -> Calling LLM again");
                     // Placeholder for calling LLM
                     let assistant_message = InternalMessage {
@@ -393,20 +459,23 @@ impl<T: StorageProvider> ChatService<T> {
                     context_lock.add_message_to_branch("main", assistant_message);
                     // context_lock.handle_event(ChatEvent::LLMFullResponseReceived);
                     drop(context_lock);
-                    
+
                     // Auto-save after state transition
                     self.auto_save_context(&context).await?;
                 }
                 ContextState::Idle => {
                     log::info!("FSM: Reached Idle state");
                     debug!("FSM: Idle");
-                    
+
                     // Auto-save before returning final response
                     log::info!("Auto-saving before returning final response");
                     self.auto_save_context(&context).await?;
-                    
-                    let context_lock = context.lock().await;
-                    log::info!("Final message pool size: {}", context_lock.message_pool.len());
+
+                    let context_lock = context.write().await;
+                    log::info!(
+                        "Final message pool size: {}",
+                        context_lock.message_pool.len()
+                    );
                     let final_content = context_lock
                         .get_active_branch()
                         .and_then(|b| b.message_ids.last())
@@ -420,11 +489,11 @@ impl<T: StorageProvider> ChatService<T> {
                 }
                 ContextState::AwaitingToolApproval => {
                     debug!("FSM: AwaitingToolApproval");
-                    
+
                     // Auto-save before returning tool approval request
                     self.auto_save_context(&context).await?;
-                    
-                    let context_lock = context.lock().await;
+
+                    let context_lock = context.write().await;
                     let tool_calls = context_lock
                         .get_active_branch()
                         .and_then(|b| b.message_ids.last())
@@ -435,10 +504,10 @@ impl<T: StorageProvider> ChatService<T> {
                 }
                 ContextState::Failed { error } => {
                     error!("FSM: Failed - {}", error);
-                    
+
                     // Auto-save even on failure to preserve error state
                     let _ = self.auto_save_context(&context).await;
-                    
+
                     return Err(AppError::InternalError(anyhow::anyhow!(error)));
                 }
                 // Other states that don't require action in this loop
@@ -452,14 +521,27 @@ impl<T: StorageProvider> ChatService<T> {
             }
         }
     }
-    
+
     /// Auto-save helper that saves context if dirty
     async fn auto_save_context(
         &self,
-        context: &Arc<tokio::sync::Mutex<context_manager::structs::context::ChatContext>>,
+        context: &Arc<tokio::sync::RwLock<context_manager::structs::context::ChatContext>>,
     ) -> Result<(), AppError> {
-        let mut context_lock = context.lock().await;
-        self.session_manager.save_context(&mut *context_lock).await?;
+        let mut context_lock = context.write().await;
+        let trace_id = context_lock.get_trace_id().map(|s| s.to_string());
+        let context_id = context_lock.id;
+        let is_dirty = context_lock.is_dirty();
+
+        tracing::debug!(
+            trace_id = ?trace_id,
+            context_id = %context_id,
+            is_dirty = is_dirty,
+            "ChatService: auto_save_context check"
+        );
+
+        self.session_manager
+            .save_context(&mut *context_lock)
+            .await?;
         Ok(())
     }
 }

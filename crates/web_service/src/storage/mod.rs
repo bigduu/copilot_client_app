@@ -1,5 +1,5 @@
-pub mod provider;
 pub mod file_provider;
+pub mod provider;
 
-pub use provider::StorageProvider;
 pub use file_provider::FileStorageProvider;
+pub use provider::StorageProvider;

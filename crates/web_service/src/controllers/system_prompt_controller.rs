@@ -1,9 +1,9 @@
+use crate::dto::SystemPromptDTO;
+use crate::services::system_prompt_service::SystemPromptService;
 use actix_web::{
     web::{Data, Json, Path},
     HttpResponse, Result,
 };
-use crate::dto::SystemPromptDTO;
-use crate::services::system_prompt_service::SystemPromptService;
 use context_manager::structs::branch::SystemPrompt;
 use log::{error, info};
 use serde::{Deserialize, Serialize};
@@ -28,7 +28,7 @@ pub async fn create_system_prompt(
         id: req.id.clone(),
         content: req.content.clone(),
     };
-    
+
     match service.create_prompt(prompt).await {
         Ok(_) => {
             info!("Created system prompt: {}", req.id);
@@ -47,19 +47,15 @@ pub async fn create_system_prompt(
 }
 
 /// Get all system prompts
-pub async fn list_system_prompts(
-    service: Data<SystemPromptService>,
-) -> Result<HttpResponse> {
+pub async fn list_system_prompts(service: Data<SystemPromptService>) -> Result<HttpResponse> {
     match service.list_prompts().await {
         prompts => {
             let dtos: Vec<SystemPromptDTO> = prompts
                 .into_iter()
                 .map(|p| SystemPromptDTO::from(p))
                 .collect();
-            
-            Ok(HttpResponse::Ok().json(ListSystemPromptsResponse {
-                prompts: dtos,
-            }))
+
+            Ok(HttpResponse::Ok().json(ListSystemPromptsResponse { prompts: dtos }))
         }
     }
 }
@@ -70,7 +66,7 @@ pub async fn get_system_prompt(
     service: Data<SystemPromptService>,
 ) -> Result<HttpResponse> {
     let prompt_id = path.into_inner();
-    
+
     match service.get_prompt(&prompt_id).await {
         Some(prompt) => Ok(HttpResponse::Ok().json(SystemPromptDTO::from(prompt))),
         None => {
@@ -89,11 +85,12 @@ pub async fn update_system_prompt(
     service: Data<SystemPromptService>,
 ) -> Result<HttpResponse> {
     let prompt_id = path.into_inner();
-    
-    let content = req.get("content")
+
+    let content = req
+        .get("content")
         .and_then(|v| v.as_str())
         .ok_or_else(|| actix_web::error::ErrorBadRequest("Missing 'content' field"))?;
-    
+
     match service.update_prompt(&prompt_id, content.to_string()).await {
         Ok(_) => {
             info!("Updated system prompt: {}", prompt_id);
@@ -116,7 +113,7 @@ pub async fn delete_system_prompt(
     service: Data<SystemPromptService>,
 ) -> Result<HttpResponse> {
     let prompt_id = path.into_inner();
-    
+
     match service.delete_prompt(&prompt_id).await {
         Ok(_) => {
             info!("Deleted system prompt: {}", prompt_id);
@@ -143,4 +140,3 @@ pub fn config(cfg: &mut actix_web::web::ServiceConfig) {
             .route("/{id}", actix_web::web::delete().to(delete_system_prompt)),
     );
 }
-

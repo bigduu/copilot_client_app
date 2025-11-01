@@ -142,12 +142,10 @@ impl From<context_manager::structs::message::MessageNode> for MessageDTO {
             id: node.id.to_string(),
             role: node.message.role.to_string(), // Use Display trait for lowercase
             content,
-            tool_calls: node.message.tool_calls.map(|calls| {
-                calls
-                    .into_iter()
-                    .map(|call| call.into())
-                    .collect()
-            }),
+            tool_calls: node
+                .message
+                .tool_calls
+                .map(|calls| calls.into_iter().map(|call| call.into()).collect()),
             tool_result: node.message.tool_result.map(|result| result.into()),
         }
     }
@@ -159,7 +157,9 @@ impl From<context_manager::structs::tool::ToolCallRequest> for ToolCallRequestDT
             tool_system::types::ToolArguments::Json(json) => json,
             tool_system::types::ToolArguments::String(s) => serde_json::Value::String(s),
             tool_system::types::ToolArguments::StringList(v) => serde_json::Value::Array(
-                v.into_iter().map(|s| serde_json::Value::String(s)).collect()
+                v.into_iter()
+                    .map(|s| serde_json::Value::String(s))
+                    .collect(),
             ),
         };
 
@@ -169,7 +169,9 @@ impl From<context_manager::structs::tool::ToolCallRequest> for ToolCallRequestDT
             arguments,
             approval_status: format!("{:?}", call.approval_status),
             display_preference: format!("{:?}", call.display_preference),
-            ui_hints: call.ui_hints.map(|hints| serde_json::to_value(hints).unwrap_or_default()),
+            ui_hints: call
+                .ui_hints
+                .map(|hints| serde_json::to_value(hints).unwrap_or_default()),
         }
     }
 }
@@ -184,7 +186,9 @@ impl From<context_manager::structs::tool::ToolCallResult> for ToolCallResultDTO 
 }
 
 /// Helper to convert Vec<MessageNode> to Vec<MessageDTO>
-pub fn messages_to_dtos(nodes: Vec<context_manager::structs::message::MessageNode>) -> Vec<MessageDTO> {
+pub fn messages_to_dtos(
+    nodes: Vec<context_manager::structs::message::MessageNode>,
+) -> Vec<MessageDTO> {
     nodes.into_iter().map(|node| node.into()).collect()
 }
 
@@ -205,4 +209,3 @@ pub fn get_branch_messages(
         Vec::new()
     }
 }
-

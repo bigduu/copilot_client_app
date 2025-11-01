@@ -1,6 +1,7 @@
 pub mod controllers;
 pub mod dto;
 pub mod error;
+pub mod middleware;
 pub mod models;
 pub mod server;
 pub mod services;

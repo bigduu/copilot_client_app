@@ -3,6 +3,7 @@ use async_trait::async_trait;
 use context_manager::structs::context::ChatContext;
 use std::path::{Path, PathBuf};
 use tokio::fs;
+use tracing;
 use uuid::Uuid;
 
 use super::provider::StorageProvider;
@@ -27,28 +28,112 @@ impl FileStorageProvider {
 impl StorageProvider for FileStorageProvider {
     async fn load_context(&self, id: Uuid) -> Result<Option<ChatContext>> {
         let path = self.get_path(id);
+
+        tracing::debug!(
+            context_id = %id,
+            path = %path.display(),
+            "FileStorage: load_context called"
+        );
+
         if !path.exists() {
+            tracing::debug!(
+                context_id = %id,
+                path = %path.display(),
+                "FileStorage: File does not exist"
+            );
             return Ok(None);
         }
 
-        let content = fs::read_to_string(path).await?;
-        let context = serde_json::from_str(&content)?;
+        tracing::debug!(
+            context_id = %id,
+            path = %path.display(),
+            "FileStorage: Reading file"
+        );
+
+        let content = fs::read_to_string(&path).await?;
+        let file_size = content.len();
+
+        tracing::debug!(
+            context_id = %id,
+            file_size = file_size,
+            "FileStorage: Deserializing context"
+        );
+
+        let context: ChatContext = serde_json::from_str(&content)?;
+
+        tracing::info!(
+            context_id = %id,
+            path = %path.display(),
+            message_count = context.message_pool.len(),
+            branch_count = context.branches.len(),
+            "FileStorage: Context loaded successfully"
+        );
+
         Ok(Some(context))
     }
 
     async fn save_context(&self, context: &ChatContext) -> Result<()> {
+        let path = self.get_path(context.id);
+        let trace_id = context.get_trace_id().map(|s| s.to_string());
+
+        tracing::debug!(
+            trace_id = ?trace_id,
+            context_id = %context.id,
+            path = %path.display(),
+            "FileStorage: save_context called"
+        );
+
         if !self.base_dir.exists() {
+            tracing::debug!(
+                path = %self.base_dir.display(),
+                "FileStorage: Creating base directory"
+            );
             fs::create_dir_all(&self.base_dir).await?;
         }
-        let path = self.get_path(context.id);
+
+        tracing::debug!(
+            trace_id = ?trace_id,
+            context_id = %context.id,
+            message_count = context.message_pool.len(),
+            branch_count = context.branches.len(),
+            "FileStorage: Serializing context"
+        );
+
         let content = serde_json::to_string_pretty(context)?;
-        fs::write(path, content).await?;
+        let json_size = content.len();
+
+        tracing::info!(
+            trace_id = ?trace_id,
+            context_id = %context.id,
+            path = %path.display(),
+            json_size = json_size,
+            "FileStorage: Writing context file"
+        );
+
+        fs::write(&path, content).await?;
+
+        tracing::info!(
+            trace_id = ?trace_id,
+            context_id = %context.id,
+            path = %path.display(),
+            "FileStorage: Context saved successfully"
+        );
+
         Ok(())
     }
 
     async fn list_contexts(&self) -> Result<Vec<Uuid>> {
+        tracing::debug!(
+            base_dir = %self.base_dir.display(),
+            "FileStorage: Scanning directory for contexts"
+        );
+
         let mut contexts = Vec::new();
         if !self.base_dir.exists() {
+            tracing::debug!(
+                base_dir = %self.base_dir.display(),
+                "FileStorage: Base directory does not exist"
+            );
             return Ok(contexts);
         }
         let mut entries = fs::read_dir(&self.base_dir).await?;
@@ -64,13 +149,38 @@ impl StorageProvider for FileStorageProvider {
                 }
             }
         }
+
+        tracing::info!(
+            base_dir = %self.base_dir.display(),
+            context_count = contexts.len(),
+            "FileStorage: Contexts found"
+        );
+
         Ok(contexts)
     }
 
     async fn delete_context(&self, id: Uuid) -> Result<()> {
         let path = self.get_path(id);
+
+        tracing::info!(
+            context_id = %id,
+            path = %path.display(),
+            "FileStorage: Deleting context"
+        );
+
         if path.exists() {
-            fs::remove_file(path).await?;
+            fs::remove_file(&path).await?;
+            tracing::info!(
+                context_id = %id,
+                path = %path.display(),
+                "FileStorage: Context file deleted"
+            );
+        } else {
+            tracing::debug!(
+                context_id = %id,
+                path = %path.display(),
+                "FileStorage: File did not exist"
+            );
         }
         Ok(())
     }

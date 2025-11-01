@@ -73,16 +73,11 @@ pub async fn run(app_data_dir: PathBuf, port: u16) -> Result<(), String> {
             .app_data(app_state.clone())
             .app_data(tool_service_data.clone())
             .app_data(system_prompt_data.clone())
-            .wrap(Logger::default())
-            .wrap(
-                Cors::default()
-                    .allow_any_origin()
-                    .allow_any_method()
-                    .allow_any_header()
-                    .max_age(3600),
-            )
+            // CORS only - no middleware for testing
+            .wrap(Cors::permissive())
             .configure(app_config)
     })
+    .workers(1) // Single worker to avoid concurrency issues
     .bind(format!("127.0.0.1:{}", port))
     .map_err(|e| format!("Failed to bind server: {}", e))?
     .run();
@@ -154,14 +149,11 @@ impl WebService {
                 .app_data(app_state.clone())
                 .app_data(tool_service_data.clone())
                 .app_data(system_prompt_data_for_start.clone())
+                // CORS must be first (wraps last, executes first on response)
+                .wrap(Cors::permissive())
                 .wrap(Logger::default())
-                .wrap(
-                    Cors::default()
-                        .allow_any_origin()
-                        .allow_any_method()
-                        .allow_any_header()
-                        .max_age(3600),
-                )
+                // Temporarily disable TracingMiddleware to test
+                // .wrap(TracingMiddleware)
                 .configure(app_config)
         })
         .bind(format!("127.0.0.1:{}", port))

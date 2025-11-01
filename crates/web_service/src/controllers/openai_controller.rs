@@ -64,10 +64,7 @@ pub async fn chat_completions(
         if !response.status().is_success() {
             let status = response.status();
             let body = response.text().await.unwrap_or_default();
-            let error_message = format!(
-                "Upstream API error. Status: {}, Body: {}",
-                status, body
-            );
+            let error_message = format!("Upstream API error. Status: {}, Body: {}", status, body);
             return Err(AppError::InternalError(anyhow::anyhow!(error_message)));
         }
 
@@ -110,8 +107,9 @@ pub async fn chat_completions(
             return Err(AppError::InternalError(anyhow::anyhow!(error_message)));
         }
 
-        let completion = serde_json::from_slice::<ChatCompletionResponse>(&body)
-            .map_err(|e| AppError::InternalError(anyhow::anyhow!("Failed to parse response: {}", e)))?;
+        let completion = serde_json::from_slice::<ChatCompletionResponse>(&body).map_err(|e| {
+            AppError::InternalError(anyhow::anyhow!("Failed to parse response: {}", e))
+        })?;
 
         Ok(HttpResponse::Ok().json(completion))
     }

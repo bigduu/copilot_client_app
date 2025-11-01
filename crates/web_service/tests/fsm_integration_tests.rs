@@ -137,7 +137,7 @@ async fn test_tool_call_and_approval_flow() {
         .uri(&format!("/chat/{}", session_id))
         .set_json(&user_message)
         .to_request();
-    
+
     let resp_tool_call = test::call_service(&srv, req_message).await;
     assert_eq!(resp_tool_call.status(), 202); // Accepted for approval
 
@@ -197,7 +197,7 @@ async fn test_persistence_and_caching() {
     // This simulates clearing the in-memory cache and forcing a load from disk.
     let storage_provider = Arc::new(FileStorageProvider::new(temp_dir.path().to_path_buf()));
     let new_session_manager = Arc::new(ChatSessionManager::new(storage_provider, 10));
-    
+
     // Ensure the context is not in the new cache
     assert!(new_session_manager.load_context_from_cache(session_id).is_none());
 
@@ -218,13 +218,13 @@ async fn test_persistence_and_caching() {
     ).await;
 
     mock_client.set_next_response(Ok(InternalMessage::new_assistant_message("Response 2")));
-    
+
     let user_message2 = serde_json::json!({"content": "Message 2"});
     let req_message2 = test::TestRequest::post()
         .uri(&format!("/chat/{}", session_id))
         .set_json(&user_message2)
         .to_request();
-    
+
     let resp2 = test::call_service(&new_srv, req_message2).await;
     assert!(resp2.status().is_success());
 
