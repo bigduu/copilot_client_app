@@ -212,7 +212,7 @@ export const FavoritesPanel: React.FC = () => {
       summaryContent += `Total favorites analyzed: ${chatFavorites.length}`;
 
       // Create new chat with summary request
-      createNewChat(`📋 Favorites Summary - ${formatDate(Date.now())}`);
+      await createNewChat(`📋 Favorites Summary - ${formatDate(Date.now())}`);
 
       // Send the summary content as the first message
       setTimeout(async () => {

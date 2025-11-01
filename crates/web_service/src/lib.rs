@@ -1,4 +1,5 @@
 pub mod controllers;
+pub mod dto;
 pub mod error;
 pub mod models;
 pub mod server;

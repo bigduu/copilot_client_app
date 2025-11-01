@@ -1,6 +1,7 @@
 use crate::error::AppError;
 use crate::storage::provider::StorageProvider;
 use context_manager::structs::context::ChatContext;
+use log::debug;
 use lru::LruCache;
 use std::num::NonZeroUsize;
 use std::sync::Arc;
@@ -27,9 +28,13 @@ impl<T: StorageProvider> ChatSessionManager<T> {
     ) -> Result<Arc<Mutex<ChatContext>>, AppError> {
         let id = Uuid::new_v4();
         let context = Arc::new(Mutex::new(ChatContext::new(id, model_id, mode)));
+        let mut ctx_lock = context.lock().await;
+        ctx_lock.mark_dirty(); // Mark as dirty for initial save
         self.storage
-            .save_context(&context.lock().await.clone())
+            .save_context(&*ctx_lock)
             .await?;
+        ctx_lock.clear_dirty(); // Clear after successful save
+        drop(ctx_lock);
         self.cache.lock().await.put(id, context.clone());
         Ok(context)
     }
@@ -49,5 +54,27 @@ impl<T: StorageProvider> ChatSessionManager<T> {
         }
 
         Ok(None)
+    }
+    
+    pub async fn save_context(&self, context: &mut ChatContext) -> Result<(), AppError> {
+        if !context.is_dirty() {
+            debug!("Context {} is not dirty, skipping save", context.id);
+            return Ok(());
+        }
+        
+        debug!("Saving dirty context {}", context.id);
+        self.storage.save_context(context).await?;
+        context.clear_dirty();
+        Ok(())
+    }
+    
+    pub async fn list_contexts(&self) -> Result<Vec<Uuid>, AppError> {
+        self.storage.list_contexts().await
+    }
+    
+    pub async fn delete_context(&self, id: Uuid) -> Result<(), AppError> {
+        self.storage.delete_context(id).await?;
+        self.cache.lock().await.pop(&id);
+        Ok(())
     }
 }

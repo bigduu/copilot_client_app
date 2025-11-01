@@ -7,6 +7,8 @@ import { InputContainer } from "../InputContainer";
 import { ApprovalModal } from "../ApprovalModal";
 import "./styles.css"; // Import a new CSS file for animations and specific styles
 import MessageCard from "../MessageCard";
+import { useBackendContext } from "../../hooks/useBackendContext";
+import { BranchSelector } from "../BranchSelector";
 
 const { Content } = Layout;
 const { useToken } = theme;
@@ -21,6 +23,9 @@ export const ChatView: React.FC = () => {
     interactionState,
     send,
   } = useChatController();
+
+  // Backend context for approvals and basic status display
+  const { currentContext, approveTools, switchBranch, isLoading, error } = useBackendContext();
 
   // Handle message deletion - optimized with useCallback
   const handleDeleteMessage = useCallback(
@@ -173,6 +178,57 @@ export const ChatView: React.FC = () => {
           height: "100vh",
         }}
       >
+        {/* Backend status banners */}
+        {isLoading && (
+          <div
+            style={{
+              width: "100%",
+              padding: `${token.paddingXS}px ${token.padding}px`,
+              background: token.colorWarningBg,
+              color: token.colorWarningText,
+              borderBottom: `1px solid ${token.colorWarningBorder}`,
+            }}
+          >
+            Syncing with backend...
+          </div>
+        )}
+        {error && (
+          <div
+            style={{
+              width: "100%",
+              padding: `${token.paddingXS}px ${token.padding}px`,
+              background: token.colorErrorBg,
+              color: token.colorErrorText,
+              borderBottom: `1px solid ${token.colorErrorBorder}`,
+            }}
+          >
+            {error}
+          </div>
+        )}
+        {/* Branch Selector */}
+        {currentContext && currentContext.branches.length > 1 && (
+          <div
+            style={{
+              width: "100%",
+              padding: `${token.paddingXS}px ${token.padding}px`,
+              background: token.colorBgContainer,
+              borderBottom: `1px solid ${token.colorBorder}`,
+              display: "flex",
+              justifyContent: "center",
+            }}
+          >
+            <BranchSelector
+              branches={currentContext.branches}
+              currentBranch={currentContext.active_branch_name}
+              onBranchChange={(branchName) => {
+                if (currentContext?.id) {
+                  switchBranch(currentContext.id, branchName);
+                }
+              }}
+              disabled={isLoading}
+            />
+          </div>
+        )}
         {/* Messages List Area */}
         <Content
           className={`chat-view-messages-list ${
@@ -246,7 +302,23 @@ export const ChatView: React.FC = () => {
               visible={true}
               toolName={interactionState.context.toolCallRequest.tool_name}
               parameters={interactionState.context.parsedParameters || []}
-              onApprove={() => send({ type: "USER_APPROVES" })}
+              onApprove={async () => {
+                try {
+                  const contextId = currentContext?.id;
+                  const toolCallId = interactionState.context.toolCallRequest?.toolCallId;
+                  const ids: string[] = toolCallId ? [toolCallId] : [];
+
+                  if (contextId && ids.length > 0) {
+                    await approveTools(contextId, ids);
+                  } else {
+                    // Fallback to legacy local flow
+                    send({ type: "USER_APPROVES" });
+                  }
+                } catch (e) {
+                  // On error, fallback to legacy local flow
+                  send({ type: "USER_APPROVES" });
+                }
+              }}
               onReject={() => send({ type: "USER_REJECTS" })}
             />
           )}

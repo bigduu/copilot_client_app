@@ -155,9 +155,11 @@ pub struct Usage {
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct ChatCompletionStreamChunk {
     pub id: String,
-    pub object: String,
+    #[serde(default)]
+    pub object: Option<String>,
     pub created: u64,
-    pub model: String,
+    #[serde(default)]
+    pub model: Option<String>,
     pub choices: Vec<StreamChoice>,
 }
 

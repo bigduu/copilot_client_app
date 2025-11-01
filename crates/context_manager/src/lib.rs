@@ -13,5 +13,5 @@ pub use structs::context::{ChatConfig, ChatContext};
 pub use structs::state::ContextState;
 pub use structs::message::{ContentPart, InternalMessage, MessageNode, Role};
 pub use structs::metadata::{MessageMetadata, TokenUsage};
-pub use structs::tool::{ApprovalStatus, ToolCallRequest, ToolCallResult};
+pub use structs::tool::{ApprovalStatus, DisplayPreference, ToolCallRequest, ToolCallResult};
 pub use traits::{Adapter, Enhancer};

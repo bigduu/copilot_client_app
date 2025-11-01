@@ -84,7 +84,7 @@ pub async fn chat_completions(
                 let data = format!("data: {}\n\n", s);
                 Bytes::from(data)
             })
-            .map_err(|e| AppError::InternalError(e))
+            .map_err(AppError::InternalError)
         });
 
         Ok(HttpResponse::Ok()

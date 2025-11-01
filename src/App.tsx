@@ -5,9 +5,10 @@ import { MainLayout } from "./layouts/MainLayout";
 import { SystemSettingsModal } from "./components/SystemSettingsModal";
 import { ChatControllerProvider } from "./contexts/ChatControllerContext";
 import { useAppStore } from "./store";
-import { SystemPromptService } from "./services/SystemPromptService";
-import { StorageService } from "./services/StorageService";
-import { UserSystemPrompt } from "./types/chat";
+// Migration disabled per user request - not migrating historical data
+// import { MigrationBanner } from "./components/MigrationBanner";
+// import { localStorageMigrator } from "./utils/migration/LocalStorageMigrator";
+// import { cleanupLegacyStorage } from "./utils/migration/cleanupLegacyStorage";
 
 const DARK_MODE_KEY = "copilot_dark_mode";
 
@@ -21,40 +22,27 @@ function App() {
     document.body.setAttribute("data-theme", themeMode);
   }, [themeMode]);
 
-  // Synchronize backend prompts to local storage on startup
+  // Migration disabled per user request - starting fresh without historical data
+  // Users will create new chats using the backend Context Manager
+  // useEffect(() => {
+  //   const runMigration = async () => {
+  //     try {
+  //       const needed = await localStorageMigrator.needsMigration();
+  //       if (!needed) return;
+  //       const result = await localStorageMigrator.migrateAll();
+  //       console.log("LocalStorage migration completed:", result);
+  //       const cleanup = cleanupLegacyStorage();
+  //       console.log("Legacy LocalStorage cleaned:", cleanup);
+  //     } catch (err) {
+  //       console.error("LocalStorage migration failed:", err);
+  //     }
+  //   };
+  //   runMigration();
+  // }, []);
+
+  // Load prompts from backend via store on startup
   useEffect(() => {
-    const syncPrompts = async () => {
-      const systemPromptService = SystemPromptService.getInstance();
-      const storageService = new StorageService();
-
-      try {
-        const backendPrompts =
-          await systemPromptService.getSystemPromptPresets();
-        const localPrompts = await storageService.getSystemPrompts();
-
-        const promptMap = new Map<string, UserSystemPrompt>();
-
-        // Add local prompts first
-        localPrompts.forEach((p) => promptMap.set(p.id, p));
-
-        // Overwrite with backend prompts if IDs match, or add if new
-        backendPrompts.forEach((p) => promptMap.set(p.id, p));
-
-        const mergedPrompts = Array.from(promptMap.values());
-
-        await storageService.saveSystemPrompts(mergedPrompts);
-        console.log("System prompts synchronized with backend.");
-
-        // Reload prompts in the store
-        await loadSystemPrompts();
-      } catch (error) {
-        console.error("Failed to synchronize system prompts:", error);
-        // Even if sync fails, load local prompts
-        await loadSystemPrompts();
-      }
-    };
-
-    syncPrompts();
+    loadSystemPrompts();
   }, [loadSystemPrompts]);
 
   // Control the display of settings modal (can be adjusted according to actual project logic)
@@ -78,6 +66,7 @@ function App() {
               themeMode={themeMode}
               onThemeModeChange={setThemeMode}
             />
+            {/* MigrationBanner removed - migration disabled per user request */}
             <SystemSettingsModal
               open={settingsOpen}
               onClose={() => setSettingsOpen(false)}

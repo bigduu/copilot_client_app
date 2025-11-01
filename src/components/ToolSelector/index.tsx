@@ -35,17 +35,58 @@ const ToolSelector: React.FC<ToolSelectorProps> = ({
   // Fetch tools when component becomes visible
   useEffect(() => {
     if (visible) {
-      invoke<ToolsUIResponse>("get_tools_for_ui", {
-        categoryId: categoryId,
-      })
+      const API_BASE_URL = "http://127.0.0.1:8080/v1";
+
+      const fetchFromHttp = async (): Promise<ToolsUIResponse> => {
+        try {
+          const endpoint = categoryId
+            ? `/tools/category/${categoryId}/info`
+            : "/tools/available";
+          const res = await fetch(`${API_BASE_URL}${endpoint}`);
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          const data = await res.json();
+          // Expecting { tools, is_strict_mode }
+          if (Array.isArray(data.tools)) {
+            return {
+              tools: data.tools as ToolUIInfo[],
+              is_strict_mode: Boolean(data.is_strict_mode),
+            };
+          }
+          // Fallback shape: { categories: [{ id, tools: [...] }], is_strict_mode }
+          if (Array.isArray(data.categories)) {
+            const allTools = data.categories
+              .flatMap((c: any) => c.tools || [])
+              .filter(Boolean);
+            return {
+              tools: allTools as ToolUIInfo[],
+              is_strict_mode: Boolean(data.is_strict_mode),
+            };
+          }
+          return { tools: [], is_strict_mode: false };
+        } catch (e) {
+          throw e;
+        }
+      };
+
+      fetchFromHttp()
         .then((response) => {
-          console.log("Fetched tools response:", response);
+          console.log("Fetched tools response (HTTP):", response);
           setTools(response.tools);
           setIsStrictMode(response.is_strict_mode);
           setSelectedIndex(0);
         })
-        .catch((error) => {
-          console.error("Failed to fetch tools:", error);
+        .catch((_httpErr) => {
+          // Fallback to Tauri invoke for dev/compat
+          invoke<ToolsUIResponse>("get_tools_for_ui", { categoryId })
+            .then((response) => {
+              console.log("Fetched tools response (Tauri):", response);
+              setTools(response.tools);
+              setIsStrictMode(response.is_strict_mode);
+              setSelectedIndex(0);
+            })
+            .catch((error) => {
+              console.error("Failed to fetch tools (HTTP and Tauri):", error);
+            });
         });
     }
   }, [visible, categoryId]);

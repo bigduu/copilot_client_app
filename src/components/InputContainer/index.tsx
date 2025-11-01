@@ -36,13 +36,15 @@ export const InputContainer: React.FC<InputContainerProps> = ({
   // Use system prompt hook instead of direct service
   const systemPromptId =
     currentChat?.config.systemPromptId || selectedSystemPromptPresetId;
-  const { currentSystemPromptInfo } = useSystemPrompt(systemPromptId);
+  // Note: currentSystemPromptInfo is fetched but not used in simplified version
+  useSystemPrompt(systemPromptId);
 
-  // Check if in tool-specific mode
-  const isToolSpecificMode = currentSystemPromptInfo?.mode === "tool_specific";
-  const isRestrictConversation = currentSystemPromptInfo?.restrictConversation;
-  const allowedTools = currentSystemPromptInfo?.allowedTools || [];
-  const autoToolPrefix = currentSystemPromptInfo?.autoToolPrefix;
+  // Simplified: No longer using tool-specific mode restrictions
+  // All tool management is now handled by backend categories
+  const isToolSpecificMode = false;
+  const isRestrictConversation = false;
+  const allowedTools: string[] = [];
+  const autoToolPrefix = undefined;
 
   // Removed lock functionality since everything is controlled by categories
 
@@ -190,7 +192,7 @@ export const InputContainer: React.FC<InputContainerProps> = ({
         <MessageInput
           value={content}
           onChange={handleInputChange}
-          onSubmit={(content, images) => handleSubmit(images)}
+          onSubmit={(_content, images) => handleSubmit(images)}
           onRetry={retryLastMessage}
           onCancel={() => send({ type: "CANCEL" })}
           isStreaming={isStreaming}

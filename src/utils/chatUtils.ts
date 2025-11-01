@@ -146,7 +146,7 @@ export interface DateCategoryGroup {
 /**
  * Get sorted date keys for consistent ordering
  */
-export const getSortedDateKeys = (grouped: DateCategoryGroup): string[] => {
+export const getSortedDateKeys = (grouped: Record<string, ChatItem[]> | DateCategoryGroup): string[] => {
   return Object.keys(grouped).sort((a, b) => {
     // Pinned always comes first
     if (a === "Pinned") return -1;

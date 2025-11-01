@@ -1,5 +1,5 @@
 import React from 'react';
-import { Card, Button, Typography, Space, Descriptions, theme } from 'antd';
+import { Card, Button, Typography, Space, Descriptions, theme, Tag } from 'antd';
 import { CheckOutlined, CloseOutlined } from '@ant-design/icons';
 
 const { Text, Title } = Typography;
@@ -8,6 +8,8 @@ export interface ApprovalData {
   tool_call: string;
   parameters: Array<{ name: string; value: string }>;
   approval?: boolean;
+  approval_status?: 'pending' | 'approved' | 'rejected';
+  display_preference?: 'Visible' | 'Collapsible' | 'Hidden';
 }
 
 interface ApprovalCardProps {
@@ -49,9 +51,24 @@ const ApprovalCard: React.FC<ApprovalCardProps> = ({
           <Title level={5} style={{ margin: 0, color: token.colorInfo }}>
             🔧 Tool Execution Request
           </Title>
-          <Text type="secondary" style={{ fontSize: token.fontSizeSM }}>
-            The AI wants to execute the following tool
-          </Text>
+          <Space align="center" size="small">
+            <Text type="secondary" style={{ fontSize: token.fontSizeSM }}>
+              The AI wants to execute the following tool
+            </Text>
+            {data.approval_status && (
+              <Tag
+                color={
+                  data.approval_status === 'approved'
+                    ? 'green'
+                    : data.approval_status === 'rejected'
+                    ? 'red'
+                    : 'gold'
+                }
+              >
+                {data.approval_status.toUpperCase()}
+              </Tag>
+            )}
+          </Space>
         </div>
 
         <div>
@@ -84,7 +101,7 @@ const ApprovalCard: React.FC<ApprovalCardProps> = ({
             type="primary"
             icon={<CheckOutlined />}
             onClick={onApprove}
-            disabled={disabled}
+            disabled={disabled || data.approval_status === 'approved' || data.approval_status === 'rejected'}
             style={{
               backgroundColor: token.colorSuccess,
               borderColor: token.colorSuccess,
@@ -96,7 +113,7 @@ const ApprovalCard: React.FC<ApprovalCardProps> = ({
             danger
             icon={<CloseOutlined />}
             onClick={onReject}
-            disabled={disabled}
+            disabled={disabled || data.approval_status === 'approved' || data.approval_status === 'rejected'}
           >
             Reject
           </Button>

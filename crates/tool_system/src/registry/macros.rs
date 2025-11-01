@@ -55,7 +55,7 @@ macro_rules! auto_register_category_with_constructor {
 /// Advanced macro for registering tools with flexible parameter support
 ///
 /// Usage examples:
-/// ```rust
+/// ```rust,ignore
 /// // No parameters (equivalent to auto_register_tool!)
 /// auto_register_tool_advanced!(MyTool);
 ///
@@ -96,7 +96,7 @@ macro_rules! auto_register_tool_advanced {
 /// Advanced macro for registering categories with flexible parameter support
 ///
 /// Usage examples:
-/// ```rust
+/// ```rust,ignore
 /// // No parameters (equivalent to auto_register_category!)
 /// auto_register_category_advanced!(MyCategory);
 ///

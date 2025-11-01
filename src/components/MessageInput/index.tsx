@@ -73,7 +73,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
     setPreviewModalVisible,
     previewImageIndex,
     handleImageFiles,
-    handleRemoveImage,
+    handleRemoveImage: _handleRemoveImage,
     handleImagePreview,
     clearImages,
   } = useImageHandler(allowImages);

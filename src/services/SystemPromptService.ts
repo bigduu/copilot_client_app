@@ -1,5 +1,3 @@
-import { UserSystemPrompt } from "../types/chat";
-
 const SYSTEM_PROMPT_KEY = "system_prompt";
 const SYSTEM_PROMPT_SELECTED_ID_KEY = "system_prompt_selected_id";
 
@@ -91,7 +89,7 @@ export class SystemPromptService {
   async getSystemPromptPresets(): Promise<any[]> {
     try {
       // Call backend web service to get tool categories
-      const response = await fetch("http://localhost:8080/tools/categories");
+      const response = await fetch("http://localhost:8080/v1/tools/categories");
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }

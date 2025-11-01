@@ -45,7 +45,7 @@ impl Adapter for OpenAIAdapter {
             let chat_message = match internal_message.role {
                 InternalRole::User => {
                     let content = if internal_message.content.len() == 1 {
-                        if let Some(InternalContentPart::Text(text)) =
+                        if let Some(InternalContentPart::Text { text }) =
                             internal_message.content.first()
                         {
                             Content::Text(text.clone())
@@ -96,7 +96,7 @@ impl Adapter for OpenAIAdapter {
                     }
 
                     for part in &internal_message.content {
-                        if let InternalContentPart::Text(text) = part {
+                        if let InternalContentPart::Text { text } = part {
                             content_parts.push(ContentPart::Text { text: text.clone() });
                         }
                     }
@@ -157,7 +157,7 @@ impl Adapter for OpenAIAdapter {
 
 fn convert_content_part(part: &InternalContentPart) -> ContentPart {
     match part {
-        InternalContentPart::Text(text) => ContentPart::Text {
+        InternalContentPart::Text { text } => ContentPart::Text {
             text: text.clone(),
         },
         InternalContentPart::Image { url, detail } => ContentPart::ImageUrl {

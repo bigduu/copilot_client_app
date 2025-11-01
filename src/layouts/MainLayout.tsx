@@ -22,51 +22,57 @@ export const MainLayout: React.FC<{
   const [showFavorites, setShowFavorites] = useState(true);
 
   useEffect(() => {
-    const unlisten = listen<{ message: string }>(
-      "new-chat-message",
-      async (event) => {
-        console.log("[MainLayout] Received new-chat-message event:", event);
-        const messageContent = event.payload.message;
-        console.log(
-          "[MainLayout] Message content from spotlight:",
-          messageContent
-        );
+    // Check if we're running in Tauri environment
+    if (typeof window !== 'undefined' && (window as any).__TAURI_INTERNALS__) {
+      const unlisten = listen<{ message: string }>(
+        "new-chat-message",
+        async (event) => {
+          console.log("[MainLayout] Received new-chat-message event:", event);
+          const messageContent = event.payload.message;
+          console.log(
+            "[MainLayout] Message content from spotlight:",
+            messageContent
+          );
 
-        // Create a full ChatItem object to add
-        const newChat: Omit<ChatItem, "id"> = {
-          title: "New Chat from Spotlight",
-          createdAt: Date.now(),
-          messages: [],
-          pinned: false,
-          config: {
-            systemPromptId: "general_assistant", // Default prompt
-            toolCategory: "general_assistant",
-            lastUsedEnhancedPrompt: null,
-          },
-          currentInteraction: null,
-        };
+          // Create a full ChatItem object to add
+          const newChat: Omit<ChatItem, "id"> = {
+            title: "New Chat from Spotlight",
+            createdAt: Date.now(),
+            messages: [],
+            pinned: false,
+            config: {
+              systemPromptId: "general_assistant", // Default prompt
+              baseSystemPrompt: "You are a helpful assistant.", // Default content
+              toolCategory: "general_assistant",
+              lastUsedEnhancedPrompt: null,
+            },
+            currentInteraction: null,
+          };
 
-        addChat(newChat);
+          addChat(newChat);
 
-        // The chat ID is generated inside the store, so we need to get it after adding.
-        // We'll use a slight delay to ensure the state is updated.
-        setTimeout(() => {
-          const newChatId = useAppStore.getState().currentChatId;
-          if (newChatId) {
-            console.log("[MainLayout] New chat ID created:", newChatId);
-            // Mark that AI reply needs to be triggered for this specific chat and message
-            pendingAIRef.current = {
-              chatId: newChatId,
-              message: messageContent,
-            };
-          }
-        }, 100);
-      }
-    );
+          // The chat ID is generated inside the store, so we need to get it after adding.
+          // We'll use a slight delay to ensure the state is updated.
+          setTimeout(() => {
+            const newChatId = useAppStore.getState().currentChatId;
+            if (newChatId) {
+              console.log("[MainLayout] New chat ID created:", newChatId);
+              // Mark that AI reply needs to be triggered for this specific chat and message
+              pendingAIRef.current = {
+                chatId: newChatId,
+                message: messageContent,
+              };
+            }
+          }, 100);
+        }
+      );
 
-    return () => {
-      unlisten.then((f) => f());
-    };
+      return () => {
+        unlisten.then((f) => f());
+      };
+    } else {
+      console.log("[MainLayout] Not running in Tauri environment, skipping event listener");
+    }
   }, [addChat, selectChat]);
 
   useEffect(() => {

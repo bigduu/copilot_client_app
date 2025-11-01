@@ -1,11 +1,10 @@
 import { StateCreator } from "zustand";
-import { v4 as uuidv4 } from "uuid";
 import { UserSystemPrompt } from "../../types/chat";
-import { StorageService } from "../../services/StorageService";
+import { SystemPromptService } from "../../services/SystemPromptService";
 import type { AppState } from "../";
 
 const LAST_SELECTED_PROMPT_ID_LS_KEY = "copilot_last_selected_prompt_id";
-const storageService = new StorageService();
+const systemPromptService = SystemPromptService.getInstance();
 
 export interface PromptSlice {
   // State
@@ -21,8 +20,7 @@ export interface PromptSlice {
 }
 
 export const createPromptSlice: StateCreator<AppState, [], [], PromptSlice> = (
-  set,
-  get
+  set
 ) => ({
   // Initial state
   systemPrompts: [],
@@ -32,48 +30,32 @@ export const createPromptSlice: StateCreator<AppState, [], [], PromptSlice> = (
   // System prompt management
   loadSystemPrompts: async () => {
     try {
-      const prompts = await storageService.getSystemPrompts();
-      // If no prompts are in storage (e.g., first run), you might want to add a default one.
-      if (prompts.length === 0) {
-        const defaultPrompt: UserSystemPrompt = {
-          id: "default-general",
-          name: "General Assistant",
-          content: "You are a helpful assistant.",
-          isDefault: true,
-        };
-        prompts.push(defaultPrompt);
-        await storageService.saveSystemPrompts(prompts);
-      }
+      const presets = await systemPromptService.getSystemPromptPresets();
+      const prompts: UserSystemPrompt[] = presets.map((p: any) => ({
+        id: p.id,
+        name: p.name,
+        content: p.content,
+        description: p.description,
+        isDefault: Boolean(p.isDefault),
+      }));
       set({ systemPrompts: prompts });
-      console.log("Successfully loaded system prompts from storage:", prompts);
+      console.log("Loaded system prompts from backend:", prompts);
     } catch (error) {
-      console.error("Failed to load system prompts from storage:", error);
+      console.error("Failed to load system prompts from backend:", error);
       set({ systemPrompts: [] });
     }
   },
 
-  addSystemPrompt: async (promptData) => {
-    const newPrompt: UserSystemPrompt = { ...promptData, id: uuidv4() };
-    const currentPrompts = get().systemPrompts;
-    const updatedPrompts = [...currentPrompts, newPrompt];
-    await storageService.saveSystemPrompts(updatedPrompts);
-    set({ systemPrompts: updatedPrompts });
+  addSystemPrompt: async (_promptData) => {
+    console.warn("addSystemPrompt is deprecated; prompts are managed by backend categories");
   },
 
-  updateSystemPrompt: async (promptToUpdate) => {
-    const currentPrompts = get().systemPrompts;
-    const updatedPrompts = currentPrompts.map((p) =>
-      p.id === promptToUpdate.id ? promptToUpdate : p
-    );
-    await storageService.saveSystemPrompts(updatedPrompts);
-    set({ systemPrompts: updatedPrompts });
+  updateSystemPrompt: async (_promptToUpdate) => {
+    console.warn("updateSystemPrompt is deprecated; prompts are managed by backend categories");
   },
 
-  deleteSystemPrompt: async (promptId) => {
-    const currentPrompts = get().systemPrompts;
-    const updatedPrompts = currentPrompts.filter((p) => p.id !== promptId);
-    await storageService.saveSystemPrompts(updatedPrompts);
-    set({ systemPrompts: updatedPrompts });
+  deleteSystemPrompt: async (_promptId) => {
+    console.warn("deleteSystemPrompt is deprecated; prompts are managed by backend categories");
   },
 
   setLastSelectedPromptId: (promptId: string) => {

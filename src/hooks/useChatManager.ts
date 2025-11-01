@@ -9,6 +9,7 @@ import {
   UserMessage,
   AssistantTextMessage,
   MessageImage,
+  Message,
 } from "../types/chat";
 import { ImageFile } from "../utils/imageUtils";
 import { ToolService } from "../services/ToolService";
@@ -37,7 +38,6 @@ export const useChatManager = () => {
   const pinChat = useAppStore((state) => state.pinChat);
   const unpinChat = useAppStore((state) => state.unpinChat);
   const loadChats = useAppStore((state) => state.loadChats);
-  const saveChats = useAppStore((state) => state.saveChats);
   const updateMessageContent = useAppStore(
     (state) => state.updateMessageContent
   );
@@ -81,14 +81,14 @@ export const useChatManager = () => {
             setStreamingText((prev) => prev + event.payload.chunk);
           }
         },
-        finalizeStreamingMessage: ({ event }: { event: ChatMachineEvent }) => {
+        finalizeStreamingMessage: async ({ event }: { event: ChatMachineEvent }) => {
           const { currentChatId: chatId } = useAppStore.getState();
           if (
             event.type === "STREAM_COMPLETE_TEXT" &&
             streamingMessageId &&
             chatId
           ) {
-            updateMessageContent(
+            await updateMessageContent(
               chatId,
               streamingMessageId,
               event.payload.finalContent
@@ -220,7 +220,9 @@ export const useChatManager = () => {
         images: messageImages,
       };
 
-      addMessage(chatId, userMessage);
+      // ✅ NEW BACKEND-FIRST APPROACH:
+      // Add user message locally for optimistic UI update (no backend persistence)
+      await addMessage(chatId, userMessage);
 
       const updatedHistory = [...baseMessages, userMessage];
       const updatedChat: ChatItem = {
@@ -228,9 +230,11 @@ export const useChatManager = () => {
         messages: updatedHistory,
       };
 
+      // Check if this is a direct tool invocation command
       const basicToolCall = toolService.parseUserCommand(processedContent);
 
       if (basicToolCall) {
+        // Direct tool command - use existing flow
         const toolInfo = await toolService.getToolInfo(basicToolCall.tool_name);
         const toolCallId = `call_${crypto.randomUUID()}`;
         const enhancedToolCall = {
@@ -243,13 +247,69 @@ export const useChatManager = () => {
           payload: { request: enhancedToolCall, messages: updatedHistory },
         });
       } else {
-        send({
-          type: "USER_SUBMITS",
-          payload: { messages: updatedHistory, chat: updatedChat, systemPrompts },
-        });
+        // ✅ Normal message - Use backend action API
+        // Backend will: save user message → run FSM → generate response → save response
+        console.log(`[ChatManager] Calling backend action API for chat ${chatId}`);
+        
+        try {
+          const { BackendContextService } = await import(
+            "../services/BackendContextService"
+          );
+          const backendService = new BackendContextService();
+          const actionResponse = await backendService.sendMessageAction(chatId, processedContent);
+          
+          console.log(`[ChatManager] Backend action completed:`, actionResponse);
+          console.log(`[ChatManager] Backend returned context with ${actionResponse.context.message_count} messages`);
+          
+          // ✅ Backend has already generated and saved the assistant response
+          // Now we need to update the frontend state with the backend's response
+          
+          // Extract assistant message from backend response
+          const messages = await backendService.getMessages(chatId);
+          const allMessages: Message[] = messages.messages.map((msg) => {
+            const baseContent = msg.content
+              .map((c) => {
+                if (c.type === "text") return c.text;
+                if (c.type === "image") return c.url;
+                return "";
+              })
+              .join("\n") || "";
+            
+            const roleLower = msg.role.toLowerCase();
+            
+            if (roleLower === "user") {
+              return {
+                id: msg.id,
+                role: "user",
+                content: baseContent,
+                createdAt: new Date().toISOString(),
+              } as Message;
+            } else if (roleLower === "assistant") {
+              return {
+                id: msg.id,
+                role: "assistant",
+                type: "text",
+                content: baseContent,
+                createdAt: new Date().toISOString(),
+              } as Message;
+            }
+            return null;
+          }).filter(Boolean) as Message[];
+          
+          // Update local state with backend messages
+          setMessages(chatId, allMessages);
+          
+          console.log(`[ChatManager] Updated local state with ${allMessages.length} messages from backend`);
+        } catch (error) {
+          console.error("[ChatManager] Backend action failed:", error);
+          modal.error({
+            title: "Failed to send message",
+            content: "Could not connect to backend. Please try again.",
+          });
+        }
       }
     },
-    [currentChat, addMessage, send, modal, baseMessages, systemPrompts]
+    [currentChat, addMessage, send, modal, baseMessages, systemPrompts, setMessages]
   );
 
   const retryLastMessage = useCallback(async () => {
@@ -280,7 +340,7 @@ export const useChatManager = () => {
   }, [currentChat, baseMessages, deleteMessage, send, systemPrompts]);
 
   const createNewChat = useCallback(
-    (title?: string, options?: Partial<Omit<ChatItem, "id">>) => {
+    async (title?: string, options?: Partial<Omit<ChatItem, "id">>) => {
       const selectedPrompt = systemPrompts.find(
         (p) => p.id === lastSelectedPromptId
       );
@@ -299,10 +359,9 @@ export const useChatManager = () => {
         currentInteraction: null,
         ...options,
       };
-      addChat(newChatData);
-      saveChats();
+      await addChat(newChatData);
     },
-    [addChat, saveChats, lastSelectedPromptId, systemPrompts]
+    [addChat, lastSelectedPromptId, systemPrompts]
   );
 
   const createChatWithSystemPrompt = useCallback(
@@ -338,10 +397,9 @@ export const useChatManager = () => {
         "[ChatManager] Calling addChat with newChatData.config:",
         newChatData.config
       );
-      addChat(newChatData);
-      saveChats();
+      await addChat(newChatData);
     },
-    [addChat, saveChats]
+    [addChat]
   );
 
   const toggleChatPin = useCallback(
@@ -398,7 +456,6 @@ export const useChatManager = () => {
     unpinChat,
     updateChat,
     loadChats,
-    saveChats,
     createNewChat,
     createChatWithSystemPrompt,
     toggleChatPin,

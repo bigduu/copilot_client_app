@@ -87,6 +87,18 @@ Ready to write some code? Fantastic!
 
 We'll do our best to review your contribution promptly and provide constructive feedback. Thank you for helping out! 🙏
 
+## 🚨 Important: Data Migration Notice
+
+**Version 2.0+** introduces a major architectural change: chat context is now managed by the backend instead of browser LocalStorage.
+
+### First Launch After Upgrade
+1. A **migration banner** will appear if you have existing chat data
+2. Click **"Migrate now"** to transfer your chats, messages, and system prompts to the backend
+3. The migration includes automatic validation and creates a backup for safety
+4. If something goes wrong, use **"Rollback from backup"** to restore your data
+
+See [Context Manager Migration Guide](./docs/architecture/context-manager-migration.md) for details.
+
 ## 📚 Project Documentation
 
 This project contains comprehensive technical documentation, organized by category in the `docs/` directory:
@@ -99,6 +111,7 @@ This project contains comprehensive technical documentation, organized by catego
     - [SystemPromptSelector](./docs/development/components/SystemPromptSelector.md) - System prompt selector component
 
 - **[Architecture Design](./docs/architecture/)** - System architecture and design documentation
+  - [Context Manager Migration](./docs/architecture/context-manager-migration.md) - **NEW**: Backend context architecture
   - [Tool System Developer Guide](./docs/architecture/tools-system.md) - Category trait architecture and development interface
   - [Tool Call Flow Improvement](./docs/architecture/IMPROVED_TOOL_CALL_FLOW.md) - Tool call optimization solution
   - [Mermaid Feature Enhancement](./docs/architecture/MERMAID_ENHANCEMENT.md) - Chart functionality extension

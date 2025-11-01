@@ -52,7 +52,7 @@ impl fmt::Display for Role {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum ContentPart {
-    Text(String),
+    Text { text: String },
     Image {
         url: String,
         #[serde(skip_serializing_if = "Option::is_none")]
@@ -62,15 +62,15 @@ pub enum ContentPart {
 
 impl ContentPart {
     pub fn text(s: &str) -> Self {
-        ContentPart::Text(s.to_string())
+        ContentPart::Text { text: s.to_string() }
     }
 
     pub fn text_owned(s: String) -> Self {
-        ContentPart::Text(s)
+        ContentPart::Text { text: s }
     }
 
     pub fn text_content(&self) -> Option<&str> {
-        if let ContentPart::Text(text) = self {
+        if let ContentPart::Text { text } = self {
             Some(text)
         } else {
             None

@@ -1,0 +1,83 @@
+{
+  "id": "7b04279d-c35a-4ddd-82a0-9ad6ffcc9f73",
+  "parent_id": null,
+  "config": {
+    "model_id": "gpt-4",
+    "mode": "chat",
+    "parameters": {},
+    "system_prompt_id": "general_assistant"
+  },
+  "message_pool": {
+    "ab0eba1e-541c-4054-b91e-12030d06f894": {
+      "id": "ab0eba1e-541c-4054-b91e-12030d06f894",
+      "message": {
+        "role": "Assistant",
+        "content": [
+          {
+            "type": "text",
+            "text": "That's great to hear! 😊 Let me know if there's anything you'd like to chat about or if you need assistance with something."
+          }
+        ],
+        "metadata": null
+      },
+      "parent_id": "d1df7b05-87f2-40cb-aa9c-b424e1d82cab"
+    },
+    "d1df7b05-87f2-40cb-aa9c-b424e1d82cab": {
+      "id": "d1df7b05-87f2-40cb-aa9c-b424e1d82cab",
+      "message": {
+        "role": "User",
+        "content": [
+          {
+            "type": "text",
+            "text": "it's good now"
+          }
+        ],
+        "metadata": null
+      },
+      "parent_id": "d7dd5d57-b445-4da4-8c09-730ec419423d"
+    },
+    "42dc8092-3cb6-4ef9-a325-ee53a1553bde": {
+      "id": "42dc8092-3cb6-4ef9-a325-ee53a1553bde",
+      "message": {
+        "role": "User",
+        "content": [
+          {
+            "type": "text",
+            "text": "hi"
+          }
+        ],
+        "metadata": null
+      },
+      "parent_id": null
+    },
+    "d7dd5d57-b445-4da4-8c09-730ec419423d": {
+      "id": "d7dd5d57-b445-4da4-8c09-730ec419423d",
+      "message": {
+        "role": "Assistant",
+        "content": [
+          {
+            "type": "text",
+            "text": "Hello! How can I help you today? 😊"
+          }
+        ],
+        "metadata": null
+      },
+      "parent_id": "42dc8092-3cb6-4ef9-a325-ee53a1553bde"
+    }
+  },
+  "branches": {
+    "main": {
+      "name": "main",
+      "message_ids": [
+        "42dc8092-3cb6-4ef9-a325-ee53a1553bde",
+        "d7dd5d57-b445-4da4-8c09-730ec419423d",
+        "d1df7b05-87f2-40cb-aa9c-b424e1d82cab",
+        "ab0eba1e-541c-4054-b91e-12030d06f894"
+      ],
+      "system_prompt": null,
+      "user_prompt": null
+    }
+  },
+  "active_branch_name": "main",
+  "current_state": "Idle"
+}

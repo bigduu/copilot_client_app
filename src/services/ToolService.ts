@@ -126,7 +126,7 @@ export class ToolService {
    */
   async getAvailableTools(): Promise<ToolUIInfo[]> {
     try {
-      const response = await fetch("http://127.0.0.1:8080/tools/available");
+      const response = await fetch("http://127.0.0.1:8080/v1/tools/available");
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }

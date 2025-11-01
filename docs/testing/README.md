@@ -4,11 +4,28 @@
 
 ## 📋 当前测试状态
 
+### 测试覆盖率概览
+- **tool_system**: 16 个测试通过 (registry, executor, tools)
+- **context_manager**: 37 个测试通过 (FSM, context, branches, messages, serialization)
+- **web_service**: 3 个现有集成测试通过
+- **reqwest-sse**: 3 个现有 e2e 测试通过
+- **总计**: 60 个测试通过
+
 ### 扩展系统测试
 - **工具注册**: 所有工具通过 `auto_register_tool!` 宏正确注册
 - **类别配置**: General Assistant 和 Translate 类别正常运行
 - **工具访问**: General Assistant 可以访问所有8个工具
 - **翻译功能**: Translate 类别提供纯翻译服务
+
+### 新增测试套件
+- **Registry Tests**: 测试工具注册、检索、并发访问
+- **Executor Tests**: 测试工具执行、错误处理、并发执行
+- **Tool Tests**: 测试文件操作、命令执行、错误处理
+- **FSM Tests**: 测试所有状态转换、重试逻辑、错误处理
+- **Context Tests**: 测试上下文创建、配置、克隆
+- **Branch Tests**: 测试分支管理、消息隔离
+- **Message Tests**: 测试消息操作、关系、元数据
+- **Serialization Tests**: 测试 JSON 序列化/反序列化
 
 ## 🧪 测试策略
 
@@ -29,8 +46,16 @@
 # 运行所有测试
 cargo test
 
-# 运行特定测试
-cargo test extension_system
+# 运行所有 crate 的测试
+cargo test --all
+
+# 运行特定 crate 的测试
+cargo test -p tool_system
+cargo test -p context_manager
+
+# 运行特定测试文件
+cargo test --test registry_tests
+cargo test --test fsm_tests
 
 # 运行集成测试
 cargo test --test integration

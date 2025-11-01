@@ -3,7 +3,7 @@ use actix_web::{
     dev::{Service, ServiceResponse},
     test, App, Error,
 };
-use anyhow::{anyhow, Result};
+use anyhow::Result;
 use async_trait::async_trait;
 use bytes::Bytes;
 use copilot_client::{
@@ -13,9 +13,7 @@ use copilot_client::{
     },
     client_trait::CopilotClientTrait,
 };
-use futures_util::StreamExt;
 use reqwest::Response;
-use reqwest_sse::EventSource;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tokio::sync::mpsc::Sender;
@@ -60,31 +58,29 @@ impl CopilotClientTrait for MockCopilotClient {
         response: Response,
         tx: Sender<Result<Bytes>>,
     ) -> Result<()> {
-        let mut event_stream = response.events().await.map_err(|e| anyhow!(e))?;
-        while let Some(event_result) = event_stream.next().await {
-            match event_result {
-                Ok(event) => {
-                    if event.data == "[DONE]" {
-                        let _ = tx.send(Ok(Bytes::from("[DONE]"))).await;
-                        break;
-                    }
-                    match serde_json::from_str::<ChatCompletionStreamChunk>(&event.data) {
-                        Ok(chunk) => {
-                            let vec = serde_json::to_vec(&chunk)?;
-                            if tx.send(Ok(Bytes::from(vec))).await.is_err() {
-                                break;
-                            }
-                        }
-                        Err(_) => {
-                            if tx.send(Ok(Bytes::from(event.data.clone()))).await.is_err() {
-                                break;
-                            }
-                        }
-                    }
-                }
-                Err(e) => {
-                    let _ = tx.send(Err(anyhow!("Error in SSE stream: {}", e))).await;
+        // Read the entire response body instead of using SSE parser (for test compatibility)
+        let body = response.text().await?;
+        
+        // Manually parse SSE format
+        for line in body.lines() {
+            if line.starts_with("data: ") {
+                let data = line.strip_prefix("data: ").unwrap().to_string();
+                if data == "[DONE]" {
+                    let _ = tx.send(Ok(Bytes::from("[DONE]"))).await;
                     break;
+                }
+                match serde_json::from_str::<ChatCompletionStreamChunk>(&data) {
+                    Ok(chunk) => {
+                        let vec = serde_json::to_vec(&chunk)?;
+                        if tx.send(Ok(Bytes::from(vec))).await.is_err() {
+                            break;
+                        }
+                    }
+                    Err(_) => {
+                        if tx.send(Ok(Bytes::from(data))).await.is_err() {
+                            break;
+                        }
+                    }
                 }
             }
         }
@@ -297,8 +293,8 @@ async fn test_chat_completions_streaming() {
         .and(path("/chat/completions"))
         .respond_with(
             ResponseTemplate::new(200)
-                .set_body_string(sse_body)
-                .insert_header("Content-Type", "text/event-stream"),
+                .insert_header("content-type", "text/event-stream")
+                .set_body_string(sse_body),
         )
         .mount(&mock_server)
         .await;
@@ -330,6 +326,7 @@ async fn test_chat_completions_streaming() {
         "text/event-stream"
     );
 
+    // Read the streaming response body
     let body_bytes = test::read_body(res).await;
     let body_str = String::from_utf8(body_bytes.to_vec()).unwrap();
 

@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { SystemPromptService } from '../services/SystemPromptService';
-import { SystemPromptPreset } from '../types/chat';
+import { UserSystemPrompt } from '../types/chat';
 
 /**
  * Hook for managing system prompt functionality
@@ -8,27 +8,27 @@ import { SystemPromptPreset } from '../types/chat';
  */
 interface UseSystemPromptReturn {
   // System prompt presets
-  systemPromptPresets: SystemPromptPreset[];
+  systemPromptPresets: UserSystemPrompt[];
   isLoadingPresets: boolean;
   presetsError: string | null;
   
   // Current system prompt info
-  currentSystemPromptInfo: SystemPromptPreset | null;
+  currentSystemPromptInfo: UserSystemPrompt | null;
   isLoadingCurrentInfo: boolean;
   currentInfoError: string | null;
   
   // Methods
-  findPresetById: (id: string) => Promise<SystemPromptPreset | undefined>;
+  findPresetById: (id: string) => Promise<UserSystemPrompt | undefined>;
   getCurrentSystemPromptContent: (selectedPresetId: string) => Promise<string>;
   refreshPresets: () => Promise<void>;
 }
 
 export const useSystemPrompt = (currentSystemPromptId?: string | null): UseSystemPromptReturn => {
-  const [systemPromptPresets, setSystemPromptPresets] = useState<SystemPromptPreset[]>([]);
+  const [systemPromptPresets, setSystemPromptPresets] = useState<UserSystemPrompt[]>([]);
   const [isLoadingPresets, setIsLoadingPresets] = useState(false);
   const [presetsError, setPresetsError] = useState<string | null>(null);
   
-  const [currentSystemPromptInfo, setCurrentSystemPromptInfo] = useState<SystemPromptPreset | null>(null);
+  const [currentSystemPromptInfo, setCurrentSystemPromptInfo] = useState<UserSystemPrompt | null>(null);
   const [isLoadingCurrentInfo, setIsLoadingCurrentInfo] = useState(false);
   const [currentInfoError, setCurrentInfoError] = useState<string | null>(null);
 
@@ -83,7 +83,7 @@ export const useSystemPrompt = (currentSystemPromptId?: string | null): UseSyste
   }, [currentSystemPromptId]);
 
   // Methods to expose
-  const findPresetById = async (id: string): Promise<SystemPromptPreset | undefined> => {
+  const findPresetById = async (id: string): Promise<UserSystemPrompt | undefined> => {
     return await systemPromptService.findPresetById(id);
   };
 
