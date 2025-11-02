@@ -33,6 +33,7 @@ impl tool_system::types::Tool for MockTool {
             custom_prompt: None,
             hide_in_selector: false,
             display_preference: tool_system::types::DisplayPreference::Default,
+            termination_behavior_doc: None,
         }
     }
 

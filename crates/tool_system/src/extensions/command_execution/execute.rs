@@ -1,7 +1,7 @@
 use crate::{
     registry::macros::auto_register_tool,
     types::{
-        DisplayPreference, Parameter, Tool, ToolArguments, ToolDefinition, ToolError, ToolType,
+        DisplayPreference, Parameter, Tool, ToolArguments, ToolDefinition, ToolError, ToolType, ToolPermission,
     },
 };
 use async_trait::async_trait;
@@ -52,6 +52,8 @@ User wants to execute: "{{user_description}}"
 Command:"#.to_string()),
             hide_in_selector: false,
             display_preference: DisplayPreference::Hidden,
+            termination_behavior_doc: Some("Use terminate=true after executing commands, as they typically represent final actions. Use terminate=false only if you need to analyze the command output before responding.".to_string()),
+            required_permissions: vec![ToolPermission::ExecuteCommands],
         }
     }
 

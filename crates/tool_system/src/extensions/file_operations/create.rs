@@ -1,7 +1,7 @@
 use crate::{
     registry::macros::auto_register_tool,
     types::{
-        Parameter, Tool, ToolArguments, ToolDefinition, ToolError, ToolType, DisplayPreference,
+        Parameter, Tool, ToolArguments, ToolDefinition, ToolError, ToolType, DisplayPreference, ToolPermission,
     },
 };
 use async_trait::async_trait;
@@ -51,6 +51,8 @@ impl Tool for CreateFileTool {
             custom_prompt: None,
             hide_in_selector: true,
             display_preference: DisplayPreference::Default,
+            termination_behavior_doc: Some("Use terminate=true after creating files unless you need to perform additional operations. Use terminate=false if creating multiple related files or need to verify the result.".to_string()),
+            required_permissions: vec![ToolPermission::WriteFiles, ToolPermission::CreateFiles],
         }
     }
 

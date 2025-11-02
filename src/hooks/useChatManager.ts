@@ -13,7 +13,7 @@ import {
 } from "../types/chat";
 import { ImageFile } from "../utils/imageUtils";
 import { ToolService } from "../services/ToolService";
-import SystemPromptEnhancer from "../services/SystemPromptEnhancer";
+import { SystemPromptService } from "../services";
 
 const toolService = ToolService.getInstance();
 
@@ -230,83 +230,114 @@ export const useChatManager = () => {
         messages: updatedHistory,
       };
 
-      // Check if this is a direct tool invocation command
-      const basicToolCall = toolService.parseUserCommand(processedContent);
-
-      if (basicToolCall) {
-        // Direct tool command - use existing flow
-        const toolInfo = await toolService.getToolInfo(basicToolCall.tool_name);
-        const toolCallId = `call_${crypto.randomUUID()}`;
-        const enhancedToolCall = {
-          ...basicToolCall,
-          toolCallId,
-          parameter_parsing_strategy: toolInfo?.parameter_parsing_strategy,
-        };
-        send({
-          type: "USER_INVOKES_TOOL",
-          payload: { request: enhancedToolCall, messages: updatedHistory },
-        });
-      } else {
-        // ✅ Normal message - Use backend action API
-        // Backend will: save user message → run FSM → generate response → save response
-        console.log(`[ChatManager] Calling backend action API for chat ${chatId}`);
+      // NOTE: Tool command parsing DISABLED
+      // Workflows are now invoked via WorkflowSelector UI (type "/" to trigger)
+      // The old "/command" text parsing is removed to avoid conflicts
+      // Tools will be handled by backend agent loop (JSON format from LLM)
+      
+      // ✅ All messages now go through backend action API
+      // Backend will: save user message → run FSM → generate response → save response
+      console.log(`[ChatManager] Calling backend action API for chat ${chatId}`);
+      
+      try {
+        const { BackendContextService } = await import(
+          "../services/BackendContextService"
+        );
+        const backendService = new BackendContextService();
         
-        try {
-          const { BackendContextService } = await import(
-            "../services/BackendContextService"
-          );
-          const backendService = new BackendContextService();
-          const actionResponse = await backendService.sendMessageAction(chatId, processedContent);
-          
-          console.log(`[ChatManager] Backend action completed:`, actionResponse);
-          console.log(`[ChatManager] Backend returned context with ${actionResponse.context.message_count} messages`);
-          
-          // ✅ Backend has already generated and saved the assistant response
-          // Now we need to update the frontend state with the backend's response
-          
-          // Extract assistant message from backend response
-          const messages = await backendService.getMessages(chatId);
-          const allMessages: Message[] = messages.messages.map((msg) => {
-            const baseContent = msg.content
-              .map((c) => {
-                if (c.type === "text") return c.text;
-                if (c.type === "image") return c.url;
-                return "";
-              })
-              .join("\n") || "";
-            
-            const roleLower = msg.role.toLowerCase();
-            
-            if (roleLower === "user") {
-              return {
-                id: msg.id,
-                role: "user",
-                content: baseContent,
-                createdAt: new Date().toISOString(),
-              } as Message;
-            } else if (roleLower === "assistant") {
-              return {
-                id: msg.id,
-                role: "assistant",
-                type: "text",
-                content: baseContent,
-                createdAt: new Date().toISOString(),
-              } as Message;
+        // Create temporary assistant message for streaming
+        const assistantMessageId = crypto.randomUUID();
+        const assistantMessage: AssistantMessage = {
+          id: assistantMessageId,
+          role: "assistant",
+          type: "text",
+          content: "",
+          createdAt: new Date().toISOString(),
+        };
+        
+        // Add empty assistant message to show streaming indicator
+        await addMessage(chatId, assistantMessage);
+        let accumulatedContent = "";
+        
+        console.log(`[ChatManager] Starting streaming for chat ${chatId}`);
+        
+        // Call streaming endpoint
+        await backendService.sendMessageStream(
+          chatId,
+          processedContent,
+          // onChunk: update message content in real-time
+          (chunk: string) => {
+            accumulatedContent += chunk;
+            const updatedAssistantMessage: AssistantMessage = {
+              ...assistantMessage,
+              content: accumulatedContent,
+            };
+            // Update the message in place
+            const currentMessages = [...baseMessages, userMessage, updatedAssistantMessage];
+            setMessages(chatId, currentMessages);
+          },
+          // onDone: fetch final state from backend
+          async () => {
+            console.log(`[ChatManager] Stream completed, fetching final state`);
+            try {
+              // Get final messages from backend to ensure consistency
+              const messages = await backendService.getMessages(chatId);
+              const allMessages: Message[] = messages.messages.map((msg) => {
+                const baseContent = msg.content
+                  .map((c) => {
+                    if (c.type === "text") return c.text;
+                    if (c.type === "image") return c.url;
+                    return "";
+                  })
+                  .join("\n") || "";
+                
+                const roleLower = msg.role.toLowerCase();
+                
+                if (roleLower === "user") {
+                  return {
+                    id: msg.id,
+                    role: "user",
+                    content: baseContent,
+                    createdAt: new Date().toISOString(),
+                  } as Message;
+                } else if (roleLower === "assistant") {
+                  return {
+                    id: msg.id,
+                    role: "assistant",
+                    type: "text",
+                    content: baseContent,
+                    createdAt: new Date().toISOString(),
+                  } as Message;
+                }
+                return null;
+              }).filter(Boolean) as Message[];
+              
+              // Update local state with backend messages
+              setMessages(chatId, allMessages);
+              console.log(`[ChatManager] Updated local state with ${allMessages.length} messages from backend`);
+            } catch (error) {
+              console.error("[ChatManager] Failed to fetch final messages:", error);
             }
-            return null;
-          }).filter(Boolean) as Message[];
-          
-          // Update local state with backend messages
-          setMessages(chatId, allMessages);
-          
-          console.log(`[ChatManager] Updated local state with ${allMessages.length} messages from backend`);
-        } catch (error) {
-          console.error("[ChatManager] Backend action failed:", error);
-          modal.error({
-            title: "Failed to send message",
-            content: "Could not connect to backend. Please try again.",
-          });
-        }
+          },
+          // onError: show error and remove assistant message
+          (error: string) => {
+            console.error("[ChatManager] Streaming error:", error);
+            modal.error({
+              title: "Streaming Error",
+              content: error,
+            });
+            // Remove the failed assistant message
+            const messagesWithoutAssistant = [...baseMessages, userMessage];
+            setMessages(chatId, messagesWithoutAssistant);
+          }
+        );
+        
+      } catch (error) {
+        console.error("[ChatManager] Backend streaming failed:", error);
+        modal.error({
+          title: "Failed to send message",
+          content: "Could not connect to backend. Please try again.",
+        });
       }
     },
     [currentChat, addMessage, send, modal, baseMessages, systemPrompts, setMessages]
@@ -370,9 +401,8 @@ export const useChatManager = () => {
         "[ChatManager] createChatWithSystemPrompt started with prompt:",
         prompt
       );
-      const enhancedPrompt = await SystemPromptEnhancer.getEnhancedSystemPrompt(
-        prompt.content
-      );
+      const systemPromptService = SystemPromptService.getInstance();
+      const enhancedPrompt = await systemPromptService.getEnhancedSystemPrompt(prompt.id);
 
       const newChatData: Omit<ChatItem, "id"> = {
         title: `New Chat - ${prompt.name}`,

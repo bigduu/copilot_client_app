@@ -15,7 +15,7 @@ use copilot_client::{
 };
 use reqwest::Response;
 use serde::{Deserialize, Serialize};
-use std::sync::Arc;
+use std::{path::PathBuf, sync::Arc};
 use tokio::sync::mpsc::Sender;
 use web_service::server::{app_config, AppState};
 use wiremock::{
@@ -101,6 +101,16 @@ async fn setup_test_environment() -> (
     });
 
     let app_state = actix_web::web::Data::new(AppState {
+        system_prompt_service: Arc::new(
+            web_service::services::system_prompt_service::SystemPromptService::new(
+                PathBuf::from("test_system_prompts")
+            )
+        ),
+        system_prompt_enhancer: Arc::new(
+            web_service::services::system_prompt_enhancer::SystemPromptEnhancer::with_default_config(
+                Arc::new(tool_system::registry::ToolRegistry::new())
+            )
+        ),
         session_manager: Arc::new(
             web_service::services::session_manager::ChatSessionManager::new(
                 Arc::new(
@@ -221,9 +231,9 @@ async fn test_chat_completions_streaming() {
     let chunks = vec![
         ChatCompletionStreamChunk {
             id: "chatcmpl-123".to_string(),
-            object: "chat.completion.chunk".to_string(),
+            object: Some("chat.completion.chunk".to_string()),
             created: 1677652288,
-            model: "gpt-3.5-turbo-0125".to_string(),
+            model: Some("gpt-3.5-turbo-0125".to_string()),
             choices: vec![StreamChoice {
                 index: 0,
                 delta: StreamDelta {
@@ -236,9 +246,9 @@ async fn test_chat_completions_streaming() {
         },
         ChatCompletionStreamChunk {
             id: "chatcmpl-123".to_string(),
-            object: "chat.completion.chunk".to_string(),
+            object: Some("chat.completion.chunk".to_string()),
             created: 1677652288,
-            model: "gpt-3.5-turbo-0125".to_string(),
+            model: Some("gpt-3.5-turbo-0125".to_string()),
             choices: vec![StreamChoice {
                 index: 0,
                 delta: StreamDelta {
@@ -250,10 +260,10 @@ async fn test_chat_completions_streaming() {
             }],
         },
         ChatCompletionStreamChunk {
-            id: "chatcmpl-123".to_string(),
-            object: "chat.completion.chunk".to_string(),
+            id: String::from("chatcmpl-123"),
+            object: Some(String::from("chat.completion.chunk")),
             created: 1677652288,
-            model: "gpt-3.5-turbo-0125".to_string(),
+            model: Some(String::from("gpt-3.5-turbo-0125")),
             choices: vec![StreamChoice {
                 index: 0,
                 delta: StreamDelta {
@@ -266,9 +276,9 @@ async fn test_chat_completions_streaming() {
         },
         ChatCompletionStreamChunk {
             id: "chatcmpl-123".to_string(),
-            object: "chat.completion.chunk".to_string(),
+            object: Some(String::from("chat.completion.chunk")),
             created: 1677652288,
-            model: "gpt-3.5-turbo-0125".to_string(),
+            model: Some(String::from("gpt-3.5-turbo-0125")),
             choices: vec![StreamChoice {
                 index: 0,
                 delta: StreamDelta {

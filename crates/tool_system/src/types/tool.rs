@@ -7,6 +7,18 @@ use thiserror::Error;
 
 use super::{Parameter, ToolType, ToolArguments};
 
+/// Permission types required for tool execution.
+/// These should match the Permission enum in context_manager.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
+#[serde(rename_all = "snake_case")]
+pub enum ToolPermission {
+    ReadFiles,
+    WriteFiles,
+    CreateFiles,
+    DeleteFiles,
+    ExecuteCommands,
+}
+
 /// Defines how the tool's output should be displayed in the UI.
 #[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq, Eq)]
 pub enum DisplayPreference {
@@ -45,6 +57,21 @@ pub struct ToolDefinition {
     pub hide_in_selector: bool,
     #[serde(default)]
     pub display_preference: DisplayPreference,
+    
+    /// Documentation for how the LLM should use the terminate flag with this tool.
+    /// When the LLM calls this tool, it must include a "terminate" field in the JSON:
+    /// - terminate: true = This is the final action, return results to the user
+    /// - terminate: false = Continue the agent loop after this tool execution
+    /// 
+    /// This field provides guidance on typical usage patterns for the terminate flag.
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub termination_behavior_doc: Option<String>,
+    
+    /// Permissions required to use this tool.
+    /// Tools with only ReadFiles permission can be used in Planner role.
+    /// Tools requiring other permissions need Actor role or higher.
+    #[serde(default)]
+    pub required_permissions: Vec<ToolPermission>,
 }
 
 fn default_requires_approval() -> bool {

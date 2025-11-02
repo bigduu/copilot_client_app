@@ -191,4 +191,48 @@ export class SystemPromptService {
     const presets = await this.getSystemPromptPresets();
     return presets.filter((preset: any) => preset.category === category);
   }
+
+  /**
+   * Get enhanced system prompt from backend
+   * The backend handles tool injection and Mermaid support
+   */
+  async getEnhancedSystemPrompt(promptId: string): Promise<string> {
+    try {
+      console.log(`[SystemPromptService] Fetching enhanced prompt for ID: ${promptId}`);
+      const response = await fetch(`http://localhost:8080/v1/system-prompts/${promptId}/enhanced`);
+      
+      if (response.status === 404) {
+        console.warn(`[SystemPromptService] Prompt not found: ${promptId}, falling back to base content`);
+        // Fall back to getting the base content
+        const preset = await this.findPresetById(promptId);
+        return preset?.content || "";
+      }
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      console.log(`[SystemPromptService] Enhanced prompt fetched successfully`);
+      return data.content || "";
+    } catch (error) {
+      console.error(`[SystemPromptService] Failed to get enhanced prompt for ${promptId}:`, error);
+      // Fall back to base content on error
+      const preset = await this.findPresetById(promptId);
+      return preset?.content || "";
+    }
+  }
+
+  /**
+   * Get enhanced system prompt from base content
+   * For cases where we have content but no prompt ID
+   * Fallback: returns the base content as-is if backend enhancement fails
+   */
+  async getEnhancedSystemPromptFromContent(baseContent: string): Promise<string> {
+    console.log(`[SystemPromptService] Enhancing prompt content directly`);
+    // Since backend requires a prompt ID, we can't enhance arbitrary content
+    // Just return the base content and rely on backend's automatic enhancement during chat
+    console.warn(`[SystemPromptService] Direct content enhancement not supported, using base content`);
+    return baseContent;
+  }
 }

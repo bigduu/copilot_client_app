@@ -1,6 +1,8 @@
 use crate::{error::AppError, storage::StorageProvider};
+use bytes::Bytes;
+use context_manager::fsm::ChatEvent;
 use context_manager::structs::{
-    message::{ContentPart, InternalMessage, Role},
+    message::{ContentPart, InternalMessage, MessageType, Role},
     state::ContextState,
     tool::ToolCallRequest,
 };
@@ -10,7 +12,10 @@ use copilot_client::api::models::{
 use copilot_client::CopilotClientTrait;
 use log::{debug, error, info};
 use serde::Serialize;
+use serde_json::Value as JsonValue;
 use std::sync::Arc;
+use tokio::sync::mpsc;
+use tokio_stream::wrappers::ReceiverStream;
 use tool_system::ToolExecutor;
 use tracing;
 use uuid::Uuid;
@@ -80,7 +85,50 @@ fn convert_to_chat_message(msg: &InternalMessage) -> ChatMessage {
     }
 }
 
-impl<T: StorageProvider> ChatService<T> {
+/// Parse the LLM response text and determine the message type
+fn detect_message_type(text: &str) -> MessageType {
+    // Try to extract JSON from the text
+    if let Some(json_str) = extract_json_from_text(text) {
+        if let Ok(json) = serde_json::from_str::<JsonValue>(&json_str) {
+            // Check if it's a plan
+            if json.get("goal").is_some() && json.get("steps").is_some() {
+                return MessageType::Plan;
+            }
+            // Check if it's a question
+            if json.get("type").and_then(|v| v.as_str()) == Some("question")
+                && json.get("question").is_some()
+            {
+                return MessageType::Question;
+            }
+        }
+    }
+
+    // Default to text
+    MessageType::Text
+}
+
+/// Extract JSON from text that might be wrapped in markdown code blocks or mixed with other text
+fn extract_json_from_text(text: &str) -> Option<String> {
+    // Try to find JSON in markdown code blocks
+    if let Some(start) = text.find("```json") {
+        if let Some(end) = text[start + 7..].find("```") {
+            return Some(text[start + 7..start + 7 + end].trim().to_string());
+        }
+    }
+
+    // Try to find raw JSON (look for { followed by })
+    if let Some(start) = text.find('{') {
+        if let Some(end) = text.rfind('}') {
+            if end > start {
+                return Some(text[start..=end].trim().to_string());
+            }
+        }
+    }
+
+    None
+}
+
+impl<T: StorageProvider + 'static> ChatService<T> {
     pub fn new(
         session_manager: Arc<ChatSessionManager<T>>,
         conversation_id: Uuid,
@@ -142,9 +190,23 @@ impl<T: StorageProvider> ChatService<T> {
             context_lock.message_pool.len()
         );
 
-        // Transition state to ProcessingUserMessage so FSM will process it
-        context_lock.current_state = ContextState::ProcessingUserMessage;
-        log::info!("State transitioned: Idle -> ProcessingUserMessage");
+        // Transition state: Idle -> ProcessingUserMessage
+        context_lock.handle_event(ChatEvent::UserMessageSent);
+        log::info!("FSM: Idle -> ProcessingUserMessage");
+
+        // Get messages and model for LLM
+        let messages: Vec<InternalMessage> = context_lock
+            .get_active_branch()
+            .map(|branch| {
+                branch
+                    .message_ids
+                    .iter()
+                    .filter_map(|id| context_lock.message_pool.get(id))
+                    .map(|node| node.message.clone())
+                    .collect()
+            })
+            .unwrap_or_default();
+        let model_id = context_lock.config.model_id.clone();
 
         drop(context_lock);
 
@@ -153,6 +215,206 @@ impl<T: StorageProvider> ChatService<T> {
         self.auto_save_context(&context).await?;
         log::info!("Context auto-saved successfully");
 
+        // Call LLM with streaming and handle response
+        log::info!(
+            "Calling LLM with {} messages, model: {}",
+            messages.len(),
+            model_id
+        );
+
+        // Convert to LLM client format
+        let chat_messages: Vec<ChatMessage> =
+            messages.iter().map(convert_to_chat_message).collect();
+
+        // Build request with streaming enabled
+        let request = ChatCompletionRequest {
+            model: model_id,
+            messages: chat_messages,
+            stream: Some(true),
+            tools: None,
+            tool_choice: None,
+            ..Default::default()
+        };
+
+        // Transition to AwaitingLLMResponse
+        {
+            let mut ctx = context.write().await;
+            ctx.handle_event(ChatEvent::LLMRequestInitiated);
+            log::info!("FSM: ProcessingUserMessage -> AwaitingLLMResponse");
+        }
+
+        // Call the real LLM
+        match self
+            .copilot_client
+            .send_chat_completion_request(request)
+            .await
+        {
+            Ok(response) => {
+                let status = response.status();
+                if !status.is_success() {
+                    let error_msg = format!("LLM API error. Status: {}", status);
+                    error!("{}", error_msg);
+
+                    let mut context_lock = context.write().await;
+                    context_lock.handle_event(ChatEvent::FatalError {
+                        error: error_msg.clone(),
+                    });
+                    let error_message = InternalMessage {
+                        role: Role::Assistant,
+                        content: vec![ContentPart::Text {
+                            text: format!("Sorry, I encountered an error: {}", error_msg),
+                        }],
+                        ..Default::default()
+                    };
+                    context_lock.add_message_to_branch("main", error_message);
+                    drop(context_lock);
+
+                    self.auto_save_context(&context).await?;
+                    return Err(AppError::InternalError(anyhow::anyhow!(error_msg)));
+                }
+
+                // Process streaming response with proper FSM events
+                let mut full_text = String::new();
+                let mut stream_started = false;
+
+                // Create channel for stream processing
+                let (chunk_tx, mut chunk_rx) = mpsc::channel::<anyhow::Result<Bytes>>(100);
+
+                // Spawn stream processor
+                let copilot_client = self.copilot_client.clone();
+                let processor_handle = tokio::spawn(async move {
+                    copilot_client
+                        .process_chat_completion_stream(response, chunk_tx)
+                        .await
+                });
+
+                // Process chunks and fire FSM events
+                while let Some(chunk_result) = chunk_rx.recv().await {
+                    match chunk_result {
+                        Ok(bytes) => {
+                            // Check for [DONE] signal
+                            if bytes == &b"[DONE]"[..] {
+                                log::info!("Stream completed");
+                                break;
+                            }
+
+                            // Parse chunk - using copilot_client types here is OK because we're in chat_service
+                            match serde_json::from_slice::<
+                                copilot_client::api::models::ChatCompletionStreamChunk,
+                            >(&bytes)
+                            {
+                                Ok(chunk) => {
+                                    // Fire LLMStreamStarted on first chunk
+                                    if !stream_started {
+                                        stream_started = true;
+                                        let mut ctx = context.write().await;
+                                        ctx.handle_event(ChatEvent::LLMStreamStarted);
+                                        log::info!(
+                                            "FSM: AwaitingLLMResponse -> StreamingLLMResponse"
+                                        );
+                                        drop(ctx);
+                                    }
+
+                                    // Extract and accumulate content
+                                    if let Some(choice) = chunk.choices.first() {
+                                        if let Some(content) = &choice.delta.content {
+                                            full_text.push_str(content);
+
+                                            // Fire chunk received event
+                                            let mut ctx = context.write().await;
+                                            ctx.handle_event(ChatEvent::LLMStreamChunkReceived);
+                                            drop(ctx);
+                                        }
+                                    }
+                                }
+                                Err(e) => {
+                                    log::error!("Failed to parse chunk: {}", e);
+                                }
+                            }
+                        }
+                        Err(e) => {
+                            log::error!("Error in stream: {}", e);
+                            let mut context_lock = context.write().await;
+                            context_lock.handle_event(ChatEvent::FatalError {
+                                error: e.to_string(),
+                            });
+                            drop(context_lock);
+                            return Err(AppError::InternalError(anyhow::anyhow!(
+                                "Stream error: {}",
+                                e
+                            )));
+                        }
+                    }
+                }
+
+                // Wait for processor
+                if let Err(e) = processor_handle.await {
+                    log::error!("Stream processor failed: {}", e);
+                }
+
+                // Fire stream ended event
+                {
+                    let mut ctx = context.write().await;
+                    ctx.handle_event(ChatEvent::LLMStreamEnded);
+                    log::info!("FSM: StreamingLLMResponse -> ProcessingLLMResponse");
+                }
+
+                info!("✅ LLM response received: {} chars", full_text.len());
+
+                // Detect message type
+                let message_type = detect_message_type(&full_text);
+                log::info!("Detected message type: {:?}", message_type);
+
+                // Add complete response to context using context_manager types
+                let mut context_lock = context.write().await;
+                let assistant_message = InternalMessage {
+                    role: Role::Assistant,
+                    content: vec![ContentPart::Text { text: full_text }],
+                    message_type,
+                    ..Default::default()
+                };
+                context_lock.add_message_to_branch("main", assistant_message);
+                log::info!(
+                    "Assistant message added to branch, message pool size: {}",
+                    context_lock.message_pool.len()
+                );
+
+                // Fire response processed event
+                context_lock.handle_event(ChatEvent::LLMResponseProcessed {
+                    has_tool_calls: false,
+                });
+                log::info!("FSM: ProcessingLLMResponse -> Idle");
+                drop(context_lock);
+
+                // Auto-save
+                log::info!("Auto-saving after processing response");
+                self.auto_save_context(&context).await?;
+                log::info!("Auto-save completed");
+            }
+            Err(e) => {
+                let error_msg = format!("LLM call failed: {:?}", e);
+                error!("{}", error_msg);
+
+                let mut context_lock = context.write().await;
+                context_lock.handle_event(ChatEvent::FatalError {
+                    error: error_msg.clone(),
+                });
+                let error_message = InternalMessage {
+                    role: Role::Assistant,
+                    content: vec![ContentPart::Text {
+                        text: format!("Sorry, I couldn't connect to the LLM: {}", e),
+                    }],
+                    ..Default::default()
+                };
+                context_lock.add_message_to_branch("main", error_message);
+                drop(context_lock);
+
+                self.auto_save_context(&context).await?;
+                return Err(AppError::InternalError(anyhow::anyhow!(error_msg)));
+            }
+        }
+
+        // Now run FSM to handle any remaining state transitions
         log::info!("Starting FSM run");
         let result = self.run_fsm(context).await;
 
@@ -163,6 +425,259 @@ impl<T: StorageProvider> ChatService<T> {
 
         log::info!("=== ChatService::process_message END ===");
         result
+    }
+
+    /// Process a message with streaming response (SSE)
+    pub async fn process_message_stream(
+        &mut self,
+        message: String,
+    ) -> Result<ReceiverStream<Result<Bytes, String>>, AppError> {
+        log::info!("=== ChatService::process_message_stream START ===");
+        log::info!("Conversation ID: {}", self.conversation_id);
+        log::info!("User message: {}", message);
+
+        let context = self
+            .session_manager
+            .load_context(self.conversation_id, None)
+            .await?
+            .ok_or_else(|| {
+                log::error!("Session not found: {}", self.conversation_id);
+                AppError::InternalError(anyhow::anyhow!("Session not found"))
+            })?;
+
+        log::info!("Context loaded successfully");
+
+        let mut context_lock = context.write().await;
+
+        // Add user message to context
+        let user_message = InternalMessage {
+            role: Role::User,
+            content: vec![ContentPart::Text {
+                text: message.clone(),
+            }],
+            ..Default::default()
+        };
+        context_lock.add_message_to_branch("main", user_message);
+
+        // Transition state: Idle -> ProcessingUserMessage
+        context_lock.handle_event(ChatEvent::UserMessageSent);
+        log::info!("FSM: Idle -> ProcessingUserMessage");
+
+        // Get messages and model for LLM
+        let messages: Vec<InternalMessage> = context_lock
+            .get_active_branch()
+            .map(|branch| {
+                branch
+                    .message_ids
+                    .iter()
+                    .filter_map(|id| context_lock.message_pool.get(id))
+                    .map(|node| node.message.clone())
+                    .collect()
+            })
+            .unwrap_or_default();
+        let model_id = context_lock.config.model_id.clone();
+
+        drop(context_lock);
+
+        // Auto-save after adding user message
+        self.auto_save_context(&context).await?;
+
+        // Convert to LLM client format
+        let chat_messages: Vec<ChatMessage> =
+            messages.iter().map(convert_to_chat_message).collect();
+
+        // Build request with streaming enabled
+        let request = ChatCompletionRequest {
+            model: model_id,
+            messages: chat_messages,
+            stream: Some(true),
+            tools: None,
+            tool_choice: None,
+            ..Default::default()
+        };
+
+        // Transition to AwaitingLLMResponse
+        {
+            let mut ctx = context.write().await;
+            ctx.handle_event(ChatEvent::LLMRequestInitiated);
+            log::info!("FSM: ProcessingUserMessage -> AwaitingLLMResponse");
+        }
+
+        // Call the LLM
+        let response = self
+            .copilot_client
+            .send_chat_completion_request(request)
+            .await
+            .map_err(|e| AppError::InternalError(anyhow::anyhow!("LLM call failed: {}", e)))?;
+
+        let status = response.status();
+        if !status.is_success() {
+            let error_msg = format!("LLM API error. Status: {}", status);
+            let mut ctx = context.write().await;
+            ctx.handle_event(ChatEvent::FatalError {
+                error: error_msg.clone(),
+            });
+            drop(ctx);
+            return Err(AppError::InternalError(anyhow::anyhow!(error_msg)));
+        }
+
+        // Create channel for streaming to frontend
+        let (tx, rx) = mpsc::channel::<Result<Bytes, String>>(100);
+
+        // Clone what we need for the spawned task
+        let copilot_client = self.copilot_client.clone();
+        let conversation_id = self.conversation_id;
+        let session_manager = self.session_manager.clone();
+
+        // Spawn task to process stream
+        tokio::spawn(async move {
+            let mut full_text = String::new();
+            let mut stream_started = false;
+
+            // Create internal channel for copilot client stream processing
+            let (chunk_tx, mut chunk_rx) = mpsc::channel::<anyhow::Result<Bytes>>(100);
+
+            // Spawn the stream processor
+            let processor_handle = tokio::spawn(async move {
+                copilot_client
+                    .process_chat_completion_stream(response, chunk_tx)
+                    .await
+            });
+
+            // Process chunks
+            while let Some(chunk_result) = chunk_rx.recv().await {
+                match chunk_result {
+                    Ok(bytes) => {
+                        // Check for [DONE] signal
+                        if bytes == &b"[DONE]"[..] {
+                            log::info!("Stream completed");
+                            break;
+                        }
+
+                        // Parse chunk
+                        match serde_json::from_slice::<
+                            copilot_client::api::models::ChatCompletionStreamChunk,
+                        >(&bytes)
+                        {
+                            Ok(chunk) => {
+                                // Fire LLMStreamStarted on first chunk
+                                if !stream_started {
+                                    stream_started = true;
+                                    if let Ok(Some(ctx)) =
+                                        session_manager.load_context(conversation_id, None).await
+                                    {
+                                        let mut ctx_lock = ctx.write().await;
+                                        ctx_lock.handle_event(ChatEvent::LLMStreamStarted);
+                                        log::info!(
+                                            "FSM: AwaitingLLMResponse -> StreamingLLMResponse"
+                                        );
+                                        drop(ctx_lock);
+                                    }
+                                }
+
+                                // Extract content from delta
+                                if let Some(choice) = chunk.choices.first() {
+                                    if let Some(content) = &choice.delta.content {
+                                        full_text.push_str(content);
+
+                                        // Fire chunk received event
+                                        if let Ok(Some(ctx)) = session_manager
+                                            .load_context(conversation_id, None)
+                                            .await
+                                        {
+                                            let mut ctx_lock = ctx.write().await;
+                                            ctx_lock
+                                                .handle_event(ChatEvent::LLMStreamChunkReceived);
+                                            drop(ctx_lock);
+                                        }
+
+                                        // Forward the chunk to the client (SSE format)
+                                        let sse_data = format!(
+                                            "data: {}\n\n",
+                                            serde_json::to_string(&serde_json::json!({
+                                                "content": content,
+                                                "done": false
+                                            }))
+                                            .unwrap_or_default()
+                                        );
+
+                                        if tx.send(Ok(Bytes::from(sse_data))).await.is_err() {
+                                            log::warn!("Client disconnected");
+                                            break;
+                                        }
+                                    }
+                                }
+                            }
+                            Err(e) => {
+                                log::error!("Failed to parse chunk: {}", e);
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        log::error!("Error in stream: {}", e);
+                        let _ = tx.send(Err(format!("Stream error: {}", e))).await;
+                        break;
+                    }
+                }
+            }
+
+            // Wait for processor to finish
+            if let Err(e) = processor_handle.await {
+                log::error!("Stream processor task failed: {}", e);
+            }
+
+            // Save the complete message to context and fire FSM completion events
+            if !full_text.is_empty() {
+                if let Ok(Some(context)) = session_manager.load_context(conversation_id, None).await
+                {
+                    let mut context_lock = context.write().await;
+
+                    // Fire stream ended event
+                    context_lock.handle_event(ChatEvent::LLMStreamEnded);
+                    log::info!("FSM: StreamingLLMResponse -> ProcessingLLMResponse");
+
+                    // Detect message type
+                    let message_type = detect_message_type(&full_text);
+
+                    let assistant_message = InternalMessage {
+                        role: Role::Assistant,
+                        content: vec![ContentPart::Text {
+                            text: full_text.clone(),
+                        }],
+                        message_type,
+                        ..Default::default()
+                    };
+                    context_lock.add_message_to_branch("main", assistant_message);
+
+                    // Fire response processed event
+                    context_lock.handle_event(ChatEvent::LLMResponseProcessed {
+                        has_tool_calls: false,
+                    });
+                    log::info!("FSM: ProcessingLLMResponse -> Idle");
+
+                    // Auto-save context
+                    if let Err(e) = session_manager.save_context(&mut *context_lock).await {
+                        log::error!("Failed to save context after streaming: {}", e);
+                    }
+                    drop(context_lock);
+                }
+            }
+
+            // Send done signal
+            let sse_done = format!(
+                "data: {}\n\n",
+                serde_json::to_string(&serde_json::json!({
+                    "content": "",
+                    "done": true
+                }))
+                .unwrap_or_default()
+            );
+            let _ = tx.send(Ok(Bytes::from(sse_done))).await;
+
+            log::info!("=== Stream processing completed ===");
+        });
+
+        Ok(ReceiverStream::new(rx))
     }
 
     pub async fn approve_tool_calls(
@@ -231,184 +746,14 @@ impl<T: StorageProvider> ChatService<T> {
 
             match current_state {
                 ContextState::ProcessingUserMessage => {
-                    log::info!("FSM: Entered ProcessingUserMessage state");
+                    // This state should be handled in process_message before run_fsm is called
+                    // If we reach here, it means the message processing was not completed properly
+                    log::warn!("FSM: ProcessingUserMessage state reached in run_fsm - this should have been handled in process_message");
 
-                    // Extract messages and config from context
-                    let (model_id, messages) = {
-                        let ctx = context.write().await;
-                        let msgs: Vec<InternalMessage> = ctx
-                            .get_active_branch()
-                            .map(|branch| {
-                                branch
-                                    .message_ids
-                                    .iter()
-                                    .filter_map(|id| ctx.message_pool.get(id))
-                                    .map(|node| node.message.clone())
-                                    .collect()
-                            })
-                            .unwrap_or_default();
-                        (ctx.config.model_id.clone(), msgs)
-                    };
-
-                    log::info!(
-                        "Calling real LLM with {} messages, model: {}",
-                        messages.len(),
-                        model_id
-                    );
-
-                    // Convert to LLM client format
-                    let chat_messages: Vec<ChatMessage> =
-                        messages.iter().map(convert_to_chat_message).collect();
-
-                    // Build request
-                    let request = ChatCompletionRequest {
-                        model: model_id,
-                        messages: chat_messages,
-                        stream: Some(false), // Non-streaming for now
-                        tools: None,
-                        tool_choice: None,
-                        ..Default::default()
-                    };
-
-                    // Call the real LLM
-                    match self
-                        .copilot_client
-                        .send_chat_completion_request(request)
-                        .await
-                    {
-                        Ok(response) => {
-                            let status = response.status();
-
-                            match response.bytes().await {
-                                Ok(body) => {
-                                    if !status.is_success() {
-                                        let error_msg = format!(
-                                            "LLM API error. Status: {}, Body: {}",
-                                            status,
-                                            String::from_utf8_lossy(&body)
-                                        );
-                                        error!("{}", error_msg);
-
-                                        // Add error message to context
-                                        let mut context_lock = context.write().await;
-                                        let error_message = InternalMessage {
-                                            role: Role::Assistant,
-                                            content: vec![ContentPart::Text {
-                                                text: format!(
-                                                    "Sorry, I encountered an error: {}",
-                                                    error_msg
-                                                ),
-                                            }],
-                                            ..Default::default()
-                                        };
-                                        context_lock.add_message_to_branch("main", error_message);
-                                        context_lock.current_state = ContextState::Idle;
-                                        drop(context_lock);
-
-                                        self.auto_save_context(&context).await?;
-                                        return Err(AppError::InternalError(anyhow::anyhow!(
-                                            error_msg
-                                        )));
-                                    }
-
-                                    // Parse response
-                                    match serde_json::from_slice::<serde_json::Value>(&body) {
-                                        Ok(json) => {
-                                            let assistant_text = json["choices"][0]["message"]
-                                                ["content"]
-                                                .as_str()
-                                                .unwrap_or("(empty response)")
-                                                .to_string();
-
-                                            info!(
-                                                "✅ LLM response received: {} chars",
-                                                assistant_text.len()
-                                            );
-
-                                            // Add LLM response to context
-                                            let mut context_lock = context.write().await;
-                                            let assistant_message = InternalMessage {
-                                                role: Role::Assistant,
-                                                content: vec![ContentPart::Text {
-                                                    text: assistant_text,
-                                                }],
-                                                ..Default::default()
-                                            };
-                                            context_lock
-                                                .add_message_to_branch("main", assistant_message);
-                                            log::info!("Assistant message added to branch, message pool size: {}", context_lock.message_pool.len());
-
-                                            // Transition to Idle state
-                                            context_lock.current_state = ContextState::Idle;
-                                            log::info!(
-                                                "State transitioned: ProcessingUserMessage -> Idle"
-                                            );
-                                            drop(context_lock);
-
-                                            // Auto-save
-                                            log::info!("Auto-saving after ProcessingUserMessage");
-                                            self.auto_save_context(&context).await?;
-                                            log::info!("Auto-save completed");
-                                        }
-                                        Err(e) => {
-                                            let error_msg =
-                                                format!("Failed to parse LLM response: {}", e);
-                                            error!("{}", error_msg);
-
-                                            let mut context_lock = context.write().await;
-                                            let error_message = InternalMessage {
-                                                role: Role::Assistant,
-                                                content: vec![ContentPart::Text {
-                                                    text: format!(
-                                                        "Sorry, I couldn't parse the response: {}",
-                                                        e
-                                                    ),
-                                                }],
-                                                ..Default::default()
-                                            };
-                                            context_lock
-                                                .add_message_to_branch("main", error_message);
-                                            context_lock.current_state = ContextState::Idle;
-                                            drop(context_lock);
-
-                                            self.auto_save_context(&context).await?;
-                                            return Err(AppError::InternalError(anyhow::anyhow!(
-                                                error_msg
-                                            )));
-                                        }
-                                    }
-                                }
-                                Err(e) => {
-                                    let error_msg =
-                                        format!("Failed to read LLM response body: {}", e);
-                                    error!("{}", error_msg);
-                                    return Err(AppError::InternalError(anyhow::anyhow!(
-                                        error_msg
-                                    )));
-                                }
-                            }
-                        }
-                        Err(e) => {
-                            let error_msg = format!("LLM call failed: {:?}", e);
-                            error!("{}", error_msg);
-
-                            // Add error message to context
-                            let mut context_lock = context.write().await;
-                            let error_message = InternalMessage {
-                                role: Role::Assistant,
-                                content: vec![ContentPart::Text {
-                                    text: format!("Sorry, I couldn't connect to the LLM: {}", e),
-                                }],
-                                ..Default::default()
-                            };
-                            context_lock.add_message_to_branch("main", error_message);
-                            context_lock.current_state = ContextState::Idle;
-                            drop(context_lock);
-
-                            self.auto_save_context(&context).await?;
-                            return Err(AppError::InternalError(anyhow::anyhow!(error_msg)));
-                        }
-                    }
+                    // Transition directly to Idle to prevent infinite loop
+                    let mut ctx = context.write().await;
+                    ctx.current_state = ContextState::Idle;
+                    drop(ctx);
                 }
                 ContextState::ProcessingLLMResponse => {
                     let context_lock = context.write().await;

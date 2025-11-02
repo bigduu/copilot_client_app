@@ -6,7 +6,7 @@ use serde_json::json;
 use crate::{
     registry::macros::auto_register_tool,
     types::{
-        DisplayPreference, Tool, ToolArguments, ToolDefinition, ToolError, ToolType,
+        DisplayPreference, Tool, ToolArguments, ToolDefinition, ToolError, ToolType, ToolPermission,
     },
 };
 
@@ -41,6 +41,8 @@ impl Tool for DemoTool {
             custom_prompt: None,
             hide_in_selector: false,
             display_preference: DisplayPreference::Collapsible,
+            termination_behavior_doc: None,
+            required_permissions: vec![ToolPermission::ReadFiles],
         }
     }
 

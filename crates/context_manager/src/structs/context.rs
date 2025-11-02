@@ -5,6 +5,50 @@ use crate::structs::branch::Branch;
 use crate::structs::message::{InternalMessage, MessageNode};
 use crate::structs::state::ContextState;
 
+/// Agent role defines the permissions and behavior of the agent.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
+#[serde(rename_all = "lowercase")]
+pub enum AgentRole {
+    /// Read-only planning role: can read files, search code, list directories
+    Planner,
+    /// Full permissions execution role: can read, write, create, delete files and execute commands
+    #[default]
+    Actor,
+    // Future roles can be added here: Commander, Designer, Reviewer, Tester, etc.
+}
+
+/// Permission types for agent operations.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
+#[serde(rename_all = "snake_case")]
+pub enum Permission {
+    ReadFiles,
+    WriteFiles,
+    CreateFiles,
+    DeleteFiles,
+    ExecuteCommands,
+}
+
+impl AgentRole {
+    /// Returns the set of permissions granted to this role.
+    pub fn permissions(&self) -> Vec<Permission> {
+        match self {
+            AgentRole::Planner => vec![Permission::ReadFiles],
+            AgentRole::Actor => vec![
+                Permission::ReadFiles,
+                Permission::WriteFiles,
+                Permission::CreateFiles,
+                Permission::DeleteFiles,
+                Permission::ExecuteCommands,
+            ],
+        }
+    }
+    
+    /// Checks if this role has a specific permission.
+    pub fn has_permission(&self, permission: &Permission) -> bool {
+        self.permissions().contains(permission)
+    }
+}
+
 /// Represents a complete conversational session. Can be a top-level chat or a sub-context.
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct ChatContext {
@@ -56,6 +100,7 @@ impl ChatContext {
                 mode,
                 parameters: HashMap::new(),
                 system_prompt_id: None,
+                agent_role: AgentRole::default(),
             },
             message_pool: HashMap::new(),
             branches,
@@ -226,4 +271,7 @@ pub struct ChatConfig {
     /// Optional system prompt ID to use for this context's branches
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub system_prompt_id: Option<String>,
+    /// Agent role determines permissions and behavior
+    #[serde(default)]
+    pub agent_role: AgentRole,
 }

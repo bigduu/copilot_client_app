@@ -2,6 +2,7 @@
 members = [
     "crates/copilot_client",
     "crates/tool_system",
+    "crates/workflow_system",
     "crates/mcp_client",
     "crates/web_service",
     "src-tauri",

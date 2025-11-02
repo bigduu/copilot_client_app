@@ -12,6 +12,7 @@ export interface ChatContextDTO {
     mode: string;
     parameters: Record<string, any>;
     system_prompt_id?: string;
+    agent_role?: "planner" | "actor"; // Agent role (default: actor)
   };
   current_state: string;
   active_branch_name: string;
@@ -34,6 +35,7 @@ export interface MessageDTO {
     | { type: "text"; text: string }
     | { type: "image"; url: string; detail?: string }
   >;
+  message_type?: "text" | "plan" | "question" | "tool_call" | "tool_result"; // Message type for rendering
   tool_calls?: Array<{
     id: string;
     tool_name: string;
@@ -196,6 +198,83 @@ export class BackendContextService {
   }
 
   /**
+   * Send a message with streaming response using SSE.
+   * This uses the /chat/{session_id}/stream endpoint for real-time token streaming.
+   * @param contextId - The context/session ID
+   * @param content - The message content
+   * @param onChunk - Callback for each content chunk
+   * @param onDone - Callback when stream is complete
+   * @param onError - Callback for errors
+   */
+  async sendMessageStream(
+    contextId: string, 
+    content: string,
+    onChunk: (chunk: string) => void,
+    onDone: () => void,
+    onError: (error: string) => void
+  ): Promise<void> {
+    try {
+      // Use API_BASE_URL which already includes /v1, then add /chat path
+      const baseUrl = API_BASE_URL.replace('/v1', ''); // http://127.0.0.1:8080
+      const response = await fetch(`${baseUrl}/v1/chat/${contextId}/stream`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(content),
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const reader = response.body?.getReader();
+      if (!reader) {
+        throw new Error("No response body");
+      }
+
+      const decoder = new TextDecoder();
+      let buffer = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n\n");
+        buffer = lines.pop() || ""; // Keep incomplete line in buffer
+
+        for (const line of lines) {
+          if (line.startsWith("data: ")) {
+            const data = line.slice(6); // Remove "data: " prefix
+            try {
+              const parsed = JSON.parse(data);
+              if (parsed.done) {
+                onDone();
+                return;
+              } else if (parsed.content) {
+                onChunk(parsed.content);
+              } else if (parsed.error) {
+                onError(parsed.error);
+                return;
+              }
+            } catch (e) {
+              console.error("Failed to parse SSE data:", data, e);
+            }
+          }
+        }
+      }
+
+      onDone();
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : "Unknown error";
+      onError(errorMsg);
+      throw error;
+    }
+  }
+
+  /**
    * Approve tool calls using the action-based API.
    * The backend FSM continues processing and auto-saves state.
    * Returns the updated context and status.
@@ -213,6 +292,25 @@ export class BackendContextService {
    */
   async getChatState(contextId: string): Promise<ActionResponse> {
     return this.request<ActionResponse>(`/contexts/${contextId}/state`);
+  }
+
+  /**
+   * Update the agent role for a context.
+   * @param contextId - The context ID
+   * @param role - The new role ("planner" or "actor")
+   * @returns Response with success status and updated role information
+   */
+  async updateAgentRole(contextId: string, role: "planner" | "actor"): Promise<{
+    success: boolean;
+    context_id: string;
+    old_role: string;
+    new_role: string;
+    message: string;
+  }> {
+    return this.request(`/contexts/${contextId}/role`, {
+      method: "PUT",
+      body: JSON.stringify({ role }),
+    });
   }
 
   // System prompt operations

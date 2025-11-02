@@ -200,6 +200,28 @@ export const useBackendContext = () => {
     return service.listSystemPrompts();
   }, [service]);
 
+  // Update agent role
+  const updateAgentRole = useCallback(
+    async (contextId: string, role: "planner" | "actor") => {
+      setIsLoading(true);
+      setError(null);
+      try {
+        await service.updateAgentRole(contextId, role);
+        // Reload context to get updated role
+        await loadContext(contextId);
+      } catch (err) {
+        setError(
+          err instanceof Error ? err.message : "Failed to update agent role"
+        );
+        console.error("Failed to update agent role:", err);
+        throw err;
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [service, loadContext]
+  );
+
   // Enable/disable polling
   const enablePolling = useCallback(() => setPollingEnabled(true), []);
   const disablePolling = useCallback(() => setPollingEnabled(false), []);
@@ -272,6 +294,7 @@ export const useBackendContext = () => {
     updateSystemPrompt,
     deleteSystemPrompt,
     listSystemPrompts,
+    updateAgentRole,
     enablePolling,
     disablePolling,
   };

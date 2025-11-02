@@ -49,11 +49,11 @@ const ApprovalCard: React.FC<ApprovalCardProps> = ({
       <Space direction="vertical" style={{ width: '100%' }} size="middle">
         <div>
           <Title level={5} style={{ margin: 0, color: token.colorInfo }}>
-            🔧 Tool Execution Request
+            🔧 Workflow Execution Request
           </Title>
           <Space align="center" size="small">
             <Text type="secondary" style={{ fontSize: token.fontSizeSM }}>
-              The AI wants to execute the following tool
+              The AI wants to execute the following workflow
             </Text>
             {data.approval_status && (
               <Tag
@@ -72,7 +72,7 @@ const ApprovalCard: React.FC<ApprovalCardProps> = ({
         </div>
 
         <div>
-          <Text strong>Tool: </Text>
+          <Text strong>Workflow: </Text>
           <Text code style={{ fontSize: token.fontSize }}>
             {data.tool_call}
           </Text>

@@ -96,3 +96,4 @@ openspec/changes/refactor-backend-first-persistence/
 ✅ **Polling Overhead**: Exponential backoff + inactive window detection  
 ✅ **Migration Complexity**: Gradual migration with feature flags  
 
+

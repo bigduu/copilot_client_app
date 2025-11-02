@@ -41,3 +41,4 @@ The frontend still uses deprecated LocalStorage-based chat management methods (`
 - **Breaking Changes**: None for end users (backend already handles everything)
 - **Dependencies**: Requires `migrate-frontend-to-context-manager` to be complete
 
+

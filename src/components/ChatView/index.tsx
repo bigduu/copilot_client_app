@@ -9,6 +9,9 @@ import "./styles.css"; // Import a new CSS file for animations and specific styl
 import MessageCard from "../MessageCard";
 import { useBackendContext } from "../../hooks/useBackendContext";
 import { BranchSelector } from "../BranchSelector";
+import AgentRoleSelector from "../AgentRoleSelector";
+import { Message } from "../../types/chat";
+import { MessageDTO } from "../../services/BackendContextService";
 
 const { Content } = Layout;
 const { useToken } = theme;
@@ -25,7 +28,15 @@ export const ChatView: React.FC = () => {
   } = useChatController();
 
   // Backend context for approvals and basic status display
-  const { currentContext, approveTools, switchBranch, isLoading, error } = useBackendContext();
+  const {
+    currentContext,
+    messages: backendMessages,
+    approveTools,
+    switchBranch,
+    updateAgentRole,
+    isLoading,
+    error,
+  } = useBackendContext();
 
   // Handle message deletion - optimized with useCallback
   const handleDeleteMessage = useCallback(
@@ -205,8 +216,8 @@ export const ChatView: React.FC = () => {
             {error}
           </div>
         )}
-        {/* Branch Selector */}
-        {currentContext && currentContext.branches.length > 1 && (
+        {/* Agent Role Selector and Branch Selector */}
+        {currentContext && (
           <div
             style={{
               width: "100%",
@@ -214,19 +225,49 @@ export const ChatView: React.FC = () => {
               background: token.colorBgContainer,
               borderBottom: `1px solid ${token.colorBorder}`,
               display: "flex",
-              justifyContent: "center",
+              justifyContent: "space-between",
+              alignItems: "center",
+              gap: token.marginMD,
+              flexWrap: "wrap",
             }}
           >
-            <BranchSelector
-              branches={currentContext.branches}
-              currentBranch={currentContext.active_branch_name}
-              onBranchChange={(branchName) => {
-                if (currentContext?.id) {
-                  switchBranch(currentContext.id, branchName);
-                }
-              }}
-              disabled={isLoading}
-            />
+            {/* Agent Role Selector */}
+            <Flex align="center" gap={token.marginSM}>
+              <span
+                style={{
+                  fontSize: token.fontSizeSM,
+                  color: token.colorTextSecondary,
+                }}
+              >
+                Agent Role:
+              </span>
+              <AgentRoleSelector
+                currentRole={currentContext.config.agent_role || "actor"}
+                contextId={currentContext.id}
+                onRoleChange={async (newRole) => {
+                  try {
+                    await updateAgentRole(currentContext.id, newRole);
+                  } catch (error) {
+                    console.error("Failed to update agent role:", error);
+                  }
+                }}
+                disabled={isLoading}
+              />
+            </Flex>
+
+            {/* Branch Selector */}
+            {currentContext.branches.length > 1 && (
+              <BranchSelector
+                branches={currentContext.branches}
+                currentBranch={currentContext.active_branch_name}
+                onBranchChange={(branchName) => {
+                  if (currentContext?.id) {
+                    switchBranch(currentContext.id, branchName);
+                  }
+                }}
+                disabled={isLoading}
+              />
+            )}
           </div>
         )}
         {/* Messages List Area */}
@@ -252,23 +293,95 @@ export const ChatView: React.FC = () => {
               size={token.marginMD}
               style={{ width: "100%" }}
             >
-              {currentMessages
+              {/* Use backend messages if available, otherwise fall back to currentMessages */}
+              {(backendMessages.length > 0 ? backendMessages : currentMessages)
                 .filter(
-                  (message) =>
+                  (message: Message | MessageDTO) =>
                     message.role === "user" ||
                     message.role === "assistant" ||
                     message.role === "system"
                 )
-                .map((message, index) => {
-                  if (message.role === "system") {
-                    return <SystemMessageCard key={index} message={message} />;
+                .map((message: Message | MessageDTO, index: number) => {
+                  // Check if this is a MessageDTO from backend
+                  const isMessageDTO =
+                    "message_type" in message &&
+                    Array.isArray((message as any).content);
+
+                  // Extract message_type if it's a MessageDTO
+                  let messageType:
+                    | "text"
+                    | "plan"
+                    | "question"
+                    | "tool_call"
+                    | "tool_result"
+                    | undefined = undefined;
+                  let convertedMessage: Message;
+
+                  if (isMessageDTO) {
+                    const dto = message as MessageDTO;
+                    messageType = dto.message_type;
+
+                    // Extract text content from MessageDTO
+                    const textContent = dto.content.find(
+                      (c) => c.type === "text"
+                    );
+                    const messageContent =
+                      textContent && "text" in textContent
+                        ? textContent.text
+                        : "";
+
+                    // Convert MessageDTO to Message based on role
+                    if (dto.role === "system") {
+                      convertedMessage = {
+                        id: dto.id,
+                        role: "system",
+                        content: messageContent,
+                        createdAt: dto.id,
+                      };
+                    } else if (dto.role === "user") {
+                      convertedMessage = {
+                        id: dto.id,
+                        role: "user",
+                        content: messageContent,
+                        createdAt: dto.id,
+                      };
+                    } else {
+                      // Assistant message
+                      convertedMessage = {
+                        id: dto.id,
+                        role: "assistant",
+                        content: messageContent,
+                        type:
+                          messageType === "tool_call"
+                            ? "tool_call"
+                            : messageType === "tool_result"
+                            ? "tool_result"
+                            : "text",
+                        createdAt: dto.id,
+                      } as Message;
+                    }
+                  } else {
+                    // Already a Message type
+                    convertedMessage = message as Message;
+                    messageType = undefined; // Will be detected from content in MessageCard
+                  }
+
+                  if (convertedMessage.role === "system") {
+                    return (
+                      <SystemMessageCard
+                        key={index}
+                        message={convertedMessage}
+                      />
+                    );
                   }
 
                   return (
                     <Flex
                       key={index}
                       justify={
-                        message.role === "user" ? "flex-end" : "flex-start"
+                        convertedMessage.role === "user"
+                          ? "flex-end"
+                          : "flex-start"
                       }
                       style={{
                         width: "100%",
@@ -277,12 +390,14 @@ export const ChatView: React.FC = () => {
                     >
                       <div
                         style={{
-                          width: message.role === "user" ? "85%" : "100%",
+                          width:
+                            convertedMessage.role === "user" ? "85%" : "100%",
                           maxWidth: screens.xs ? "100%" : "90%",
                         }}
                       >
                         <MessageCard
-                          message={message}
+                          message={convertedMessage}
+                          messageType={messageType}
                           onDelete={handleDeleteMessage}
                         />
                       </div>
@@ -305,7 +420,8 @@ export const ChatView: React.FC = () => {
               onApprove={async () => {
                 try {
                   const contextId = currentContext?.id;
-                  const toolCallId = interactionState.context.toolCallRequest?.toolCallId;
+                  const toolCallId =
+                    interactionState.context.toolCallRequest?.toolCallId;
                   const ids: string[] = toolCallId ? [toolCallId] : [];
 
                   if (contextId && ids.length > 0) {

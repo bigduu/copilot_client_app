@@ -1,5 +1,6 @@
 use crate::dto::SystemPromptDTO;
 use crate::services::system_prompt_service::SystemPromptService;
+use crate::services::system_prompt_enhancer::SystemPromptEnhancer;
 use actix_web::{
     web::{Data, Json, Path},
     HttpResponse, Result,
@@ -130,12 +131,50 @@ pub async fn delete_system_prompt(
     }
 }
 
+/// Get enhanced system prompt (base + tools + mermaid)
+pub async fn get_enhanced_system_prompt(
+    path: Path<String>,
+    prompt_service: Data<SystemPromptService>,
+    enhancer_service: Data<SystemPromptEnhancer>,
+) -> Result<HttpResponse> {
+    let prompt_id = path.into_inner();
+
+    // Get base prompt
+    match prompt_service.get_prompt(&prompt_id).await {
+        Some(prompt) => {
+            // Enhance the prompt with Actor role (default for preview)
+            match enhancer_service.enhance_prompt(&prompt.content, &context_manager::structs::context::AgentRole::Actor).await {
+                Ok(enhanced_content) => {
+                    Ok(HttpResponse::Ok().json(serde_json::json!({
+                        "id": prompt.id,
+                        "content": enhanced_content,
+                        "enhanced": true
+                    })))
+                }
+                Err(e) => {
+                    error!("Failed to enhance system prompt: {}", e);
+                    Ok(HttpResponse::InternalServerError().json(serde_json::json!({
+                        "error": format!("Failed to enhance prompt: {}", e)
+                    })))
+                }
+            }
+        }
+        None => {
+            info!("System prompt not found: {}", prompt_id);
+            Ok(HttpResponse::NotFound().json(serde_json::json!({
+                "error": "System prompt not found"
+            })))
+        }
+    }
+}
+
 pub fn config(cfg: &mut actix_web::web::ServiceConfig) {
     cfg.service(
         actix_web::web::scope("/system-prompts")
             .route("/", actix_web::web::post().to(create_system_prompt))
             .route("/", actix_web::web::get().to(list_system_prompts))
             .route("/{id}", actix_web::web::get().to(get_system_prompt))
+            .route("/{id}/enhanced", actix_web::web::get().to(get_enhanced_system_prompt))
             .route("/{id}", actix_web::web::put().to(update_system_prompt))
             .route("/{id}", actix_web::web::delete().to(delete_system_prompt)),
     );

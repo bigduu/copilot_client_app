@@ -1,7 +1,7 @@
 use crate::{
     registry::macros::auto_register_tool,
     types::{
-        Parameter, Tool, ToolArguments, ToolDefinition, ToolError, ToolType, DisplayPreference,
+        Parameter, Tool, ToolArguments, ToolDefinition, ToolError, ToolType, DisplayPreference, ToolPermission,
     },
 };
 use async_trait::async_trait;
@@ -57,6 +57,12 @@ impl Tool for ReadFileTool {
             custom_prompt: None,
             hide_in_selector: true,
             display_preference: DisplayPreference::Default,
+            termination_behavior_doc: Some(
+                "Typically use terminate=false when reading files as part of analysis or multi-step tasks. \
+                 Use terminate=true only if this is the final information gathering step before responding to the user."
+                    .to_string()
+            ),
+            required_permissions: vec![ToolPermission::ReadFiles],
         }
     }
 

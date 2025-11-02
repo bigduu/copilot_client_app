@@ -1,0 +1,22 @@
+{
+  "id": "aba51e6b-5fda-4b7b-a0fb-3bced195f56b",
+  "parent_id": null,
+  "config": {
+    "model_id": "gpt-4",
+    "mode": "chat",
+    "parameters": {},
+    "system_prompt_id": "general_assistant",
+    "agent_role": "actor"
+  },
+  "message_pool": {},
+  "branches": {
+    "main": {
+      "name": "main",
+      "message_ids": [],
+      "system_prompt": null,
+      "user_prompt": null
+    }
+  },
+  "active_branch_name": "main",
+  "current_state": "Idle"
+}

@@ -1,7 +1,7 @@
 use crate::{
     registry::macros::auto_register_tool,
     types::{
-        DisplayPreference, Parameter, Tool, ToolArguments, ToolDefinition, ToolError, ToolType,
+        DisplayPreference, Parameter, Tool, ToolArguments, ToolDefinition, ToolError, ToolType, ToolPermission,
     },
 };
 use anyhow::Context;
@@ -56,6 +56,12 @@ Keep your response concise and user-friendly."#
             ),
             hide_in_selector: true,
             display_preference: DisplayPreference::Default,
+            termination_behavior_doc: Some(
+                "Use terminate=false if you need to perform additional actions on the search results (e.g., read found files). \
+                 Use terminate=true if you're ready to present the search results to the user without further actions."
+                    .to_string()
+            ),
+            required_permissions: vec![ToolPermission::ReadFiles],
         }
     }
 

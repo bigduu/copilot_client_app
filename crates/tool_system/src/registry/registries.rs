@@ -4,7 +4,7 @@ use inventory;
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 
-use crate::types::{Category, Tool, ToolDefinition};
+use crate::types::{Category, Tool, ToolDefinition, ToolPermission};
 
 /// Tool registration information
 pub struct ToolRegistration {
@@ -52,6 +52,21 @@ impl ToolRegistry {
             .unwrap()
             .values()
             .map(|tool| tool.definition())
+            .collect()
+    }
+
+    /// Filter tools based on allowed permissions.
+    /// Returns only tools whose required permissions are a subset of the allowed permissions.
+    pub fn filter_tools_by_permissions(&self, allowed_permissions: &[ToolPermission]) -> Vec<ToolDefinition> {
+        self.tools
+            .read()
+            .unwrap()
+            .values()
+            .map(|tool| tool.definition())
+            .filter(|def| {
+                // Tool is allowed if all its required permissions are in the allowed set
+                def.required_permissions.iter().all(|perm| allowed_permissions.contains(perm))
+            })
             .collect()
     }
 }

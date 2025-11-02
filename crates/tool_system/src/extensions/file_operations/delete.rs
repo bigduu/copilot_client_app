@@ -1,7 +1,7 @@
 use crate::{
     registry::macros::auto_register_tool,
     types::{
-        Parameter, Tool, ToolArguments, ToolDefinition, ToolError, ToolType, DisplayPreference,
+        Parameter, Tool, ToolArguments, ToolDefinition, ToolError, ToolType, DisplayPreference, ToolPermission,
     },
 };
 use async_trait::async_trait;
@@ -43,6 +43,8 @@ impl Tool for DeleteFileTool {
             custom_prompt: None,
             hide_in_selector: true,
             display_preference: DisplayPreference::Default,
+            termination_behavior_doc: Some("Use terminate=true after deleting files. Use terminate=false only if you need to perform cleanup of multiple related files.".to_string()),
+            required_permissions: vec![ToolPermission::ReadFiles, ToolPermission::DeleteFiles],
         }
     }
 

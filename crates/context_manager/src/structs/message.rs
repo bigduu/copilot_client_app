@@ -4,6 +4,23 @@ use uuid::Uuid;
 use crate::structs::metadata::MessageMetadata;
 use crate::structs::tool::{ToolCallRequest, ToolCallResult};
 
+/// Message type defines how the message should be rendered and processed.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum MessageType {
+    /// Regular text conversation message
+    #[default]
+    Text,
+    /// Structured execution plan with steps
+    Plan,
+    /// Agent asking for clarification or approval
+    Question,
+    /// Tool invocation request
+    ToolCall,
+    /// Tool execution result
+    ToolResult,
+}
+
 /// A node in the message graph, stored in the message_pool.
 #[derive(Serialize, Deserialize, Clone, Debug, Default)]
 pub struct MessageNode {
@@ -27,6 +44,10 @@ pub struct InternalMessage {
     pub tool_result: Option<ToolCallResult>,
     
     pub metadata: Option<MessageMetadata>,
+    
+    /// Message type for frontend rendering and processing
+    #[serde(default)]
+    pub message_type: MessageType,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Default)]

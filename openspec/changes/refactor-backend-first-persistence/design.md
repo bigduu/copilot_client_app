@@ -299,3 +299,4 @@ Backend controls orchestration, frontend just reacts
 5. **What happens if backend crashes mid-FSM?**
    - **Recommendation**: Last saved state is loaded on restart; FSM resumes from there
 
+

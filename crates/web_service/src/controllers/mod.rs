@@ -4,3 +4,4 @@ pub mod openai_controller;
 pub mod system_controller;
 pub mod system_prompt_controller;
 pub mod tool_controller;
+pub mod workflow_controller;

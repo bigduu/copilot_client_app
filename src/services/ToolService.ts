@@ -266,7 +266,7 @@ export class ToolService {
         '[ToolService] executeTool: Tauri command "execute_tool" invocation failed:',
         error
       );
-      throw new Error(`Tool execution failed: ${error}`);
+      throw new Error(`Workflow execution failed: ${error}`);
     }
   }
 

@@ -9,7 +9,7 @@ use serde_json::json;
 use crate::{
     registry::macros::auto_register_tool,
     types::{
-        DisplayPreference, Parameter, Tool, ToolArguments, ToolDefinition, ToolError, ToolType,
+        DisplayPreference, Parameter, Tool, ToolArguments, ToolDefinition, ToolError, ToolType, ToolPermission,
     },
 };
 
@@ -47,6 +47,8 @@ impl Tool for SimpleTool {
             custom_prompt: None,
             hide_in_selector: false,
             display_preference: DisplayPreference::Default,
+            termination_behavior_doc: None,
+            required_permissions: vec![ToolPermission::ReadFiles],
         }
     }
 
@@ -96,6 +98,8 @@ impl Tool for ConfigurableTool {
             custom_prompt: None,
             hide_in_selector: false,
             display_preference: DisplayPreference::Default,
+            termination_behavior_doc: None,
+            required_permissions: vec![ToolPermission::ReadFiles],
         }
     }
 

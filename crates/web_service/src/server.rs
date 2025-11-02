@@ -9,21 +9,24 @@ use tokio::sync::oneshot;
 
 use crate::controllers::{
     chat_controller, context_controller, openai_controller, system_controller,
-    system_prompt_controller, tool_controller,
+    system_prompt_controller, tool_controller, workflow_controller,
 };
 use crate::services::{
-    session_manager::ChatSessionManager, system_prompt_service::SystemPromptService,
-    tool_service::ToolService,
+    session_manager::ChatSessionManager, system_prompt_enhancer::SystemPromptEnhancer,
+    system_prompt_service::SystemPromptService, tool_service::ToolService,
+    workflow_service::WorkflowService,
 };
 use crate::storage::file_provider::FileStorageProvider;
 use copilot_client::{config::Config, CopilotClient, CopilotClientTrait};
 use tool_system::{registry::ToolRegistry, ToolExecutor};
+use workflow_system::WorkflowRegistry;
 
 pub struct AppState {
     pub session_manager: Arc<ChatSessionManager<FileStorageProvider>>,
     pub copilot_client: Arc<dyn CopilotClientTrait>,
     pub tool_executor: Arc<ToolExecutor>,
     pub system_prompt_service: Arc<SystemPromptService>,
+    pub system_prompt_enhancer: Arc<SystemPromptEnhancer>,
 }
 
 pub fn app_config(cfg: &mut web::ServiceConfig) {
@@ -34,7 +37,8 @@ pub fn app_config(cfg: &mut web::ServiceConfig) {
             .configure(context_controller::config)
             .configure(system_controller::config)
             .configure(system_prompt_controller::config)
-            .configure(tool_controller::config),
+            .configure(tool_controller::config)
+            .configure(workflow_controller::config),
     );
 }
 
@@ -45,6 +49,11 @@ pub async fn run(app_data_dir: PathBuf, port: u16) -> Result<(), String> {
     let tool_executor = Arc::new(ToolExecutor::new(tool_registry.clone()));
     let tool_service = ToolService::new(tool_registry.clone(), tool_executor.clone());
     let tool_service_data = web::Data::new(tool_service);
+
+    // Initialize workflow system
+    let workflow_registry = Arc::new(WorkflowRegistry::new());
+    let workflow_service = WorkflowService::new(workflow_registry);
+    let workflow_service_data = web::Data::new(workflow_service);
 
     let storage_provider = Arc::new(FileStorageProvider::new(app_data_dir.join("conversations")));
     let session_manager = Arc::new(ChatSessionManager::new(storage_provider, 100)); // Cache up to 100 sessions
@@ -59,13 +68,20 @@ pub async fn run(app_data_dir: PathBuf, port: u16) -> Result<(), String> {
     let copilot_client: Arc<dyn CopilotClientTrait> =
         Arc::new(CopilotClient::new(config, app_data_dir.clone()));
 
+    // Create system prompt enhancer
+    let tool_registry_arc = Arc::new(ToolRegistry::new());
+    let system_prompt_enhancer =
+        Arc::new(SystemPromptEnhancer::with_default_config(tool_registry_arc));
+
     let system_prompt_data = web::Data::from(system_prompt_service.clone());
+    let enhancer_data = web::Data::from(system_prompt_enhancer.clone());
 
     let app_state = web::Data::new(AppState {
         session_manager,
         tool_executor,
         copilot_client,
         system_prompt_service,
+        system_prompt_enhancer,
     });
 
     let server = HttpServer::new(move || {
@@ -73,6 +89,8 @@ pub async fn run(app_data_dir: PathBuf, port: u16) -> Result<(), String> {
             .app_data(app_state.clone())
             .app_data(tool_service_data.clone())
             .app_data(system_prompt_data.clone())
+            .app_data(enhancer_data.clone())
+            .app_data(workflow_service_data.clone())
             // CORS only - no middleware for testing
             .wrap(Cors::permissive())
             .configure(app_config)
@@ -120,6 +138,11 @@ impl WebService {
         let tool_service = ToolService::new(tool_registry.clone(), tool_executor.clone());
         let tool_service_data = web::Data::new(tool_service);
 
+        // Initialize workflow system
+        let workflow_registry = Arc::new(WorkflowRegistry::new());
+        let workflow_service = WorkflowService::new(workflow_registry);
+        let workflow_service_data = web::Data::new(workflow_service);
+
         let storage_provider = Arc::new(FileStorageProvider::new(
             self.app_data_dir.join("conversations"),
         ));
@@ -135,13 +158,20 @@ impl WebService {
         let copilot_client: Arc<dyn CopilotClientTrait> =
             Arc::new(CopilotClient::new(config, self.app_data_dir.clone()));
 
+        // Create system prompt enhancer
+        let tool_registry_arc = Arc::new(ToolRegistry::new());
+        let system_prompt_enhancer =
+            Arc::new(SystemPromptEnhancer::with_default_config(tool_registry_arc));
+
         let system_prompt_data_for_start = web::Data::from(system_prompt_service.clone());
+        let enhancer_data_for_start = web::Data::from(system_prompt_enhancer.clone());
 
         let app_state = web::Data::new(AppState {
             session_manager,
             tool_executor,
             copilot_client,
             system_prompt_service,
+            system_prompt_enhancer,
         });
 
         let server = HttpServer::new(move || {
@@ -149,6 +179,8 @@ impl WebService {
                 .app_data(app_state.clone())
                 .app_data(tool_service_data.clone())
                 .app_data(system_prompt_data_for_start.clone())
+                .app_data(enhancer_data_for_start.clone())
+                .app_data(workflow_service_data.clone())
                 // CORS must be first (wraps last, executes first on response)
                 .wrap(Cors::permissive())
                 .wrap(Logger::default())

@@ -1,5 +1,57 @@
 import { StateValue } from "xstate";
 
+// --- Agent Role System Types ---
+
+/**
+ * Agent role defines the permissions and behavior of the agent.
+ * - Planner: Read-only analysis and planning
+ * - Actor: Full permissions for execution
+ */
+export type AgentRole = "planner" | "actor";
+
+/**
+ * Message type defines how the message should be rendered and processed.
+ */
+export type MessageType = "text" | "plan" | "question" | "tool_call" | "tool_result";
+
+/**
+ * Structured plan message format from Planner role
+ */
+export interface PlanMessage {
+  goal: string;
+  steps: PlanStep[];
+  estimated_total_time: string;
+  risks: string[];
+  prerequisites?: string[];
+}
+
+export interface PlanStep {
+  step_number: number;
+  action: string;
+  reason: string;
+  tools_needed: string[];
+  estimated_time: string;
+}
+
+/**
+ * Structured question message format from Actor role
+ */
+export interface QuestionMessage {
+  type: "question";
+  question: string;
+  context: string;
+  severity: "critical" | "major" | "minor";
+  options: QuestionOption[];
+  default?: string;
+  allow_custom?: boolean;
+}
+
+export interface QuestionOption {
+  label: string;
+  value: string;
+  description: string;
+}
+
 // Image attachment interface for messages
 export interface MessageImage {
   id: string;
@@ -116,6 +168,8 @@ export interface ChatItem {
     lastUsedEnhancedPrompt: string | null;
     // The tool category active for this chat
     toolCategory: string;
+    // The agent's current role (planner or actor)
+    agentRole?: AgentRole;
   };
 
   // The state of the CURRENT, ONGOING interaction.

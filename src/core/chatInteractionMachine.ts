@@ -15,7 +15,7 @@ import {
   SystemMessage,
   UserSystemPrompt,
 } from "../types/chat";
-import SystemPromptEnhancer from "../services/SystemPromptEnhancer";
+import { SystemPromptService } from "../services";
 
 // Create single instances of services
 const aiService = new AIService();
@@ -97,8 +97,13 @@ export const chatMachine = setup({
       console.log(
         `[ChatMachine] enhanceSystemPrompt: Using basePrompt: "${basePrompt}"`
       );
-      const enhancedPrompt =
-        await SystemPromptEnhancer.getEnhancedSystemPrompt(basePrompt);
+      
+      // Get the prompt ID if available, otherwise fall back to content-based enhancement
+      const systemPromptService = SystemPromptService.getInstance();
+      const enhancedPrompt = systemPromptId 
+        ? await systemPromptService.getEnhancedSystemPrompt(systemPromptId)
+        : await systemPromptService.getEnhancedSystemPromptFromContent(basePrompt);
+        
       console.log(
         "[ChatMachine] enhanceSystemPrompt: Prompt enhanced successfully."
       );
@@ -114,30 +119,13 @@ export const chatMachine = setup({
 
         const onChunk = async (chunk: string) => {
           if (chunk === "[DONE]") {
-            const basicToolCall =
-              toolService.parseAIResponseToToolCall(fullContent);
-            if (basicToolCall) {
-              const toolInfo = await toolService.getToolInfo(
-                basicToolCall.tool_name
-              );
-              // Generate a unique ID for this specific tool call instance
-              const toolCallId = `call_${crypto.randomUUID()}`;
-              const enhancedToolCall = {
-                ...basicToolCall,
-                toolCallId, // Add the generated ID
-                parameter_parsing_strategy:
-                  toolInfo?.parameter_parsing_strategy,
-              };
-              sendBack({
-                type: "STREAM_COMPLETE_TOOL_CALL",
-                payload: { toolCall: enhancedToolCall },
-              });
-            } else {
-              sendBack({
-                type: "STREAM_COMPLETE_TEXT",
-                payload: { finalContent: fullContent },
-              });
-            }
+            // NOTE: Tool detection disabled - tools are now handled by backend agent loop
+            // Workflows are user-invoked, not AI-invoked
+            // The backend will handle JSON tool calls from the LLM autonomously
+            sendBack({
+              type: "STREAM_COMPLETE_TEXT",
+              payload: { finalContent: fullContent },
+            });
             return;
           }
           if (chunk === "[CANCELLED]") {

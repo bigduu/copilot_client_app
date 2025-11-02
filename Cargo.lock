@@ -7465,6 +7465,7 @@ dependencies = [
  "tracing-subscriber",
  "uuid",
  "wiremock",
+ "workflow_system",
 ]
 
 [[package]]
@@ -8187,6 +8188,23 @@ name = "wit-bindgen"
 version = "0.46.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f17a85883d4e6d00e8a97c586de764dabcc06133f7f1d55dce5cdc070ad7fe59"
+
+[[package]]
+name = "workflow_system"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "inventory",
+ "log",
+ "mockall",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "thiserror 1.0.69",
+ "tokio",
+ "tokio-test",
+]
 
 [[package]]
 name = "writeable"
