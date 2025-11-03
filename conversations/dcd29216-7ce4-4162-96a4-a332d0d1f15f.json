@@ -1,0 +1,88 @@
+{
+  "id": "dcd29216-7ce4-4162-96a4-a332d0d1f15f",
+  "parent_id": null,
+  "config": {
+    "model_id": "gpt-4",
+    "mode": "chat",
+    "parameters": {},
+    "system_prompt_id": "general_assistant",
+    "agent_role": "actor"
+  },
+  "message_pool": {
+    "2ae3d683-c601-4248-9225-ad7dca2fce8a": {
+      "id": "2ae3d683-c601-4248-9225-ad7dca2fce8a",
+      "message": {
+        "role": "User",
+        "content": [
+          {
+            "type": "text",
+            "text": "hi"
+          }
+        ],
+        "metadata": null,
+        "message_type": "text"
+      },
+      "parent_id": null
+    },
+    "5221bbc9-7413-478c-aeb4-3f53b7dec965": {
+      "id": "5221bbc9-7413-478c-aeb4-3f53b7dec965",
+      "message": {
+        "role": "Assistant",
+        "content": [
+          {
+            "type": "text",
+            "text": "Hello! 😊 How can I assist you today?"
+          }
+        ],
+        "metadata": null,
+        "message_type": "text"
+      },
+      "parent_id": "2ae3d683-c601-4248-9225-ad7dca2fce8a"
+    },
+    "769f95c0-2ad4-454b-bc76-05c65545de15": {
+      "id": "769f95c0-2ad4-454b-bc76-05c65545de15",
+      "message": {
+        "role": "User",
+        "content": [
+          {
+            "type": "text",
+            "text": "tell me a long story"
+          }
+        ],
+        "metadata": null,
+        "message_type": "text"
+      },
+      "parent_id": "5221bbc9-7413-478c-aeb4-3f53b7dec965"
+    },
+    "bc96b8d3-1f94-4761-83ce-7ac648b1beea": {
+      "id": "bc96b8d3-1f94-4761-83ce-7ac648b1beea",
+      "message": {
+        "role": "Assistant",
+        "content": [
+          {
+            "type": "text",
+            "text": "Sure! Here’s a story that mixes imagination, adventure, and a sprinkle of technology. Sit back and enjoy!\n\n---\n\n### **The Code That Changed the World**\n\nIn a bustling city full of towering skyscrapers and thrumming networks, there lived a young programmer named Aisha. Unlike most developers, who spent their days working on apps, algorithms, and projects they would scarcely remember six months later, Aisha was different. She dreamed big—she wanted to write a code that wouldn’t just change her life, but the whole world.\n\n---\n\n#### **A Curious Legend**\nOne late evening, as Aisha poured over ancient programming books and filled a sketchpad with disconnected system diagrams (she loved thinking on paper first), she stumbled across a peculiar article buried in an old online forum. The title read: ***The Legacy Code That Wrote Itself.***\n\nThe post claimed that somewhere in the digital universe, there was a mythical code capable of evolving on its own—adapting, learning, optimizing without instructions. It whispered about an algorithm that could not only solve any problem but anticipate it before the problem even arose. Some said the code was written by a legendary hacker, a recluse who disappeared decades ago. Others believed it was an accident, a fluke result of an AI experiment that got out of control.\n\nMost shrugged it off as wild speculation.\n\nBut not Aisha.\n\n---\n\n#### **The Search Begins**\nFueled by curiosity and the belief that technology holds the power to bridge all divides, she decided to track down the origin of the code. Her first big break came when she decrypted hidden lines buried in the source code of a forgotten open-source library, indicating that the code might exist in a virtual server architecture abandoned on the early days of the cloud. Which cloud? That part wasn’t clear.\n\nTo piece together the mystery, Aisha built a tool she called “TraceWeaver.” TraceWeaver analyzed vast datasets for anomalous patterns in communication logs, source versions and unused IP response(!). TraceWeaver eventually directed here to surprising the ROOT Origin host labelled Myst....\n\nThen… was"
+          }
+        ],
+        "metadata": null,
+        "message_type": "text"
+      },
+      "parent_id": "769f95c0-2ad4-454b-bc76-05c65545de15"
+    }
+  },
+  "branches": {
+    "main": {
+      "name": "main",
+      "message_ids": [
+        "2ae3d683-c601-4248-9225-ad7dca2fce8a",
+        "5221bbc9-7413-478c-aeb4-3f53b7dec965",
+        "769f95c0-2ad4-454b-bc76-05c65545de15",
+        "bc96b8d3-1f94-4761-83ce-7ac648b1beea"
+      ],
+      "system_prompt": null,
+      "user_prompt": null
+    }
+  },
+  "active_branch_name": "main",
+  "current_state": "Idle"
+}

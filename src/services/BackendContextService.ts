@@ -265,6 +265,7 @@ export class BackendContextService {
 
       const decoder = new TextDecoder();
       let buffer = "";
+      let streamCompleted = false;
 
       while (true) {
         const { done, value } = await reader.read();
@@ -294,6 +295,7 @@ export class BackendContextService {
                 }
                 // Don't return here - wait for done signal
               } else if (parsed.done) {
+                streamCompleted = true;
                 onDone();
                 return;
               } else if (parsed.content) {
@@ -309,7 +311,10 @@ export class BackendContextService {
         }
       }
 
-      onDone();
+      // Only call onDone if stream wasn't explicitly marked as done
+      if (!streamCompleted) {
+        onDone();
+      }
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : "Unknown error";
       onError(errorMsg);

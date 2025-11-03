@@ -110,7 +110,7 @@ export const useChatManager = () => {
         },
       },
     });
-  }, [streamingMessageId, updateMessageContent]);
+  }, []); // ✅ 移除依赖项，只在组件挂载时初始化一次
 
   const [state, send] = useMachine(providedChatMachine);
   const prevStateRef = useRef(state);
@@ -278,13 +278,15 @@ export const useChatManager = () => {
               ...assistantMessage,
               content: accumulatedContent,
             };
-            // Update the message in place
-            const currentMessages = [
-              ...baseMessages,
-              userMessage,
-              updatedAssistantMessage,
-            ];
-            setMessages(chatId, currentMessages);
+            // ✅ Get current messages from store to avoid stale closure
+            const { chats } = useAppStore.getState();
+            const currentChat = chats.find((c) => c.id === chatId);
+            if (currentChat) {
+              const updatedMessages = currentChat.messages.map((msg) =>
+                msg.id === assistantMessageId ? updatedAssistantMessage : msg
+              );
+              setMessages(chatId, updatedMessages);
+            }
           },
           // onDone: fetch final state from backend
           async () => {
