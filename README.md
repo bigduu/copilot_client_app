@@ -4,11 +4,31 @@ This application brings the power of the GitHub Copilot API to your desktop! �
 
 ## ✨ Features
 
+### Core Capabilities
 * 🗣️ **Interactive Chat Interface**: Enjoy a sleek and user-friendly chat window. Send your coding questions, prompts, or ideas to GitHub Copilot and receive insightful responses directly within the app.
 * 💅 **Rich Markdown Rendering**: Responses from Copilot are beautifully rendered with Markdown. This means you get well-formatted text, lists, links, and more, making it easy to read and understand.
 * 💻 **Crystal-Clear Syntax Highlighting**: Code snippets shared by Copilot (or even your own pasted code) are displayed with accurate syntax highlighting, improving readability and making it easier to review and use the suggested code.
 * 🌍 **Truly Cross-Platform**: Thanks to Tauri, this application feels right at home on Windows 🖼️, macOS 🍎, and Linux 🐧.
-* ⚡ **(Potential) Global Shortcuts**: We're exploring global keyboard shortcuts (using `tauri-plugin-global-shortcut`) for lightning-fast access to your Copilot chat, no matter what you're doing!
+
+### 🤖 LLM-Driven Agent Loop (NEW)
+* **Autonomous Tool Usage**: LLM can autonomously invoke tools to accomplish tasks
+* **Agent Loop Orchestration**: Backend manages multi-step tool execution automatically
+* **Approval Gates**: Sensitive operations require user approval before execution
+* **Error Recovery**: Intelligent retry and error handling with LLM feedback
+* **Timeout Protection**: Safeguards against runaway loops
+
+### 🎯 User-Invoked Workflows (NEW)
+* **Explicit Control**: User-initiated workflows for complex operations
+* **Form-Based UI**: Easy parameter input with validation
+* **Category Organization**: Workflows organized by functionality
+* **Safety Warnings**: Clear security prompts for dangerous operations
+* **Examples**: Execute commands, delete files, create projects
+
+### 🛠️ Developer Tools
+* **System Prompt Management**: Create and manage custom system prompts
+* **Context Management**: Backend-managed chat context with persistence
+* **Dual-Mode Architecture**: Plan-Act agent roles for complex tasks
+* **MCP Server Integration**: Connect to external tools and services
 
 ## 🛠️ How to Get Started
 
@@ -98,6 +118,50 @@ We'll do our best to review your contribution promptly and provide constructive 
 4. If something goes wrong, use **"Rollback from backup"** to restore your data
 
 See [Context Manager Migration Guide](./docs/architecture/context-manager-migration.md) for details.
+
+## 📚 Documentation
+
+### Architecture
+- **[Agent Loop Architecture](./docs/architecture/AGENT_LOOP_ARCHITECTURE.md)** - Autonomous LLM-driven tool usage
+- **[Workflow System Architecture](./docs/architecture/WORKFLOW_SYSTEM_ARCHITECTURE.md)** - User-invoked workflow system
+- **[Tool Classification Analysis](./TOOL_CLASSIFICATION_ANALYSIS.md)** - Tool vs Workflow decisions
+- **[Frontend Architecture](./docs/architecture/FRONTEND_ARCHITECTURE.md)** - Frontend component structure
+
+### Development
+- **[Development Guide](./docs/development/README.md)** - Development best practices
+- **[Styling Guidelines](./docs/development/STYLING_GUIDELINES.md)** - Code style and formatting
+- **[Tool System Documentation](./docs/extension-system/README.md)** - Tool creation and registration
+
+### OpenSpec
+- **[Refactor Proposal](./openspec/changes/refactor-tools-to-llm-agent-mode/proposal.md)** - Why and what changes
+- **[Design Decisions](./openspec/changes/refactor-tools-to-llm-agent-mode/design.md)** - Technical architecture
+- **[Implementation Tasks](./openspec/changes/refactor-tools-to-llm-agent-mode/tasks.md)** - Progress tracking
+
+## 🏗️ Architecture Overview
+
+### LLM-Driven Tools
+Tools are low-level operations the LLM can invoke autonomously:
+- **Read-only**: `read_file`, `search` - Safe information gathering
+- **Write with approval**: `create_file`, `update_file`, `append_file` - Require user approval
+- **System prompt injection**: Tools are automatically injected into LLM context
+- **Agent loop**: Backend orchestrates multi-step tool execution
+
+### User-Invoked Workflows
+Workflows are complex operations users explicitly trigger:
+- **Form-based UI**: User fills parameter form before execution
+- **Safety gates**: Approval prompts with security warnings
+- **Categories**: Organized by functionality (general, file_operations, system)
+- **Examples**: `ExecuteCommandWorkflow`, `DeleteFileWorkflow`
+
+### Key Differences
+| Aspect | Tools | Workflows |
+|--------|-------|-----------|
+| **Who Invokes** | LLM (autonomous) | User (explicit) |
+| **UI** | JSON parameters | Form-based |
+| **Risk Level** | Low-Medium | High |
+| **Examples** | Read file, Search | Execute command, Delete file |
+
+See the [Agent Loop Architecture](./docs/architecture/AGENT_LOOP_ARCHITECTURE.md) for detailed information.
 
 ## 📚 Project Documentation
 

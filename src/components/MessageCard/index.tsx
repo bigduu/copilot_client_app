@@ -54,7 +54,12 @@ const MessageCard: React.FC<MessageCardProps> = ({
   const screens = useBreakpoint();
   const { currentChatId } = useChatManager();
   const backendContext = useBackendContext();
-  const { currentContext, updateAgentRole, addMessage: addMessageToBackend, isLoading } = backendContext;
+  const {
+    currentContext,
+    updateAgentRole,
+    addMessage: addMessageToBackend,
+    isLoading,
+  } = backendContext;
   const addFavorite = useAppStore((state) => state.addFavorite);
   const cardRef = useRef<HTMLDivElement>(null);
   const [selectedText, setSelectedText] = useState<string>("");
@@ -64,12 +69,12 @@ const MessageCard: React.FC<MessageCardProps> = ({
   const detectedMessageType = useMemo(() => {
     // If messageType prop is provided, use it
     if (messageType) return messageType;
-    
+
     // Check if message has message_type field (from backend MessageDTO)
     if ("message_type" in message && message.message_type) {
       return message.message_type;
     }
-    
+
     // For assistant messages, try to detect plan/question from content
     if (role === "assistant" && message.type === "text") {
       const text = typeof message.content === "string" ? message.content : "";
@@ -90,7 +95,7 @@ const MessageCard: React.FC<MessageCardProps> = ({
             jsonStr = text.substring(start, end + 1).trim();
           }
         }
-        
+
         if (jsonStr) {
           const parsed = JSON.parse(jsonStr);
           // Check for plan
@@ -106,16 +111,22 @@ const MessageCard: React.FC<MessageCardProps> = ({
         // Not JSON or invalid, continue
       }
     }
-    
+
     // Default to text
     return "text";
   }, [message, messageType, role]);
 
   // Parse plan from message content
   const parsedPlan = useMemo<PlanMessage | null>(() => {
-    if (detectedMessageType !== "plan" || role !== "assistant") return null;
-    
-    const text = typeof message.content === "string" ? message.content : "";
+    if (
+      detectedMessageType !== "plan" ||
+      role !== "assistant" ||
+      message.type !== "text"
+    ) {
+      return null;
+    }
+
+    const text = message.content ?? "";
     try {
       let jsonStr = "";
       if (text.includes("```json")) {
@@ -131,7 +142,7 @@ const MessageCard: React.FC<MessageCardProps> = ({
           jsonStr = text.substring(start, end + 1).trim();
         }
       }
-      
+
       if (jsonStr) {
         const parsed = JSON.parse(jsonStr);
         if (parsed.goal && parsed.steps) {
@@ -145,7 +156,8 @@ const MessageCard: React.FC<MessageCardProps> = ({
               tools_needed: step.tools_needed || step.tools || [],
               estimated_time: step.estimated_time || step.estimatedTime || "",
             })),
-            estimated_total_time: parsed.estimated_total_time || parsed.estimatedTotalTime || "",
+            estimated_total_time:
+              parsed.estimated_total_time || parsed.estimatedTotalTime || "",
             risks: parsed.risks || [],
             prerequisites: parsed.prerequisites || [],
           };
@@ -159,9 +171,15 @@ const MessageCard: React.FC<MessageCardProps> = ({
 
   // Parse question from message content
   const parsedQuestion = useMemo<QuestionMessage | null>(() => {
-    if (detectedMessageType !== "question" || role !== "assistant") return null;
-    
-    const text = typeof message.content === "string" ? message.content : "";
+    if (
+      detectedMessageType !== "question" ||
+      role !== "assistant" ||
+      message.type !== "text"
+    ) {
+      return null;
+    }
+
+    const text = message.content ?? "";
     try {
       let jsonStr = "";
       if (text.includes("```json")) {
@@ -177,7 +195,7 @@ const MessageCard: React.FC<MessageCardProps> = ({
           jsonStr = text.substring(start, end + 1).trim();
         }
       }
-      
+
       if (jsonStr) {
         const parsed = JSON.parse(jsonStr);
         if (parsed.type === "question" && parsed.question) {
@@ -425,14 +443,18 @@ const MessageCard: React.FC<MessageCardProps> = ({
     );
   }
 
-  if (detectedMessageType === "question" && parsedQuestion && role === "assistant") {
+  if (
+    detectedMessageType === "question" &&
+    parsedQuestion &&
+    role === "assistant"
+  ) {
     return (
-        <QuestionMessageCard
-          question={parsedQuestion}
-          contextId={currentContext?.id || ""}
-          onAnswer={handleQuestionAnswer}
-          disabled={isLoading || false}
-        />
+      <QuestionMessageCard
+        question={parsedQuestion}
+        contextId={currentContext?.id || ""}
+        onAnswer={handleQuestionAnswer}
+        disabled={isLoading || false}
+      />
     );
   }
 

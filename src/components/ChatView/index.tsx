@@ -1,17 +1,28 @@
-import React, { useEffect, useRef, useState, useCallback } from "react";
-import { Layout, Space, theme, Button, Grid, Flex } from "antd";
+import React, {
+  useEffect,
+  useRef,
+  useState,
+  useCallback,
+  useMemo,
+} from "react";
+import { Layout, Space, theme, Button, Grid, Flex, Modal } from "antd";
 import { useChatController } from "../../contexts/ChatControllerContext";
 import SystemMessageCard from "../SystemMessageCard";
 import { DownOutlined } from "@ant-design/icons";
 import { InputContainer } from "../InputContainer";
 import { ApprovalModal } from "../ApprovalModal";
+import { AgentApprovalModal } from "../AgentApprovalModal";
 import "./styles.css"; // Import a new CSS file for animations and specific styles
 import MessageCard from "../MessageCard";
 import { useBackendContext } from "../../hooks/useBackendContext";
 import { BranchSelector } from "../BranchSelector";
 import AgentRoleSelector from "../AgentRoleSelector";
 import { Message } from "../../types/chat";
-import { MessageDTO } from "../../services/BackendContextService";
+import {
+  MessageDTO,
+  backendContextService,
+} from "../../services/BackendContextService";
+import { useAppStore } from "../../store";
 
 const { Content } = Layout;
 const { useToken } = theme;
@@ -20,11 +31,14 @@ const { useBreakpoint } = Grid;
 export const ChatView: React.FC = () => {
   const {
     currentChatId,
+    currentChat,
     currentMessages,
     deleteMessage,
     updateChat,
     interactionState,
     send,
+    pendingAgentApproval,
+    setPendingAgentApproval,
   } = useChatController();
 
   // Backend context for approvals and basic status display
@@ -36,7 +50,18 @@ export const ChatView: React.FC = () => {
     updateAgentRole,
     isLoading,
     error,
+    loadContext,
   } = useBackendContext();
+
+  // Auto-load backend context when currentChatId changes
+  useEffect(() => {
+    if (currentChatId && currentChatId !== currentContext?.id) {
+      console.log(`[ChatView] Loading context for chat: ${currentChatId}`);
+      loadContext(currentChatId).catch((err) => {
+        console.error(`[ChatView] Failed to load context:`, err);
+      });
+    }
+  }, [currentChatId, currentContext?.id, loadContext]);
 
   // Handle message deletion - optimized with useCallback
   const handleDeleteMessage = useCallback(
@@ -163,8 +188,133 @@ export const ChatView: React.FC = () => {
     showScrollToBottom,
   ]);
 
+  const [loadedSystemPrompt, setLoadedSystemPrompt] = useState<{
+    id: string;
+    content: string;
+  } | null>(null);
+
   const hasMessages = currentMessages.length > 0;
-  const showMessagesView = currentChatId && hasMessages;
+  const hasBackendMessages = backendMessages.length > 0;
+
+  // Load system prompt from context manager - unified source of truth
+  useEffect(() => {
+    const loadSystemPrompt = async () => {
+      // First, check if there's already a system message in the messages
+      const allMessages =
+        backendMessages.length > 0 ? backendMessages : currentMessages;
+      const existingSystemMessage = allMessages.find(
+        (msg: Message | MessageDTO) => msg.role === "system"
+      );
+      if (existingSystemMessage) {
+        setLoadedSystemPrompt(null);
+        return;
+      }
+
+      // Priority 1: Get from active branch's system_prompt (if exists)
+      if (currentContext?.branches && currentContext.branches.length > 0) {
+        const activeBranch = currentContext.branches.find(
+          (b) => b.name === currentContext.active_branch_name
+        );
+        if (activeBranch?.system_prompt?.content) {
+          setLoadedSystemPrompt({
+            id: activeBranch.system_prompt.id,
+            content: activeBranch.system_prompt.content,
+          });
+          return;
+        }
+      }
+
+      // Priority 2: Get from context.config.system_prompt_id (source of truth)
+      const systemPromptId = currentContext?.config?.system_prompt_id;
+
+      if (!systemPromptId) {
+        setLoadedSystemPrompt(null);
+        return;
+      }
+
+      // Fetch system prompt content from backend API using the ID
+      try {
+        const prompt = await backendContextService.getSystemPrompt(
+          systemPromptId
+        );
+        if (prompt?.content) {
+          setLoadedSystemPrompt({
+            id: systemPromptId,
+            content: prompt.content,
+          });
+        } else {
+          console.warn(
+            `System prompt ${systemPromptId} exists but has no content`
+          );
+          setLoadedSystemPrompt(null);
+        }
+      } catch (error) {
+        console.error(
+          `Failed to load system prompt ${systemPromptId} from backend:`,
+          error
+        );
+        setLoadedSystemPrompt(null);
+      }
+    };
+
+    loadSystemPrompt();
+  }, [
+    currentContext?.config?.system_prompt_id,
+    currentContext?.branches,
+    currentContext?.active_branch_name,
+    backendMessages,
+    currentMessages,
+  ]);
+
+  // Get system prompt message to display
+  const systemPromptMessage = useMemo(() => {
+    // First, check if there's already a system message in the messages
+    const allMessages =
+      backendMessages.length > 0 ? backendMessages : currentMessages;
+    const existingSystemMessage = allMessages.find(
+      (msg: Message | MessageDTO) => msg.role === "system"
+    );
+    if (existingSystemMessage) {
+      // Extract content from MessageDTO if needed
+      if (
+        "content" in existingSystemMessage &&
+        Array.isArray((existingSystemMessage as any).content)
+      ) {
+        const dto = existingSystemMessage as MessageDTO;
+        const textContent = dto.content.find((c) => c.type === "text");
+        const messageContent =
+          textContent && "text" in textContent ? textContent.text : "";
+        return {
+          id: dto.id,
+          role: "system" as const,
+          content: messageContent,
+          createdAt: dto.id,
+        };
+      }
+      // Already a Message type
+      return existingSystemMessage as Message;
+    }
+
+    // Use loaded system prompt from context manager
+    if (loadedSystemPrompt?.content) {
+      return {
+        id: `system-prompt-${loadedSystemPrompt.id}`,
+        role: "system" as const,
+        content: loadedSystemPrompt.content,
+        createdAt: new Date().toISOString(),
+      };
+    }
+
+    return null;
+  }, [backendMessages, currentMessages, loadedSystemPrompt]);
+
+  // Check if we have system prompt to show
+  const hasSystemPrompt = useMemo(() => {
+    return systemPromptMessage !== null;
+  }, [systemPromptMessage]);
+
+  const showMessagesView =
+    currentChatId && (hasMessages || hasBackendMessages || hasSystemPrompt);
 
   // Calculate scroll to bottom button position
   const getScrollButtonPosition = () => {
@@ -287,19 +437,30 @@ export const ChatView: React.FC = () => {
           ref={messagesListRef}
           onScroll={handleMessagesScroll}
         >
-          {showMessagesView && (
+          {(showMessagesView || hasSystemPrompt) && (
             <Space
               direction="vertical"
               size={token.marginMD}
               style={{ width: "100%" }}
             >
+              {/* Show System Prompt as a message at the top of the list */}
+              {hasSystemPrompt &&
+                systemPromptMessage &&
+                !backendMessages.some(
+                  (msg: Message | MessageDTO) => msg.role === "system"
+                ) &&
+                !currentMessages.some(
+                  (msg: Message) => msg.role === "system"
+                ) && <SystemMessageCard message={systemPromptMessage} />}
+
               {/* Use backend messages if available, otherwise fall back to currentMessages */}
               {(backendMessages.length > 0 ? backendMessages : currentMessages)
                 .filter(
                   (message: Message | MessageDTO) =>
                     message.role === "user" ||
                     message.role === "assistant" ||
-                    message.role === "system"
+                    message.role === "system" ||
+                    message.role === "tool" // ✅ Include tool messages
                 )
                 .map((message: Message | MessageDTO, index: number) => {
                   // Check if this is a MessageDTO from backend
@@ -345,6 +506,15 @@ export const ChatView: React.FC = () => {
                         content: messageContent,
                         createdAt: dto.id,
                       };
+                    } else if (dto.role === "tool") {
+                      // ✅ Tool message - display as assistant with prefix
+                      convertedMessage = {
+                        id: dto.id,
+                        role: "assistant",
+                        content: `[Tool Result]\n${messageContent}`,
+                        type: "text",
+                        createdAt: dto.id,
+                      } as Message;
                     } else {
                       // Assistant message
                       convertedMessage = {
@@ -438,6 +608,190 @@ export const ChatView: React.FC = () => {
               onReject={() => send({ type: "USER_REJECTS" })}
             />
           )}
+
+        {/* Agent Approval Modal (for LLM-initiated tool calls) */}
+        {pendingAgentApproval && (
+          <AgentApprovalModal
+            visible={true}
+            requestId={pendingAgentApproval.request_id}
+            toolName={pendingAgentApproval.tool}
+            toolDescription={pendingAgentApproval.tool_description}
+            parameters={pendingAgentApproval.parameters}
+            onApprove={async (requestId: string) => {
+              console.log("🔓 [ChatView] Approving agent tool:", requestId);
+              try {
+                // Call the backend approval endpoint
+                const response =
+                  await backendContextService.approveAgentToolCall(
+                    pendingAgentApproval.session_id,
+                    requestId,
+                    true
+                  );
+                console.log("✅ [ChatView] Tool approved, response:", response);
+
+                // Clear the pending approval
+                setPendingAgentApproval(null);
+
+                // Reload messages to show the tool execution result
+                console.log(
+                  "🔄 [ChatView] Reloading messages after approval..."
+                );
+                if (currentChatId) {
+                  // Fetch messages from backend
+                  const messages = await backendContextService.getMessages(
+                    currentChatId
+                  );
+
+                  // Transform messages (same logic as useChatManager)
+                  const allMessages = messages.messages
+                    .map((msg: any) => {
+                      const baseContent =
+                        msg.content
+                          .map((c: any) => {
+                            if (c.type === "text") return c.text;
+                            if (c.type === "image") return c.url;
+                            return "";
+                          })
+                          .join("\n") || "";
+                      const roleLower = msg.role.toLowerCase();
+                      if (roleLower === "user") {
+                        return {
+                          id: msg.id,
+                          role: "user" as const,
+                          content: baseContent,
+                          createdAt: new Date().toISOString(),
+                        };
+                      } else if (roleLower === "assistant") {
+                        return {
+                          id: msg.id,
+                          role: "assistant" as const,
+                          type: "text" as const,
+                          content: baseContent,
+                          createdAt: new Date().toISOString(),
+                        };
+                      } else if (roleLower === "tool") {
+                        return {
+                          id: msg.id,
+                          role: "assistant" as const,
+                          type: "text" as const,
+                          content: `[Tool Result]\n${baseContent}`,
+                          createdAt: new Date().toISOString(),
+                        };
+                      }
+                      return null;
+                    })
+                    .filter(Boolean) as Message[];
+
+                  // Update useChatManager's messages
+                  const { setMessages } = useAppStore.getState();
+                  setMessages(currentChatId, allMessages);
+                  console.log(
+                    `✅ [ChatView] Updated messages: ${allMessages.length} total`
+                  );
+
+                  // Also reload backend context for consistency
+                  await loadContext(currentChatId);
+                }
+              } catch (error) {
+                console.error("Failed to approve tool:", error);
+                Modal.error({
+                  title: "Approval Failed",
+                  content:
+                    "Failed to send approval to backend. Please try again.",
+                });
+              }
+            }}
+            onReject={async (requestId: string, reason?: string) => {
+              console.log(
+                "🚫 [ChatView] Rejecting agent tool:",
+                requestId,
+                reason
+              );
+              try {
+                // Call the backend approval endpoint
+                const response =
+                  await backendContextService.approveAgentToolCall(
+                    pendingAgentApproval.session_id,
+                    requestId,
+                    false,
+                    reason
+                  );
+                console.log("✅ [ChatView] Tool rejected, response:", response);
+
+                // Clear the pending approval
+                setPendingAgentApproval(null);
+
+                // Reload messages to reflect the rejection
+                console.log(
+                  "🔄 [ChatView] Reloading messages after rejection..."
+                );
+                if (currentChatId) {
+                  // Fetch messages from backend
+                  const messages = await backendContextService.getMessages(
+                    currentChatId
+                  );
+
+                  // Transform messages (same logic as useChatManager)
+                  const allMessages = messages.messages
+                    .map((msg: any) => {
+                      const baseContent =
+                        msg.content
+                          .map((c: any) => {
+                            if (c.type === "text") return c.text;
+                            if (c.type === "image") return c.url;
+                            return "";
+                          })
+                          .join("\n") || "";
+                      const roleLower = msg.role.toLowerCase();
+                      if (roleLower === "user") {
+                        return {
+                          id: msg.id,
+                          role: "user" as const,
+                          content: baseContent,
+                          createdAt: new Date().toISOString(),
+                        };
+                      } else if (roleLower === "assistant") {
+                        return {
+                          id: msg.id,
+                          role: "assistant" as const,
+                          type: "text" as const,
+                          content: baseContent,
+                          createdAt: new Date().toISOString(),
+                        };
+                      } else if (roleLower === "tool") {
+                        return {
+                          id: msg.id,
+                          role: "assistant" as const,
+                          type: "text" as const,
+                          content: `[Tool Result]\n${baseContent}`,
+                          createdAt: new Date().toISOString(),
+                        };
+                      }
+                      return null;
+                    })
+                    .filter(Boolean) as Message[];
+
+                  // Update useChatManager's messages
+                  const { setMessages } = useAppStore.getState();
+                  setMessages(currentChatId, allMessages);
+                  console.log(
+                    `✅ [ChatView] Updated messages: ${allMessages.length} total`
+                  );
+
+                  // Also reload backend context for consistency
+                  await loadContext(currentChatId);
+                }
+              } catch (error) {
+                console.error("Failed to reject tool:", error);
+                Modal.error({
+                  title: "Rejection Failed",
+                  content:
+                    "Failed to send rejection to backend. Please try again.",
+                });
+              }
+            }}
+          />
+        )}
 
         {/* Scroll to Bottom Button */}
         {showScrollToBottom && (

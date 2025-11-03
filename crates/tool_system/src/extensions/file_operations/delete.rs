@@ -9,6 +9,8 @@ use serde_json::json;
 use tokio::fs as tokio_fs;
 
 // File deletion tool
+// ⚠️ DEPRECATED: Use DeleteFileWorkflow instead for safer file deletion
+// This tool will be removed in a future version.
 #[derive(Debug)]
 pub struct DeleteFileTool;
 

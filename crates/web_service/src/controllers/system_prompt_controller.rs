@@ -171,11 +171,20 @@ pub async fn get_enhanced_system_prompt(
 pub fn config(cfg: &mut actix_web::web::ServiceConfig) {
     cfg.service(
         actix_web::web::scope("/system-prompts")
-            .route("/", actix_web::web::post().to(create_system_prompt))
-            .route("/", actix_web::web::get().to(list_system_prompts))
-            .route("/{id}", actix_web::web::get().to(get_system_prompt))
-            .route("/{id}/enhanced", actix_web::web::get().to(get_enhanced_system_prompt))
-            .route("/{id}", actix_web::web::put().to(update_system_prompt))
-            .route("/{id}", actix_web::web::delete().to(delete_system_prompt)),
+            .service(
+                actix_web::web::resource("")
+                    .route(actix_web::web::post().to(create_system_prompt))
+                    .route(actix_web::web::get().to(list_system_prompts)),
+            )
+            .service(
+                actix_web::web::resource("/{id}")
+                    .route(actix_web::web::get().to(get_system_prompt))
+                    .route(actix_web::web::put().to(update_system_prompt))
+                    .route(actix_web::web::delete().to(delete_system_prompt)),
+            )
+            .service(
+                actix_web::web::resource("/{id}/enhanced")
+                    .route(actix_web::web::get().to(get_enhanced_system_prompt)),
+            ),
     );
 }

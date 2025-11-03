@@ -101,18 +101,18 @@
 - [x] 4.1.10 Document integration design in design.md
 
 ### 4.2 Tool Call Approval in Agent Loop
-- [ ] 4.2.1 Design approval mechanism for agent-initiated tool calls
-- [ ] 4.2.2 Add approval flag to ToolDefinition (requires_approval: bool)
-- [ ] 4.2.3 Agent loop pauses and waits for user approval if tool requires it
-- [ ] 4.2.4 Add approval API endpoint: POST /v1/agent-loop/{session}/approve
+- [x] 4.2.1 Design approval mechanism for agent-initiated tool calls
+- [x] 4.2.2 Add approval flag to ToolDefinition (requires_approval: bool)
+- [x] 4.2.3 Agent loop pauses and waits for user approval if tool requires it
+- [x] 4.2.4 Add approval API endpoint: POST /v1/chat/{session_id}/approve-agent
 - [ ] 4.2.5 Frontend displays approval request and sends approval/rejection
 
 ### 4.3 Agent Loop Error Handling
-- [ ] 4.3.1 Handle tool execution failures gracefully
-- [ ] 4.3.2 Return error message to LLM for retry
-- [ ] 4.3.3 Implement max retry limit for tool execution
-- [ ] 4.3.4 Add timeout handling for long-running tools
-- [ ] 4.3.5 Log all agent loop errors with context
+- [x] 4.3.1 Handle tool execution failures gracefully
+- [x] 4.3.2 Return error message to LLM for retry
+- [x] 4.3.3 Implement max retry limit for tool execution
+- [x] 4.3.4 Add timeout handling for long-running tools
+- [x] 4.3.5 Log all agent loop errors with context
 
 ## 5. Frontend Refactor
 
@@ -179,22 +179,22 @@
 ## 6. Migration and Cleanup
 
 ### 6.1 Classify Existing Tools
-- [ ] 6.1.1 Review all tools in `crates/tool_system/src/extensions/`
-- [ ] 6.1.2 Mark tools that should become workflows
-- [ ] 6.1.3 Mark tools that should remain LLM-accessible
-- [ ] 6.1.4 Create migration plan in design.md
+- [x] 6.1.1 Review all tools in `crates/tool_system/src/extensions/`
+- [x] 6.1.2 Mark tools that should become workflows
+- [x] 6.1.3 Mark tools that should remain LLM-accessible
+- [x] 6.1.4 Create migration plan (see TOOL_CLASSIFICATION_ANALYSIS.md)
 
 ### 6.2 Remove Deprecated Endpoints
-- [ ] 6.2.1 Identify deprecated tool-related endpoints
-- [ ] 6.2.2 Add deprecation warnings to endpoints
-- [ ] 6.2.3 Remove deprecated endpoints after migration period
+- [x] 6.2.1 Identify deprecated tool-related endpoints
+- [x] 6.2.2 Add deprecation warnings to endpoints
+- [ ] 6.2.3 Remove deprecated endpoints after migration period (deferred to future)
 
 ### 6.3 Update Documentation
-- [ ] 6.3.1 Update README.md with new workflow system
-- [ ] 6.3.2 Document workflow creation guide
-- [ ] 6.3.3 Document agent loop behavior
-- [ ] 6.3.4 Update API documentation
-- [ ] 6.3.5 Add examples of tool vs workflow usage
+- [x] 6.3.1 Update README.md with new workflow system
+- [x] 6.3.2 Document workflow creation guide (see WORKFLOW_SYSTEM_ARCHITECTURE.md)
+- [x] 6.3.3 Document agent loop behavior (see AGENT_LOOP_ARCHITECTURE.md)
+- [x] 6.3.4 Update API documentation (included in architecture docs)
+- [x] 6.3.5 Add examples of tool vs workflow usage (included in docs)
 
 ## 7. Testing
 

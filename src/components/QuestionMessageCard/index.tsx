@@ -1,5 +1,14 @@
 import React, { useState } from "react";
-import { Card, Button, Typography, Space, Radio, Alert, theme } from "antd";
+import {
+  Card,
+  Button,
+  Typography,
+  Space,
+  Radio,
+  Alert,
+  Tag,
+  theme,
+} from "antd";
 import {
   QuestionCircleOutlined,
   CheckCircleOutlined,
@@ -21,7 +30,7 @@ interface QuestionMessageCardProps {
 
 const QuestionMessageCard: React.FC<QuestionMessageCardProps> = ({
   question,
-  contextId,
+  contextId: _contextId,
   onAnswer,
   disabled = false,
 }) => {
@@ -47,7 +56,9 @@ const QuestionMessageCard: React.FC<QuestionMessageCardProps> = ({
   const getSeverityIcon = () => {
     switch (question.severity) {
       case "critical":
-        return <ExclamationCircleOutlined style={{ color: token.colorError }} />;
+        return (
+          <ExclamationCircleOutlined style={{ color: token.colorError }} />
+        );
       case "major":
         return <WarningOutlined style={{ color: token.colorWarning }} />;
       case "minor":
@@ -157,10 +168,7 @@ const QuestionMessageCard: React.FC<QuestionMessageCardProps> = ({
                   <div>
                     <Text strong>{option.label}</Text>
                     {option.value === question.default && (
-                      <Tag
-                        color="blue"
-                        style={{ marginLeft: token.marginXS }}
-                      >
+                      <Tag color="blue" style={{ marginLeft: token.marginXS }}>
                         Recommended
                       </Tag>
                     )}
@@ -226,5 +234,3 @@ const QuestionMessageCard: React.FC<QuestionMessageCardProps> = ({
 };
 
 export default QuestionMessageCard;
-
-

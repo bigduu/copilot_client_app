@@ -19,6 +19,7 @@ pub struct ChatConfigDTO {
     pub mode: String,
     pub parameters: serde_json::Value,
     pub system_prompt_id: Option<String>,
+    pub agent_role: String, // "planner" or "actor"
 }
 
 /// DTO representing a branch
@@ -37,6 +38,14 @@ pub struct SystemPromptDTO {
     pub content: String,
 }
 
+/// DTO representing a template variable
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct TemplateVariableDTO {
+    pub key: String,
+    pub value: String,
+    pub description: Option<String>,
+}
+
 /// DTO representing a message
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct MessageDTO {
@@ -45,6 +54,8 @@ pub struct MessageDTO {
     pub content: Vec<ContentPartDTO>,
     pub tool_calls: Option<Vec<ToolCallRequestDTO>>,
     pub tool_result: Option<ToolCallResultDTO>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub message_type: Option<String>, // "text", "plan", "question", "tool_call", "tool_result"
 }
 
 /// DTO representing content parts
@@ -100,6 +111,7 @@ impl From<context_manager::structs::context::ChatConfig> for ChatConfigDTO {
             mode: config.mode,
             parameters: serde_json::to_value(config.parameters).unwrap_or_default(),
             system_prompt_id: config.system_prompt_id,
+            agent_role: format!("{:?}", config.agent_role).to_lowercase(),
         }
     }
 }
@@ -147,6 +159,27 @@ impl From<context_manager::structs::message::MessageNode> for MessageDTO {
                 .tool_calls
                 .map(|calls| calls.into_iter().map(|call| call.into()).collect()),
             tool_result: node.message.tool_result.map(|result| result.into()),
+            message_type: {
+                let msg_type = &node.message.message_type;
+                // Convert MessageType enum to snake_case string
+                match msg_type {
+                    context_manager::structs::message::MessageType::Text => {
+                        Some("text".to_string())
+                    }
+                    context_manager::structs::message::MessageType::Plan => {
+                        Some("plan".to_string())
+                    }
+                    context_manager::structs::message::MessageType::Question => {
+                        Some("question".to_string())
+                    }
+                    context_manager::structs::message::MessageType::ToolCall => {
+                        Some("tool_call".to_string())
+                    }
+                    context_manager::structs::message::MessageType::ToolResult => {
+                        Some("tool_result".to_string())
+                    }
+                }
+            },
         }
     }
 }

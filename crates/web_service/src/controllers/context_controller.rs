@@ -582,6 +582,9 @@ pub async fn send_message_action(
         context_id,
         app_state.copilot_client.clone(),
         app_state.tool_executor.clone(),
+        app_state.system_prompt_enhancer.clone(),
+        app_state.system_prompt_service.clone(),
+        app_state.approval_manager.clone(),
     );
 
     tracing::debug!(
@@ -607,6 +610,9 @@ pub async fn send_message_action(
                             crate::services::chat_service::ServiceResponse::FinalMessage(_) => "idle",
                             crate::services::chat_service::ServiceResponse::AwaitingToolApproval(_) => {
                                 "awaiting_tool_approval"
+                            }
+                            crate::services::chat_service::ServiceResponse::AwaitingAgentApproval { .. } => {
+                                "awaiting_agent_approval"
                             }
                         };
                         (dto, status)
@@ -662,6 +668,9 @@ pub async fn approve_tools_action(
         context_id,
         app_state.copilot_client.clone(),
         app_state.tool_executor.clone(),
+        app_state.system_prompt_enhancer.clone(),
+        app_state.system_prompt_service.clone(),
+        app_state.approval_manager.clone(),
     );
 
     // Approve tool calls (FSM handles everything including auto-save)
@@ -685,6 +694,9 @@ pub async fn approve_tools_action(
                             crate::services::chat_service::ServiceResponse::FinalMessage(_) => "idle",
                             crate::services::chat_service::ServiceResponse::AwaitingToolApproval(_) => {
                                 "awaiting_tool_approval"
+                            }
+                            crate::services::chat_service::ServiceResponse::AwaitingAgentApproval { .. } => {
+                                "awaiting_agent_approval"
                             }
                         };
                         (dto, status)

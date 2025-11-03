@@ -45,7 +45,7 @@ impl Tool for SimpleTool {
             tool_type: ToolType::AIParameterParsing,
             parameter_regex: None,
             custom_prompt: None,
-            hide_in_selector: false,
+            hide_in_selector: true, // Hide example tool to avoid LLM confusion
             display_preference: DisplayPreference::Default,
             termination_behavior_doc: None,
             required_permissions: vec![ToolPermission::ReadFiles],
@@ -96,7 +96,7 @@ impl Tool for ConfigurableTool {
             tool_type: ToolType::AIParameterParsing,
             parameter_regex: None,
             custom_prompt: None,
-            hide_in_selector: false,
+            hide_in_selector: true, // Hide example tool to avoid LLM confusion
             display_preference: DisplayPreference::Default,
             termination_behavior_doc: None,
             required_permissions: vec![ToolPermission::ReadFiles],

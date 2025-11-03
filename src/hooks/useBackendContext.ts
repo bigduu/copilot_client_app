@@ -205,21 +205,60 @@ export const useBackendContext = () => {
     async (contextId: string, role: "planner" | "actor") => {
       setIsLoading(true);
       setError(null);
+      // Temporarily disable polling to prevent conflicts
+      const wasPollingEnabled = pollingEnabled;
+      setPollingEnabled(false);
+
       try {
+        console.log(
+          `[useBackendContext] updateAgentRole called: ${role}, current: ${currentContext?.config.agent_role}`
+        );
+
+        // Optimistically update local state first for instant UI feedback
+        if (currentContext && currentContext.id === contextId) {
+          console.log("[useBackendContext] Applying optimistic update");
+          setCurrentContext({
+            ...currentContext,
+            config: {
+              ...currentContext.config,
+              agent_role: role,
+            },
+          });
+        }
+
+        // Then update backend
         await service.updateAgentRole(contextId, role);
-        // Reload context to get updated role
-        await loadContext(contextId);
+
+        // Don't reload context immediately - trust the optimistic update
+        // Polling will eventually sync any other changes from backend
+        console.log(
+          `[useBackendContext] Agent role updated to ${role}, polling disabled for 3s`
+        );
+
+        // Wait a bit before re-enabling polling to ensure backend is consistent
+        setTimeout(() => {
+          if (wasPollingEnabled) {
+            console.log(
+              "[useBackendContext] Re-enabling polling after role update"
+            );
+            setPollingEnabled(true);
+          }
+        }, 3000); // Increased to 3 seconds for more safety
       } catch (err) {
         setError(
           err instanceof Error ? err.message : "Failed to update agent role"
         );
         console.error("Failed to update agent role:", err);
+        // Re-enable polling even on error
+        if (wasPollingEnabled) {
+          setPollingEnabled(true);
+        }
         throw err;
       } finally {
         setIsLoading(false);
       }
     },
-    [service, loadContext]
+    [service, loadContext, pollingEnabled, currentContext]
   );
 
   // Enable/disable polling
@@ -243,14 +282,27 @@ export const useBackendContext = () => {
     const poll = async () => {
       try {
         const context = await service.getContext(currentContext.id);
-        
-        // Only update if state changed to avoid unnecessary re-renders
-        if (context.current_state !== currentContext.current_state || 
-            context.message_count !== currentContext.message_count) {
+
+        // Only update if critical fields changed to avoid unnecessary re-renders and conflicts
+        const hasStateChanged =
+          context.current_state !== currentContext.current_state;
+        const hasMessageCountChanged =
+          context.message_count !== currentContext.message_count;
+        const hasRoleChanged =
+          context.config.agent_role !== currentContext.config.agent_role;
+
+        if (hasStateChanged || hasMessageCountChanged || hasRoleChanged) {
+          console.log("[useBackendContext] Polling detected changes:", {
+            hasStateChanged,
+            hasMessageCountChanged,
+            hasRoleChanged,
+            oldRole: currentContext.config.agent_role,
+            newRole: context.config.agent_role,
+          });
           setCurrentContext(context);
-          
+
           // Reload messages if count changed
-          if (context.message_count !== currentContext.message_count) {
+          if (hasMessageCountChanged) {
             const messagesData = await service.getMessages(currentContext.id, {
               branch: context.active_branch_name,
             });

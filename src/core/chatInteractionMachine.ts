@@ -97,13 +97,15 @@ export const chatMachine = setup({
       console.log(
         `[ChatMachine] enhanceSystemPrompt: Using basePrompt: "${basePrompt}"`
       );
-      
+
       // Get the prompt ID if available, otherwise fall back to content-based enhancement
       const systemPromptService = SystemPromptService.getInstance();
-      const enhancedPrompt = systemPromptId 
+      const enhancedPrompt = systemPromptId
         ? await systemPromptService.getEnhancedSystemPrompt(systemPromptId)
-        : await systemPromptService.getEnhancedSystemPromptFromContent(basePrompt);
-        
+        : await systemPromptService.getEnhancedSystemPromptFromContent(
+            basePrompt
+          );
+
       console.log(
         "[ChatMachine] enhanceSystemPrompt: Prompt enhanced successfully."
       );
@@ -152,18 +154,15 @@ export const chatMachine = setup({
         };
       }
     ),
+    // Note: checkToolApproval removed - tool approval is now handled by backend agent loop
+    // The backend will send approval requests via ServiceResponse::AwaitingToolApproval
     checkToolApproval: fromPromise<boolean, { toolName: string }>(
-      async ({ input }) => {
-        console.log(
-          `[ChatMachine] checkToolApproval: Checking approval for tool: "${input.toolName}"`
+      async ({ input: _input }) => {
+        console.warn(
+          `[ChatMachine] checkToolApproval: This should not be called - approval handled by backend`
         );
-        const requiresApproval = await toolService.toolRequiresApproval(
-          input.toolName
-        );
-        console.log(
-          `[ChatMachine] checkToolApproval: Tool "${input.toolName}" requires approval: ${requiresApproval}`
-        );
-        return requiresApproval;
+        // Default to requiring approval for safety
+        return true;
       }
     ),
     toolExecutor: fromPromise<
@@ -195,27 +194,29 @@ export const chatMachine = setup({
       // The actor now returns the entire structured result object.
       return structuredResult;
     }),
+    // Note: parameterParser removed - tool parameter parsing is now handled by backend
+    // Tools are called autonomously by LLM with structured JSON format
+    // For workflows (user-invoked), parameters should be extracted differently
     parameterParser: fromPromise<
       ParameterValue[],
       { toolCallRequest: ToolCallRequest }
     >(async ({ input }) => {
-      console.log(
-        "[ChatMachine] parameterParser: Actor started with input:",
-        input
+      console.warn(
+        "[ChatMachine] parameterParser: This should not be called for LLM-driven tools"
       );
       if (!input.toolCallRequest) {
         throw new Error(
           "Parameter parser actor received no tool call request."
         );
       }
-      const parsedParameters = await toolService.parseParametersWithAI(
-        input.toolCallRequest
-      );
-      console.log(
-        "[ChatMachine] parameterParser: AI parsing successful, result:",
-        parsedParameters
-      );
-      return parsedParameters;
+      // For workflows, return simple parameter extraction
+      // This is a fallback for backward compatibility
+      return [
+        {
+          name: "parameter",
+          value: input.toolCallRequest.user_description,
+        },
+      ];
     }),
   },
 }).createMachine({
@@ -373,29 +374,40 @@ export const chatMachine = setup({
             "persistMessages",
           ],
         },
+        // Note: STREAM_COMPLETE_TOOL_CALL should no longer occur
+        // Tool calls are now parsed and executed by the backend agent loop
+        // This event handler is kept for backward compatibility but should be deprecated
         STREAM_COMPLETE_TOOL_CALL: {
           target: "ROUTING_TOOL_CALL",
-          actions: assign({
-            toolCallRequest: ({ event }) => event.payload.toolCall,
-            messages: ({ context, event }) => {
-              const { toolCall } = event.payload;
-              const newToolCallMessage: AssistantToolCallMessage = {
-                id: crypto.randomUUID(),
-                role: "assistant",
-                type: "tool_call",
-                createdAt: new Date().toISOString(),
-                toolCalls: [
-                  {
-                    toolCallId: toolCall.toolCallId,
-                    toolName: toolCall.tool_name,
-                    // For now, parameters are parsed later. We can store the raw description.
-                    parameters: { user_description: toolCall.user_description },
-                  },
-                ],
-              };
-              return [...context.messages, newToolCallMessage];
-            },
-          }),
+          actions: [
+            () =>
+              console.warn(
+                "[ChatMachine] STREAM_COMPLETE_TOOL_CALL received - tool calls should be handled by backend"
+              ),
+            assign({
+              toolCallRequest: ({ event }) => event.payload.toolCall,
+              messages: ({ context, event }) => {
+                const { toolCall } = event.payload;
+                const newToolCallMessage: AssistantToolCallMessage = {
+                  id: crypto.randomUUID(),
+                  role: "assistant",
+                  type: "tool_call",
+                  createdAt: new Date().toISOString(),
+                  toolCalls: [
+                    {
+                      toolCallId: toolCall.toolCallId,
+                      toolName: toolCall.tool_name,
+                      // For now, parameters are parsed later. We can store the raw description.
+                      parameters: {
+                        user_description: toolCall.user_description,
+                      },
+                    },
+                  ],
+                };
+                return [...context.messages, newToolCallMessage];
+              },
+            }),
+          ],
         },
         STREAM_ERROR: {
           target: "IDLE",

@@ -1,13 +1,19 @@
 import React, { useState, useMemo } from "react";
-import { Space, theme, Tag, Alert, message as antdMessage } from "antd";
+import { Space, theme, Tag, Alert, message as antdMessage, Flex } from "antd";
 import { ToolOutlined } from "@ant-design/icons";
 import { MessageInput } from "../MessageInput";
 import InputPreview from "./InputPreview";
 import WorkflowSelector from "../WorkflowSelector";
 import WorkflowParameterForm from "../WorkflowParameterForm";
+import AgentRoleSelector from "../AgentRoleSelector";
 import { useChatController } from "../../contexts/ChatControllerContext";
+import { useBackendContext } from "../../hooks/useBackendContext";
 import { useSystemPrompt } from "../../hooks/useSystemPrompt";
-import { WorkflowService, WorkflowDefinition } from "../../services/WorkflowService";
+import {
+  WorkflowService,
+  WorkflowDefinition,
+} from "../../services/WorkflowService";
+import { AgentRole } from "../../types/chat";
 
 const { useToken } = theme;
 
@@ -20,18 +26,29 @@ export const InputContainer: React.FC<InputContainerProps> = ({
 }) => {
   const [showWorkflowSelector, setShowWorkflowSelector] = useState(false);
   const [workflowSearchText, setWorkflowSearchText] = useState("");
-  const [selectedWorkflow, setSelectedWorkflow] = useState<WorkflowDefinition | null>(null);
+  const [selectedWorkflow, setSelectedWorkflow] =
+    useState<WorkflowDefinition | null>(null);
   const [showParameterForm, setShowParameterForm] = useState(false);
   const [workflowDescription, setWorkflowDescription] = useState("");
   const { token } = useToken();
   const {
     currentMessages,
     currentChat,
+    currentChatId,
     interactionState,
     sendMessage,
     retryLastMessage,
     send,
+    updateChat,
   } = useChatController();
+
+  // Backend context for role switching
+  const {
+    currentContext,
+    updateAgentRole: updateBackendRole,
+    isLoading: backendLoading,
+  } = useBackendContext();
+
   const isStreaming = interactionState.matches("THINKING");
   const workflowService = WorkflowService.getInstance();
   const [messageApi, contextHolder] = antdMessage.useMessage();
@@ -92,7 +109,7 @@ export const InputContainer: React.FC<InputContainerProps> = ({
   const handleWorkflowSelect = async (workflowName: string) => {
     console.log("[InputContainer] Workflow selected:", workflowName);
     setShowWorkflowSelector(false);
-    
+
     try {
       // Fetch workflow details
       const workflow = await workflowService.getWorkflowDetails(workflowName);
@@ -100,15 +117,17 @@ export const InputContainer: React.FC<InputContainerProps> = ({
         messageApi.error(`Workflow '${workflowName}' not found`);
         return;
       }
-      
+
       // Extract description from input (text after /workflow_name)
       const slashIndex = content.lastIndexOf("/");
-      const afterWorkflow = content.substring(slashIndex + workflowName.length + 1).trim();
+      const afterWorkflow = content
+        .substring(slashIndex + workflowName.length + 1)
+        .trim();
       setWorkflowDescription(afterWorkflow);
-      
+
       // Clear input
       setContent("");
-      
+
       // Show parameter form
       setSelectedWorkflow(workflow);
       setShowParameterForm(true);
@@ -135,19 +154,25 @@ export const InputContainer: React.FC<InputContainerProps> = ({
   // Handle workflow parameter form submission
   const handleWorkflowExecute = async (parameters: Record<string, any>) => {
     if (!selectedWorkflow) return;
-    
-    console.log("[InputContainer] Executing workflow:", selectedWorkflow.name, parameters);
+
+    console.log(
+      "[InputContainer] Executing workflow:",
+      selectedWorkflow.name,
+      parameters
+    );
     setShowParameterForm(false);
-    
+
     try {
       // Execute workflow directly via backend API (no approval needed - user already approved by clicking Execute)
       const result = await workflowService.executeWorkflow({
         workflow_name: selectedWorkflow.name,
         parameters,
       });
-      
+
       if (result.success) {
-        messageApi.success(`Workflow '${selectedWorkflow.name}' executed successfully`);
+        messageApi.success(
+          `Workflow '${selectedWorkflow.name}' executed successfully`
+        );
         // TODO: Display WorkflowExecutionFeedback in chat
         // For now, we'll just show a success message
         // Workflows execute directly without going through the chat message flow
@@ -170,6 +195,48 @@ export const InputContainer: React.FC<InputContainerProps> = ({
     setSelectedWorkflow(null);
     setWorkflowDescription("");
   };
+
+  // Handle agent role change
+  const handleRoleChange = async (newRole: AgentRole) => {
+    if (!currentChatId) return;
+
+    try {
+      // Update frontend chat config
+      updateChat(currentChatId, {
+        config: {
+          systemPromptId: currentChat?.config.systemPromptId ?? "",
+          baseSystemPrompt: currentChat?.config.baseSystemPrompt ?? "",
+          lastUsedEnhancedPrompt:
+            currentChat?.config.lastUsedEnhancedPrompt ?? null,
+          toolCategory: currentChat?.config.toolCategory ?? "",
+          agentRole: newRole,
+        },
+      });
+
+      // Also update backend context if available
+      if (currentContext?.id) {
+        try {
+          await updateBackendRole(currentContext.id, newRole);
+        } catch (error) {
+          console.error("Failed to update backend role:", error);
+          // Continue anyway - frontend role is updated
+        }
+      }
+
+      messageApi.success(
+        `Switched to ${newRole === "planner" ? "Planner" : "Actor"} mode`
+      );
+    } catch (error) {
+      console.error("Failed to update agent role:", error);
+      messageApi.error("Failed to switch agent role");
+    }
+  };
+
+  // Get current role from chat config or backend context
+  const currentRole: AgentRole =
+    currentContext?.config.agent_role ||
+    currentChat?.config.agentRole ||
+    "actor";
 
   // Generate placeholder text based on reference and current mode
   const placeholder = useMemo(() => {
@@ -211,6 +278,9 @@ export const InputContainer: React.FC<InputContainerProps> = ({
     >
       {/* Ant Design message context holder */}
       {contextHolder}
+
+      {/* Agent Role Selector removed - now only shown in ChatView header */}
+
       {/* Tool-specific mode alert */}
       {isToolSpecificMode && (
         <Alert
@@ -265,7 +335,7 @@ export const InputContainer: React.FC<InputContainerProps> = ({
           placeholder={placeholder}
           hasMessages={currentMessages.length > 0}
           allowImages={true}
-          isToolSelectorVisible={showWorkflowSelector}
+          isWorkflowSelectorVisible={showWorkflowSelector}
         />
 
         <WorkflowSelector

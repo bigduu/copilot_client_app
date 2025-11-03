@@ -1,7 +1,6 @@
 import React from "react";
 import { Alert, Card } from "antd";
 import { CheckCircleOutlined, CloseCircleOutlined } from "@ant-design/icons";
-import ReactMarkdown from "react-markdown";
 
 interface WorkflowExecutionFeedbackProps {
   workflowName: string;
@@ -23,15 +22,15 @@ const WorkflowExecutionFeedback: React.FC<WorkflowExecutionFeedbackProps> = ({
   // Format result for display
   const formatResult = (result: any): string => {
     if (!result) return "";
-    
+
     if (typeof result === "string") {
       return result;
     }
-    
+
     if (typeof result === "object") {
       return JSON.stringify(result, null, 2);
     }
-    
+
     return String(result);
   };
 
@@ -137,5 +136,3 @@ const WorkflowExecutionFeedback: React.FC<WorkflowExecutionFeedbackProps> = ({
 };
 
 export default WorkflowExecutionFeedback;
-
-

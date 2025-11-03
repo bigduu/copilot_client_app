@@ -14,6 +14,10 @@ pub struct AgentLoopConfig {
     pub timeout: Duration,
     /// Maximum retries for malformed JSON parsing
     pub max_json_parse_retries: usize,
+    /// Maximum retries for tool execution failures
+    pub max_tool_execution_retries: usize,
+    /// Timeout for individual tool execution (in seconds)
+    pub tool_execution_timeout: Duration,
 }
 
 impl Default for AgentLoopConfig {
@@ -22,6 +26,8 @@ impl Default for AgentLoopConfig {
             max_iterations: 10,
             timeout: Duration::from_secs(300), // 5 minutes
             max_json_parse_retries: 3,
+            max_tool_execution_retries: 3,
+            tool_execution_timeout: Duration::from_secs(60), // 1 minute per tool
         }
     }
 }
@@ -38,6 +44,10 @@ pub struct AgentLoopState {
     pub tool_call_history: Vec<ToolCallRecord>,
     /// Number of JSON parse failures encountered
     pub parse_failures: usize,
+    /// Number of consecutive tool execution failures
+    pub tool_execution_failures: usize,
+    /// Name of the current tool being retried (if any)
+    pub current_retry_tool: Option<String>,
 }
 
 impl Default for AgentLoopState {
@@ -53,11 +63,29 @@ impl AgentLoopState {
             start_time: Instant::now(),
             tool_call_history: Vec::new(),
             parse_failures: 0,
+            tool_execution_failures: 0,
+            current_retry_tool: None,
         }
     }
     
     pub fn elapsed(&self) -> Duration {
         self.start_time.elapsed()
+    }
+    
+    /// Record a tool execution failure
+    pub fn record_tool_failure(&mut self, tool_name: &str) {
+        if self.current_retry_tool.as_deref() == Some(tool_name) {
+            self.tool_execution_failures += 1;
+        } else {
+            self.current_retry_tool = Some(tool_name.to_string());
+            self.tool_execution_failures = 1;
+        }
+    }
+    
+    /// Reset tool execution failure counter (called on successful execution)
+    pub fn reset_tool_failures(&mut self) {
+        self.tool_execution_failures = 0;
+        self.current_retry_tool = None;
     }
 }
 
@@ -91,6 +119,16 @@ impl AgentService {
     
     pub fn with_default_config() -> Self {
         Self::new(AgentLoopConfig::default())
+    }
+    
+    /// Get the tool execution timeout duration
+    pub fn tool_execution_timeout(&self) -> Duration {
+        self.config.tool_execution_timeout
+    }
+    
+    /// Get the max tool execution retries
+    pub fn max_tool_execution_retries(&self) -> usize {
+        self.config.max_tool_execution_retries
     }
     
     /// Parse a tool call from LLM response
@@ -167,6 +205,16 @@ impl AgentService {
         // Check parse failure limit
         if state.parse_failures >= self.config.max_json_parse_retries {
             warn!("Agent loop exceeded max JSON parse retries ({})", self.config.max_json_parse_retries);
+            return Ok(false);
+        }
+        
+        // Check tool execution failure limit
+        if state.tool_execution_failures >= self.config.max_tool_execution_retries {
+            warn!(
+                "Agent loop exceeded max tool execution retries ({}) for tool '{}'",
+                self.config.max_tool_execution_retries,
+                state.current_retry_tool.as_deref().unwrap_or("unknown")
+            );
             return Ok(false);
         }
         

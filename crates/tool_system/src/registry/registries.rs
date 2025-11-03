@@ -57,6 +57,7 @@ impl ToolRegistry {
 
     /// Filter tools based on allowed permissions.
     /// Returns only tools whose required permissions are a subset of the allowed permissions.
+    /// Also filters out tools marked with `hide_in_selector: true`.
     pub fn filter_tools_by_permissions(&self, allowed_permissions: &[ToolPermission]) -> Vec<ToolDefinition> {
         self.tools
             .read()
@@ -65,7 +66,10 @@ impl ToolRegistry {
             .map(|tool| tool.definition())
             .filter(|def| {
                 // Tool is allowed if all its required permissions are in the allowed set
-                def.required_permissions.iter().all(|perm| allowed_permissions.contains(perm))
+                let has_permissions = def.required_permissions.iter().all(|perm| allowed_permissions.contains(perm));
+                // Also exclude tools that are marked as hidden
+                let not_hidden = !def.hide_in_selector;
+                has_permissions && not_hidden
             })
             .collect()
     }

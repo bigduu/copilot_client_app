@@ -10,8 +10,16 @@ use actix_web::{
 };
 use futures_util::StreamExt;
 use log::info;
+use serde::{Deserialize, Serialize};
 use serde_json::json;
 use uuid::Uuid;
+
+#[derive(Debug, Deserialize, Serialize)]
+pub struct AgentApprovalRequest {
+    pub request_id: Uuid,
+    pub approved: bool,
+    pub reason: Option<String>,
+}
 
 pub async fn create_chat_session(
     app_state: Data<AppState>,
@@ -39,6 +47,9 @@ pub async fn send_message(
         *session_id,
         app_state.copilot_client.clone(),
         app_state.tool_executor.clone(),
+        app_state.system_prompt_enhancer.clone(),
+        app_state.system_prompt_service.clone(),
+        app_state.approval_manager.clone(),
     );
     match chat_service.process_message(message.into_inner()).await {
         Ok(response) => Ok(HttpResponse::Ok().json(response)),
@@ -59,6 +70,9 @@ pub async fn send_message_stream(
         *session_id,
         app_state.copilot_client.clone(),
         app_state.tool_executor.clone(),
+        app_state.system_prompt_enhancer.clone(),
+        app_state.system_prompt_service.clone(),
+        app_state.approval_manager.clone(),
     );
 
     match chat_service
@@ -95,6 +109,9 @@ pub async fn approve_tools(
         *session_id,
         app_state.copilot_client.clone(),
         app_state.tool_executor.clone(),
+        app_state.system_prompt_enhancer.clone(),
+        app_state.system_prompt_service.clone(),
+        app_state.approval_manager.clone(),
     );
     match chat_service
         .approve_tool_calls(approved_tool_calls.into_inner())
@@ -105,7 +122,53 @@ pub async fn approve_tools(
             // This case should ideally not happen in an approval flow, but handled for completeness
             Ok(HttpResponse::Accepted().json(tool_calls))
         }
+        Ok(ServiceResponse::AwaitingAgentApproval { .. }) => {
+            // This shouldn't happen during approval, but handle gracefully
+            Ok(HttpResponse::Accepted().json(json!({"message": "Approval processed"})))
+        }
         Err(e) => Ok(HttpResponse::InternalServerError().body(e.to_string())),
+    }
+}
+
+pub async fn approve_agent_tool_call(
+    session_id: web::Path<Uuid>,
+    approval: web::Json<AgentApprovalRequest>,
+    app_state: Data<AppState>,
+) -> Result<HttpResponse> {
+    let mut chat_service = ChatService::new(
+        app_state.session_manager.clone(),
+        *session_id,
+        app_state.copilot_client.clone(),
+        app_state.tool_executor.clone(),
+        app_state.system_prompt_enhancer.clone(),
+        app_state.system_prompt_service.clone(),
+        app_state.approval_manager.clone(),
+    );
+
+    match chat_service
+        .continue_agent_loop_after_approval(
+            approval.request_id,
+            approval.approved,
+            approval.reason.clone(),
+        )
+        .await
+    {
+        Ok(ServiceResponse::FinalMessage(message)) => Ok(HttpResponse::Ok().json(json!({
+            "status": "completed",
+            "message": message
+        }))),
+        Ok(ServiceResponse::AwaitingAgentApproval { .. }) => {
+            Ok(HttpResponse::Accepted().json(json!({
+                "status": "awaiting_approval",
+                "message": "Another approval is required"
+            })))
+        }
+        Ok(ServiceResponse::AwaitingToolApproval(_)) => Ok(HttpResponse::Accepted().json(json!({
+            "status": "awaiting_tool_approval"
+        }))),
+        Err(e) => Ok(HttpResponse::InternalServerError().json(json!({
+            "error": e.to_string()
+        }))),
     }
 }
 
@@ -115,6 +178,10 @@ pub fn config(cfg: &mut web::ServiceConfig) {
             .route("/", web::post().to(create_chat_session))
             .route("/{session_id}", web::post().to(send_message))
             .route("/{session_id}/stream", web::post().to(send_message_stream))
-            .route("/{session_id}/approve", web::post().to(approve_tools)),
+            .route("/{session_id}/approve", web::post().to(approve_tools))
+            .route(
+                "/{session_id}/approve-agent",
+                web::post().to(approve_agent_tool_call),
+            ),
     );
 }

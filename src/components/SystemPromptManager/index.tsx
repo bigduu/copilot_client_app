@@ -49,13 +49,27 @@ const SystemPromptManager = () => {
       }
       handleCancel();
     } catch (error) {
-      console.error("Validation Failed:", error);
+      console.error("Failed to save prompt:", error);
+      message.error(
+        error instanceof Error
+          ? error.message
+          : "Failed to save prompt. Please try again."
+      );
     }
   };
 
   const handleDelete = async (id: string) => {
-    await deleteSystemPrompt(id);
-    message.success("Prompt deleted successfully");
+    try {
+      await deleteSystemPrompt(id);
+      message.success("Prompt deleted successfully");
+    } catch (error) {
+      console.error("Failed to delete prompt:", error);
+      message.error(
+        error instanceof Error
+          ? error.message
+          : "Failed to delete prompt. Please try again."
+      );
+    }
   };
 
   return (

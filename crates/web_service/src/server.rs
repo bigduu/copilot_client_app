@@ -9,11 +9,12 @@ use tokio::sync::oneshot;
 
 use crate::controllers::{
     chat_controller, context_controller, openai_controller, system_controller,
-    system_prompt_controller, tool_controller, workflow_controller,
+    system_prompt_controller, template_variable_controller, tool_controller, workflow_controller,
 };
 use crate::services::{
-    session_manager::ChatSessionManager, system_prompt_enhancer::SystemPromptEnhancer,
-    system_prompt_service::SystemPromptService, tool_service::ToolService,
+    approval_manager::ApprovalManager, session_manager::ChatSessionManager,
+    system_prompt_enhancer::SystemPromptEnhancer, system_prompt_service::SystemPromptService,
+    template_variable_service::TemplateVariableService, tool_service::ToolService,
     workflow_service::WorkflowService,
 };
 use crate::storage::file_provider::FileStorageProvider;
@@ -27,7 +28,11 @@ pub struct AppState {
     pub tool_executor: Arc<ToolExecutor>,
     pub system_prompt_service: Arc<SystemPromptService>,
     pub system_prompt_enhancer: Arc<SystemPromptEnhancer>,
+    pub template_variable_service: Arc<TemplateVariableService>,
+    pub approval_manager: Arc<ApprovalManager>,
 }
+
+const DEFAULT_WORKER_COUNT: usize = 10;
 
 pub fn app_config(cfg: &mut web::ServiceConfig) {
     cfg.service(
@@ -37,6 +42,7 @@ pub fn app_config(cfg: &mut web::ServiceConfig) {
             .configure(context_controller::config)
             .configure(system_controller::config)
             .configure(system_prompt_controller::config)
+            .configure(template_variable_controller::config)
             .configure(tool_controller::config)
             .configure(workflow_controller::config),
     );
@@ -64,17 +70,29 @@ pub async fn run(app_data_dir: PathBuf, port: u16) -> Result<(), String> {
         error!("Failed to load system prompts: {}", e);
     }
 
+    // Initialize template variable service
+    let template_variable_service = Arc::new(TemplateVariableService::new(app_data_dir.clone()));
+    // Load template variables from storage
+    if let Err(e) = template_variable_service.load_from_storage().await {
+        error!("Failed to load template variables: {}", e);
+    }
+
     let config = Config::new();
     let copilot_client: Arc<dyn CopilotClientTrait> =
         Arc::new(CopilotClient::new(config, app_data_dir.clone()));
 
-    // Create system prompt enhancer
+    // Create system prompt enhancer with template service
     let tool_registry_arc = Arc::new(ToolRegistry::new());
-    let system_prompt_enhancer =
-        Arc::new(SystemPromptEnhancer::with_default_config(tool_registry_arc));
+    let system_prompt_enhancer = Arc::new(
+        SystemPromptEnhancer::with_default_config(tool_registry_arc)
+            .with_template_service(template_variable_service.clone())
+    );
+
+    let approval_manager = Arc::new(ApprovalManager::new());
 
     let system_prompt_data = web::Data::from(system_prompt_service.clone());
     let enhancer_data = web::Data::from(system_prompt_enhancer.clone());
+    let template_variable_data = web::Data::from(template_variable_service.clone());
 
     let app_state = web::Data::new(AppState {
         session_manager,
@@ -82,20 +100,23 @@ pub async fn run(app_data_dir: PathBuf, port: u16) -> Result<(), String> {
         copilot_client,
         system_prompt_service,
         system_prompt_enhancer,
+        template_variable_service: template_variable_service.clone(),
+        approval_manager: approval_manager.clone(),
     });
 
-    let server = HttpServer::new(move || {
-        App::new()
-            .app_data(app_state.clone())
-            .app_data(tool_service_data.clone())
-            .app_data(system_prompt_data.clone())
-            .app_data(enhancer_data.clone())
-            .app_data(workflow_service_data.clone())
+        let server = HttpServer::new(move || {
+            App::new()
+                .app_data(app_state.clone())
+                .app_data(tool_service_data.clone())
+                .app_data(system_prompt_data.clone())
+                .app_data(enhancer_data.clone())
+                .app_data(template_variable_data.clone())
+                .app_data(workflow_service_data.clone())
             // CORS only - no middleware for testing
             .wrap(Cors::permissive())
             .configure(app_config)
     })
-    .workers(1) // Single worker to avoid concurrency issues
+    .workers(DEFAULT_WORKER_COUNT)
     .bind(format!("127.0.0.1:{}", port))
     .map_err(|e| format!("Failed to bind server: {}", e))?
     .run();
@@ -154,17 +175,29 @@ impl WebService {
             error!("Failed to load system prompts: {}", e);
         }
 
+        // Initialize template variable service
+        let template_variable_service = Arc::new(TemplateVariableService::new(self.app_data_dir.clone()));
+        // Load template variables from storage
+        if let Err(e) = template_variable_service.load_from_storage().await {
+            error!("Failed to load template variables: {}", e);
+        }
+
         let config = Config::new();
         let copilot_client: Arc<dyn CopilotClientTrait> =
             Arc::new(CopilotClient::new(config, self.app_data_dir.clone()));
 
-        // Create system prompt enhancer
+        // Create system prompt enhancer with template service
         let tool_registry_arc = Arc::new(ToolRegistry::new());
-        let system_prompt_enhancer =
-            Arc::new(SystemPromptEnhancer::with_default_config(tool_registry_arc));
+        let system_prompt_enhancer = Arc::new(
+            SystemPromptEnhancer::with_default_config(tool_registry_arc)
+                .with_template_service(template_variable_service.clone())
+        );
+
+        let approval_manager = Arc::new(ApprovalManager::new());
 
         let system_prompt_data_for_start = web::Data::from(system_prompt_service.clone());
         let enhancer_data_for_start = web::Data::from(system_prompt_enhancer.clone());
+        let template_variable_data_for_start = web::Data::from(template_variable_service.clone());
 
         let app_state = web::Data::new(AppState {
             session_manager,
@@ -172,6 +205,8 @@ impl WebService {
             copilot_client,
             system_prompt_service,
             system_prompt_enhancer,
+            template_variable_service: template_variable_service.clone(),
+            approval_manager: approval_manager.clone(),
         });
 
         let server = HttpServer::new(move || {
@@ -180,6 +215,7 @@ impl WebService {
                 .app_data(tool_service_data.clone())
                 .app_data(system_prompt_data_for_start.clone())
                 .app_data(enhancer_data_for_start.clone())
+                .app_data(template_variable_data_for_start.clone())
                 .app_data(workflow_service_data.clone())
                 // CORS must be first (wraps last, executes first on response)
                 .wrap(Cors::permissive())
@@ -188,6 +224,7 @@ impl WebService {
                 // .wrap(TracingMiddleware)
                 .configure(app_config)
         })
+        .workers(DEFAULT_WORKER_COUNT)
         .bind(format!("127.0.0.1:{}", port))
         .map_err(|e| format!("Failed to bind server: {}", e))?
         .run();

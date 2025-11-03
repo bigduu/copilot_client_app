@@ -9,9 +9,11 @@ use anyhow::Result;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::sync::RwLock;
+use std::collections::HashMap;
 
 use tool_system::{format_tools_section, ToolRegistry, ToolPermission};
 use context_manager::structs::context::AgentRole;
+use crate::services::template_variable_service::TemplateVariableService;
 
 /// Cache entry for enhanced prompts
 #[derive(Clone)]
@@ -49,6 +51,7 @@ pub struct SystemPromptEnhancer {
     tool_registry: Arc<ToolRegistry>,
     config: EnhancementConfig,
     cache: Arc<RwLock<std::collections::HashMap<String, CachedPrompt>>>,
+    template_service: Option<Arc<TemplateVariableService>>,
 }
 
 impl SystemPromptEnhancer {
@@ -57,11 +60,18 @@ impl SystemPromptEnhancer {
             tool_registry,
             config,
             cache: Arc::new(RwLock::new(std::collections::HashMap::new())),
+            template_service: None,
         }
     }
     
     pub fn with_default_config(tool_registry: Arc<ToolRegistry>) -> Self {
         Self::new(tool_registry, EnhancementConfig::default())
+    }
+
+    /// Set template variable service for template replacement
+    pub fn with_template_service(mut self, template_service: Arc<TemplateVariableService>) -> Self {
+        self.template_service = Some(template_service);
+        self
     }
     
     /// Enhance a base system prompt with tools and additional features
@@ -85,8 +95,11 @@ impl SystemPromptEnhancer {
         // Build enhanced prompt
         let mut enhanced = String::new();
         
-        // Add base prompt
-        enhanced.push_str(base_prompt);
+        // Replace template variables in base prompt first
+        let processed_prompt = self.replace_template_variables(base_prompt).await;
+        
+        // Add base prompt (with template variables replaced)
+        enhanced.push_str(&processed_prompt);
         enhanced.push_str("\n\n");
         
         // Add role-specific instructions
@@ -290,6 +303,38 @@ Use Mermaid diagrams to visualize:
     pub async fn clear_cache(&self) {
         let mut cache = self.cache.write().await;
         cache.clear();
+    }
+
+    /// Replace template variables in prompt content
+    /// Supports variables like {{variable_name}} or {variable_name}
+    async fn replace_template_variables(&self, prompt: &str) -> String {
+        let template_vars = if let Some(service) = &self.template_service {
+            service.get_all().await
+        } else {
+            HashMap::new()
+        };
+
+        if template_vars.is_empty() {
+            return prompt.to_string();
+        }
+
+        let mut result = prompt.to_string();
+
+        // Replace {{key}} or {key} patterns
+        for (key, value) in template_vars {
+            // Replace {{key}}
+            let pattern_double = format!("{{{{{}}}}}", key);
+            result = result.replace(&pattern_double, &value);
+            
+            // Replace {key} (only if not already replaced and not part of {{key}})
+            let pattern_single = format!("{{{}}}", key);
+            // Only replace if it's not already inside {{ }}
+            if !result.contains(&format!("{{{{{}", key)) {
+                result = result.replace(&pattern_single, &value);
+            }
+        }
+
+        result
     }
 }
 

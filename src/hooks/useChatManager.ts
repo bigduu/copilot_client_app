@@ -12,10 +12,7 @@ import {
   Message,
 } from "../types/chat";
 import { ImageFile } from "../utils/imageUtils";
-import { ToolService } from "../services/ToolService";
 import { SystemPromptService } from "../services";
-
-const toolService = ToolService.getInstance();
 
 /**
  * Unified hook for managing all chat-related state and interactions.
@@ -71,6 +68,15 @@ export const useChatManager = () => {
     null
   );
 
+  // --- AGENT APPROVAL STATE ---
+  const [pendingAgentApproval, setPendingAgentApproval] = useState<{
+    request_id: string;
+    session_id: string;
+    tool: string;
+    tool_description: string;
+    parameters: Record<string, any>;
+  } | null>(null);
+
   // --- CHAT INTERACTION STATE MACHINE ---
   // Provide the concrete implementations for the actions defined in the machine
   const providedChatMachine = useMemo(() => {
@@ -81,7 +87,11 @@ export const useChatManager = () => {
             setStreamingText((prev) => prev + event.payload.chunk);
           }
         },
-        finalizeStreamingMessage: async ({ event }: { event: ChatMachineEvent }) => {
+        finalizeStreamingMessage: async ({
+          event,
+        }: {
+          event: ChatMachineEvent;
+        }) => {
           const { currentChatId: chatId } = useAppStore.getState();
           if (
             event.type === "STREAM_COMPLETE_TEXT" &&
@@ -224,43 +234,39 @@ export const useChatManager = () => {
       // Add user message locally for optimistic UI update (no backend persistence)
       await addMessage(chatId, userMessage);
 
-      const updatedHistory = [...baseMessages, userMessage];
-      const updatedChat: ChatItem = {
-        ...currentChat,
-        messages: updatedHistory,
-      };
-
       // NOTE: Tool command parsing DISABLED
       // Workflows are now invoked via WorkflowSelector UI (type "/" to trigger)
       // The old "/command" text parsing is removed to avoid conflicts
       // Tools will be handled by backend agent loop (JSON format from LLM)
-      
+
       // ✅ All messages now go through backend action API
       // Backend will: save user message → run FSM → generate response → save response
-      console.log(`[ChatManager] Calling backend action API for chat ${chatId}`);
-      
+      console.log(
+        `[ChatManager] Calling backend action API for chat ${chatId}`
+      );
+
       try {
         const { BackendContextService } = await import(
           "../services/BackendContextService"
         );
         const backendService = new BackendContextService();
-        
+
         // Create temporary assistant message for streaming
         const assistantMessageId = crypto.randomUUID();
-        const assistantMessage: AssistantMessage = {
+        const assistantMessage: AssistantTextMessage = {
           id: assistantMessageId,
           role: "assistant",
           type: "text",
           content: "",
           createdAt: new Date().toISOString(),
         };
-        
+
         // Add empty assistant message to show streaming indicator
         await addMessage(chatId, assistantMessage);
         let accumulatedContent = "";
-        
+
         console.log(`[ChatManager] Starting streaming for chat ${chatId}`);
-        
+
         // Call streaming endpoint
         await backendService.sendMessageStream(
           chatId,
@@ -268,12 +274,16 @@ export const useChatManager = () => {
           // onChunk: update message content in real-time
           (chunk: string) => {
             accumulatedContent += chunk;
-            const updatedAssistantMessage: AssistantMessage = {
+            const updatedAssistantMessage: AssistantTextMessage = {
               ...assistantMessage,
               content: accumulatedContent,
             };
             // Update the message in place
-            const currentMessages = [...baseMessages, userMessage, updatedAssistantMessage];
+            const currentMessages = [
+              ...baseMessages,
+              userMessage,
+              updatedAssistantMessage,
+            ];
             setMessages(chatId, currentMessages);
           },
           // onDone: fetch final state from backend
@@ -282,41 +292,58 @@ export const useChatManager = () => {
             try {
               // Get final messages from backend to ensure consistency
               const messages = await backendService.getMessages(chatId);
-              const allMessages: Message[] = messages.messages.map((msg) => {
-                const baseContent = msg.content
-                  .map((c) => {
-                    if (c.type === "text") return c.text;
-                    if (c.type === "image") return c.url;
-                    return "";
-                  })
-                  .join("\n") || "";
-                
-                const roleLower = msg.role.toLowerCase();
-                
-                if (roleLower === "user") {
-                  return {
-                    id: msg.id,
-                    role: "user",
-                    content: baseContent,
-                    createdAt: new Date().toISOString(),
-                  } as Message;
-                } else if (roleLower === "assistant") {
-                  return {
-                    id: msg.id,
-                    role: "assistant",
-                    type: "text",
-                    content: baseContent,
-                    createdAt: new Date().toISOString(),
-                  } as Message;
-                }
-                return null;
-              }).filter(Boolean) as Message[];
-              
+              const allMessages: Message[] = messages.messages
+                .map((msg) => {
+                  const baseContent =
+                    msg.content
+                      .map((c) => {
+                        if (c.type === "text") return c.text;
+                        if (c.type === "image") return c.url;
+                        return "";
+                      })
+                      .join("\n") || "";
+
+                  const roleLower = msg.role.toLowerCase();
+
+                  if (roleLower === "user") {
+                    return {
+                      id: msg.id,
+                      role: "user",
+                      content: baseContent,
+                      createdAt: new Date().toISOString(),
+                    } as Message;
+                  } else if (roleLower === "assistant") {
+                    return {
+                      id: msg.id,
+                      role: "assistant",
+                      type: "text",
+                      content: baseContent,
+                      createdAt: new Date().toISOString(),
+                    } as Message;
+                  } else if (roleLower === "tool") {
+                    // ✅ Handle tool messages (tool execution results)
+                    return {
+                      id: msg.id,
+                      role: "assistant",  // Display as assistant message
+                      type: "text",
+                      content: `[Tool Result]\n${baseContent}`,
+                      createdAt: new Date().toISOString(),
+                    } as Message;
+                  }
+                  return null;
+                })
+                .filter(Boolean) as Message[];
+
               // Update local state with backend messages
               setMessages(chatId, allMessages);
-              console.log(`[ChatManager] Updated local state with ${allMessages.length} messages from backend`);
+              console.log(
+                `[ChatManager] Updated local state with ${allMessages.length} messages from backend`
+              );
             } catch (error) {
-              console.error("[ChatManager] Failed to fetch final messages:", error);
+              console.error(
+                "[ChatManager] Failed to fetch final messages:",
+                error
+              );
             }
           },
           // onError: show error and remove assistant message
@@ -329,9 +356,19 @@ export const useChatManager = () => {
             // Remove the failed assistant message
             const messagesWithoutAssistant = [...baseMessages, userMessage];
             setMessages(chatId, messagesWithoutAssistant);
+          },
+          // onApprovalRequired: handle agent-initiated tool approval requests
+          (data: {
+            request_id: string;
+            session_id: string;
+            tool: string;
+            tool_description: string;
+            parameters: Record<string, any>;
+          }) => {
+            console.log("🔒 [ChatManager] Agent approval required:", data);
+            setPendingAgentApproval(data);
           }
         );
-        
       } catch (error) {
         console.error("[ChatManager] Backend streaming failed:", error);
         modal.error({
@@ -340,7 +377,15 @@ export const useChatManager = () => {
         });
       }
     },
-    [currentChat, addMessage, send, modal, baseMessages, systemPrompts, setMessages]
+    [
+      currentChat,
+      addMessage,
+      send,
+      modal,
+      baseMessages,
+      systemPrompts,
+      setMessages,
+    ]
   );
 
   const retryLastMessage = useCallback(async () => {
@@ -365,7 +410,11 @@ export const useChatManager = () => {
       };
       send({
         type: "USER_SUBMITS",
-        payload: { messages: messagesToRetry, chat: updatedChat, systemPrompts },
+        payload: {
+          messages: messagesToRetry,
+          chat: updatedChat,
+          systemPrompts,
+        },
       });
     }
   }, [currentChat, baseMessages, deleteMessage, send, systemPrompts]);
@@ -376,14 +425,26 @@ export const useChatManager = () => {
         (p) => p.id === lastSelectedPromptId
       );
 
+      // Use actual prompt ID or undefined (no hardcoded defaults)
+      const systemPromptId =
+        selectedPrompt?.id ||
+        (systemPrompts.length > 0
+          ? systemPrompts.find((p) => p.id === "general_assistant")?.id ||
+            systemPrompts[0].id
+          : undefined);
+
       const newChatData: Omit<ChatItem, "id"> = {
         title: title || "New Chat",
         createdAt: Date.now(),
         messages: [],
         config: {
-          systemPromptId: selectedPrompt?.id || "default-general",
+          systemPromptId: systemPromptId,
           baseSystemPrompt:
-            selectedPrompt?.content || "You are a helpful assistant.",
+            selectedPrompt?.content ||
+            (systemPrompts.length > 0
+              ? systemPrompts.find((p) => p.id === "general_assistant")
+                  ?.content || systemPrompts[0].content
+              : "You are a helpful assistant."),
           toolCategory: "general",
           lastUsedEnhancedPrompt: null,
         },
@@ -402,7 +463,9 @@ export const useChatManager = () => {
         prompt
       );
       const systemPromptService = SystemPromptService.getInstance();
-      const enhancedPrompt = await systemPromptService.getEnhancedSystemPrompt(prompt.id);
+      const enhancedPrompt = await systemPromptService.getEnhancedSystemPrompt(
+        prompt.id
+      );
 
       const newChatData: Omit<ChatItem, "id"> = {
         title: `New Chat - ${prompt.name}`,
@@ -475,6 +538,8 @@ export const useChatManager = () => {
     unpinnedChats,
     chatCount,
     interactionState: state,
+    pendingAgentApproval,
+    setPendingAgentApproval,
 
     // Actions
     addMessage,

@@ -15,7 +15,7 @@ interface AgentRoleSelectorProps {
 
 const AgentRoleSelector: React.FC<AgentRoleSelectorProps> = ({
   currentRole,
-  contextId,
+  contextId: _contextId,
   onRoleChange,
   disabled = false,
 }) => {
@@ -29,7 +29,9 @@ const AgentRoleSelector: React.FC<AgentRoleSelectorProps> = ({
     setLoading(true);
     try {
       await onRoleChange(newRole);
-      messageApi.success(`Switched to ${newRole === "planner" ? "Planner" : "Actor"} mode`);
+      messageApi.success(
+        `Switched to ${newRole === "planner" ? "Planner" : "Actor"} mode`
+      );
     } catch (error) {
       console.error("Failed to update agent role:", error);
       messageApi.error("Failed to switch agent role");
@@ -83,9 +85,7 @@ const AgentRoleSelector: React.FC<AgentRoleSelectorProps> = ({
                   ? token.colorPrimary
                   : token.colorBorder,
               backgroundColor:
-                currentRole === "planner"
-                  ? token.colorPrimaryBg
-                  : undefined,
+                currentRole === "planner" ? token.colorPrimaryBg : undefined,
               color:
                 currentRole === "planner"
                   ? token.colorPrimary
@@ -111,7 +111,9 @@ const AgentRoleSelector: React.FC<AgentRoleSelectorProps> = ({
             disabled={disabled || (loading && currentRole === "actor")}
             style={{
               borderColor:
-                currentRole === "actor" ? token.colorPrimary : token.colorBorder,
+                currentRole === "actor"
+                  ? token.colorPrimary
+                  : token.colorBorder,
               backgroundColor:
                 currentRole === "actor" ? token.colorPrimaryBg : undefined,
               color:
@@ -134,5 +136,3 @@ const AgentRoleSelector: React.FC<AgentRoleSelectorProps> = ({
 };
 
 export default AgentRoleSelector;
-
-

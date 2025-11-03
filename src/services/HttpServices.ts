@@ -3,22 +3,13 @@ import { ToolService, UtilityService } from "./types";
 const API_BASE_URL = "http://127.0.0.1:8080/v1";
 
 export class HttpToolService implements ToolService {
+  // Note: getAvailableTools removed - tools are no longer exposed to frontend UI
+  // Tools are now injected into system prompts for LLM-driven autonomous usage
   async getAvailableTools(): Promise<any[]> {
-    try {
-      const response = await fetch(`${API_BASE_URL}/tools/available`);
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-      // The backend currently returns a string, which isn't ideal.
-      // We'll parse it for now, but this should be changed to JSON.
-      const text = await response.text();
-      console.log("Available tools response:", text);
-      // This is a temporary parsing logic.
-      return text.replace("Available tools: ", "").split(", ");
-    } catch (error) {
-      console.error("Failed to fetch available tools:", error);
-      return [];
-    }
+    // This method is kept for interface compatibility but returns empty array
+    // Tools are no longer exposed to frontend - they're used by LLM via backend
+    console.warn("getAvailableTools() called but tools are no longer available to frontend");
+    return [];
   }
 
   async getToolsDocumentation(): Promise<any> {

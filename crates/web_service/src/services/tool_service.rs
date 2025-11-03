@@ -1,11 +1,8 @@
 use crate::error::AppError;
-use crate::models::{
-    ParameterInfo, ToolExecutionRequest, ToolExecutionResult, ToolUIInfo, ToolsUIResponse,
-};
-use log::debug;
+use crate::models::{ToolExecutionRequest, ToolExecutionResult};
 use std::sync::{Arc, Mutex};
 use tool_system::registry::{CategoryRegistry, ToolRegistry};
-use tool_system::types::{CategoryInfo, ToolArguments, ToolDefinition};
+use tool_system::types::{CategoryInfo, ToolArguments};
 use tool_system::ToolExecutor;
 
 #[derive(Clone)]
@@ -24,49 +21,9 @@ impl ToolService {
         }
     }
 
-    pub fn get_tools_for_ui(&self, _category_id: Option<String>) -> ToolsUIResponse {
-        let tool_defs = self.registry.lock().unwrap().list_tool_definitions();
-        debug!("get_tools_for_ui: Found {} tool configs", tool_defs.len(),);
-
-        let tools = tool_defs
-            .into_iter()
-            .map(|def| self.build_tool_ui_info(def))
-            .collect();
-
-        let response = ToolsUIResponse {
-            tools,
-            is_strict_mode: false, // This needs to be re-evaluated with the new category system
-        };
-
-        debug!("get_tools_for_ui: Responding with: {:?}", response);
-        response
-    }
-
-    fn build_tool_ui_info(&self, def: ToolDefinition) -> ToolUIInfo {
-        let parameters = def
-            .parameters
-            .into_iter()
-            .map(|p| ParameterInfo {
-                name: p.name,
-                description: p.description,
-                required: p.required,
-                param_type: "string".to_string(),
-            })
-            .collect();
-
-        ToolUIInfo {
-            name: def.name,
-            description: def.description,
-            parameters,
-            tool_type: format!("{:?}", def.tool_type),
-            parameter_parsing_strategy: "".to_string(),
-            parameter_regex: def.parameter_regex,
-            ai_prompt_template: def.custom_prompt,
-            hide_in_selector: def.hide_in_selector,
-            display_preference: def.display_preference,
-            required_approval: def.requires_approval,
-        }
-    }
+    // Note: get_tools_for_ui and build_tool_ui_info removed
+    // Tools are no longer exposed to frontend UI - they are injected into system prompts
+    // for LLM-driven autonomous usage
 
     pub async fn execute_tool(
         &self,

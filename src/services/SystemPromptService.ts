@@ -3,7 +3,8 @@ const SYSTEM_PROMPT_SELECTED_ID_KEY = "system_prompt_selected_id";
 
 /**
  * SystemPromptService - Simplified version
- * Focuses on getting ToolCategory configuration from backend, removes frontend management features
+ * Gets system prompts directly from SystemPromptService backend API
+ * No longer depends on ToolCategory system
  */
 export class SystemPromptService {
   private static instance: SystemPromptService;
@@ -84,45 +85,43 @@ export class SystemPromptService {
   }
 
   /**
-   * Get ToolCategory configuration from backend to generate preset list
+   * Get system prompts directly from SystemPromptService
+   * No longer depends on tool categories
    */
   async getSystemPromptPresets(): Promise<any[]> {
     try {
-      // Call backend web service to get tool categories
-      const response = await fetch("http://localhost:8080/v1/tools/categories");
+      // Call backend system prompt service directly
+      const response = await fetch("http://127.0.0.1:8080/v1/system-prompts");
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
-      const categoryInfos = await response.json();
+      const data = await response.json();
+      // Handle both { prompts: [...] } and [...] formats
+      const prompts = Array.isArray(data) ? data : (data.prompts || []);
 
-      const presets = categoryInfos.map((info: any) => {
-        const category = info.category;
-        const promptContent =
-          typeof category.system_prompt === "object" &&
-          category.system_prompt !== null
-            ? category.system_prompt.content
-            : category.system_prompt;
-
+      // Convert to preset format for backward compatibility
+      const presets = prompts.map((prompt: any) => {
         return {
-          id: category.id,
-          name: category.display_name,
-          content: promptContent || "",
-          description: category.description,
-          category: category.id,
-          mode: category.strict_tools_mode ? "tool_specific" : "general",
-          autoToolPrefix: category.auto_tool_prefix,
-          allowedTools: info.tools.map((t: any) => t.name) || [],
-          restrictConversation: category.restrict_conversation,
-          isDefault: category.is_default,
+          id: prompt.id,
+          name: prompt.id, // Use ID as name if no display name
+          content: prompt.content || "",
+          description: prompt.id, // Use ID as description if no description
+          category: prompt.id, // For backward compatibility
+          mode: "general", // Default to general mode
+          autoToolPrefix: undefined,
+          allowedTools: [],
+          restrictConversation: false,
+          isDefault: prompt.id === "general_assistant", // Mark general_assistant as default
         };
       });
 
       return presets;
     } catch (error) {
-      console.error("Failed to get categories from backend:", error);
-      throw new Error(
-        "Cannot get system prompt preset configuration from the backend, no default configuration is provided on the frontend"
-      );
+      console.error("Failed to get system prompts from backend:", error);
+      // Return empty array instead of throwing to prevent UI breaking
+      // The user can still create chats without a system prompt
+      console.warn("Returning empty prompts array due to error");
+      return [];
     }
   }
 
@@ -153,43 +152,35 @@ export class SystemPromptService {
   }
 
   /**
-   * Check if in tool-specific mode
+   * Deprecated: Tool-specific mode is no longer supported
+   * Always returns false
    */
-  async isToolSpecificMode(presetId: string): Promise<boolean> {
-    const preset = await this.findPresetById(presetId);
-    return preset?.mode === "tool_specific";
+  async isToolSpecificMode(_presetId: string): Promise<boolean> {
+    return false;
   }
 
   /**
-   * Get allowed tools list
+   * Deprecated: Allowed tools list is no longer supported
+   * Returns empty array
    */
-  async getAllowedTools(presetId: string): Promise<string[]> {
-    const preset = await this.findPresetById(presetId);
-    return preset?.allowedTools || [];
+  async getAllowedTools(_presetId: string): Promise<string[]> {
+    return [];
   }
 
   /**
-   * Get auto tool prefix
+   * Deprecated: Auto tool prefix is no longer supported
+   * Returns undefined
    */
-  async getAutoToolPrefix(presetId: string): Promise<string | undefined> {
-    const preset = await this.findPresetById(presetId);
-    return preset?.autoToolPrefix;
+  async getAutoToolPrefix(_presetId: string): Promise<string | undefined> {
+    return undefined;
   }
 
   /**
-   * Check if normal conversation is restricted
+   * Deprecated: Conversation restriction is no longer supported
+   * Always returns false
    */
-  async isConversationRestricted(presetId: string): Promise<boolean> {
-    const preset = await this.findPresetById(presetId);
-    return preset?.restrictConversation === true;
-  }
-
-  /**
-   * Get presets by category
-   */
-  async getPresetsByCategory(category: string): Promise<any[]> {
-    const presets = await this.getSystemPromptPresets();
-    return presets.filter((preset: any) => preset.category === category);
+  async isConversationRestricted(_presetId: string): Promise<boolean> {
+    return false;
   }
 
   /**
@@ -199,7 +190,7 @@ export class SystemPromptService {
   async getEnhancedSystemPrompt(promptId: string): Promise<string> {
     try {
       console.log(`[SystemPromptService] Fetching enhanced prompt for ID: ${promptId}`);
-      const response = await fetch(`http://localhost:8080/v1/system-prompts/${promptId}/enhanced`);
+      const response = await fetch(`http://127.0.0.1:8080/v1/system-prompts/${promptId}/enhanced`);
       
       if (response.status === 404) {
         console.warn(`[SystemPromptService] Prompt not found: ${promptId}, falling back to base content`);

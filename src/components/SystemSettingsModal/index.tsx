@@ -25,6 +25,7 @@ import {
   setMermaidEnhancementEnabled,
 } from "../../utils/mermaidUtils";
 import SystemPromptManager from "../SystemPromptManager";
+import TemplateVariableEditor from "../TemplateVariableEditor";
 
 const { Text } = Typography;
 const { useToken } = theme;
@@ -124,6 +125,8 @@ const SystemSettingsModal = ({
     useState<boolean>(() => {
       return isMermaidEnhancementEnabled();
     });
+  const [isTemplateVariableEditorOpen, setIsTemplateVariableEditorOpen] =
+    useState(false);
   const {
     models,
     isLoading: isLoadingModels,
@@ -172,6 +175,28 @@ const SystemSettingsModal = ({
 
         {/* System Prompt Manager Section */}
         <SystemPromptManager />
+
+        {/* Template Variables Section */}
+        <Space
+          direction="vertical"
+          size={token.marginSM}
+          style={{ width: "100%" }}
+        >
+          <Flex justify="space-between" align="center">
+            <Text strong>Template Variables</Text>
+            <Button
+              type="primary"
+              onClick={() => setIsTemplateVariableEditorOpen(true)}
+            >
+              Configure Template Variables
+            </Button>
+          </Flex>
+          <Text type="secondary" style={{ fontSize: token.fontSizeSM }}>
+            Configure template variables (e.g., preferred_language,
+            response_format, tone, detail_level) that can be used in system
+            prompts using {`{{variable_name}}`} syntax.
+          </Text>
+        </Space>
 
         {/* Settings Section */}
         <Space
@@ -275,6 +300,11 @@ const SystemSettingsModal = ({
           </Popconfirm>
         </Space>
       </Flex>
+
+      <TemplateVariableEditor
+        open={isTemplateVariableEditorOpen}
+        onClose={() => setIsTemplateVariableEditorOpen(false)}
+      />
     </Modal>
   );
 };

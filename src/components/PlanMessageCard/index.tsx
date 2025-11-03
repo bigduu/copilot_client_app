@@ -1,5 +1,14 @@
 import React, { useState } from "react";
-import { Card, Steps, Button, Typography, Tag, Space, Collapse, theme } from "antd";
+import {
+  Card,
+  Steps,
+  Button,
+  Typography,
+  Tag,
+  Space,
+  Collapse,
+  theme,
+} from "antd";
 import {
   CheckCircleOutlined,
   ClockCircleOutlined,
@@ -7,10 +16,9 @@ import {
   ThunderboltOutlined,
   ToolOutlined,
 } from "@ant-design/icons";
-import { PlanMessage, AgentRole } from "../../types/chat";
+import { PlanMessage } from "../../types/chat";
 
 const { Title, Text, Paragraph } = Typography;
-const { Panel } = Collapse;
 const { useToken } = theme;
 
 interface PlanMessageCardProps {
@@ -22,7 +30,7 @@ interface PlanMessageCardProps {
 
 const PlanMessageCard: React.FC<PlanMessageCardProps> = ({
   plan,
-  contextId,
+  contextId: _contextId,
   onExecute,
   onRefine,
 }) => {
@@ -107,7 +115,10 @@ const PlanMessageCard: React.FC<PlanMessageCardProps> = ({
       </div>
 
       {/* Metadata Section */}
-      <Space direction="vertical" style={{ width: "100%", marginBottom: token.marginLG }}>
+      <Space
+        direction="vertical"
+        style={{ width: "100%", marginBottom: token.marginLG }}
+      >
         <div>
           <Text type="secondary">
             <ClockCircleOutlined /> Total Estimated Time:{" "}
@@ -209,5 +220,3 @@ const PlanMessageCard: React.FC<PlanMessageCardProps> = ({
 };
 
 export default PlanMessageCard;
-
-

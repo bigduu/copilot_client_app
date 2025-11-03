@@ -1,4 +1,4 @@
-import React, { useRef, useState, useCallback, useEffect } from "react";
+import React, { useRef, useEffect } from "react";
 import { Button, Space, theme, message, Typography } from "antd";
 import {
   SendOutlined,
@@ -18,7 +18,7 @@ import { usePasteHandler } from "../../hooks/usePasteHandler";
 import { Input } from "antd";
 
 const { TextArea } = Input;
-import { ToolService } from "../../services/ToolService";
+// ToolService import removed - no longer needed for tool validation
 
 interface MessageInputProps {
   value: string;
@@ -35,7 +35,7 @@ interface MessageInputProps {
   images?: ImageFile[];
   onImagesChange?: (images: ImageFile[]) => void;
   allowImages?: boolean;
-  isToolSelectorVisible?: boolean; // Prevent Enter key handling when tool selector is open
+  isWorkflowSelectorVisible?: boolean; // Prevent Enter key handling when workflow selector is open
   validateMessage?: (message: string) => {
     isValid: boolean;
     errorMessage?: string;
@@ -57,14 +57,12 @@ export const MessageInput: React.FC<MessageInputProps> = ({
   images: propImages,
   onImagesChange,
   allowImages = true,
-  isToolSelectorVisible = false,
+  isWorkflowSelectorVisible = false,
   validateMessage,
 }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { token } = theme.useToken();
   const [messageApi, contextHolder] = message.useMessage();
-  const [availableTools, setAvailableTools] = useState<string[]>([]);
-  const toolService = ToolService.getInstance();
 
   const {
     images,
@@ -98,95 +96,16 @@ export const MessageInput: React.FC<MessageInputProps> = ({
     }
   }, [propImages, setImages]);
 
-  // Fetch available tools on component mount
-  useEffect(() => {
-    const fetchTools = async () => {
-      try {
-        const tools = await toolService.getAvailableTools();
-        setAvailableTools(tools.map((tool) => tool.name));
-      } catch (error) {
-        console.error("Failed to fetch available tools:", error);
-      }
-    };
-
-    fetchTools();
-  }, [toolService]);
-
-  // Helper function to check if a string is a valid tool name
-  const isValidToolName = useCallback(
-    (toolName: string): boolean => {
-      return availableTools.includes(toolName);
-    },
-    [availableTools]
-  );
-
-  // Helper function to find tool names in text
-  const findToolMatches = useCallback(
-    (text: string) => {
-      const toolMatches: Array<{
-        start: number;
-        end: number;
-        toolName: string;
-      }> = [];
-      const regex = /\/(\w+)/g;
-      let match;
-
-      while ((match = regex.exec(text)) !== null) {
-        const toolName = match[1];
-        if (isValidToolName(toolName)) {
-          toolMatches.push({
-            start: match.index,
-            end: match.index + match[0].length,
-            toolName: toolName,
-          });
-        }
-      }
-
-      return toolMatches;
-    },
-    [isValidToolName]
-  );
+  // Note: Tool validation logic removed - users no longer input tool commands directly
+  // Tools are now called autonomously by LLM based on user intent
 
   const handleKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    // Handle smart deletion for tool names
-    if (
-      event.key === "Backspace" &&
-      !event.ctrlKey &&
-      !event.altKey &&
-      !event.metaKey
-    ) {
-      const textarea = event.currentTarget;
-      const cursorPosition = textarea.selectionStart;
-      const text = textarea.value;
-
-      // Find all tool names in the text
-      const toolMatches = findToolMatches(text);
-
-      // Check if cursor is at the end of a tool name
-      for (const match of toolMatches) {
-        if (cursorPosition === match.end) {
-          // Cursor is at the end of a tool name, delete the entire tool name
-          event.preventDefault();
-          const newText =
-            text.substring(0, match.start) + text.substring(match.end);
-          onChange(newText);
-
-          // Set cursor position after deletion
-          setTimeout(() => {
-            textarea.setSelectionRange(match.start, match.start);
-          }, 0);
-
-          return;
-        }
-      }
-    }
-
     if (
       event.key === "Enter" &&
       !event.shiftKey &&
       !isStreaming &&
       !disabled &&
-      !isToolSelectorVisible
+      !isWorkflowSelectorVisible
     ) {
       event.preventDefault();
       handleSubmit();

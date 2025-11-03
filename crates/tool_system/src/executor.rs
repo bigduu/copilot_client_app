@@ -1,6 +1,6 @@
 use std::sync::{Arc, Mutex};
 use crate::registry::ToolRegistry;
-use crate::types::{ToolArguments, ToolError};
+use crate::types::{ToolArguments, ToolDefinition, ToolError};
 
 #[derive(Debug)]
 pub struct ToolExecutor {
@@ -22,5 +22,14 @@ impl ToolExecutor {
         })?;
 
         tool.execute(args).await
+    }
+
+    /// Get the definition of a tool by name
+    pub fn get_tool_definition(&self, tool_name: &str) -> Option<ToolDefinition> {
+        self.registry
+            .lock()
+            .unwrap()
+            .get_tool(tool_name)
+            .map(|tool| tool.definition())
     }
 }

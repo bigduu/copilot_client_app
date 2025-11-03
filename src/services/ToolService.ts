@@ -1,5 +1,4 @@
 import { invoke } from "@tauri-apps/api/core";
-import OpenAI from "openai";
 import { ToolExecutionResult } from "../types/chat";
 
 export interface ToolCallRequest {
@@ -121,119 +120,12 @@ export class ToolService {
     return this.parseUserCommand(content);
   }
 
-  /**
-   * Get available tools list
-   */
-  async getAvailableTools(): Promise<ToolUIInfo[]> {
-    try {
-      const response = await fetch("http://127.0.0.1:8080/v1/tools/available");
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-      const data: ToolsUIResponse = await response.json();
-      if (data && Array.isArray(data.tools)) {
-        return data.tools;
-      }
-      return [];
-    } catch (error) {
-      console.error("Failed to get available tools:", error);
-      throw new Error(`Failed to get available tools: ${error}`);
-    }
-  }
+  // Note: getAvailableTools removed - tools are no longer exposed to frontend UI
+  // Tools are now injected into system prompts for LLM-driven autonomous usage
 
-  /**
-   * Parses tool parameters using an AI model.
-   * This is a dedicated method to be called by the state machine.
-   */
-  async parseParametersWithAI(
-    toolCall: ToolCallRequest
-  ): Promise<ParameterValue[]> {
-    console.log(
-      `[ToolService] parseParametersWithAI: Starting AI parsing for tool "${toolCall.tool_name}"`
-    );
-    const toolInfo = await this.getToolInfo(toolCall.tool_name);
-    if (!toolInfo) {
-      throw new Error(
-        `Tool "${toolCall.tool_name}" not found for AI parameter parsing.`
-      );
-    }
-
-    if (!toolInfo.ai_prompt_template) {
-      throw new Error(
-        `Tool "${toolCall.tool_name}" is not configured for AI parameter parsing (missing prompt template).`
-      );
-    }
-
-    // Use the prompt template from the backend, replacing the placeholder.
-    const systemPrompt = toolInfo.ai_prompt_template.replace(
-      "{user_description}",
-      toolCall.user_description
-    );
-
-    const messages = [
-      { role: "system", content: systemPrompt },
-      // The user's raw input is still valuable context for the AI.
-      { role: "user", content: toolCall.user_description },
-    ];
-
-    try {
-      // Use the OpenAI client to call the local web server, same as AIService
-      const client = new OpenAI({
-        baseURL: "http://localhost:8080/v1",
-        apiKey: "dummy-key",
-        dangerouslyAllowBrowser: true,
-      });
-
-      const response = await client.chat.completions.create({
-        model: "gpt-4.1", // Or a model configured for this task
-        messages: messages as any,
-        stream: false,
-      });
-
-      const aiResponse = response.choices[0]?.message?.content;
-      if (!aiResponse) {
-        throw new Error(
-          "AI did not return a valid response for parameter parsing."
-        );
-      }
-
-      console.log(
-        `[ToolService] parseParametersWithAI: AI response: "${aiResponse}"`
-      );
-
-      // The AI's response IS the parameter value.
-      if (toolInfo.parameters.length === 1) {
-        const parsedParams: ParameterValue[] = [
-          {
-            name: toolInfo.parameters[0].name,
-            value: aiResponse.trim(),
-          },
-        ];
-        console.log(
-          "[ToolService] parseParametersWithAI: Parsed parameters:",
-          parsedParams
-        );
-        return parsedParams;
-      }
-
-      console.warn(
-        `[ToolService] AI parameter parsing for multi-parameter tools is not fully implemented. Using fallback.`
-      );
-      return [{ name: "parameters", value: aiResponse.trim() }];
-    } catch (error) {
-      console.error(
-        `[ToolService] parseParametersWithAI: Failed to call local AI server:`,
-        error
-      );
-      const errorMessage =
-        typeof error === "string"
-          ? error
-          : error instanceof Error
-          ? error.message
-          : "An unknown error occurred during parameter parsing.";
-      throw new Error(errorMessage);
-    }
-  }
+  // Note: parseParametersWithAI removed - tool parameter parsing is now handled by backend
+  // This method was used for AI-based parameter extraction, but is no longer needed
+  // since tools are called autonomously by LLM with structured JSON format
 
   /**
    * Execute tool
@@ -270,92 +162,15 @@ export class ToolService {
     }
   }
 
-  /**
-   * Check if tool exists
-   */
-  async toolExists(toolName: string): Promise<boolean> {
-    try {
-      const tools = await this.getAvailableTools();
-      return tools.some((tool) => tool.name === toolName);
-    } catch (error) {
-      console.error("Failed to check tool existence:", error);
-      return false;
-    }
-  }
-
-  /**
-   * Get tool information
-   */
-  async getToolInfo(toolName: string): Promise<ToolUIInfo | null> {
-    try {
-      const tools = await this.getAvailableTools();
-      const tool = tools.find((tool) => tool.name === toolName);
-      if (!tool) {
-        // Return null instead of throwing, allows for graceful checking.
-        console.warn(`Tool "${toolName}" does not exist.`);
-        return null;
-      }
-      return tool;
-    } catch (error) {
-      console.error("Failed to get tool info:", error);
-      // Re-throw to be handled by the caller
-      throw new Error(
-        `Failed to get information for tool "${toolName}": ${error}`
-      );
-    }
-  }
-
-  /**
-   * Checks if a tool requires user approval before execution.
-   * This is based on the tool's definition in the backend.
-   */
-  async toolRequiresApproval(toolName: string): Promise<boolean> {
-    try {
-      const toolInfo = await this.getToolInfo(toolName);
-      // Corresponds to the `required_approval` field in the Rust Tool trait.
-      // If tool not found or info is incomplete, default to requiring approval for safety.
-      return toolInfo?.required_approval ?? true;
-    } catch (error) {
-      console.error(`Error checking approval for tool "${toolName}":`, error);
-      // Default to true for safety if there's an error fetching info.
-      return true;
-    }
-  }
-
-  /**
-   * Gets all available tools (built-in and MCP) and formats them as a string
-   * to be injected into the system prompt.
-   */
-  async getAllToolsForPrompt(): Promise<string> {
-    let toolDefinitions = "<tools>\n";
-
-    try {
-      // 1. Get built-in tools
-      const builtInTools = await this.getAvailableTools();
-      for (const tool of builtInTools) {
-        toolDefinitions += "  <tool>\n";
-        toolDefinitions += `    <name>${tool.name}</name>\n`;
-        toolDefinitions += `    <description>${tool.description}</description>\n`;
-        toolDefinitions += "    <parameters>\n";
-        for (const param of tool.parameters) {
-          toolDefinitions += `      <parameter name="${param.name}" type="${param.type}" required="${param.required}">${param.description}</parameter>\n`;
-        }
-        toolDefinitions += "    </parameters>\n";
-        toolDefinitions += "  </tool>\n";
-      }
-
-      // 2. Get MCP tools
-      // TODO: Implement the `get_mcp_tools` command in the Rust backend.
-      // This command should return a list of ToolUIInfo for all connected MCP servers.
-      // const mcpTools = await invoke<ToolUIInfo[]>("get_mcp_tools");
-      // for (const tool of mcpTools) {
-      //   ... (add similar XML formatting for MCP tools) ...
-      // }
-    } catch (error) {
-      console.error("Failed to get all tools for prompt:", error);
-    }
-
-    toolDefinitions += "</tools>";
-    return toolDefinitions;
-  }
+  // Note: The following methods removed - tools are no longer exposed to frontend:
+  // - toolExists() - Tool existence checking no longer needed
+  // - getToolInfo() - Tool information no longer accessible from frontend
+  // - toolRequiresApproval() - Approval checking handled by backend agent loop
+  // - getAllToolsForPrompt() - Tool injection now handled by backend SystemPromptEnhancer
+  //
+  // These methods were used when frontend needed to know about available tools,
+  // but according to refactor-tools-to-llm-agent-mode design, tools are now:
+  // 1. Injected into system prompts by backend
+  // 2. Called autonomously by LLM via JSON format
+  // 3. Approved and executed in backend agent loops
 }

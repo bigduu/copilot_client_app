@@ -132,17 +132,17 @@
 - [x] 5.3.10 Optional custom answer textarea when allow_custom=true
 
 ### 5.4 Message Type Routing
-- [ ] 5.4.1 Update MessageCard component to check message_type (READY FOR INTEGRATION)
-- [ ] 5.4.2 Route to PlanMessageCard for "plan" type (READY FOR INTEGRATION)
-- [ ] 5.4.3 Route to QuestionMessageCard for "question" type (READY FOR INTEGRATION)
-- [ ] 5.4.4 Use existing card for "text" messages (READY FOR INTEGRATION)
-- [ ] 5.4.5 Handle backward compatibility (default to text) (READY FOR INTEGRATION)
+- [x] 5.4.1 Update MessageCard component to check message_type
+- [x] 5.4.2 Route to PlanMessageCard for "plan" type
+- [x] 5.4.3 Route to QuestionMessageCard for "question" type
+- [x] 5.4.4 Use existing card for "text" messages
+- [x] 5.4.5 Handle backward compatibility (default to text)
 
 ### 5.5 Mode Indicator in Chat UI
-- [ ] 5.5.1 Add AgentRoleSelector to chat header (READY FOR INTEGRATION)
-- [ ] 5.5.2 Pass current context.config.agent_role prop (READY FOR INTEGRATION)
-- [ ] 5.5.3 Handle role changes with context refresh (READY FOR INTEGRATION)
-- [ ] 5.5.4 Disable during message processing (READY FOR INTEGRATION)
+- [x] 5.5.1 Add AgentRoleSelector to chat header
+- [x] 5.5.2 Pass current context.config.agent_role prop
+- [x] 5.5.3 Handle role changes with context refresh
+- [x] 5.5.4 Disable during message processing
 
 ## 6. Prompt Engineering
 
@@ -177,6 +177,7 @@
 - [x] 7.1.5 Question message parsing: detects type="question" correctly ✅
 - [x] 7.1.6 Message type set automatically on LLM response ✅
 - [x] 7.1.7 All Rust crates compile successfully ✅
+- [x] 7.1.8 MessageDTO includes message_type field in API responses ✅
 
 ### 7.2 Frontend Component Tests
 - [x] 7.2.1 AgentRoleSelector component created with full functionality ✅

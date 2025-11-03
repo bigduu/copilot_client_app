@@ -8,6 +8,8 @@ use async_trait::async_trait;
 use serde_json::json;
 
 // Command execution tool
+// ⚠️ DEPRECATED: Use ExecuteCommandWorkflow instead for safer command execution
+// This tool will be removed in a future version.
 #[derive(Debug)]
 pub struct ExecuteCommandTool;
 

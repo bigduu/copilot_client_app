@@ -1,15 +1,27 @@
 import React, { useState, useEffect } from "react";
-import { Modal, List, Radio, theme, Typography, Space, Empty, Tag } from "antd";
+import {
+  Modal,
+  List,
+  Radio,
+  theme,
+  Typography,
+  Space,
+  Empty,
+  Tag,
+  Button,
+  Card,
+} from "antd";
 import {
   ModalFooter,
   createCancelButton,
   createOkButton,
 } from "../ModalFooter";
-import { ToolOutlined } from "@ant-design/icons";
+import { ToolOutlined, EyeOutlined } from "@ant-design/icons";
+import ReactMarkdown from "react-markdown";
 import { UserSystemPrompt } from "../../types/chat";
 import { useAppStore } from "../../store";
 
-const { Text } = Typography;
+const { Text, Paragraph } = Typography;
 const { useToken } = theme;
 
 interface SystemPromptSelectorProps {
@@ -38,6 +50,9 @@ const SystemPromptSelector: React.FC<SystemPromptSelectorProps> = ({
   );
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [expandedPreviewId, setExpandedPreviewId] = useState<string | null>(
+    null
+  );
 
   useEffect(() => {
     if (open) {
@@ -59,50 +74,162 @@ const SystemPromptSelector: React.FC<SystemPromptSelectorProps> = ({
     onClose();
   };
 
-  const renderPromptItem = (prompt: UserSystemPrompt) => (
-    <List.Item
-      key={prompt.id}
-      style={{
-        cursor: "pointer",
-        padding: token.paddingMD,
-        borderRadius: token.borderRadius,
-        border:
-          selectedId === prompt.id
+  const renderPromptItem = (prompt: UserSystemPrompt) => {
+    const isSelected = selectedId === prompt.id;
+    const isExpanded = expandedPreviewId === prompt.id;
+
+    return (
+      <List.Item
+        key={prompt.id}
+        style={{
+          cursor: "pointer",
+          padding: token.paddingMD,
+          borderRadius: token.borderRadius,
+          border: isSelected
             ? `2px solid ${token.colorPrimary}`
             : `1px solid ${token.colorBorderSecondary}`,
-        marginBottom: token.marginXS,
-        backgroundColor:
-          selectedId === prompt.id
+          marginBottom: token.marginXS,
+          backgroundColor: isSelected
             ? token.colorPrimaryBg
             : token.colorBgContainer,
-        transition: "all 0.2s ease",
-      }}
-      onClick={() => setSelectedId(prompt.id)}
-    >
-      <Space direction="vertical" style={{ width: "100%" }}>
-        <Space>
-          <Radio
-            checked={selectedId === prompt.id}
-            onChange={() => setSelectedId(prompt.id)}
-          />
-          <Text strong>{prompt.name}</Text>
-          {prompt.isDefault && <Tag>Default</Tag>}
-        </Space>
-        <Text
-          style={{
-            fontSize: token.fontSize,
-            marginLeft: token.marginLG,
-            lineHeight: 1.5,
-            color: token.colorTextSecondary,
-            display: "block",
-          }}
+          transition: "all 0.2s ease",
+        }}
+        onClick={() => setSelectedId(prompt.id)}
+      >
+        <Space
+          direction="vertical"
+          style={{ width: "100%" }}
+          size={token.marginSM}
         >
-          {prompt.content.substring(0, 150) +
-            (prompt.content.length > 150 ? "..." : "")}
-        </Text>
-      </Space>
-    </List.Item>
-  );
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "flex-start",
+              width: "100%",
+            }}
+          >
+            <Space>
+              <Radio
+                checked={isSelected}
+                onChange={() => setSelectedId(prompt.id)}
+                onClick={(e) => e.stopPropagation()}
+              />
+              <Text strong>{prompt.name}</Text>
+              {prompt.isDefault && <Tag>Default</Tag>}
+            </Space>
+            <Button
+              type="text"
+              size="small"
+              icon={<EyeOutlined />}
+              onClick={(e) => {
+                e.stopPropagation();
+                setExpandedPreviewId(isExpanded ? null : prompt.id);
+              }}
+            >
+              {isExpanded ? "Hide" : "Preview"}
+            </Button>
+          </div>
+
+          {!isExpanded && (
+            <Text
+              style={{
+                fontSize: token.fontSize,
+                marginLeft: token.marginLG,
+                lineHeight: 1.5,
+                color: token.colorTextSecondary,
+                display: "block",
+              }}
+            >
+              {prompt.content.substring(0, 150) +
+                (prompt.content.length > 150 ? "..." : "")}
+            </Text>
+          )}
+
+          {isExpanded && (
+            <Card
+              size="small"
+              style={{
+                marginLeft: token.marginLG,
+                marginTop: token.marginXS,
+                backgroundColor: token.colorBgLayout,
+              }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div
+                style={{
+                  maxHeight: "400px",
+                  overflowY: "auto",
+                  paddingRight: token.paddingXS,
+                }}
+              >
+                <ReactMarkdown
+                  components={{
+                    p: ({ children }) => (
+                      <Paragraph style={{ marginBottom: token.marginSM }}>
+                        {children}
+                      </Paragraph>
+                    ),
+                    ol: ({ children }) => (
+                      <ol
+                        style={{
+                          marginBottom: token.marginSM,
+                          paddingLeft: 20,
+                        }}
+                      >
+                        {children}
+                      </ol>
+                    ),
+                    ul: ({ children }) => (
+                      <ul
+                        style={{
+                          marginBottom: token.marginSM,
+                          paddingLeft: 20,
+                        }}
+                      >
+                        {children}
+                      </ul>
+                    ),
+                    li: ({ children }) => (
+                      <li style={{ marginBottom: token.marginXS }}>
+                        {children}
+                      </li>
+                    ),
+                    h1: ({ children }) => (
+                      <Text
+                        strong
+                        style={{
+                          fontSize: token.fontSizeHeading3,
+                          marginBottom: token.marginSM,
+                          display: "block",
+                        }}
+                      >
+                        {children}
+                      </Text>
+                    ),
+                    h2: ({ children }) => (
+                      <Text
+                        strong
+                        style={{
+                          fontSize: token.fontSizeHeading4,
+                          marginBottom: token.marginSM,
+                          display: "block",
+                        }}
+                      >
+                        {children}
+                      </Text>
+                    ),
+                  }}
+                >
+                  {prompt.content}
+                </ReactMarkdown>
+              </div>
+            </Card>
+          )}
+        </Space>
+      </List.Item>
+    );
+  };
 
   return (
     <Modal

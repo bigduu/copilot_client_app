@@ -12,7 +12,7 @@ export interface ChatContextDTO {
     mode: string;
     parameters: Record<string, any>;
     system_prompt_id?: string;
-    agent_role?: "planner" | "actor"; // Agent role (default: actor)
+    agent_role: "planner" | "actor"; // Agent role (always present from backend)
   };
   current_state: string;
   active_branch_name: string;
@@ -98,9 +98,7 @@ export class BackendContextService {
 
       if (!response.ok) {
         const errorText = await response.text();
-        throw new Error(
-          `API error: ${response.status} - ${errorText}`
-        );
+        throw new Error(`API error: ${response.status} - ${errorText}`);
       }
 
       // Handle empty responses
@@ -128,7 +126,10 @@ export class BackendContextService {
     return this.request<ChatContextDTO>(`/contexts/${id}`);
   }
 
-  async updateContext(id: string, updates: Partial<ChatContextDTO>): Promise<void> {
+  async updateContext(
+    id: string,
+    updates: Partial<ChatContextDTO>
+  ): Promise<void> {
     await this.request<void>(`/contexts/${id}`, {
       method: "PUT",
       body: JSON.stringify(updates),
@@ -142,7 +143,9 @@ export class BackendContextService {
   }
 
   async listContexts(): Promise<Array<ChatContextDTO>> {
-    const response = await this.request<{ contexts: ChatContextDTO[] }>("/contexts");
+    const response = await this.request<{ contexts: ChatContextDTO[] }>(
+      "/contexts"
+    );
     return response.contexts || [];
   }
 
@@ -150,14 +153,21 @@ export class BackendContextService {
   async getMessages(
     contextId: string,
     params?: MessageQueryParams
-  ): Promise<{ messages: MessageDTO[]; total: number; limit: number; offset: number }> {
+  ): Promise<{
+    messages: MessageDTO[];
+    total: number;
+    limit: number;
+    offset: number;
+  }> {
     const queryParams = new URLSearchParams();
     if (params?.branch) queryParams.append("branch", params.branch);
     if (params?.limit) queryParams.append("limit", params.limit.toString());
     if (params?.offset) queryParams.append("offset", params.offset.toString());
 
     const query = queryParams.toString();
-    const endpoint = `/contexts/${contextId}/messages${query ? `?${query}` : ""}`;
+    const endpoint = `/contexts/${contextId}/messages${
+      query ? `?${query}` : ""
+    }`;
 
     return this.request<{
       messages: MessageDTO[];
@@ -167,14 +177,20 @@ export class BackendContextService {
     }>(endpoint);
   }
 
-  async addMessage(contextId: string, message: AddMessageRequest): Promise<void> {
+  async addMessage(
+    contextId: string,
+    message: AddMessageRequest
+  ): Promise<void> {
     await this.request<void>(`/contexts/${contextId}/messages`, {
       method: "POST",
       body: JSON.stringify(message),
     });
   }
 
-  async approveTools(contextId: string, req: ApproveToolsRequest): Promise<void> {
+  async approveTools(
+    contextId: string,
+    req: ApproveToolsRequest
+  ): Promise<void> {
     await this.request<void>(`/contexts/${contextId}/tools/approve`, {
       method: "POST",
       body: JSON.stringify(req),
@@ -184,17 +200,23 @@ export class BackendContextService {
   // ============================================================================
   // ACTION-BASED API (Backend-First Architecture)
   // ============================================================================
-  
+
   /**
    * Send a message using the action-based API.
    * The backend FSM handles all processing and auto-saves state.
    * Returns the updated context and status.
    */
-  async sendMessageAction(contextId: string, content: string): Promise<ActionResponse> {
-    return this.request<ActionResponse>(`/contexts/${contextId}/actions/send_message`, {
-      method: "POST",
-      body: JSON.stringify({ content }),
-    });
+  async sendMessageAction(
+    contextId: string,
+    content: string
+  ): Promise<ActionResponse> {
+    return this.request<ActionResponse>(
+      `/contexts/${contextId}/actions/send_message`,
+      {
+        method: "POST",
+        body: JSON.stringify({ content }),
+      }
+    );
   }
 
   /**
@@ -205,17 +227,25 @@ export class BackendContextService {
    * @param onChunk - Callback for each content chunk
    * @param onDone - Callback when stream is complete
    * @param onError - Callback for errors
+   * @param onApprovalRequired - Callback when agent-initiated tool requires approval
    */
   async sendMessageStream(
-    contextId: string, 
+    contextId: string,
     content: string,
     onChunk: (chunk: string) => void,
     onDone: () => void,
-    onError: (error: string) => void
+    onError: (error: string) => void,
+    onApprovalRequired?: (data: {
+      request_id: string;
+      session_id: string;
+      tool: string;
+      tool_description: string;
+      parameters: Record<string, any>;
+    }) => void
   ): Promise<void> {
     try {
       // Use API_BASE_URL which already includes /v1, then add /chat path
-      const baseUrl = API_BASE_URL.replace('/v1', ''); // http://127.0.0.1:8080
+      const baseUrl = API_BASE_URL.replace("/v1", ""); // http://127.0.0.1:8080
       const response = await fetch(`${baseUrl}/v1/chat/${contextId}/stream`, {
         method: "POST",
         headers: {
@@ -238,7 +268,7 @@ export class BackendContextService {
 
       while (true) {
         const { done, value } = await reader.read();
-        
+
         if (done) break;
 
         buffer += decoder.decode(value, { stream: true });
@@ -250,7 +280,20 @@ export class BackendContextService {
             const data = line.slice(6); // Remove "data: " prefix
             try {
               const parsed = JSON.parse(data);
-              if (parsed.done) {
+              if (parsed.type === "approval_required") {
+                // Agent-initiated tool call requires user approval
+                console.log("🔒 Agent tool approval required:", parsed);
+                if (onApprovalRequired) {
+                  onApprovalRequired({
+                    request_id: parsed.request_id,
+                    session_id: parsed.session_id,
+                    tool: parsed.tool,
+                    tool_description: parsed.tool_description,
+                    parameters: parsed.parameters,
+                  });
+                }
+                // Don't return here - wait for done signal
+              } else if (parsed.done) {
                 onDone();
                 return;
               } else if (parsed.content) {
@@ -279,11 +322,40 @@ export class BackendContextService {
    * The backend FSM continues processing and auto-saves state.
    * Returns the updated context and status.
    */
-  async approveToolsAction(contextId: string, toolCallIds: string[]): Promise<ActionResponse> {
-    return this.request<ActionResponse>(`/contexts/${contextId}/actions/approve_tools`, {
-      method: "POST",
-      body: JSON.stringify({ tool_call_ids: toolCallIds }),
-    });
+  async approveToolsAction(
+    contextId: string,
+    toolCallIds: string[]
+  ): Promise<ActionResponse> {
+    return this.request<ActionResponse>(
+      `/contexts/${contextId}/actions/approve_tools`,
+      {
+        method: "POST",
+        body: JSON.stringify({ tool_call_ids: toolCallIds }),
+      }
+    );
+  }
+
+  /**
+   * Approve or reject an agent-initiated tool call.
+   * Used when the LLM autonomously invokes a tool that requires user approval.
+   */
+  async approveAgentToolCall(
+    sessionId: string,
+    requestId: string,
+    approved: boolean,
+    reason?: string
+  ): Promise<{ status: string; message: string }> {
+    return await this.request<{ status: string; message: string }>(
+      `/chat/${sessionId}/approve-agent`,
+      {
+        method: "POST",
+        body: JSON.stringify({
+          request_id: requestId,
+          approved,
+          reason,
+        }),
+      }
+    );
   }
 
   /**
@@ -300,7 +372,10 @@ export class BackendContextService {
    * @param role - The new role ("planner" or "actor")
    * @returns Response with success status and updated role information
    */
-  async updateAgentRole(contextId: string, role: "planner" | "actor"): Promise<{
+  async updateAgentRole(
+    contextId: string,
+    role: "planner" | "actor"
+  ): Promise<{
     success: boolean;
     context_id: string;
     old_role: string;
@@ -351,4 +426,3 @@ export class BackendContextService {
 
 // Singleton instance
 export const backendContextService = new BackendContextService();
-
