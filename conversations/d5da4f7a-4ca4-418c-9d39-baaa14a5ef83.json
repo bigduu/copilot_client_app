@@ -1,0 +1,57 @@
+{
+  "id": "d5da4f7a-4ca4-418c-9d39-baaa14a5ef83",
+  "parent_id": null,
+  "config": {
+    "model_id": "gpt-4",
+    "mode": "chat",
+    "parameters": {},
+    "system_prompt_id": "general_assistant",
+    "agent_role": "actor",
+    "workspace_path": "/Users/bigduu/Workspace/TauriProjects/copilot_chat"
+  },
+  "message_pool": {
+    "10391a69-4000-49b7-b97f-b270ded18ca2": {
+      "id": "10391a69-4000-49b7-b97f-b270ded18ca2",
+      "message": {
+        "role": "Assistant",
+        "content": [
+          {
+            "type": "text",
+            "text": "The `Cargo.toml` file is the configuration file for a Rust project. It defines the package metadata, dependencies, build scripts, and other settings for your Rust project. Here's an example of what a basic `Cargo.toml` file might look like:\n\n```toml\n[package]\nname = \"example_project\"       # Name of the package\nversion = \"0.1.0\"              # Version of the package\nauthors = [\"Your Name <your.email@example.com>\"]\nedition = \"2021\"               # Rust edition: 2015, 2018, or 2021\ndescription = \"A brief description of your project\"\nlicense = \"MIT\"                # Specify the license, e.g., MIT, Apache-2.0\nrepository = \"https://github.com/your/repo-url\"\nkeywords = [\"example\", \"tutorial\"]\ncategories = [\"command-line-utilities\"]\n\n[dependencies]\n# List of project dependencies\nserde = { version = \"1.0\", features = [\"derive\"] }  # Dependency with feature flags\ntokio = { version = \"1.0\", features = [\"full\"] }   # Async runtime\n\n[dev-dependencies]\n# Dependencies for development and testing\nrand = \"0.8\"                                      # Random number generator library\n\n[build-dependencies]\n# Dependencies required during build scripts\ncc = \"1.0\"                                        # C compiler for build operations\n\n[features]\n# Define optional features with feature flags\ndefault = []                                      # Default enabled features\nfoo = [\"dep:serde\"]                               # Feature that enables serde\n```\n\n### Key Sections\n1. `[package]`: Defines metadata about the package like name, version, authors, etc.\n2. `[dependencies]`: Lists libraries used by your project. You can specify features, versions, and additional metadata.\n3. `[dev-dependencies]`: Dependencies required only for development or tests.\n4. `[build-dependencies]`: Dependencies necessary for build scripts, not included in runtime.\n5. `[features]`: Optional sections for conditional compilation and enabling certain features.\n\n### Example Use Case\nIf you'd like to share your scenario or the specific purpose for this file (e.g., project details), I can help you tailor the content to your use case!"
+          }
+        ],
+        "metadata": null,
+        "message_type": "text"
+      },
+      "parent_id": "2461ba87-51b5-48b4-ab30-273c289a5e4f"
+    },
+    "2461ba87-51b5-48b4-ab30-273c289a5e4f": {
+      "id": "2461ba87-51b5-48b4-ab30-273c289a5e4f",
+      "message": {
+        "role": "User",
+        "content": [
+          {
+            "type": "text",
+            "text": "@Cargo.toml what the content"
+          }
+        ],
+        "metadata": null,
+        "message_type": "text"
+      },
+      "parent_id": null
+    }
+  },
+  "branches": {
+    "main": {
+      "name": "main",
+      "message_ids": [
+        "2461ba87-51b5-48b4-ab30-273c289a5e4f",
+        "10391a69-4000-49b7-b97f-b270ded18ca2"
+      ],
+      "system_prompt": null,
+      "user_prompt": null
+    }
+  },
+  "active_branch_name": "main",
+  "current_state": "Idle"
+}

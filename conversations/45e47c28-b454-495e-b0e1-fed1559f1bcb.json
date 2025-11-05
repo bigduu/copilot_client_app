@@ -1,0 +1,169 @@
+{
+  "id": "45e47c28-b454-495e-b0e1-fed1559f1bcb",
+  "parent_id": null,
+  "config": {
+    "model_id": "gpt-4",
+    "mode": "chat",
+    "parameters": {},
+    "system_prompt_id": "general_assistant",
+    "agent_role": "actor",
+    "workspace_path": "/Users/bigduu/Workspace/TauriProjects/copilot_chat"
+  },
+  "message_pool": {
+    "80ed503c-7eaa-44ae-b2a5-3f8161062077": {
+      "id": "80ed503c-7eaa-44ae-b2a5-3f8161062077",
+      "message": {
+        "role": "Assistant",
+        "content": [
+          {
+            "type": "text",
+            "text": "Approved tool call: execute_command"
+          }
+        ],
+        "metadata": null,
+        "message_type": "text"
+      },
+      "parent_id": "61c608ba-1e53-4f2c-af7f-5e66c96b7fe0"
+    },
+    "61c608ba-1e53-4f2c-af7f-5e66c96b7fe0": {
+      "id": "61c608ba-1e53-4f2c-af7f-5e66c96b7fe0",
+      "message": {
+        "role": "Tool",
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"status\":\"success\",\"stdout\":\"Applications\\naws\\ncom.visualstudio.code.tunnel.plist\\ndatabases\\nDesktop\\ndevtools\\nDocuments\\nDownloads\\niboysoft-extensions\\nideaScript\\nIdeaSnapshots\\nLibrary\\nMovies\\nMusic\\nOrbStack\\nParallels\\nPictures\\nPublic\\nSites\\ntoken\\nwatermark.txt\\nWeChatProjects\\nWorkspace\\n\"}"
+          }
+        ],
+        "metadata": null,
+        "message_type": "text"
+      },
+      "parent_id": "afa2400e-a60a-4124-80c0-8bce62883264"
+    },
+    "c55dac35-c75a-406d-9c1e-c635409d0924": {
+      "id": "c55dac35-c75a-406d-9c1e-c635409d0924",
+      "message": {
+        "role": "User",
+        "content": [
+          {
+            "type": "text",
+            "text": "Hi"
+          }
+        ],
+        "metadata": null,
+        "message_type": "text"
+      },
+      "parent_id": null
+    },
+    "c618044a-1144-408a-a5b6-ab5ac01005ac": {
+      "id": "c618044a-1144-408a-a5b6-ab5ac01005ac",
+      "message": {
+        "role": "User",
+        "content": [
+          {
+            "type": "text",
+            "text": "@Cargo.lock what's the content"
+          }
+        ],
+        "metadata": null,
+        "message_type": "text"
+      },
+      "parent_id": "9e37a508-63f0-4999-a62b-008b6527410d"
+    },
+    "0d0d324e-335b-42bb-97e5-021f830d7bf8": {
+      "id": "0d0d324e-335b-42bb-97e5-021f830d7bf8",
+      "message": {
+        "role": "User",
+        "content": [
+          {
+            "type": "text",
+            "text": "@Cargo.toml what's the content"
+          }
+        ],
+        "metadata": null,
+        "message_type": "text"
+      },
+      "parent_id": "c618044a-1144-408a-a5b6-ab5ac01005ac"
+    },
+    "7ad6deb9-bfec-4cf4-9fbf-36fd667ee80b": {
+      "id": "7ad6deb9-bfec-4cf4-9fbf-36fd667ee80b",
+      "message": {
+        "role": "User",
+        "content": [
+          {
+            "type": "text",
+            "text": "/execute_command  ls ~"
+          }
+        ],
+        "metadata": null,
+        "message_type": "text"
+      },
+      "parent_id": "f6717b17-ab86-490e-bd49-d6961f658683"
+    },
+    "afa2400e-a60a-4124-80c0-8bce62883264": {
+      "id": "afa2400e-a60a-4124-80c0-8bce62883264",
+      "message": {
+        "role": "Assistant",
+        "content": [
+          {
+            "type": "text",
+            "text": "```json\n{\n  \"tool\": \"execute_command\",\n  \"parameters\": {\n    \"command\": \"ls ~\"\n  },\n  \"terminate\": true\n}\n```"
+          }
+        ],
+        "metadata": null,
+        "message_type": "text"
+      },
+      "parent_id": "7ad6deb9-bfec-4cf4-9fbf-36fd667ee80b"
+    },
+    "f6717b17-ab86-490e-bd49-d6961f658683": {
+      "id": "f6717b17-ab86-490e-bd49-d6961f658683",
+      "message": {
+        "role": "Assistant",
+        "content": [
+          {
+            "type": "text",
+            "text": "Hello! How can I assist you today?"
+          }
+        ],
+        "metadata": null,
+        "message_type": "text"
+      },
+      "parent_id": "c55dac35-c75a-406d-9c1e-c635409d0924"
+    },
+    "9e37a508-63f0-4999-a62b-008b6527410d": {
+      "id": "9e37a508-63f0-4999-a62b-008b6527410d",
+      "message": {
+        "role": "User",
+        "content": [
+          {
+            "type": "text",
+            "text": "@Cargo.toml what's the content"
+          }
+        ],
+        "metadata": null,
+        "message_type": "text"
+      },
+      "parent_id": "80ed503c-7eaa-44ae-b2a5-3f8161062077"
+    }
+  },
+  "branches": {
+    "main": {
+      "name": "main",
+      "message_ids": [
+        "c55dac35-c75a-406d-9c1e-c635409d0924",
+        "f6717b17-ab86-490e-bd49-d6961f658683",
+        "7ad6deb9-bfec-4cf4-9fbf-36fd667ee80b",
+        "afa2400e-a60a-4124-80c0-8bce62883264",
+        "61c608ba-1e53-4f2c-af7f-5e66c96b7fe0",
+        "80ed503c-7eaa-44ae-b2a5-3f8161062077",
+        "9e37a508-63f0-4999-a62b-008b6527410d",
+        "c618044a-1144-408a-a5b6-ab5ac01005ac",
+        "0d0d324e-335b-42bb-97e5-021f830d7bf8"
+      ],
+      "system_prompt": null,
+      "user_prompt": null
+    }
+  },
+  "active_branch_name": "main",
+  "current_state": "AwaitingToolApproval"
+}

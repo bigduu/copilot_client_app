@@ -1,0 +1,72 @@
+{
+  "id": "a750c97d-be9a-4557-a86c-eb6d67989e3f",
+  "parent_id": null,
+  "config": {
+    "model_id": "gpt-4",
+    "mode": "chat",
+    "parameters": {},
+    "system_prompt_id": "general_assistant",
+    "agent_role": "actor"
+  },
+  "message_pool": {
+    "742ea071-9d7e-4562-b443-70d00580b257": {
+      "id": "742ea071-9d7e-4562-b443-70d00580b257",
+      "message": {
+        "role": "User",
+        "content": [
+          {
+            "type": "text",
+            "text": "123"
+          }
+        ],
+        "metadata": null,
+        "message_type": "text"
+      },
+      "parent_id": "b3a2426d-7f97-496f-96e9-9a744239f321"
+    },
+    "b6895392-e5d8-4ebf-a8a1-37b4d8bea96d": {
+      "id": "b6895392-e5d8-4ebf-a8a1-37b4d8bea96d",
+      "message": {
+        "role": "Assistant",
+        "content": [
+          {
+            "type": "text",
+            "text": "Hello! How can I assist you today? 😊"
+          }
+        ],
+        "metadata": null,
+        "message_type": "text"
+      },
+      "parent_id": "742ea071-9d7e-4562-b443-70d00580b257"
+    },
+    "b3a2426d-7f97-496f-96e9-9a744239f321": {
+      "id": "b3a2426d-7f97-496f-96e9-9a744239f321",
+      "message": {
+        "role": "User",
+        "content": [
+          {
+            "type": "text",
+            "text": "hi"
+          }
+        ],
+        "metadata": null,
+        "message_type": "text"
+      },
+      "parent_id": null
+    }
+  },
+  "branches": {
+    "main": {
+      "name": "main",
+      "message_ids": [
+        "b3a2426d-7f97-496f-96e9-9a744239f321",
+        "742ea071-9d7e-4562-b443-70d00580b257",
+        "b6895392-e5d8-4ebf-a8a1-37b4d8bea96d"
+      ],
+      "system_prompt": null,
+      "user_prompt": null
+    }
+  },
+  "active_branch_name": "main",
+  "current_state": "Idle"
+}

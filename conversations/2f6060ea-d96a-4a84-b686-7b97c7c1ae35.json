@@ -1,0 +1,117 @@
+{
+  "id": "2f6060ea-d96a-4a84-b686-7b97c7c1ae35",
+  "parent_id": null,
+  "config": {
+    "model_id": "gpt-4",
+    "mode": "chat",
+    "parameters": {},
+    "system_prompt_id": "general_assistant",
+    "agent_role": "actor",
+    "workspace_path": "/Users/bigduu/Workspace/TauriProjects/copilot_chat"
+  },
+  "message_pool": {
+    "330ca216-da64-44af-ab20-23f30c2451cb": {
+      "id": "330ca216-da64-44af-ab20-23f30c2451cb",
+      "message": {
+        "role": "Assistant",
+        "content": [
+          {
+            "type": "text",
+            "text": "[workspace]\nmembers = [\n    \"crates/copilot_client\",\n    \"crates/tool_system\",\n    \"crates/workflow_system\",\n    \"crates/mcp_client\",\n    \"crates/web_service\",\n    \"src-tauri\",\n    \"crates/web_service_standalone\",\n    \"crates/context_manager\",\n    \"crates/reqwest-sse\",\n]\nresolver = \"2\"\ndefault-members = [\"src-tauri\"]\n"
+          }
+        ],
+        "metadata": null,
+        "message_type": "text"
+      },
+      "parent_id": "d1ba5562-6639-4d0e-9abc-25e3d9d3becd"
+    },
+    "11e827f4-f45d-4fa6-8adf-fe5bba708f40": {
+      "id": "11e827f4-f45d-4fa6-8adf-fe5bba708f40",
+      "message": {
+        "role": "User",
+        "content": [
+          {
+            "type": "text",
+            "text": "Cool"
+          }
+        ],
+        "metadata": null,
+        "message_type": "text"
+      },
+      "parent_id": "330ca216-da64-44af-ab20-23f30c2451cb"
+    },
+    "23472e84-0ce0-4ba8-b654-b3c70d01eb34": {
+      "id": "23472e84-0ce0-4ba8-b654-b3c70d01eb34",
+      "message": {
+        "role": "User",
+        "content": [
+          {
+            "type": "text",
+            "text": "cool"
+          }
+        ],
+        "metadata": null,
+        "message_type": "text"
+      },
+      "parent_id": "11e827f4-f45d-4fa6-8adf-fe5bba708f40"
+    },
+    "d1ba5562-6639-4d0e-9abc-25e3d9d3becd": {
+      "id": "d1ba5562-6639-4d0e-9abc-25e3d9d3becd",
+      "message": {
+        "role": "Tool",
+        "content": [
+          {
+            "type": "text",
+            "text": "read_file → /Users/bigduu/Workspace/TauriProjects/copilot_chat/Cargo.toml"
+          }
+        ],
+        "tool_result": {
+          "request_id": "9562e6c8-a779-4ad7-9d46-013f6f20c7d0",
+          "result": {
+            "display_preference": "Default",
+            "is_error": false,
+            "path": "/Users/bigduu/Workspace/TauriProjects/copilot_chat/Cargo.toml",
+            "result": {
+              "content": "[workspace]\nmembers = [\n    \"crates/copilot_client\",\n    \"crates/tool_system\",\n    \"crates/workflow_system\",\n    \"crates/mcp_client\",\n    \"crates/web_service\",\n    \"src-tauri\",\n    \"crates/web_service_standalone\",\n    \"crates/context_manager\",\n    \"crates/reqwest-sse\",\n]\nresolver = \"2\"\ndefault-members = [\"src-tauri\"]\n"
+            },
+            "tool_name": "read_file"
+          }
+        },
+        "metadata": null,
+        "message_type": "tool_result"
+      },
+      "parent_id": "ae2ac8f9-e5c3-42ed-933e-cdfb14df7d88"
+    },
+    "ae2ac8f9-e5c3-42ed-933e-cdfb14df7d88": {
+      "id": "ae2ac8f9-e5c3-42ed-933e-cdfb14df7d88",
+      "message": {
+        "role": "User",
+        "content": [
+          {
+            "type": "text",
+            "text": "@Cargo.toml  what's the content"
+          }
+        ],
+        "metadata": null,
+        "message_type": "text"
+      },
+      "parent_id": null
+    }
+  },
+  "branches": {
+    "main": {
+      "name": "main",
+      "message_ids": [
+        "ae2ac8f9-e5c3-42ed-933e-cdfb14df7d88",
+        "d1ba5562-6639-4d0e-9abc-25e3d9d3becd",
+        "330ca216-da64-44af-ab20-23f30c2451cb",
+        "11e827f4-f45d-4fa6-8adf-fe5bba708f40",
+        "23472e84-0ce0-4ba8-b654-b3c70d01eb34"
+      ],
+      "system_prompt": null,
+      "user_prompt": null
+    }
+  },
+  "active_branch_name": "main",
+  "current_state": "ProcessingUserMessage"
+}

@@ -6,23 +6,24 @@
     "mode": "chat",
     "parameters": {},
     "system_prompt_id": "general_assistant",
-    "agent_role": "actor"
+    "agent_role": "actor",
+    "workspace_path": "/Users/bigduu"
   },
   "message_pool": {
-    "2ae3d683-c601-4248-9225-ad7dca2fce8a": {
-      "id": "2ae3d683-c601-4248-9225-ad7dca2fce8a",
+    "769f95c0-2ad4-454b-bc76-05c65545de15": {
+      "id": "769f95c0-2ad4-454b-bc76-05c65545de15",
       "message": {
         "role": "User",
         "content": [
           {
             "type": "text",
-            "text": "hi"
+            "text": "tell me a long story"
           }
         ],
         "metadata": null,
         "message_type": "text"
       },
-      "parent_id": null
+      "parent_id": "5221bbc9-7413-478c-aeb4-3f53b7dec965"
     },
     "5221bbc9-7413-478c-aeb4-3f53b7dec965": {
       "id": "5221bbc9-7413-478c-aeb4-3f53b7dec965",
@@ -39,21 +40,6 @@
       },
       "parent_id": "2ae3d683-c601-4248-9225-ad7dca2fce8a"
     },
-    "769f95c0-2ad4-454b-bc76-05c65545de15": {
-      "id": "769f95c0-2ad4-454b-bc76-05c65545de15",
-      "message": {
-        "role": "User",
-        "content": [
-          {
-            "type": "text",
-            "text": "tell me a long story"
-          }
-        ],
-        "metadata": null,
-        "message_type": "text"
-      },
-      "parent_id": "5221bbc9-7413-478c-aeb4-3f53b7dec965"
-    },
     "bc96b8d3-1f94-4761-83ce-7ac648b1beea": {
       "id": "bc96b8d3-1f94-4761-83ce-7ac648b1beea",
       "message": {
@@ -68,6 +54,21 @@
         "message_type": "text"
       },
       "parent_id": "769f95c0-2ad4-454b-bc76-05c65545de15"
+    },
+    "2ae3d683-c601-4248-9225-ad7dca2fce8a": {
+      "id": "2ae3d683-c601-4248-9225-ad7dca2fce8a",
+      "message": {
+        "role": "User",
+        "content": [
+          {
+            "type": "text",
+            "text": "hi"
+          }
+        ],
+        "metadata": null,
+        "message_type": "text"
+      },
+      "parent_id": null
     }
   },
   "branches": {
