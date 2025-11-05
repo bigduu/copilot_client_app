@@ -70,7 +70,7 @@ const ICON_MAP: Record<string, React.ReactNode> = {
  */
 export const getIconComponent = (
   iconName: string,
-  fallback: React.ReactNode = <ToolOutlined />
+  fallback: React.ReactNode = <ToolOutlined />,
 ): React.ReactNode => {
   // If it's already a React component or emoji, return as is
   if (

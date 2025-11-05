@@ -1,4 +1,4 @@
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use tool_system::types::ToolArguments;
 
@@ -9,11 +9,11 @@ pub struct ToolCallRequest {
     pub tool_name: String,
     pub arguments: ToolArguments,
     pub approval_status: ApprovalStatus,
-    
+
     /// How the tool result should be displayed in the UI
     #[serde(default = "DisplayPreference::default")]
     pub display_preference: DisplayPreference,
-    
+
     /// Additional UI rendering hints for the frontend
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub ui_hints: Option<HashMap<String, serde_json::Value>>,

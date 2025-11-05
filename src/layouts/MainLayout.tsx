@@ -23,7 +23,7 @@ export const MainLayout: React.FC<{
 
   useEffect(() => {
     // Check if we're running in Tauri environment
-    if (typeof window !== 'undefined' && (window as any).__TAURI_INTERNALS__) {
+    if (typeof window !== "undefined" && (window as any).__TAURI_INTERNALS__) {
       const unlisten = listen<{ message: string }>(
         "new-chat-message",
         async (event) => {
@@ -31,7 +31,7 @@ export const MainLayout: React.FC<{
           const messageContent = event.payload.message;
           console.log(
             "[MainLayout] Message content from spotlight:",
-            messageContent
+            messageContent,
           );
 
           // Create a full ChatItem object to add
@@ -64,14 +64,16 @@ export const MainLayout: React.FC<{
               };
             }
           }, 100);
-        }
+        },
       );
 
       return () => {
         unlisten.then((f) => f());
       };
     } else {
-      console.log("[MainLayout] Not running in Tauri environment, skipping event listener");
+      console.log(
+        "[MainLayout] Not running in Tauri environment, skipping event listener",
+      );
     }
   }, [addChat, selectChat]);
 
@@ -82,7 +84,7 @@ export const MainLayout: React.FC<{
       // Ensure the current chat is the one we just created
       if (chatId === currentChatId) {
         console.log(
-          `[MainLayout] useEffect: Auto-sending message for new chat ${chatId}.`
+          `[MainLayout] useEffect: Auto-sending message for new chat ${chatId}.`,
         );
         sendMessage(message);
         pendingAIRef.current = null; // Clear the flag

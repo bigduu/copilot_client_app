@@ -3,12 +3,12 @@
 //! Manages template variables for system prompts, allowing users to customize
 //! prompt behavior (language, response format, etc.) without modifying base prompts.
 
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::fs;
 use tokio::sync::RwLock;
-use serde::{Deserialize, Serialize};
 
 /// Template variable configuration
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -91,11 +91,9 @@ impl TemplateVariableService {
 
         let variables = self.variables.read().await;
         match serde_json::to_string_pretty(&*variables) {
-            Ok(content) => {
-                fs::write(&file_path, content)
-                    .await
-                    .map_err(|e| format!("Failed to write template variables file: {}", e))
-            }
+            Ok(content) => fs::write(&file_path, content)
+                .await
+                .map_err(|e| format!("Failed to write template variables file: {}", e)),
             Err(e) => Err(format!("Failed to serialize template variables: {}", e)),
         }
     }
@@ -146,4 +144,3 @@ impl TemplateVariableService {
         self.load_from_storage().await
     }
 }
-

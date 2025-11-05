@@ -3,13 +3,13 @@
 //! This module contains all shared types to eliminate duplication between
 //! category.rs and tool_types.rs from the old architecture.
 
-pub mod tool;
+pub mod arguments;
 pub mod category;
 pub mod common;
-pub mod arguments;
+pub mod tool;
 
 // Re-export all types for convenience
-pub use tool::*;
+pub use arguments::*;
 pub use category::*;
 pub use common::*;
-pub use arguments::*;
+pub use tool::*;

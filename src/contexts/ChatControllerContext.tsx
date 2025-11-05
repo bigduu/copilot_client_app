@@ -6,7 +6,7 @@ type ChatManagerContextType = ReturnType<typeof useChatManager>;
 
 // Create the context with an undefined initial value
 const ChatControllerContext = createContext<ChatManagerContextType | undefined>(
-  undefined
+  undefined,
 );
 
 // Custom hook to use the chat controller context
@@ -14,7 +14,7 @@ export const useChatController = () => {
   const context = useContext(ChatControllerContext);
   if (context === undefined) {
     throw new Error(
-      "useChatController must be used within a ChatControllerProvider"
+      "useChatController must be used within a ChatControllerProvider",
     );
   }
   return context;

@@ -6,5 +6,5 @@ import "antd/dist/reset.css"; // Import Ant Design CSS reset
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   <React.StrictMode>
     <App />
-  </React.StrictMode>
+  </React.StrictMode>,
 );

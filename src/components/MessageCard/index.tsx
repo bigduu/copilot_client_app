@@ -1,5 +1,5 @@
-import React, { useRef, useState, useMemo } from "react";
-import { Card, Space, Typography, theme, Dropdown, Collapse, Grid } from "antd";
+import React, { useRef, useState, useMemo, memo } from "react";
+import { Card, Space, Typography, theme, Dropdown, Grid } from "antd";
 import {
   CopyOutlined,
   BookOutlined,
@@ -23,6 +23,7 @@ import { useAppStore } from "../../store";
 import {
   isAssistantToolCallMessage,
   isAssistantToolResultMessage,
+  isWorkflowResultMessage,
   Message,
   PlanMessage,
   QuestionMessage,
@@ -30,6 +31,9 @@ import {
 import PlanMessageCard from "../PlanMessageCard";
 import QuestionMessageCard from "../QuestionMessageCard";
 import { useBackendContext } from "../../hooks/useBackendContext";
+import ToolResultCard from "../ToolResultCard";
+import WorkflowResultCard from "../WorkflowResultCard";
+import { format } from "date-fns";
 
 const { Text } = Typography;
 const { useToken } = theme;
@@ -43,7 +47,7 @@ interface MessageCardProps {
   messageType?: "text" | "plan" | "question" | "tool_call" | "tool_result";
 }
 
-const MessageCard: React.FC<MessageCardProps> = ({
+const MessageCardComponent: React.FC<MessageCardProps> = ({
   message,
   isStreaming = false,
   onDelete,
@@ -64,6 +68,19 @@ const MessageCard: React.FC<MessageCardProps> = ({
   const cardRef = useRef<HTMLDivElement>(null);
   const [selectedText, setSelectedText] = useState<string>("");
   const [isHovering, setIsHovering] = useState<boolean>(false);
+
+  const formattedTimestamp = useMemo(() => {
+    if (!message.createdAt) return null;
+    const parsed = new Date(message.createdAt);
+    if (Number.isNaN(parsed.getTime())) {
+      return null;
+    }
+    try {
+      return format(parsed, "MMM d, yyyy HH:mm");
+    } catch (error) {
+      return parsed.toLocaleString();
+    }
+  }, [message.createdAt]);
 
   // Extract message type: from prop, message type, or detect from content
   const detectedMessageType = useMemo(() => {
@@ -233,19 +250,22 @@ const MessageCard: React.FC<MessageCardProps> = ({
           .map((tc) => tc.toolName)
           .join(", ")}`;
       }
+      if (message.type === "workflow_result") {
+        return message.content;
+      }
     }
     return "";
   }, [message]);
 
   const isUserToolCall = useMemo(
     () => role === "user" && messageText.startsWith("/"),
-    [role, messageText]
+    [role, messageText],
   );
 
   // Create markdown components with current theme
   const markdownComponents = useMemo(
     () => createMarkdownComponents(token),
-    [token]
+    [token],
   );
 
   // Standardized plugin configuration for consistency
@@ -439,6 +459,7 @@ const MessageCard: React.FC<MessageCardProps> = ({
         contextId={currentContext?.id || ""}
         onExecute={handleExecutePlan}
         onRefine={handleRefinePlan}
+        timestamp={formattedTimestamp ?? undefined}
       />
     );
   }
@@ -454,6 +475,7 @@ const MessageCard: React.FC<MessageCardProps> = ({
         contextId={currentContext?.id || ""}
         onAnswer={handleQuestionAnswer}
         disabled={isLoading || false}
+        timestamp={formattedTimestamp ?? undefined}
       />
     );
   }
@@ -474,8 +496,8 @@ const MessageCard: React.FC<MessageCardProps> = ({
               role === "user"
                 ? token.colorPrimaryBg
                 : role === "assistant"
-                ? token.colorBgLayout
-                : token.colorBgContainer,
+                  ? token.colorBgLayout
+                  : token.colorBgContainer,
             borderRadius: token.borderRadiusLG,
             boxShadow: token.boxShadow,
             position: "relative",
@@ -490,17 +512,37 @@ const MessageCard: React.FC<MessageCardProps> = ({
             size={token.marginXS}
             style={{ width: "100%", maxWidth: "100%" }}
           >
-            <Text
-              type="secondary"
-              strong
-              style={{ fontSize: token.fontSizeSM }}
+            <div
+              style={{
+                display: "flex",
+                alignItems: "baseline",
+                justifyContent: "space-between",
+                gap: token.marginXS,
+              }}
             >
-              {role === "user"
-                ? "You"
-                : role === "assistant"
-                ? "Assistant"
-                : role}
-            </Text>
+              <Text
+                type="secondary"
+                strong
+                style={{ fontSize: token.fontSizeSM }}
+              >
+                {role === "user"
+                  ? "You"
+                  : role === "assistant"
+                    ? "Assistant"
+                    : role}
+              </Text>
+              {formattedTimestamp && (
+                <Text
+                  type="secondary"
+                  style={{
+                    fontSize: token.fontSizeSM,
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  {formattedTimestamp}
+                </Text>
+              )}
+            </div>
 
             {/* Images for User Messages */}
             {message.role === "user" && message.images && (
@@ -511,39 +553,68 @@ const MessageCard: React.FC<MessageCardProps> = ({
             <div style={{ width: "100%", maxWidth: "100%" }}>
               {/* Case 1: Assistant Tool Result */}
               {isAssistantToolResultMessage(message) ? (
-                <>
-                  {message.result.display_preference === "Collapsible" ? (
-                    <Collapse
-                      ghost
-                      size="small"
-                      items={[
-                        {
-                          key: "tool-result-panel",
-                          label: `View Result: ${message.toolName}`,
-                          children: (
-                            <ReactMarkdown
-                              remarkPlugins={markdownPlugins}
-                              rehypePlugins={rehypePlugins}
-                              components={markdownComponents}
-                            >
-                              {message.result.result}
-                            </ReactMarkdown>
-                          ),
-                        },
-                      ]}
+                (() => {
+                  const toolResultContent = message.result.result ?? "";
+                  const toolResultErrorMessage = message.isError
+                    ? toolResultContent || "Tool execution failed."
+                    : undefined;
+                  const toolResultIsLoading =
+                    !toolResultErrorMessage &&
+                    toolResultContent.trim().length === 0;
+
+                  if (message.result.display_preference === "Hidden") {
+                    return (
+                      <Text italic>Tool executed: {message.toolName}</Text>
+                    );
+                  }
+
+                  return (
+                    <ToolResultCard
+                      content={toolResultContent}
+                      toolName={message.toolName}
+                      status={
+                        message.isError
+                          ? "error"
+                          : toolResultIsLoading
+                            ? "warning"
+                            : "success"
+                      }
+                      timestamp={message.createdAt}
+                      defaultCollapsed={
+                        message.result.display_preference === "Collapsible"
+                      }
+                      isLoading={toolResultIsLoading}
+                      errorMessage={toolResultErrorMessage}
                     />
-                  ) : message.result.display_preference === "Hidden" ? (
-                    <Text italic>Tool executed: {message.toolName}</Text>
-                  ) : (
-                    <ReactMarkdown
-                      remarkPlugins={markdownPlugins}
-                      rehypePlugins={rehypePlugins}
-                      components={markdownComponents}
-                    >
-                      {message.result.result}
-                    </ReactMarkdown>
-                  )}
-                </>
+                  );
+                })()
+              ) : isWorkflowResultMessage(message) ? (
+                (() => {
+                  const workflowContent = message.content ?? "";
+                  const workflowErrorMessage =
+                    message.status === "error"
+                      ? workflowContent || "Workflow execution failed."
+                      : undefined;
+                  const workflowIsLoading =
+                    !workflowErrorMessage &&
+                    workflowContent.trim().length === 0;
+
+                  return (
+                    <WorkflowResultCard
+                      content={workflowContent}
+                      workflowName={message.workflowName}
+                      parameters={message.parameters}
+                      status={
+                        workflowIsLoading
+                          ? "warning"
+                          : (message.status ?? "success")
+                      }
+                      timestamp={message.createdAt}
+                      isLoading={workflowIsLoading}
+                      errorMessage={workflowErrorMessage}
+                    />
+                  );
+                })()
               ) : isAssistantToolCallMessage(message) ? (
                 // Case 2: Assistant Tool Call
                 <Space direction="vertical" style={{ width: "100%" }}>
@@ -614,5 +685,16 @@ const MessageCard: React.FC<MessageCardProps> = ({
     </div>
   );
 };
+
+const MessageCard = memo(MessageCardComponent, (prevProps, nextProps) => {
+  return (
+    prevProps.message === nextProps.message &&
+    prevProps.isStreaming === nextProps.isStreaming &&
+    prevProps.messageType === nextProps.messageType &&
+    prevProps.onDelete === nextProps.onDelete
+  );
+});
+
+MessageCard.displayName = "MessageCard";
 
 export default MessageCard;

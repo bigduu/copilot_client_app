@@ -1,4 +1,4 @@
-import { ChatItem, Message } from './chat';
+import { ChatItem, Message } from "./chat";
 
 // Unified result type
 export interface OperationResult<T> {
@@ -33,7 +33,7 @@ export interface UpdateChatOptions {
 // Create message options
 export interface CreateMessageOptions {
   content: string;
-  role: 'user' | 'assistant' | 'system';
+  role: "user" | "assistant" | "system";
   attachments?: Attachment[];
   processedAttachments?: AttachmentResult[];
   isHidden?: boolean;
@@ -45,7 +45,7 @@ export interface CreateMessageOptions {
 // Update message options
 export interface UpdateMessageOptions {
   content?: string;
-  role?: 'system' | 'user' | 'assistant';
+  role?: "system" | "user" | "assistant";
   processorUpdates?: string[];
   isHidden?: boolean;
   attachmentSummary?: string;
@@ -64,7 +64,7 @@ export interface ApprovalConfig {
 
 // Attachment request
 export interface AttachmentRequest {
-  type: 'image' | 'file' | 'url';
+  type: "image" | "file" | "url";
   content: string | File | Blob;
   metadata?: Record<string, any>;
 }
@@ -91,7 +91,7 @@ export interface ChatUpdates {
 
 export interface MessageUpdates {
   content?: string;
-  role?: 'system' | 'user' | 'assistant';
+  role?: "system" | "user" | "assistant";
   processorUpdates?: string[];
   isHidden?: boolean;
   attachmentSummary?: string;
@@ -100,7 +100,11 @@ export interface MessageUpdates {
 // Extended message type
 export type ExtendedMessage = Message & {
   isHidden?: boolean; // Controls whether the message is displayed in the GUI
-  messageType?: 'normal' | 'attachment_processing' | 'approval_request' | 'approval_response';
+  messageType?:
+    | "normal"
+    | "attachment_processing"
+    | "approval_request"
+    | "approval_response";
   attachmentSummary?: string; // Attachment processing result
   parentMessageId?: string; // Association
   metadata?: MessageMetadata; // Metadata
@@ -122,7 +126,7 @@ export interface MessageMetadata {
 // Attachment type
 export interface Attachment {
   id: string;
-  type: 'image' | 'file' | 'screenshot';
+  type: "image" | "file" | "screenshot";
   url: string;
   name: string;
   size: number;
@@ -131,7 +135,7 @@ export interface Attachment {
 
 // Image Attachment type (specifically for images in chat messages)
 export interface ImageAttachment extends Attachment {
-  type: 'image';
+  type: "image";
   base64: string; // Base64 encoded image data
   width?: number;
   height?: number;
@@ -142,7 +146,7 @@ export interface ImageAttachment extends Attachment {
 export interface ProcessingStep {
   id: string;
   step: string;
-  status: 'pending' | 'processing' | 'completed' | 'failed';
+  status: "pending" | "processing" | "completed" | "failed";
   timestamp: number;
   details?: any;
 }
@@ -150,15 +154,15 @@ export interface ProcessingStep {
 // Approval action type
 export interface ApprovalAction {
   id: string;
-  type: 'tool_execution' | 'file_operation' | 'system_change';
+  type: "tool_execution" | "file_operation" | "system_change";
   description: string;
   details: any;
-  riskLevel: 'low' | 'medium' | 'high';
+  riskLevel: "low" | "medium" | "high";
 }
 
 // Approval action type
 export interface ApprovalAction {
-  action: 'approve' | 'reject' | 'request';
+  action: "approve" | "reject" | "request";
   messageId?: string;
   reason?: string;
   automatic?: boolean;
@@ -168,21 +172,21 @@ export interface ApprovalAction {
 // Flow control result
 export interface ChatFlow {
   chatId: string;
-  status: 'created' | 'ready' | 'error';
+  status: "created" | "ready" | "error";
   chat: ChatItem;
 }
 
 export interface MessageFlow {
   messageId: string;
   chatId: string;
-  status: 'sent' | 'processing' | 'completed' | 'error';
+  status: "sent" | "processing" | "completed" | "error";
   message: ExtendedMessage;
 }
 
 export interface StreamResult {
   messageId: string;
   chatId: string;
-  status: 'streaming' | 'completed' | 'error';
+  status: "streaming" | "completed" | "error";
   content: string;
 }
 
@@ -202,7 +206,13 @@ export interface ApprovalFlow {
 
 // Batch operation type
 export interface Operation {
-  type: 'addChat' | 'updateChat' | 'deleteChat' | 'addMessage' | 'updateMessage' | 'deleteMessage';
+  type:
+    | "addChat"
+    | "updateChat"
+    | "deleteChat"
+    | "addMessage"
+    | "updateMessage"
+    | "deleteMessage";
   chatId?: string;
   messageId?: string;
   data: any;
@@ -268,7 +278,7 @@ export interface DeleteResult {
 // Tool flow result
 export interface ToolFlow {
   toolId: string;
-  status: 'pending' | 'approved' | 'rejected' | 'completed' | 'error';
+  status: "pending" | "approved" | "rejected" | "completed" | "error";
   result?: any;
   error?: string;
 }
@@ -276,7 +286,7 @@ export interface ToolFlow {
 // AI flow result
 export interface AIFlow {
   responseId: string;
-  status: 'generating' | 'completed' | 'error';
+  status: "generating" | "completed" | "error";
   content: string;
   processingTime: number;
 }

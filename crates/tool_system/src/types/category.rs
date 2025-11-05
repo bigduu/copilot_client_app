@@ -68,7 +68,9 @@ pub trait Category: Send + Sync + std::fmt::Debug {
                     auto_prefix: Some(format!("/{}", def.name)),
                     permissions: vec![],
                     tool_type: match def.tool_type {
-                        crate::types::ToolType::AIParameterParsing => "AIParameterParsing".to_string(),
+                        crate::types::ToolType::AIParameterParsing => {
+                            "AIParameterParsing".to_string()
+                        }
                         crate::types::ToolType::RegexParameterExtraction => {
                             "RegexParameterExtraction".to_string()
                         }

@@ -1,8 +1,8 @@
-use serde::{Serialize, Deserialize};
-use std::fmt;
-use uuid::Uuid;
 use crate::structs::metadata::MessageMetadata;
 use crate::structs::tool::{ToolCallRequest, ToolCallResult};
+use serde::{Deserialize, Serialize};
+use std::fmt;
+use uuid::Uuid;
 
 /// Message type defines how the message should be rendered and processed.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
@@ -34,17 +34,17 @@ pub struct MessageNode {
 pub struct InternalMessage {
     pub role: Role,
     pub content: Vec<ContentPart>,
-    
+
     /// If present, indicates this Assistant message is requesting tool calls.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tool_calls: Option<Vec<ToolCallRequest>>,
-    
+
     /// If present, indicates this Tool message is the result of a tool call.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tool_result: Option<ToolCallResult>,
-    
+
     pub metadata: Option<MessageMetadata>,
-    
+
     /// Message type for frontend rendering and processing
     #[serde(default)]
     pub message_type: MessageType,
@@ -73,7 +73,9 @@ impl fmt::Display for Role {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum ContentPart {
-    Text { text: String },
+    Text {
+        text: String,
+    },
     Image {
         url: String,
         #[serde(skip_serializing_if = "Option::is_none")]
@@ -83,7 +85,9 @@ pub enum ContentPart {
 
 impl ContentPart {
     pub fn text(s: &str) -> Self {
-        ContentPart::Text { text: s.to_string() }
+        ContentPart::Text {
+            text: s.to_string(),
+        }
     }
 
     pub fn text_owned(s: String) -> Self {

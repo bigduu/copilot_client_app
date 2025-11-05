@@ -1,36 +1,47 @@
 import { useCallback } from "react";
 
 interface PasteHandlerOptions {
-  onFiles: (files: File[]) => void;
+  onImages: (files: File[]) => void;
+  onAttachments?: (files: File[]) => void;
   allowImages: boolean;
 }
 
 export const usePasteHandler = ({
-  onFiles,
+  onImages,
+  onAttachments,
   allowImages,
 }: PasteHandlerOptions) => {
   const handlePaste = useCallback(
     (e: React.ClipboardEvent) => {
-      if (!allowImages || !e.clipboardData) return;
+      if (!e.clipboardData) return;
 
       const items = Array.from(e.clipboardData.items);
-      const imageFiles: File[] = [];
+      const images: File[] = [];
+      const otherFiles: File[] = [];
 
       items.forEach((item) => {
-        if (item.type.startsWith("image/")) {
+        if (item.kind === "file") {
           const file = item.getAsFile();
-          if (file) {
-            imageFiles.push(file);
+          if (!file) return;
+          if (file.type.startsWith("image/")) {
+            images.push(file);
+          } else {
+            otherFiles.push(file);
           }
         }
       });
 
-      if (imageFiles.length > 0) {
+      if (images.length > 0 && allowImages) {
         e.preventDefault();
-        onFiles(imageFiles);
+        onImages(images);
+      }
+
+      if (otherFiles.length > 0 && onAttachments) {
+        e.preventDefault();
+        onAttachments(otherFiles);
       }
     },
-    [allowImages, onFiles]
+    [allowImages, onImages, onAttachments],
   );
 
   return { handlePaste };

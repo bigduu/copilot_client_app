@@ -7,11 +7,13 @@ The current system requires users to manually invoke tools with `/command` synta
 This refactor introduces **LLM-driven autonomous tool usage** with agent loops, while creating a separate **Workflow system** for explicit user actions.
 
 ### Stakeholders
+
 - **Backend developers**: Implement agent loop, tool-to-prompt conversion, workflow system
 - **Frontend developers**: Replace tool UI with workflow UI, simplify state machine
 - **End users**: Benefit from autonomous LLM behavior and clearer workflow invocation
 
 ### Constraints
+
 - **No backward compatibility** - Clean architectural break
 - Agent loops must support approval gates (for safety)
 - Tool execution must remain sandboxed and secure
@@ -20,6 +22,7 @@ This refactor introduces **LLM-driven autonomous tool usage** with agent loops, 
 ## Goals / Non-Goals
 
 ### Goals
+
 - ✅ Enable LLM to autonomously call tools with structured JSON format
 - ✅ Implement agent loops where LLM can chain multiple tool calls
 - ✅ Move tool definitions and enhancement logic entirely to backend
@@ -28,6 +31,7 @@ This refactor introduces **LLM-driven autonomous tool usage** with agent loops, 
 - ✅ Maintain tool approval gates for security
 
 ### Non-Goals
+
 - ❌ Backward compatibility with existing tool system
 - ❌ Streaming tool results to frontend during agent loops (show final result only)
 - ❌ Complex workflow orchestration (e.g., conditional branches, loops) - Keep workflows simple initially
@@ -40,6 +44,7 @@ This refactor introduces **LLM-driven autonomous tool usage** with agent loops, 
 **What**: LLM must output tool calls in a strict, machine-parsable JSON format.
 
 **Format**:
+
 ```json
 {
   "tool": "read_file",
@@ -52,17 +57,20 @@ This refactor introduces **LLM-driven autonomous tool usage** with agent loops, 
 ```
 
 **Why**:
+
 - Eliminates ambiguity in parsing LLM output
 - `terminate` flag explicitly controls agent loop continuation
 - Easy to validate and extract from LLM response stream
 - Supports both single tool calls and agent loops
 
 **Alternatives considered**:
+
 - **XML format** (`<tool><name>...</name>...</tool>`) - More verbose, harder to parse in streaming
 - **Natural language parsing** - Too unreliable, requires additional LLM call to extract structure
 - **OpenAI function calling format** - Ties us to OpenAI API format, less flexible
 
 **System Prompt Instruction**:
+
 ```
 When you need to use a tool, output ONLY a JSON object in this exact format:
 {
@@ -80,6 +88,7 @@ Set "terminate" to true if this is your final action or you want to return a res
 **What**: Backend implements the agent execution loop, not frontend.
 
 **Flow**:
+
 1. Frontend sends user message to backend
 2. Backend calls LLM with enhanced system prompt (includes tools)
 3. Backend parses LLM response for JSON tool call
@@ -92,12 +101,14 @@ Set "terminate" to true if this is your final action or you want to return a res
 5. If no tool call found: Return LLM text response to frontend
 
 **Why**:
+
 - Frontend doesn't need to know about tools (cleaner separation)
 - Easier to implement approval gates in a loop
 - Agent state (chat history during loop) stays on backend
 - Reduces network round-trips during agent execution
 
 **Alternatives considered**:
+
 - **Frontend-driven loop** - More round-trips, frontend needs tool knowledge
 - **Hybrid** (frontend controls loop, backend executes) - Complex state synchronization
 
@@ -105,20 +116,22 @@ Set "terminate" to true if this is your final action or you want to return a res
 
 **What**: Introduce clear distinction between Tools (LLM-invoked) and Workflows (user-invoked).
 
-| Aspect | Tools | Workflows |
-|--------|-------|-----------|
-| **Invoked by** | LLM (autonomous) | User (explicit) |
-| **Visibility** | Hidden from frontend | Visible in UI selector |
-| **Definition location** | System prompt | Workflow registry |
-| **Parameter extraction** | LLM provides parameters | Parse from user input or form |
-| **Example** | `read_file`, `search_code` | `create_project`, `refactor_component` |
+| Aspect                   | Tools                      | Workflows                              |
+| ------------------------ | -------------------------- | -------------------------------------- |
+| **Invoked by**           | LLM (autonomous)           | User (explicit)                        |
+| **Visibility**           | Hidden from frontend       | Visible in UI selector                 |
+| **Definition location**  | System prompt              | Workflow registry                      |
+| **Parameter extraction** | LLM provides parameters    | Parse from user input or form          |
+| **Example**              | `read_file`, `search_code` | `create_project`, `refactor_component` |
 
 **Why**:
+
 - Clear mental model for users ("I tell LLM what I want, it uses tools; or I invoke workflow directly")
 - LLM can use tools without cluttering user UI
 - Workflows can have richer UX (forms, multi-step wizards) in the future
 
 **Migration strategy**:
+
 - Existing tools are classified as either Tools or Workflows based on usage pattern
 - Simple tools (read, write, search) → Tools (LLM-invoked)
 - Complex operations (create project, refactor) → Workflows (user-invoked)
@@ -142,11 +155,13 @@ Set "terminate" to true if this is your final action or you want to return a res
    - Reason: Our system controls the full interaction flow
 
 **New endpoint**: `GET /v1/system-prompts/{id}/enhanced`
+
 - Returns base prompt + tool definitions + mermaid instructions
 - Only called by our context-based endpoints
 - Frontend no longer calls `SystemPromptEnhancer.ts`
 
 **Why**:
+
 - **Compatibility**: External clients (Cline) work unchanged
 - **Separation of concerns**: Standard API vs our enhanced system
 - Frontend doesn't need to know about tools
@@ -154,6 +169,7 @@ Set "terminate" to true if this is your final action or you want to return a res
 - Backend can inject context-specific tools (based on chat state)
 
 **Implementation Strategy**:
+
 ```rust
 // In OpenAI controller
 async fn chat_completions(req: ChatRequest) -> Response {
@@ -169,11 +185,13 @@ async fn chat_completions(req: ChatRequest) -> Response {
 ```
 
 **Detection Logic**:
+
 - Check request source (header, path, authentication token)
 - If from `/v1/chat/completions` → passthrough mode
 - If from `/context/chat/*` → enhanced mode
 
 **Alternatives considered**:
+
 - **Frontend enhancement** - Requires exposing tools to frontend (defeats purpose)
 - **Always enhance** - Breaks compatibility with external clients
 - **Inline enhancement** (no separate endpoint) - Less testable, harder to debug
@@ -184,12 +202,14 @@ async fn chat_completions(req: ChatRequest) -> Response {
 **What**: Categories now organize Workflows in the frontend UI, not Tools.
 
 **Changes**:
+
 - `CategoryRegistry` in backend still exists but is internal
 - Tools are organized by categories in system prompt (for LLM context)
 - Workflows have categories that determine UI grouping
 - Frontend `/workflows/categories` endpoint returns workflow categories
 
 **Why**:
+
 - Categories are inherently a UI/organization concept
 - Tools don't need categories visible to users (LLM decides which to use)
 - Workflows benefit from categorization (helps users discover actions)
@@ -266,22 +286,22 @@ sequenceDiagram
 
     U->>B: POST /v1/chat (user message)
     B->>B: Enhance system prompt with tools
-    
+
     loop Agent Loop (until terminate=true)
         B->>L: Chat completion request
         L-->>B: Response with JSON tool call
         B->>B: Parse JSON: {"tool": "...", "terminate": false}
-        
+
         alt requires_approval
             B->>U: Request approval (WebSocket/SSE)
             U-->>B: Approve/Reject
         end
-        
+
         B->>T: Execute tool
         T-->>B: Tool result
         B->>B: Append result to chat history
     end
-    
+
     B->>L: Chat completion request (after last tool)
     L-->>B: Final text response (terminate=true implied)
     B-->>U: Stream final response to frontend
@@ -290,13 +310,15 @@ sequenceDiagram
 ## Risks / Trade-offs
 
 ### Risk: Infinite Agent Loops
+
 - **Risk**: LLM never sets `terminate: true`, causes infinite tool calling
-- **Mitigation**: 
+- **Mitigation**:
   - Backend enforces max loop iterations (e.g., 10)
   - Timeout for total agent execution (e.g., 5 minutes)
   - Log warning and force-terminate with error message
 
 ### Risk: Tool Call Parsing Failures
+
 - **Risk**: LLM doesn't output valid JSON, causes parsing errors
 - **Mitigation**:
   - Strict JSON schema validation
@@ -305,6 +327,7 @@ sequenceDiagram
   - Detailed logging for debugging LLM output issues
 
 ### Risk: System Prompt Size Explosion
+
 - **Risk**: Injecting all tools into prompt exceeds token limits
 - **Mitigation**:
   - Priority-based tool selection (only inject most relevant tools)
@@ -312,6 +335,7 @@ sequenceDiagram
   - Dynamic tool loading based on user intent (future enhancement)
 
 ### Risk: Approval Modal During Loops
+
 - **Risk**: User sees multiple approval modals in quick succession (confusing UX)
 - **Mitigation**:
   - Batch approval: "LLM wants to call 3 tools, approve all?"
@@ -319,6 +343,7 @@ sequenceDiagram
   - Detailed view on click shows individual tool calls
 
 ### Trade-off: Frontend Simplification vs Backend Complexity
+
 - **Benefit**: Frontend is much simpler (no tool parsing, no state machine complexity)
 - **Cost**: Backend handles more state (agent loop, chat history during execution)
 - **Verdict**: Acceptable - Backend is better suited for stateful operations
@@ -326,6 +351,7 @@ sequenceDiagram
 ## Migration Plan
 
 ### Phase 1: Backend Infrastructure (Week 1-2)
+
 1. Create `AgentService` for loop orchestration
 2. Add `terminate` flag support to tool definitions
 3. Implement JSON tool call parser
@@ -333,12 +359,14 @@ sequenceDiagram
 5. Create `WorkflowSystem` crate skeleton
 
 ### Phase 2: Tool-to-Prompt Conversion (Week 2-3)
+
 1. Implement tool definition serialization for system prompt
 2. Test LLM response with new prompt format
 3. Tune prompt instructions for reliable JSON output
 4. Handle edge cases (malformed JSON, missing fields)
 
 ### Phase 3: Frontend Refactor (Week 3-4)
+
 1. Remove `ToolSelector` component
 2. Create `WorkflowSelector` component
 3. Update `ChatInteractionMachine` (remove tool parsing)
@@ -346,12 +374,14 @@ sequenceDiagram
 5. Update `ApprovalModal` for agent loop context
 
 ### Phase 4: Testing & Iteration (Week 4-5)
+
 1. End-to-end testing of agent loops
 2. Load testing (multiple concurrent agent sessions)
 3. Edge case handling (timeout, errors, malformed JSON)
 4. UX refinement (approval flow, progress indicators)
 
 ### Rollback Plan
+
 - Keep old tool system code in a feature flag initially
 - If critical issues found, revert to feature flag
 - Full removal after 2 weeks of stable operation
@@ -372,4 +402,3 @@ sequenceDiagram
 
 5. **Q**: Should categories for tools vs workflows share the same definitions?
    - **A**: TBD - Likely separate registries, but could share category metadata
-

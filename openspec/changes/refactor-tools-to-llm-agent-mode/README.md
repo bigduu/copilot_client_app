@@ -6,6 +6,7 @@
 **Last Updated:** 2025-11-02
 
 **Quick Links:**
+
 - 📋 [Tasks Checklist](./tasks.md) - Detailed task list with completion status
 - 📈 [Status Report (English)](./STATUS.md) - Comprehensive progress report
 - 📈 [进度总结 (中文)](./进度总结.md) - 中文详细进度报告
@@ -120,23 +121,24 @@ Final Response to User
 
 ### Workflow vs Tool
 
-| Aspect | Tool (LLM-invoked) | Workflow (User-invoked) |
-|--------|-------------------|------------------------|
-| **Visibility** | Hidden in prompt | Visible in UI selector |
-| **Invoked by** | LLM autonomously | User explicitly |
-| **Example** | `read_file`, `search` | `/create_project`, button click |
+| Aspect         | Tool (LLM-invoked)    | Workflow (User-invoked)         |
+| -------------- | --------------------- | ------------------------------- |
+| **Visibility** | Hidden in prompt      | Visible in UI selector          |
+| **Invoked by** | LLM autonomously      | User explicitly                 |
+| **Example**    | `read_file`, `search` | `/create_project`, button click |
 
 ### API Path Distinction (Critical)
 
 The system uses **different prompt strategies** based on API path:
 
-| API Path | Client | Prompt Mode | Agent Loop | Use Case |
-|----------|--------|-------------|------------|----------|
-| `/v1/chat/completions` | External (Cline, Continue) | **Base (Original)** | ❌ Disabled | Standard OpenAI compatibility |
-| `/v1/models` | External | **Base (Original)** | ❌ Disabled | Model listing |
-| `/context/*` | Our Frontend | **Enhanced (Tools injected)** | ✅ Enabled | Full agent capabilities |
+| API Path               | Client                     | Prompt Mode                   | Agent Loop  | Use Case                      |
+| ---------------------- | -------------------------- | ----------------------------- | ----------- | ----------------------------- |
+| `/v1/chat/completions` | External (Cline, Continue) | **Base (Original)**           | ❌ Disabled | Standard OpenAI compatibility |
+| `/v1/models`           | External                   | **Base (Original)**           | ❌ Disabled | Model listing                 |
+| `/context/*`           | Our Frontend               | **Enhanced (Tools injected)** | ✅ Enabled  | Full agent capabilities       |
 
 **Why this matters**:
+
 - External clients like Cline expect standard OpenAI API behavior
 - Our system needs tools and agent loops for autonomous operation
 - Maintains compatibility while enabling advanced features for our frontend
@@ -151,4 +153,3 @@ The system uses **different prompt strategies** based on API path:
 ## Questions or Concerns?
 
 Review `design.md` section "Open Questions" for items that need discussion before implementation begins.
-

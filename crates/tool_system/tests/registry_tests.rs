@@ -1,12 +1,12 @@
 //! Tests for the ToolRegistry
 
+use async_trait::async_trait;
+use serde_json::json;
 use std::sync::{Arc, RwLock};
 use tool_system::{
     registry::ToolRegistry,
     types::{ToolArguments, ToolError},
 };
-use async_trait::async_trait;
-use serde_json::json;
 
 // Mock tool for testing
 #[derive(Debug)]
@@ -16,7 +16,9 @@ struct MockTool {
 
 impl MockTool {
     fn new(name: &str) -> Self {
-        Self { name: name.to_string() }
+        Self {
+            name: name.to_string(),
+        }
     }
 }
 
@@ -54,12 +56,12 @@ fn test_tool_registry_get_tool() {
     let registry = ToolRegistry::new();
     // Try to get a registered tool (assuming some tools are registered)
     let tools = registry.list_tool_definitions();
-    
+
     if !tools.is_empty() {
         let tool_name = &tools[0].name;
         let tool = registry.get_tool(tool_name);
         assert!(tool.is_some(), "Tool should be found");
-        
+
         let definition = tool.unwrap().definition();
         assert_eq!(definition.name, *tool_name);
     }
@@ -76,21 +78,27 @@ fn test_tool_registry_get_unknown_tool() {
 fn test_list_tool_definitions() {
     let registry = ToolRegistry::new();
     let definitions = registry.list_tool_definitions();
-    
+
     // Should have at least one tool registered
-    assert!(!definitions.is_empty(), "Should have at least one registered tool");
-    
+    assert!(
+        !definitions.is_empty(),
+        "Should have at least one registered tool"
+    );
+
     // All definitions should have a name and description
     for def in &definitions {
         assert!(!def.name.is_empty(), "Tool definition should have a name");
-        assert!(!def.description.is_empty(), "Tool definition should have a description");
+        assert!(
+            !def.description.is_empty(),
+            "Tool definition should have a description"
+        );
     }
 }
 
 #[tokio::test]
 async fn test_registry_concurrent_access() {
     let registry = Arc::new(RwLock::new(ToolRegistry::new()));
-    
+
     // Spawn multiple tasks to access the registry concurrently
     let handles: Vec<_> = (0..10)
         .map(|i| {
@@ -102,7 +110,7 @@ async fn test_registry_concurrent_access() {
             })
         })
         .collect();
-    
+
     // Wait for all tasks to complete
     for handle in handles {
         let result = handle.await.unwrap();
@@ -116,4 +124,3 @@ fn test_registry_default() {
     // Default registry should work the same as new()
     assert!(registry.list_tool_definitions().len() > 0);
 }
-

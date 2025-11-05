@@ -6,7 +6,7 @@ use serde_json::json;
 use crate::{
     registry::macros::auto_register_tool,
     types::{
-        DisplayPreference, Tool, ToolArguments, ToolDefinition, ToolError, ToolType, ToolPermission,
+        DisplayPreference, Tool, ToolArguments, ToolDefinition, ToolError, ToolPermission, ToolType,
     },
 };
 

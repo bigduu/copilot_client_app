@@ -12,7 +12,12 @@ export type AgentRole = "planner" | "actor";
 /**
  * Message type defines how the message should be rendered and processed.
  */
-export type MessageType = "text" | "plan" | "question" | "tool_call" | "tool_result";
+export type MessageType =
+  | "text"
+  | "plan"
+  | "question"
+  | "tool_call"
+  | "tool_result";
 
 /**
  * Structured plan message format from Planner role
@@ -82,6 +87,8 @@ export const isToolExecutionResult = (obj: any): obj is ToolExecutionResult => {
   );
 };
 
+export type ExecutionStatus = "success" | "error" | "warning";
+
 // --- NEW V3 DATA STRUCTURES ---
 
 // Base interface for all message types
@@ -139,12 +146,22 @@ export interface AssistantToolResultMessage extends BaseMessage {
   isError: boolean;
 }
 
+export interface WorkflowResultMessage extends BaseMessage {
+  role: "assistant";
+  type: "workflow_result";
+  workflowName: string;
+  parameters?: Record<string, unknown> | string | null;
+  status?: ExecutionStatus;
+  content: string;
+}
+
 // The complete, type-safe Message union
 export type Message =
   | UserMessage
   | AssistantTextMessage
   | AssistantToolCallMessage
   | AssistantToolResultMessage
+  | WorkflowResultMessage
   | SystemMessage;
 
 // --- NEW ChatItem V2 ---
@@ -170,6 +187,8 @@ export interface ChatItem {
     toolCategory: string;
     // The agent's current role (planner or actor)
     agentRole?: AgentRole;
+    // Workspace root path for @ file references
+    workspacePath?: string;
   };
 
   // The state of the CURRENT, ONGOING interaction.
@@ -202,7 +221,7 @@ export interface ChatItem {
 // --- Utility functions and Type Guards ---
 
 export const isAssistantToolResultMessage = (
-  message: Message
+  message: Message,
 ): message is AssistantToolResultMessage => {
   return (
     message.role === "assistant" &&
@@ -212,12 +231,22 @@ export const isAssistantToolResultMessage = (
 };
 
 export const isAssistantToolCallMessage = (
-  message: Message
+  message: Message,
 ): message is AssistantToolCallMessage => {
   return (
     message.role === "assistant" &&
     "type" in message &&
     message.type === "tool_call"
+  );
+};
+
+export const isWorkflowResultMessage = (
+  message: Message,
+): message is WorkflowResultMessage => {
+  return (
+    message.role === "assistant" &&
+    "type" in message &&
+    message.type === "workflow_result"
   );
 };
 

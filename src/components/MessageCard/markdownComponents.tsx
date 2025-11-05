@@ -160,7 +160,7 @@ const renderCodeBlock = (language: string, codeString: string, token: any) => {
     if (!codeString || typeof codeString !== "string") {
       console.warn(
         "Invalid codeString provided to renderCodeBlock:",
-        codeString
+        codeString,
       );
       return null;
     }
@@ -194,13 +194,13 @@ const renderCodeBlock = (language: string, codeString: string, token: any) => {
         }}
         onMouseEnter={(e) => {
           const copyBtn = e.currentTarget.querySelector(
-            ".fallback-copy-btn"
+            ".fallback-copy-btn",
           ) as HTMLElement;
           if (copyBtn) copyBtn.style.display = "block";
         }}
         onMouseLeave={(e) => {
           const copyBtn = e.currentTarget.querySelector(
-            ".fallback-copy-btn"
+            ".fallback-copy-btn",
           ) as HTMLElement;
           if (copyBtn) copyBtn.style.display = "none";
         }}

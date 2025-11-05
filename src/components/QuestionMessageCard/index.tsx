@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { memo, useState } from "react";
 import {
   Card,
   Button,
@@ -26,17 +26,19 @@ interface QuestionMessageCardProps {
   contextId: string;
   onAnswer: (answer: string) => void;
   disabled?: boolean;
+  timestamp?: string;
 }
 
-const QuestionMessageCard: React.FC<QuestionMessageCardProps> = ({
+const QuestionMessageCardComponent: React.FC<QuestionMessageCardProps> = ({
   question,
   contextId: _contextId,
   onAnswer,
   disabled = false,
+  timestamp,
 }) => {
   const { token } = useToken();
   const [selectedAnswer, setSelectedAnswer] = useState<string | undefined>(
-    question.default
+    question.default,
   );
   const [loading, setLoading] = useState(false);
 
@@ -112,6 +114,13 @@ const QuestionMessageCard: React.FC<QuestionMessageCardProps> = ({
             ({question.severity})
           </Text>
         </Space>
+      }
+      extra={
+        timestamp ? (
+          <Text type="secondary" style={{ fontSize: token.fontSizeSM }}>
+            {timestamp}
+          </Text>
+        ) : undefined
       }
     >
       {/* Question */}
@@ -232,5 +241,8 @@ const QuestionMessageCard: React.FC<QuestionMessageCardProps> = ({
     </Card>
   );
 };
+
+const QuestionMessageCard = memo(QuestionMessageCardComponent);
+QuestionMessageCard.displayName = "QuestionMessageCard";
 
 export default QuestionMessageCard;

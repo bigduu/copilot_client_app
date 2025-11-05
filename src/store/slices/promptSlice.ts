@@ -31,7 +31,7 @@ export interface PromptSlice {
 
 export const createPromptSlice: StateCreator<AppState, [], [], PromptSlice> = (
   set,
-  get
+  get,
 ) => ({
   // Initial state
   systemPrompts: [],
@@ -80,7 +80,7 @@ export const createPromptSlice: StateCreator<AppState, [], [], PromptSlice> = (
       // Call backend to update prompt
       await backendContextService.updateSystemPrompt(
         promptToUpdate.id,
-        promptToUpdate.content
+        promptToUpdate.content,
       );
 
       // Refresh the list to get the latest prompts
@@ -120,7 +120,7 @@ export const createPromptSlice: StateCreator<AppState, [], [], PromptSlice> = (
     } catch (error) {
       console.error(
         "Failed to save last selected prompt ID to localStorage:",
-        error
+        error,
       );
     }
   },

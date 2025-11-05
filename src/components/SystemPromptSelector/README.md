@@ -12,4 +12,5 @@ The detailed documentation for this component has been moved to a unified docume
 - [Data Structure](../../../docs/development/components/SystemPromptSelector.md#data-structure)
 
 ---
+
 > 📁 Documentation Consolidation Note: To better organize project documentation, component documents have been moved to the `docs/` directory for centralized management.

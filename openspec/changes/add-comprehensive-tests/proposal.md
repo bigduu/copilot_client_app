@@ -12,6 +12,7 @@ Currently, the project has minimal test coverage with only 3 test files across a
 - **reqwest-sse crate**: Add unit tests for SSE parsing, JSON event handling, and error recovery
 
 Each crate will have comprehensive coverage targeting:
+
 - All public APIs and key functions
 - Error paths and edge cases
 - State transitions and lifecycle management
@@ -25,4 +26,3 @@ Each crate will have comprehensive coverage targeting:
 - Test files will be added alongside existing code
 - No production code changes, only test additions
 - CI/CD pipeline may need updates to run comprehensive test suite
-

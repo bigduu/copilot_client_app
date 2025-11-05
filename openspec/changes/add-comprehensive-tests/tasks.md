@@ -174,4 +174,3 @@
 - [ ] 9.2 Document test patterns and conventions used (deferred)
 - [ ] 9.3 Add examples of how to run specific test suites (deferred)
 - [ ] 9.4 Document mock setup for external dependencies (deferred)
-

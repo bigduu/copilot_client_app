@@ -142,7 +142,7 @@ export const MermaidChart: React.FC<MermaidChartProps> = React.memo(
       const renderKey = `${chart.trim()}-${Date.now()}`;
       console.log(
         "🚀 Starting Mermaid render for:",
-        renderKey.substring(0, 50)
+        renderKey.substring(0, 50),
       );
 
       let isMounted = true;
@@ -151,7 +151,7 @@ export const MermaidChart: React.FC<MermaidChartProps> = React.memo(
         try {
           console.log(
             "🔍 Attempting to render Mermaid chart:",
-            chart.substring(0, 100) + "..."
+            chart.substring(0, 100) + "...",
           );
 
           // First validate the syntax using mermaid.parse with detailed error reporting
@@ -176,7 +176,7 @@ export const MermaidChart: React.FC<MermaidChartProps> = React.memo(
 
           if (!parseResult) {
             const error = new Error(
-              "Invalid Mermaid syntax - parse returned false"
+              "Invalid Mermaid syntax - parse returned false",
             );
             console.error("❌ Parse result is false for chart:", chart);
             throw error;
@@ -295,7 +295,7 @@ export const MermaidChart: React.FC<MermaidChartProps> = React.memo(
               if (!specificSuggestion) {
                 if (fullMessage.includes("Parse error on line")) {
                   const lineMatch = fullMessage.match(
-                    /Parse error on line (\d+)/
+                    /Parse error on line (\d+)/,
                   );
                   const line = lineMatch ? lineMatch[1] : "unknown";
                   errorMessage = `Syntax error on line ${line}`;
@@ -316,7 +316,7 @@ export const MermaidChart: React.FC<MermaidChartProps> = React.memo(
                   detailedError = fullMessage;
                 } else if (fullMessage.includes("Expecting")) {
                   const expectingMatch = fullMessage.match(
-                    /Expecting (.+?)(?:\.|$)/
+                    /Expecting (.+?)(?:\.|$)/,
                   );
                   const expecting = expectingMatch
                     ? expectingMatch[1]
@@ -325,14 +325,14 @@ export const MermaidChart: React.FC<MermaidChartProps> = React.memo(
                   detailedError = fullMessage;
                 } else if (fullMessage.includes("Lexical error")) {
                   const lexMatch = fullMessage.match(
-                    /Lexical error on line (\d+)/
+                    /Lexical error on line (\d+)/,
                   );
                   const line = lexMatch ? lexMatch[1] : "unknown";
                   errorMessage = `Invalid character on line ${line}`;
                   detailedError = fullMessage;
                 } else if (fullMessage.includes("Unknown diagram type")) {
                   const typeMatch = fullMessage.match(
-                    /Unknown diagram type[:\s]+(.+?)(?:\.|$)/
+                    /Unknown diagram type[:\s]+(.+?)(?:\.|$)/,
                   );
                   const type = typeMatch ? typeMatch[1] : "unknown";
                   errorMessage = `Unknown diagram type: ${type}`;
@@ -660,7 +660,7 @@ export const MermaidChart: React.FC<MermaidChartProps> = React.memo(
                     dangerouslySetInnerHTML={{
                       __html: svg.replace(
                         /<svg([^>]*)>/,
-                        '<svg$1 style="display: block; max-width: 100%; max-height: 100%;">'
+                        '<svg$1 style="display: block; max-width: 100%; max-height: 100%;">',
                       ),
                     }}
                   />
@@ -671,7 +671,7 @@ export const MermaidChart: React.FC<MermaidChartProps> = React.memo(
         </div>
       </div>
     );
-  }
+  },
 );
 
 MermaidChart.displayName = "MermaidChart";

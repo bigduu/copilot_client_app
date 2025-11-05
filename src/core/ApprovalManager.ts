@@ -1,18 +1,20 @@
-import {
-  ApprovalManager as IApprovalManager,
-} from '../interfaces/chat-manager';
+import { ApprovalManager as IApprovalManager } from "../interfaces/chat-manager";
 import {
   OperationResult,
   ApprovalConfig,
   // ApprovalAction,
-  ApprovalFlow
-} from '../types/unified-chat';
+  ApprovalFlow,
+} from "../types/unified-chat";
 
 /**
  * Approval Event Type
  */
 interface ApprovalEvent {
-  type: 'approval_requested' | 'approval_approved' | 'approval_rejected' | 'approval_timeout';
+  type:
+    | "approval_requested"
+    | "approval_approved"
+    | "approval_rejected"
+    | "approval_timeout";
   operationId: string;
   messageId?: string;
   data?: any;
@@ -47,18 +49,21 @@ export class ApprovalManager implements IApprovalManager {
     this.globalConfig = {
       autoApprove: false,
       approvalTimeout: 30000, // 30-second timeout
-      approvalMessage: 'Please confirm whether to perform this operation',
-      requiredApprovers: []
+      approvalMessage: "Please confirm whether to perform this operation",
+      requiredApprovers: [],
     };
   }
 
   /**
    * Request Approval
    */
-  async requestApproval(messageId: string, config?: ApprovalConfig): Promise<OperationResult<void>> {
+  async requestApproval(
+    messageId: string,
+    config?: ApprovalConfig,
+  ): Promise<OperationResult<void>> {
     try {
       if (!this.initialized) {
-        throw new Error('ApprovalManager is not initialized');
+        throw new Error("ApprovalManager is not initialized");
       }
 
       const operationId = this.generateOperationId();
@@ -70,23 +75,23 @@ export class ApprovalManager implements IApprovalManager {
           approved: true,
           automatic: true,
           timestamp: Date.now(),
-          details: { reason: 'Auto-approved' }
+          details: { reason: "Auto-approved" },
         };
 
         this.approvalHistory.set(operationId, approvalFlow);
-        
+
         // Publish approval event
         this.publishEvent({
-          type: 'approval_approved',
+          type: "approval_approved",
           operationId,
           messageId,
           data: approvalFlow,
-          timestamp: Date.now()
+          timestamp: Date.now(),
         });
 
         return {
           success: true,
-          message: 'Operation has been auto-approved'
+          message: "Operation has been auto-approved",
         };
       }
 
@@ -96,11 +101,14 @@ export class ApprovalManager implements IApprovalManager {
         messageId,
         requestedAt: new Date(),
         config: effectiveConfig,
-        data: config
+        data: config,
       };
 
       // Set timeout handling
-      if (effectiveConfig.approvalTimeout && effectiveConfig.approvalTimeout > 0) {
+      if (
+        effectiveConfig.approvalTimeout &&
+        effectiveConfig.approvalTimeout > 0
+      ) {
         pendingApproval.timeout = window.setTimeout(() => {
           this.handleTimeout(operationId);
         }, effectiveConfig.approvalTimeout);
@@ -110,27 +118,27 @@ export class ApprovalManager implements IApprovalManager {
 
       // Publish approval request event
       this.publishEvent({
-        type: 'approval_requested',
+        type: "approval_requested",
         operationId,
         messageId,
         data: {
           config: effectiveConfig,
-          message: effectiveConfig.approvalMessage
+          message: effectiveConfig.approvalMessage,
         },
-        timestamp: Date.now()
+        timestamp: Date.now(),
       });
 
       return {
         success: true,
         data: undefined,
-        message: 'Approval request submitted, awaiting approval'
+        message: "Approval request submitted, awaiting approval",
       };
     } catch (error) {
-      console.error('Failed to request approval:', error);
+      console.error("Failed to request approval:", error);
       return {
         success: false,
         error: error instanceof Error ? error.message : String(error),
-        message: 'Failed to request approval'
+        message: "Failed to request approval",
       };
     }
   }
@@ -141,7 +149,7 @@ export class ApprovalManager implements IApprovalManager {
   async configure(config: ApprovalConfig): Promise<OperationResult<void>> {
     try {
       if (!this.initialized) {
-        throw new Error('ApprovalManager is not initialized');
+        throw new Error("ApprovalManager is not initialized");
       }
 
       // Validate configuration
@@ -152,14 +160,14 @@ export class ApprovalManager implements IApprovalManager {
 
       return {
         success: true,
-        message: 'Approval configuration has been updated'
+        message: "Approval configuration has been updated",
       };
     } catch (error) {
-      console.error('Failed to configure approval settings:', error);
+      console.error("Failed to configure approval settings:", error);
       return {
         success: false,
         error: error instanceof Error ? error.message : String(error),
-        message: 'Failed to configure approval'
+        message: "Failed to configure approval",
       };
     }
   }
@@ -170,15 +178,15 @@ export class ApprovalManager implements IApprovalManager {
   async approve(operationId: string): Promise<OperationResult<void>> {
     try {
       if (!this.initialized) {
-        throw new Error('ApprovalManager is not initialized');
+        throw new Error("ApprovalManager is not initialized");
       }
 
       const pendingApproval = this.pendingApprovals.get(operationId);
       if (!pendingApproval) {
         return {
           success: false,
-          error: 'Operation does not exist or has been processed',
-          message: `Operation ${operationId} does not exist or has been processed`
+          error: "Operation does not exist or has been processed",
+          message: `Operation ${operationId} does not exist or has been processed`,
         };
       }
 
@@ -197,31 +205,31 @@ export class ApprovalManager implements IApprovalManager {
         timestamp: Date.now(),
         details: {
           approvedAt: new Date().toISOString(),
-          reason: 'Manually approved'
-        }
+          reason: "Manually approved",
+        },
       };
 
       this.approvalHistory.set(operationId, approvalFlow);
 
       // Publish approval event
       this.publishEvent({
-        type: 'approval_approved',
+        type: "approval_approved",
         operationId,
         messageId: pendingApproval.messageId,
         data: approvalFlow,
-        timestamp: Date.now()
+        timestamp: Date.now(),
       });
 
       return {
         success: true,
-        message: 'Operation has been approved'
+        message: "Operation has been approved",
       };
     } catch (error) {
-      console.error('Failed to approve operation:', error);
+      console.error("Failed to approve operation:", error);
       return {
         success: false,
         error: error instanceof Error ? error.message : String(error),
-        message: 'Failed to approve operation'
+        message: "Failed to approve operation",
       };
     }
   }
@@ -229,18 +237,21 @@ export class ApprovalManager implements IApprovalManager {
   /**
    * Reject Operation
    */
-  async reject(operationId: string, reason?: string): Promise<OperationResult<void>> {
+  async reject(
+    operationId: string,
+    reason?: string,
+  ): Promise<OperationResult<void>> {
     try {
       if (!this.initialized) {
-        throw new Error('ApprovalManager is not initialized');
+        throw new Error("ApprovalManager is not initialized");
       }
 
       const pendingApproval = this.pendingApprovals.get(operationId);
       if (!pendingApproval) {
         return {
           success: false,
-          error: 'Operation does not exist or has been processed',
-          message: `Operation ${operationId} does not exist or has been processed`
+          error: "Operation does not exist or has been processed",
+          message: `Operation ${operationId} does not exist or has been processed`,
         };
       }
 
@@ -259,31 +270,31 @@ export class ApprovalManager implements IApprovalManager {
         timestamp: Date.now(),
         details: {
           rejectedAt: new Date().toISOString(),
-          reason: reason || 'Manually rejected'
-        }
+          reason: reason || "Manually rejected",
+        },
       };
 
       this.approvalHistory.set(operationId, approvalFlow);
 
       // Publish rejection event
       this.publishEvent({
-        type: 'approval_rejected',
+        type: "approval_rejected",
         operationId,
         messageId: pendingApproval.messageId,
         data: approvalFlow,
-        timestamp: Date.now()
+        timestamp: Date.now(),
       });
 
       return {
         success: true,
-        message: 'Operation has been rejected'
+        message: "Operation has been rejected",
       };
     } catch (error) {
-      console.error('Failed to reject operation:', error);
+      console.error("Failed to reject operation:", error);
       return {
         success: false,
         error: error instanceof Error ? error.message : String(error),
-        message: 'Failed to reject operation'
+        message: "Failed to reject operation",
       };
     }
   }
@@ -293,7 +304,7 @@ export class ApprovalManager implements IApprovalManager {
    */
   subscribe(callback: (event: any) => void): () => void {
     this.subscribers.add(callback);
-    
+
     return () => {
       this.subscribers.delete(callback);
     };
@@ -310,14 +321,16 @@ export class ApprovalManager implements IApprovalManager {
     try {
       // Clear all pending approvals
       this.clearAllPendingApprovals();
-      
+
       // Clear history
       this.approvalHistory.clear();
 
       this.initialized = true;
-      console.log('ApprovalManager initialized successfully');
+      console.log("ApprovalManager initialized successfully");
     } catch (error) {
-      throw new Error(`ApprovalManager initialization failed: ${error instanceof Error ? error.message : String(error)}`);
+      throw new Error(
+        `ApprovalManager initialization failed: ${error instanceof Error ? error.message : String(error)}`,
+      );
     }
   }
 
@@ -328,29 +341,34 @@ export class ApprovalManager implements IApprovalManager {
     try {
       // Clear all pending approvals
       this.clearAllPendingApprovals();
-      
+
       // Clear subscribers
       this.subscribers.clear();
-      
+
       // Clear history
       this.approvalHistory.clear();
-      
+
       this.initialized = false;
-      console.log('ApprovalManager has been disposed');
+      console.log("ApprovalManager has been disposed");
     } catch (error) {
-      console.error('ApprovalManager disposal failed:', error);
+      console.error("ApprovalManager disposal failed:", error);
     }
   }
 
   /**
    * Get List of Pending Approvals
    */
-  getPendingApprovals(): Array<{ operationId: string; messageId: string; requestedAt: Date; config: ApprovalConfig }> {
-    return Array.from(this.pendingApprovals.values()).map(approval => ({
+  getPendingApprovals(): Array<{
+    operationId: string;
+    messageId: string;
+    requestedAt: Date;
+    config: ApprovalConfig;
+  }> {
+    return Array.from(this.pendingApprovals.values()).map((approval) => ({
       operationId: approval.operationId,
       messageId: approval.messageId,
       requestedAt: approval.requestedAt,
-      config: approval.config
+      config: approval.config,
     }));
   }
 
@@ -358,10 +376,12 @@ export class ApprovalManager implements IApprovalManager {
    * Get Approval History
    */
   getApprovalHistory(): Array<{ operationId: string; flow: ApprovalFlow }> {
-    return Array.from(this.approvalHistory.entries()).map(([operationId, flow]) => ({
-      operationId,
-      flow
-    }));
+    return Array.from(this.approvalHistory.entries()).map(
+      ([operationId, flow]) => ({
+        operationId,
+        flow,
+      }),
+    );
   }
 
   /**
@@ -390,23 +410,23 @@ export class ApprovalManager implements IApprovalManager {
         automatic: true,
         timestamp: Date.now(),
         details: {
-          reason: 'Approval timed out',
-          timeoutAt: new Date().toISOString()
-        }
+          reason: "Approval timed out",
+          timeoutAt: new Date().toISOString(),
+        },
       };
 
       this.approvalHistory.set(operationId, approvalFlow);
 
       // Publish timeout event
       this.publishEvent({
-        type: 'approval_timeout',
+        type: "approval_timeout",
         operationId,
         messageId: pendingApproval.messageId,
         data: approvalFlow,
-        timestamp: Date.now()
+        timestamp: Date.now(),
       });
     } catch (error) {
-      console.error('Failed to handle approval timeout:', error);
+      console.error("Failed to handle approval timeout:", error);
     }
   }
 
@@ -419,11 +439,11 @@ export class ApprovalManager implements IApprovalManager {
         try {
           subscriber(event);
         } catch (error) {
-          console.error('Subscriber execution failed:', error);
+          console.error("Subscriber execution failed:", error);
         }
       }
     } catch (error) {
-      console.error('Failed to publish approval event:', error);
+      console.error("Failed to publish approval event:", error);
     }
   }
 
@@ -432,20 +452,26 @@ export class ApprovalManager implements IApprovalManager {
    */
   private validateConfig(config: ApprovalConfig): void {
     if (config.approvalTimeout !== undefined) {
-      if (typeof config.approvalTimeout !== 'number' || config.approvalTimeout < 0) {
-        throw new Error('Approval timeout must be a non-negative number');
+      if (
+        typeof config.approvalTimeout !== "number" ||
+        config.approvalTimeout < 0
+      ) {
+        throw new Error("Approval timeout must be a non-negative number");
       }
     }
 
     if (config.requiredApprovers !== undefined) {
       if (!Array.isArray(config.requiredApprovers)) {
-        throw new Error('Required approvers must be an array');
+        throw new Error("Required approvers must be an array");
       }
     }
 
     if (config.approvalMessage !== undefined) {
-      if (typeof config.approvalMessage !== 'string' || config.approvalMessage.trim() === '') {
-        throw new Error('Approval message cannot be empty');
+      if (
+        typeof config.approvalMessage !== "string" ||
+        config.approvalMessage.trim() === ""
+      ) {
+        throw new Error("Approval message cannot be empty");
       }
     }
   }
@@ -462,7 +488,7 @@ export class ApprovalManager implements IApprovalManager {
       }
       this.pendingApprovals.clear();
     } catch (error) {
-      console.error('Failed to clear pending approvals:', error);
+      console.error("Failed to clear pending approvals:", error);
     }
   }
 

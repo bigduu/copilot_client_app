@@ -1,39 +1,42 @@
 /**
  * useChatStateSync - Hook for polling backend chat state
- * 
+ *
  * Implements backend-first architecture where backend is the source of truth.
  * Polls the backend at regular intervals to sync local state.
  */
 
-import { useEffect, useRef, useCallback } from 'react';
-import { backendContextService, type ActionResponse } from '../services/BackendContextService';
+import { useEffect, useRef, useCallback } from "react";
+import {
+  backendContextService,
+  type ActionResponse,
+} from "../services/BackendContextService";
 
 export interface ChatStateSyncOptions {
   /**
    * Chat ID to sync
    */
   chatId: string | null;
-  
+
   /**
    * Base polling interval in milliseconds (default: 1000ms = 1s)
    */
   baseInterval?: number;
-  
+
   /**
    * Maximum polling interval after backoff (default: 5000ms = 5s)
    */
   maxInterval?: number;
-  
+
   /**
    * Whether polling is enabled (default: true)
    */
   enabled?: boolean;
-  
+
   /**
    * Callback when state is received from backend
    */
   onStateUpdate?: (state: ActionResponse) => void;
-  
+
   /**
    * Callback when polling encounters an error
    */
@@ -55,7 +58,7 @@ export function useChatStateSync(options: ChatStateSyncOptions) {
 
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const currentIntervalRef = useRef<number>(baseInterval);
-  const lastStateHashRef = useRef<string>('');
+  const lastStateHashRef = useRef<string>("");
   const isPollingRef = useRef<boolean>(false);
 
   /**
@@ -81,17 +84,17 @@ export function useChatStateSync(options: ChatStateSyncOptions) {
 
     try {
       const state = await backendContextService.getChatState(chatId);
-      
+
       // Check if state has changed
       const stateHash = hashState(state);
       const hasChanged = stateHash !== lastStateHashRef.current;
-      
+
       if (hasChanged) {
         lastStateHashRef.current = stateHash;
-        
+
         // Reset interval to base on change
         currentIntervalRef.current = baseInterval;
-        
+
         // Notify callback
         if (onStateUpdate) {
           onStateUpdate(state);
@@ -100,25 +103,33 @@ export function useChatStateSync(options: ChatStateSyncOptions) {
         // Exponential backoff when no changes
         currentIntervalRef.current = Math.min(
           currentIntervalRef.current * 1.5,
-          maxInterval
+          maxInterval,
         );
       }
     } catch (error) {
-      console.error('Error polling chat state:', error);
-      
+      console.error("Error polling chat state:", error);
+
       if (onError) {
         onError(error as Error);
       }
-      
+
       // On error, also back off
       currentIntervalRef.current = Math.min(
         currentIntervalRef.current * 2,
-        maxInterval
+        maxInterval,
       );
     } finally {
       isPollingRef.current = false;
     }
-  }, [chatId, enabled, baseInterval, maxInterval, hashState, onStateUpdate, onError]);
+  }, [
+    chatId,
+    enabled,
+    baseInterval,
+    maxInterval,
+    hashState,
+    onStateUpdate,
+    onError,
+  ]);
 
   /**
    * Start polling
@@ -145,7 +156,7 @@ export function useChatStateSync(options: ChatStateSyncOptions) {
       clearInterval(intervalRef.current);
       intervalRef.current = null;
     }
-    
+
     // Reset interval to base
     currentIntervalRef.current = baseInterval;
   }, [baseInterval]);
@@ -154,7 +165,7 @@ export function useChatStateSync(options: ChatStateSyncOptions) {
    * Reset polling state
    */
   const resetPolling = useCallback(() => {
-    lastStateHashRef.current = '';
+    lastStateHashRef.current = "";
     currentIntervalRef.current = baseInterval;
   }, [baseInterval]);
 
@@ -183,10 +194,10 @@ export function useChatStateSync(options: ChatStateSyncOptions) {
       }
     };
 
-    document.addEventListener('visibilitychange', handleVisibilityChange);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
 
     return () => {
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
   }, [chatId, enabled, startPolling, stopPolling, resetPolling]);
 
@@ -208,4 +219,3 @@ export function useChatStateSync(options: ChatStateSyncOptions) {
     resetPolling,
   };
 }
-

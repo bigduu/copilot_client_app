@@ -1,13 +1,13 @@
 import React, { useState, useMemo, useEffect } from "react";
-import { Tag, Popover, Typography, Space, theme, Button, Tooltip } from "antd";
-import { InfoCircleOutlined, EyeOutlined } from "@ant-design/icons";
+import { Tag, Popover, Typography, Space, theme } from "antd";
+import { InfoCircleOutlined } from "@ant-design/icons";
 import { useChatManager } from "../../hooks/useChatManager";
 import { useBackendContext } from "../../hooks/useBackendContext";
 import { SystemPromptService } from "../../services/SystemPromptService";
 import { useAppStore } from "../../store";
 import ReactMarkdown from "react-markdown";
 
-const { Text } = Typography;
+const { Text, Paragraph } = Typography;
 const { useToken } = theme;
 
 interface SystemPromptIndicatorProps {
@@ -26,7 +26,7 @@ const SystemPromptIndicator: React.FC<SystemPromptIndicatorProps> = ({
 
   const systemPromptService = useMemo(
     () => SystemPromptService.getInstance(),
-    []
+    [],
   );
 
   // Get current agent role
@@ -42,7 +42,7 @@ const SystemPromptIndicator: React.FC<SystemPromptIndicatorProps> = ({
   const promptName = useMemo(() => {
     if (currentContext?.branches && currentContext.branches.length > 0) {
       const activeBranch = currentContext.branches.find(
-        (b) => b.name === currentContext.active_branch_name
+        (b) => b.name === currentContext.active_branch_name,
       );
       if (activeBranch?.system_prompt?.id) {
         return activeBranch.system_prompt.id;
@@ -62,7 +62,7 @@ const SystemPromptIndicator: React.FC<SystemPromptIndicatorProps> = ({
         // Try to get from backend context first
         if (currentContext?.branches && currentContext.branches.length > 0) {
           const activeBranch = currentContext.branches.find(
-            (b) => b.name === currentContext.active_branch_name
+            (b) => b.name === currentContext.active_branch_name,
           );
           if (activeBranch?.system_prompt?.content) {
             setBasePrompt(activeBranch.system_prompt.content);
@@ -84,9 +84,8 @@ const SystemPromptIndicator: React.FC<SystemPromptIndicatorProps> = ({
           }
 
           // Fallback to service
-          const preset = await systemPromptService.findPresetById(
-            systemPromptId
-          );
+          const preset =
+            await systemPromptService.findPresetById(systemPromptId);
           if (preset?.content) {
             setBasePrompt(preset.content);
             setLoading(false);
@@ -176,7 +175,10 @@ const SystemPromptIndicator: React.FC<SystemPromptIndicatorProps> = ({
             {currentRole && (
               <Tag
                 color={currentRole === "planner" ? "blue" : "green"}
-                size="small"
+                style={{
+                  lineHeight: 1,
+                  padding: "2px 8px",
+                }}
               >
                 {currentRole === "planner" ? "Planner" : "Actor"}
               </Tag>
@@ -220,18 +222,21 @@ const SystemPromptIndicator: React.FC<SystemPromptIndicatorProps> = ({
             {currentRole && (
               <Tag
                 color={currentRole === "planner" ? "blue" : "green"}
-                size="small"
+                style={{
+                  lineHeight: 1,
+                  padding: "2px 8px",
+                }}
               >
                 {currentRole === "planner" ? "Planner" : "Actor"}
               </Tag>
             )}
           </Space>
-          <Text
-            ellipsis={{ rows: 2, expandable: true }}
-            style={{ fontSize: token.fontSizeSM }}
+          <Paragraph
+            ellipsis={{ rows: 2, expandable: true, tooltip: basePrompt }}
+            style={{ fontSize: token.fontSizeSM, marginBottom: 0 }}
           >
             {basePrompt || "No system prompt"}
-          </Text>
+          </Paragraph>
         </div>
       </Space>
     </div>

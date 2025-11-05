@@ -1,9 +1,9 @@
-use std::collections::HashMap;
-use uuid::Uuid;
-use serde::{Serialize, Deserialize};
 use crate::structs::branch::Branch;
 use crate::structs::message::{InternalMessage, MessageNode};
 use crate::structs::state::ContextState;
+use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
+use uuid::Uuid;
 
 /// Agent role defines the permissions and behavior of the agent.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
@@ -42,7 +42,7 @@ impl AgentRole {
             ],
         }
     }
-    
+
     /// Checks if this role has a specific permission.
     pub fn has_permission(&self, permission: &Permission) -> bool {
         self.permissions().contains(permission)
@@ -55,25 +55,25 @@ pub struct ChatContext {
     pub id: Uuid,
     pub parent_id: Option<Uuid>,
     pub config: ChatConfig,
-    
+
     /// The single source of truth for all message data in this context.
     /// Provides O(1) lookup performance for any message by its ID.
     pub message_pool: HashMap<Uuid, MessageNode>,
-    
+
     /// Manages all distinct lines of conversation within this context.
     pub branches: HashMap<String, Branch>,
-    
+
     pub active_branch_name: String,
 
     /// The current state of the conversation lifecycle.
     #[serde(default)]
     pub current_state: ContextState,
-    
+
     /// Runtime flag to track if context needs persistence (not serialized).
     /// Used to optimize auto-save by skipping redundant writes.
     #[serde(skip)]
     pub(crate) dirty: bool,
-    
+
     /// Trace ID for distributed tracing (not persisted, set at runtime)
     #[serde(skip)]
     pub trace_id: Option<String>,
@@ -87,7 +87,7 @@ impl ChatContext {
             mode = %mode,
             "ChatContext: Creating new context"
         );
-        
+
         let mut branches = HashMap::new();
         let main_branch = Branch::new("main".to_string());
         branches.insert("main".to_string(), main_branch);
@@ -101,6 +101,7 @@ impl ChatContext {
                 parameters: HashMap::new(),
                 system_prompt_id: None,
                 agent_role: AgentRole::default(),
+                workspace_path: None,
             },
             message_pool: HashMap::new(),
             branches,
@@ -112,11 +113,13 @@ impl ChatContext {
     }
 
     pub fn add_message_to_branch(&mut self, branch_name: &str, message: InternalMessage) {
-        let content_len = message.content.iter()
+        let content_len = message
+            .content
+            .iter()
             .filter_map(|c| c.text_content())
             .map(|s| s.len())
             .sum::<usize>();
-        
+
         tracing::info!(
             context_id = %self.id,
             branch = %branch_name,
@@ -125,11 +128,11 @@ impl ChatContext {
             has_tool_calls = message.tool_calls.is_some(),
             "ChatContext: Adding message to branch"
         );
-        
+
         let branch = self.branches.get_mut(branch_name).unwrap();
         let message_id = Uuid::new_v4();
         let parent_id = branch.message_ids.last().cloned();
-        
+
         tracing::debug!(
             context_id = %self.id,
             message_id = %message_id,
@@ -137,7 +140,7 @@ impl ChatContext {
             pool_size_before = self.message_pool.len(),
             "ChatContext: Inserting message into pool"
         );
-        
+
         let node = MessageNode {
             id: message_id,
             message,
@@ -145,7 +148,7 @@ impl ChatContext {
         };
         self.message_pool.insert(message_id, node);
         branch.message_ids.push(message_id);
-        
+
         tracing::debug!(
             context_id = %self.id,
             branch = %branch_name,
@@ -153,7 +156,7 @@ impl ChatContext {
             branch_message_count = branch.message_ids.len(),
             "ChatContext: Message added successfully"
         );
-        
+
         self.mark_dirty();
     }
 
@@ -177,9 +180,12 @@ impl ChatContext {
         );
         self.branches.get_mut(&self.active_branch_name)
     }
-    
+
     /// Attach a system prompt to the active branch
-    pub fn set_active_branch_system_prompt(&mut self, system_prompt: crate::structs::branch::SystemPrompt) {
+    pub fn set_active_branch_system_prompt(
+        &mut self,
+        system_prompt: crate::structs::branch::SystemPrompt,
+    ) {
         tracing::info!(
             context_id = %self.id,
             branch = %self.active_branch_name,
@@ -191,7 +197,7 @@ impl ChatContext {
             self.mark_dirty();
         }
     }
-    
+
     /// Remove system prompt from the active branch
     pub fn clear_active_branch_system_prompt(&mut self) {
         tracing::info!(
@@ -204,10 +210,12 @@ impl ChatContext {
             self.mark_dirty();
         }
     }
-    
+
     /// Get system prompt from the active branch
     pub fn get_active_branch_system_prompt(&self) -> Option<&crate::structs::branch::SystemPrompt> {
-        let prompt = self.branches.get(&self.active_branch_name)
+        let prompt = self
+            .branches
+            .get(&self.active_branch_name)
             .and_then(|branch| branch.system_prompt.as_ref());
         tracing::debug!(
             context_id = %self.id,
@@ -217,7 +225,7 @@ impl ChatContext {
         );
         prompt
     }
-    
+
     /// Mark the context as dirty (needs persistence)
     pub fn mark_dirty(&mut self) {
         tracing::debug!(
@@ -226,7 +234,7 @@ impl ChatContext {
         );
         self.dirty = true;
     }
-    
+
     /// Clear the dirty flag (after successful persistence)
     pub fn clear_dirty(&mut self) {
         tracing::debug!(
@@ -235,7 +243,7 @@ impl ChatContext {
         );
         self.dirty = false;
     }
-    
+
     /// Check if the context needs to be persisted
     pub fn is_dirty(&self) -> bool {
         tracing::debug!(
@@ -245,17 +253,17 @@ impl ChatContext {
         );
         self.dirty
     }
-    
+
     /// Set the trace ID for distributed tracing
     pub fn set_trace_id(&mut self, trace_id: String) {
         self.trace_id = Some(trace_id);
     }
-    
+
     /// Get the trace ID if present
     pub fn get_trace_id(&self) -> Option<&str> {
         self.trace_id.as_deref()
     }
-    
+
     /// Clear the trace ID
     pub fn clear_trace_id(&mut self) {
         self.trace_id = None;
@@ -274,4 +282,28 @@ pub struct ChatConfig {
     /// Agent role determines permissions and behavior
     #[serde(default)]
     pub agent_role: AgentRole,
+    /// Workspace root path for file references
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub workspace_path: Option<String>,
+}
+
+impl ChatConfig {
+    pub fn set_workspace_path(&mut self, path: Option<String>) {
+        self.workspace_path = path;
+    }
+
+    pub fn workspace_path(&self) -> Option<&str> {
+        self.workspace_path.as_deref()
+    }
+}
+
+impl ChatContext {
+    pub fn set_workspace_path(&mut self, path: Option<String>) {
+        self.config.set_workspace_path(path);
+        self.mark_dirty();
+    }
+
+    pub fn workspace_path(&self) -> Option<&str> {
+        self.config.workspace_path()
+    }
 }

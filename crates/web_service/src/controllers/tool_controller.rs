@@ -17,11 +17,14 @@ async fn execute_tool(
         This endpoint is deprecated. Use workflows for user-invoked actions.",
         request.tool_name
     );
-    
+
     let result = tool_service.execute_tool(request.into_inner()).await?;
     Ok(HttpResponse::Ok()
         .insert_header(("X-Deprecated", "true"))
-        .insert_header(("X-Deprecation-Message", "Use workflows for user-invoked actions"))
+        .insert_header((
+            "X-Deprecation-Message",
+            "Use workflows for user-invoked actions",
+        ))
         .json(result))
 }
 
@@ -31,11 +34,14 @@ async fn execute_tool(
 /// This endpoint will be removed in a future version.
 async fn get_categories(tool_service: web::Data<ToolService>) -> impl Responder {
     warn!("DEPRECATED: /tools/categories called. Use /v1/workflows/categories instead.");
-    
+
     let categories = tool_service.get_categories();
     HttpResponse::Ok()
         .insert_header(("X-Deprecated", "true"))
-        .insert_header(("X-Deprecation-Message", "Use /v1/workflows/categories instead"))
+        .insert_header((
+            "X-Deprecation-Message",
+            "Use /v1/workflows/categories instead",
+        ))
         .json(categories)
 }
 
@@ -46,8 +52,11 @@ async fn get_category_info(
     path: web::Path<String>,
 ) -> impl Responder {
     let category_id = path.into_inner();
-    warn!("DEPRECATED: /tools/category/{}/info called. Tool categories are deprecated.", category_id);
-    
+    warn!(
+        "DEPRECATED: /tools/category/{}/info called. Tool categories are deprecated.",
+        category_id
+    );
+
     match tool_service.get_category(&category_id) {
         Some(info) => HttpResponse::Ok()
             .insert_header(("X-Deprecated", "true"))
@@ -76,7 +85,7 @@ pub fn config(cfg: &mut web::ServiceConfig) {
     // 2. Update any direct tool execution calls to use workflow execution
     // 3. Remove references to tool categories (use workflow categories)
     // ==================================================================================
-    
+
     cfg.service(web::resource("/tools/execute").route(web::post().to(execute_tool)))
         .service(web::resource("/tools/categories").route(web::get().to(get_categories)))
         .service(

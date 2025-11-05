@@ -35,10 +35,10 @@ impl Adapter for OpenAIAdapter {
 
         // 2. Process Message History
         for message_id in &active_branch.message_ids {
-            let message_node = context
-                .message_pool
-                .get(message_id)
-                .ok_or(format!("Message with ID '{}' not found in pool", message_id))?;
+            let message_node = context.message_pool.get(message_id).ok_or(format!(
+                "Message with ID '{}' not found in pool",
+                message_id
+            ))?;
 
             let internal_message = &message_node.message;
 
@@ -146,9 +146,9 @@ impl Adapter for OpenAIAdapter {
             model: context.config.model_id.clone(),
             messages,
             parameters: context.config.parameters.clone(),
-            tools: None,      // As per spec, handled by enhancer
+            tools: None,       // As per spec, handled by enhancer
             tool_choice: None, // As per spec, handled by enhancer
-            stream: None, // Default to None, can be set by caller
+            stream: None,      // Default to None, can be set by caller
         };
 
         Ok(request)
@@ -157,9 +157,7 @@ impl Adapter for OpenAIAdapter {
 
 fn convert_content_part(part: &InternalContentPart) -> ContentPart {
     match part {
-        InternalContentPart::Text { text } => ContentPart::Text {
-            text: text.clone(),
-        },
+        InternalContentPart::Text { text } => ContentPart::Text { text: text.clone() },
         InternalContentPart::Image { url, detail } => ContentPart::ImageUrl {
             image_url: ImageUrl {
                 url: url.clone(),

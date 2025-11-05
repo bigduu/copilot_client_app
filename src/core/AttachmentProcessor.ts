@@ -1,12 +1,10 @@
-import {
-  AttachmentProcessor as IAttachmentProcessor,
-} from '../interfaces/chat-manager';
+import { AttachmentProcessor as IAttachmentProcessor } from "../interfaces/chat-manager";
 import {
   OperationResult,
   Attachment,
   AttachmentRequest,
-  AttachmentResult
-} from '../types/unified-chat';
+  AttachmentResult,
+} from "../types/unified-chat";
 
 /**
  * Attachment Processor
@@ -17,24 +15,33 @@ export class AttachmentProcessor implements IAttachmentProcessor {
   private processingQueue = new Map<string, Promise<AttachmentResult>>();
   private cache = new Map<string, AttachmentResult>();
   private maxCacheSize = 100;
-  private supportedTypes = new Set(['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'text/plain', 'application/json']);
+  private supportedTypes = new Set([
+    "image/jpeg",
+    "image/png",
+    "image/gif",
+    "image/webp",
+    "text/plain",
+    "application/json",
+  ]);
 
   constructor() {}
 
   /**
    * Process attachments in batch
    */
-  async processAttachments(attachments: Attachment[]): Promise<OperationResult<AttachmentResult[]>> {
+  async processAttachments(
+    attachments: Attachment[],
+  ): Promise<OperationResult<AttachmentResult[]>> {
     try {
       if (!this.initialized) {
-        throw new Error('AttachmentProcessor is not initialized');
+        throw new Error("AttachmentProcessor is not initialized");
       }
 
       if (!attachments || attachments.length === 0) {
         return {
           success: true,
           data: [],
-          message: 'No attachments to process'
+          message: "No attachments to process",
         };
       }
 
@@ -46,46 +53,50 @@ export class AttachmentProcessor implements IAttachmentProcessor {
         attachments.map(async (attachment) => {
           try {
             const request: AttachmentRequest = {
-              type: attachment.type as 'image' | 'file' | 'url',
+              type: attachment.type as "image" | "file" | "url",
               content: attachment.url,
               metadata: {
                 name: attachment.name,
                 size: attachment.size,
-                mimeType: attachment.mimeType
-              }
+                mimeType: attachment.mimeType,
+              },
             };
 
             const result = await this.processAttachment(request);
             if (result.success && result.data) {
               results.push(result.data);
             } else {
-              errors.push(`Failed to process attachment ${attachment.name}: ${result.error || 'Unknown error'}`);
+              errors.push(
+                `Failed to process attachment ${attachment.name}: ${result.error || "Unknown error"}`,
+              );
             }
           } catch (error) {
-            errors.push(`Exception processing attachment ${attachment.name}: ${error instanceof Error ? error.message : String(error)}`);
+            errors.push(
+              `Exception processing attachment ${attachment.name}: ${error instanceof Error ? error.message : String(error)}`,
+            );
           }
-        })
+        }),
       );
 
       if (errors.length > 0 && results.length === 0) {
         return {
           success: false,
-          error: errors.join('; '),
-          message: 'Failed to process all attachments'
+          error: errors.join("; "),
+          message: "Failed to process all attachments",
         };
       }
 
       return {
         success: true,
         data: results,
-        message: `Successfully processed ${results.length} attachments${errors.length > 0 ? `, ${errors.length} failed` : ''}`
+        message: `Successfully processed ${results.length} attachments${errors.length > 0 ? `, ${errors.length} failed` : ""}`,
       };
     } catch (error) {
-      console.error('Failed to process attachments in batch:', error);
+      console.error("Failed to process attachments in batch:", error);
       return {
         success: false,
         error: error instanceof Error ? error.message : String(error),
-        message: 'Failed to process attachments in batch'
+        message: "Failed to process attachments in batch",
       };
     }
   }
@@ -93,22 +104,24 @@ export class AttachmentProcessor implements IAttachmentProcessor {
   /**
    * Process single attachment
    */
-  async processAttachment(request: AttachmentRequest): Promise<OperationResult<AttachmentResult>> {
+  async processAttachment(
+    request: AttachmentRequest,
+  ): Promise<OperationResult<AttachmentResult>> {
     try {
       if (!this.initialized) {
-        throw new Error('AttachmentProcessor is not initialized');
+        throw new Error("AttachmentProcessor is not initialized");
       }
 
       // Generate cache key
       const cacheKey = this.generateCacheKey(request);
-      
+
       // Check cache
       if (this.cache.has(cacheKey)) {
         const cachedResult = this.cache.get(cacheKey)!;
         return {
           success: true,
           data: cachedResult,
-          message: 'Get processing result from cache'
+          message: "Get processing result from cache",
         };
       }
 
@@ -118,7 +131,7 @@ export class AttachmentProcessor implements IAttachmentProcessor {
         return {
           success: true,
           data: result,
-          message: 'Wait for the processing queue to complete'
+          message: "Wait for the processing queue to complete",
         };
       }
 
@@ -128,25 +141,25 @@ export class AttachmentProcessor implements IAttachmentProcessor {
 
       try {
         const result = await processingPromise;
-        
+
         // Cache result
         this.addToCache(cacheKey, result);
-        
+
         return {
           success: true,
           data: result,
-          message: 'Attachment processing complete'
+          message: "Attachment processing complete",
         };
       } finally {
         // Remove from processing queue
         this.processingQueue.delete(cacheKey);
       }
     } catch (error) {
-      console.error('Failed to process attachment:', error);
+      console.error("Failed to process attachment:", error);
       return {
         success: false,
         error: error instanceof Error ? error.message : String(error),
-        message: 'Failed to process attachment'
+        message: "Failed to process attachment",
       };
     }
   }
@@ -162,22 +175,22 @@ export class AttachmentProcessor implements IAttachmentProcessor {
           return {
             success: true,
             data: result,
-            message: 'Found attachment processing result'
+            message: "Found attachment processing result",
           };
         }
       }
 
       return {
         success: false,
-        error: 'Attachment processing result not found',
-        message: `Processing result for attachment ${attachmentId} does not exist`
+        error: "Attachment processing result not found",
+        message: `Processing result for attachment ${attachmentId} does not exist`,
       };
     } catch (error) {
-      console.error('Failed to get processing result:', error);
+      console.error("Failed to get processing result:", error);
       return {
         success: false,
         error: error instanceof Error ? error.message : String(error),
-        message: 'Failed to get processing result'
+        message: "Failed to get processing result",
       };
     }
   }
@@ -185,16 +198,22 @@ export class AttachmentProcessor implements IAttachmentProcessor {
   /**
    * Merge attachment summaries into content
    */
-  mergeAttachmentSummaries(content: string, results: AttachmentResult[]): string {
+  mergeAttachmentSummaries(
+    content: string,
+    results: AttachmentResult[],
+  ): string {
     try {
       if (!results || results.length === 0) {
         return content;
       }
 
       const summaries = results
-        .filter(result => result.summary && result.summary.trim())
-        .map(result => `[Attachment: ${result.attachment.name}]\n${result.summary}`)
-        .join('\n\n');
+        .filter((result) => result.summary && result.summary.trim())
+        .map(
+          (result) =>
+            `[Attachment: ${result.attachment.name}]\n${result.summary}`,
+        )
+        .join("\n\n");
 
       if (!summaries) {
         return content;
@@ -208,7 +227,7 @@ export class AttachmentProcessor implements IAttachmentProcessor {
       // Add the summary to the beginning of the content
       return `${summaries}\n\n${content}`;
     } catch (error) {
-      console.error('Failed to merge attachment summaries:', error);
+      console.error("Failed to merge attachment summaries:", error);
       return content;
     }
   }
@@ -225,17 +244,17 @@ export class AttachmentProcessor implements IAttachmentProcessor {
       let prompt = `Processing attachment: ${name} (${size})`;
 
       switch (type) {
-        case 'image':
+        case "image":
           prompt += `\nThis is an image, please analyze its content and provide a detailed description.`;
           break;
-        case 'file':
-          if (attachment.mimeType.includes('text')) {
+        case "file":
+          if (attachment.mimeType.includes("text")) {
             prompt += `\nThis is a text file, please analyze its content and provide a summary.`;
           } else {
             prompt += `\nThis is a file, type: ${attachment.mimeType}.`;
           }
           break;
-        case 'screenshot':
+        case "screenshot":
           prompt += `\nThis is a screenshot, please analyze its content and provide a detailed description.`;
           break;
         default:
@@ -244,7 +263,7 @@ export class AttachmentProcessor implements IAttachmentProcessor {
 
       return prompt;
     } catch (error) {
-      console.error('Failed to generate attachment prompt:', error);
+      console.error("Failed to generate attachment prompt:", error);
       return `Processing attachment: ${attachment.name}`;
     }
   }
@@ -263,9 +282,11 @@ export class AttachmentProcessor implements IAttachmentProcessor {
       this.processingQueue.clear();
 
       this.initialized = true;
-      console.log('AttachmentProcessor initialized successfully');
+      console.log("AttachmentProcessor initialized successfully");
     } catch (error) {
-      throw new Error(`AttachmentProcessor initialization failed: ${error instanceof Error ? error.message : String(error)}`);
+      throw new Error(
+        `AttachmentProcessor initialization failed: ${error instanceof Error ? error.message : String(error)}`,
+      );
     }
   }
 
@@ -282,35 +303,37 @@ export class AttachmentProcessor implements IAttachmentProcessor {
       // Clean up resources
       this.cache.clear();
       this.processingQueue.clear();
-      
+
       this.initialized = false;
-      console.log('AttachmentProcessor has been disposed');
+      console.log("AttachmentProcessor has been disposed");
     } catch (error) {
-      console.error('AttachmentProcessor disposal failed:', error);
+      console.error("AttachmentProcessor disposal failed:", error);
     }
   }
 
   /**
    * Perform actual processing
    */
-  private async performProcessing(request: AttachmentRequest): Promise<AttachmentResult> {
+  private async performProcessing(
+    request: AttachmentRequest,
+  ): Promise<AttachmentResult> {
     const startTime = Date.now();
 
     try {
       // Validate attachment type
       this.validateAttachmentRequest(request);
 
-      let summary = '';
-      let originalContent = '';
+      let summary = "";
+      let originalContent = "";
 
       switch (request.type) {
-        case 'image':
+        case "image":
           ({ summary, originalContent } = await this.processImage(request));
           break;
-        case 'file':
+        case "file":
           ({ summary, originalContent } = await this.processFile(request));
           break;
-        case 'url':
+        case "url":
           ({ summary, originalContent } = await this.processUrl(request));
           break;
         default:
@@ -322,74 +345,91 @@ export class AttachmentProcessor implements IAttachmentProcessor {
       // Create attachment object
       const attachment: Attachment = {
         id: this.generateAttachmentId(),
-        type: request.type as 'image' | 'file' | 'screenshot',
-        url: typeof request.content === 'string' ? request.content : '',
+        type: request.type as "image" | "file" | "screenshot",
+        url: typeof request.content === "string" ? request.content : "",
         name: request.metadata?.name || `Attachment_${Date.now()}`,
         size: request.metadata?.size || 0,
-        mimeType: request.metadata?.mimeType || 'application/octet-stream'
+        mimeType: request.metadata?.mimeType || "application/octet-stream",
       };
 
       return {
         attachment,
         summary,
         originalContent,
-        processingTime
+        processingTime,
       };
     } catch (error) {
-      throw new Error(`Attachment processing failed: ${error instanceof Error ? error.message : String(error)}`);
+      throw new Error(
+        `Attachment processing failed: ${error instanceof Error ? error.message : String(error)}`,
+      );
     }
   }
 
   /**
    * Process image
    */
-  private async processImage(request: AttachmentRequest): Promise<{ summary: string; originalContent: string }> {
+  private async processImage(
+    request: AttachmentRequest,
+  ): Promise<{ summary: string; originalContent: string }> {
     try {
       // Image analysis service should be called here, for now returning mock results
-      const summary = `Image analysis result: ${request.metadata?.name || 'Unknown image'}`;
-      const originalContent = typeof request.content === 'string' ? request.content : '[Image Content]';
+      const summary = `Image analysis result: ${request.metadata?.name || "Unknown image"}`;
+      const originalContent =
+        typeof request.content === "string"
+          ? request.content
+          : "[Image Content]";
 
       return { summary, originalContent };
     } catch (error) {
-      throw new Error(`Image processing failed: ${error instanceof Error ? error.message : String(error)}`);
+      throw new Error(
+        `Image processing failed: ${error instanceof Error ? error.message : String(error)}`,
+      );
     }
   }
 
   /**
    * Process file
    */
-  private async processFile(request: AttachmentRequest): Promise<{ summary: string; originalContent: string }> {
+  private async processFile(
+    request: AttachmentRequest,
+  ): Promise<{ summary: string; originalContent: string }> {
     try {
-      let originalContent = '';
-      
-      if (typeof request.content === 'string') {
+      let originalContent = "";
+
+      if (typeof request.content === "string") {
         originalContent = request.content;
       } else if (request.content instanceof File) {
         originalContent = await this.readFileContent(request.content);
       } else {
-        originalContent = '[File Content]';
+        originalContent = "[File Content]";
       }
 
-      const summary = `File summary: ${request.metadata?.name || 'Unknown file'} - ${originalContent.substring(0, 200)}${originalContent.length > 200 ? '...' : ''}`;
+      const summary = `File summary: ${request.metadata?.name || "Unknown file"} - ${originalContent.substring(0, 200)}${originalContent.length > 200 ? "..." : ""}`;
 
       return { summary, originalContent };
     } catch (error) {
-      throw new Error(`File processing failed: ${error instanceof Error ? error.message : String(error)}`);
+      throw new Error(
+        `File processing failed: ${error instanceof Error ? error.message : String(error)}`,
+      );
     }
   }
 
   /**
    * Process URL
    */
-  private async processUrl(request: AttachmentRequest): Promise<{ summary: string; originalContent: string }> {
+  private async processUrl(
+    request: AttachmentRequest,
+  ): Promise<{ summary: string; originalContent: string }> {
     try {
-      const url = typeof request.content === 'string' ? request.content : '';
+      const url = typeof request.content === "string" ? request.content : "";
       const summary = `URL content summary:${url}`;
       const originalContent = url;
 
       return { summary, originalContent };
     } catch (error) {
-      throw new Error(`URL processing failed: ${error instanceof Error ? error.message : String(error)}`);
+      throw new Error(
+        `URL processing failed: ${error instanceof Error ? error.message : String(error)}`,
+      );
     }
   }
 
@@ -399,17 +439,17 @@ export class AttachmentProcessor implements IAttachmentProcessor {
   private async readFileContent(file: File): Promise<string> {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
-      
+
       reader.onload = (e) => {
-        resolve(e.target?.result as string || '');
+        resolve((e.target?.result as string) || "");
       };
-      
+
       reader.onerror = () => {
-        reject(new Error('Failed to read file'));
+        reject(new Error("Failed to read file"));
       };
 
       // Select read method based on file type
-      if (file.type.startsWith('text/') || file.type === 'application/json') {
+      if (file.type.startsWith("text/") || file.type === "application/json") {
         reader.readAsText(file);
       } else {
         reader.readAsDataURL(file);
@@ -422,11 +462,11 @@ export class AttachmentProcessor implements IAttachmentProcessor {
    */
   private validateAttachmentRequest(request: AttachmentRequest): void {
     if (!request.type) {
-      throw new Error('Attachment type cannot be empty');
+      throw new Error("Attachment type cannot be empty");
     }
 
     if (!request.content) {
-      throw new Error('Attachment content cannot be empty');
+      throw new Error("Attachment content cannot be empty");
     }
 
     // Check MIME type support
@@ -438,7 +478,7 @@ export class AttachmentProcessor implements IAttachmentProcessor {
     // Check file size limit (10MB)
     const size = request.metadata?.size;
     if (size && size > 10 * 1024 * 1024) {
-      throw new Error('File size exceeds limit (10MB)');
+      throw new Error("File size exceeds limit (10MB)");
     }
   }
 
@@ -446,11 +486,12 @@ export class AttachmentProcessor implements IAttachmentProcessor {
    * Generate cache key
    */
   private generateCacheKey(request: AttachmentRequest): string {
-    const contentHash = typeof request.content === 'string' 
-      ? request.content.substring(0, 50)
-      : request.content.toString().substring(0, 50);
-    
-    return `${request.type}_${contentHash}_${request.metadata?.name || ''}_${request.metadata?.size || 0}`;
+    const contentHash =
+      typeof request.content === "string"
+        ? request.content.substring(0, 50)
+        : request.content.toString().substring(0, 50);
+
+    return `${request.type}_${contentHash}_${request.metadata?.name || ""}_${request.metadata?.size || 0}`;
   }
 
   /**
@@ -479,12 +520,12 @@ export class AttachmentProcessor implements IAttachmentProcessor {
    * Format file size
    */
   private formatFileSize(bytes: number): string {
-    if (bytes === 0) return '0 B';
-    
+    if (bytes === 0) return "0 B";
+
     const k = 1024;
-    const sizes = ['B', 'KB', 'MB', 'GB'];
+    const sizes = ["B", "KB", "MB", "GB"];
     const i = Math.floor(Math.log(bytes) / Math.log(k));
-    
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
   }
 }

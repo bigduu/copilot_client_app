@@ -41,12 +41,12 @@ impl WorkflowRegistry {
             workflows: RwLock::new(workflows),
         }
     }
-    
+
     /// Get a workflow by name
     pub fn get_workflow(&self, name: &str) -> Option<Arc<dyn Workflow>> {
         self.workflows.read().unwrap().get(name).cloned()
     }
-    
+
     /// List all workflow definitions
     pub fn list_workflow_definitions(&self) -> Vec<WorkflowDefinition> {
         self.workflows
@@ -56,7 +56,7 @@ impl WorkflowRegistry {
             .map(|workflow| workflow.definition())
             .collect()
     }
-    
+
     /// List workflow definitions filtered by category
     pub fn list_workflows_by_category(&self, category: &str) -> Vec<WorkflowDefinition> {
         self.workflows
@@ -90,7 +90,7 @@ impl CategoryRegistry {
             _categories: RwLock::new(categories),
         }
     }
-    
+
     /// Get a category by ID
     pub fn get_category(&self, id: &str) -> Option<Box<dyn Category>> {
         if self._categories.read().unwrap().get(id).is_some() {
@@ -102,7 +102,7 @@ impl CategoryRegistry {
             None
         }
     }
-    
+
     /// List all categories
     pub fn list_categories(&self) -> Vec<Box<dyn Category>> {
         inventory::iter::<CategoryRegistration>()
@@ -116,5 +116,3 @@ impl Default for CategoryRegistry {
         Self::new()
     }
 }
-
-

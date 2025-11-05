@@ -61,5 +61,3 @@ export const BranchSelector: React.FC<BranchSelectorProps> = ({
     </Space>
   );
 };
-
-

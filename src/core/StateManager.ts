@@ -1,6 +1,4 @@
-import {
-  StateManager as IStateManager,
-} from '../interfaces/chat-manager';
+import { StateManager as IStateManager } from "../interfaces/chat-manager";
 import {
   ChatState,
   StateUpdates,
@@ -8,8 +6,8 @@ import {
   Unsubscribe,
   ExtendedMessage,
   // OperationResult
-} from '../types/unified-chat';
-import { ChatItem } from '../types/chat';
+} from "../types/unified-chat";
+import { ChatItem } from "../types/chat";
 
 /**
  * Unified State Manager
@@ -38,7 +36,7 @@ export class StateManager implements IStateManager {
       currentChatId: null,
       isProcessing: false,
       listeners: new Set<StateListener>(),
-      transactions: new Map<string, any>()
+      transactions: new Map<string, any>(),
     };
   }
 
@@ -56,12 +54,14 @@ export class StateManager implements IStateManager {
     try {
       // Deep merge state updates
       this.state = this.mergeState(this.state, updates);
-      
+
       // Notify all listeners
       this.notifyListeners();
     } catch (error) {
-      console.error('State update failed:', error);
-      throw new Error(`State update failed: ${error instanceof Error ? error.message : String(error)}`);
+      console.error("State update failed:", error);
+      throw new Error(
+        `State update failed: ${error instanceof Error ? error.message : String(error)}`,
+      );
     }
   }
 
@@ -70,12 +70,12 @@ export class StateManager implements IStateManager {
    */
   subscribe(listener: StateListener): Unsubscribe {
     this.listeners.add(listener);
-    
+
     // Immediately send the current state
     try {
       listener(this.getState());
     } catch (error) {
-      console.error('Listener execution failed:', error);
+      console.error("Listener execution failed:", error);
     }
 
     // Return unsubscribe function
@@ -106,7 +106,9 @@ export class StateManager implements IStateManager {
       this.state.chats.set(chat.id, chat);
       this.notifyListeners();
     } catch (error) {
-      throw new Error(`Failed to add chat: ${error instanceof Error ? error.message : String(error)}`);
+      throw new Error(
+        `Failed to add chat: ${error instanceof Error ? error.message : String(error)}`,
+      );
     }
   }
 
@@ -118,11 +120,13 @@ export class StateManager implements IStateManager {
       if (!this.state.chats.has(chatId)) {
         throw new Error(`Chat does not exist: ${chatId}`);
       }
-      
+
       this.state.chats.set(chatId, chat);
       this.notifyListeners();
     } catch (error) {
-      throw new Error(`Failed to update chat: ${error instanceof Error ? error.message : String(error)}`);
+      throw new Error(
+        `Failed to update chat: ${error instanceof Error ? error.message : String(error)}`,
+      );
     }
   }
 
@@ -138,7 +142,7 @@ export class StateManager implements IStateManager {
       // Delete chat and all its messages
       this.state.chats.delete(chatId);
       this.messages.delete(chatId);
-      
+
       // If it is the current chat, reset the current chat ID
       if (this.state.currentChatId === chatId) {
         this.state.currentChatId = null;
@@ -146,7 +150,9 @@ export class StateManager implements IStateManager {
 
       this.notifyListeners();
     } catch (error) {
-      throw new Error(`Failed to remove chat: ${error instanceof Error ? error.message : String(error)}`);
+      throw new Error(
+        `Failed to remove chat: ${error instanceof Error ? error.message : String(error)}`,
+      );
     }
   }
 
@@ -156,8 +162,10 @@ export class StateManager implements IStateManager {
   getMessage(chatId: string, messageId: string): ExtendedMessage | null {
     const chatMessages = this.messages.get(chatId);
     if (!chatMessages) return null;
-    
-    return chatMessages.find((msg: ExtendedMessage) => msg.id === messageId) || null;
+
+    return (
+      chatMessages.find((msg: ExtendedMessage) => msg.id === messageId) || null
+    );
   }
 
   /**
@@ -165,7 +173,9 @@ export class StateManager implements IStateManager {
    */
   getVisibleMessages(chatId: string): ExtendedMessage[] {
     const chatMessages = this.messages.get(chatId) || [];
-    return chatMessages.filter((msg: ExtendedMessage) => !this.hiddenMessages.has(msg.id!));
+    return chatMessages.filter(
+      (msg: ExtendedMessage) => !this.hiddenMessages.has(msg.id!),
+    );
   }
 
   /**
@@ -173,7 +183,9 @@ export class StateManager implements IStateManager {
    */
   getHiddenMessages(chatId: string): ExtendedMessage[] {
     const chatMessages = this.messages.get(chatId) || [];
-    return chatMessages.filter((msg: ExtendedMessage) => this.hiddenMessages.has(msg.id!));
+    return chatMessages.filter((msg: ExtendedMessage) =>
+      this.hiddenMessages.has(msg.id!),
+    );
   }
 
   /**
@@ -191,25 +203,33 @@ export class StateManager implements IStateManager {
       if (!this.messages.has(chatId)) {
         this.messages.set(chatId, []);
       }
-      
+
       this.messages.get(chatId)!.push(message);
       this.notifyListeners();
     } catch (error) {
-      throw new Error(`Failed to add message: ${error instanceof Error ? error.message : String(error)}`);
+      throw new Error(
+        `Failed to add message: ${error instanceof Error ? error.message : String(error)}`,
+      );
     }
   }
 
   /**
    * Update message
    */
-  async updateMessage(chatId: string, messageId: string, message: ExtendedMessage): Promise<void> {
+  async updateMessage(
+    chatId: string,
+    messageId: string,
+    message: ExtendedMessage,
+  ): Promise<void> {
     try {
       const chatMessages = this.messages.get(chatId);
       if (!chatMessages) {
         throw new Error(`Chat does not exist: ${chatId}`);
       }
 
-      const messageIndex = chatMessages.findIndex((msg: ExtendedMessage) => msg.id === messageId);
+      const messageIndex = chatMessages.findIndex(
+        (msg: ExtendedMessage) => msg.id === messageId,
+      );
       if (messageIndex === -1) {
         throw new Error(`Message does not exist: ${messageId}`);
       }
@@ -217,7 +237,9 @@ export class StateManager implements IStateManager {
       chatMessages[messageIndex] = message;
       this.notifyListeners();
     } catch (error) {
-      throw new Error(`Failed to update message: ${error instanceof Error ? error.message : String(error)}`);
+      throw new Error(
+        `Failed to update message: ${error instanceof Error ? error.message : String(error)}`,
+      );
     }
   }
 
@@ -231,20 +253,26 @@ export class StateManager implements IStateManager {
         throw new Error(`Chat does not exist: ${chatId}`);
       }
 
-      const messageIndex = chatMessages.findIndex((msg: ExtendedMessage) => msg.id === messageId);
+      const messageIndex = chatMessages.findIndex(
+        (msg: ExtendedMessage) => msg.id === messageId,
+      );
       if (messageIndex === -1) {
         throw new Error(`Message does not exist: ${messageId}`);
       }
 
       chatMessages.splice(messageIndex, 1);
       this.hiddenMessages.delete(messageId);
-      
+
       // Remove from selected messages
-      this.selectedMessages = this.selectedMessages.filter((id: string) => id !== messageId);
-      
+      this.selectedMessages = this.selectedMessages.filter(
+        (id: string) => id !== messageId,
+      );
+
       this.notifyListeners();
     } catch (error) {
-      throw new Error(`Failed to remove message: ${error instanceof Error ? error.message : String(error)}`);
+      throw new Error(
+        `Failed to remove message: ${error instanceof Error ? error.message : String(error)}`,
+      );
     }
   }
 
@@ -275,17 +303,19 @@ export class StateManager implements IStateManager {
       const chatId = chat.id || this.generateId();
       const chatItem: ChatItem = {
         id: chatId,
-        title: chat.title || 'New Chat',
+        title: chat.title || "New Chat",
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
-        systemPrompt: chat.systemPrompt || '',
-        ...chat
+        systemPrompt: chat.systemPrompt || "",
+        ...chat,
       };
 
       await this.addChat(chatItem);
       return chatId;
     } catch (error) {
-      throw new Error(`Failed to create chat: ${error instanceof Error ? error.message : String(error)}`);
+      throw new Error(
+        `Failed to create chat: ${error instanceof Error ? error.message : String(error)}`,
+      );
     }
   }
 
@@ -301,7 +331,9 @@ export class StateManager implements IStateManager {
    */
   async deleteMessage(messageId: string): Promise<void> {
     for (const [chatId, messagesList] of this.messages.entries()) {
-      const messageIndex = messagesList.findIndex((msg: ExtendedMessage) => msg.id === messageId);
+      const messageIndex = messagesList.findIndex(
+        (msg: ExtendedMessage) => msg.id === messageId,
+      );
       if (messageIndex !== -1) {
         await this.removeMessage(chatId, messageId);
         return;
@@ -320,7 +352,7 @@ export class StateManager implements IStateManager {
         currentChatId: null,
         isProcessing: false,
         listeners: new Set<StateListener>(),
-        transactions: new Map<string, any>()
+        transactions: new Map<string, any>(),
       };
       this.messages.clear();
       this.selectedMessages = [];
@@ -328,7 +360,9 @@ export class StateManager implements IStateManager {
       this.metadata = {};
       this.notifyListeners();
     } catch (error) {
-      throw new Error(`Failed to reset state: ${error instanceof Error ? error.message : String(error)}`);
+      throw new Error(
+        `Failed to reset state: ${error instanceof Error ? error.message : String(error)}`,
+      );
     }
   }
 
@@ -342,20 +376,20 @@ export class StateManager implements IStateManager {
       currentChatId: this.state.currentChatId,
       isProcessing: this.state.isProcessing,
       listeners: new Set(this.state.listeners),
-      transactions: new Map(this.state.transactions)
+      transactions: new Map(this.state.transactions),
     };
     const previousMessages = new Map(this.messages);
     const previousSelectedMessages = [...this.selectedMessages];
     const previousHiddenMessages = new Set(this.hiddenMessages);
     const previousMetadata = { ...this.metadata };
-    
+
     this.transactionStack.push({
       id,
       previousState,
       previousMessages,
       previousSelectedMessages,
       previousHiddenMessages,
-      previousMetadata
+      previousMetadata,
     });
   }
 
@@ -364,11 +398,13 @@ export class StateManager implements IStateManager {
    */
   async commitTransaction(transactionId?: string): Promise<void> {
     if (this.transactionStack.length === 0) {
-      throw new Error('No active transaction');
+      throw new Error("No active transaction");
     }
 
     if (transactionId) {
-      const index = this.transactionStack.findIndex(t => t.id === transactionId);
+      const index = this.transactionStack.findIndex(
+        (t) => t.id === transactionId,
+      );
       if (index === -1) {
         throw new Error(`Transaction does not exist: ${transactionId}`);
       }
@@ -383,12 +419,14 @@ export class StateManager implements IStateManager {
    */
   async rollbackTransaction(transactionId?: string): Promise<void> {
     if (this.transactionStack.length === 0) {
-      throw new Error('No active transaction');
+      throw new Error("No active transaction");
     }
 
     let transaction;
     if (transactionId) {
-      const index = this.transactionStack.findIndex(t => t.id === transactionId);
+      const index = this.transactionStack.findIndex(
+        (t) => t.id === transactionId,
+      );
       if (index === -1) {
         throw new Error(`Transaction does not exist: ${transactionId}`);
       }
@@ -414,12 +452,17 @@ export class StateManager implements IStateManager {
   validateState(): boolean {
     try {
       // Validate basic structure
-      if (!this.state || typeof this.state !== 'object') {
+      if (!this.state || typeof this.state !== "object") {
         return false;
       }
 
       // Validate required fields
-      const requiredFields = ['chats', 'messages', 'selectedMessages', 'hiddenMessages'];
+      const requiredFields = [
+        "chats",
+        "messages",
+        "selectedMessages",
+        "hiddenMessages",
+      ];
       for (const field of requiredFields) {
         if (!(field in this.state)) {
           return false;
@@ -429,12 +472,14 @@ export class StateManager implements IStateManager {
       // Validate message reference integrity
       for (const [chatId, messagesList] of this.messages.entries()) {
         if (!this.state.chats.has(chatId)) {
-          console.warn(`Found orphaned messages, Chat does not exist: ${chatId}`);
+          console.warn(
+            `Found orphaned messages, Chat does not exist: ${chatId}`,
+          );
         }
-        
+
         for (const message of messagesList) {
           if (!message.id) {
-            console.warn('Found message with no ID');
+            console.warn("Found message with no ID");
             return false;
           }
         }
@@ -442,7 +487,7 @@ export class StateManager implements IStateManager {
 
       return true;
     } catch (error) {
-      console.error('State validation failed:', error);
+      console.error("State validation failed:", error);
       return false;
     }
   }
@@ -458,13 +503,15 @@ export class StateManager implements IStateManager {
     try {
       // Validate initial state
       if (!this.validateState()) {
-        throw new Error('Initial state validation failed');
+        throw new Error("Initial state validation failed");
       }
 
       this.initialized = true;
-      console.log('StateManager initialized successfully');
+      console.log("StateManager initialized successfully");
     } catch (error) {
-      throw new Error(`StateManager initialization failed: ${error instanceof Error ? error.message : String(error)}`);
+      throw new Error(
+        `StateManager initialization failed: ${error instanceof Error ? error.message : String(error)}`,
+      );
     }
   }
 
@@ -475,17 +522,17 @@ export class StateManager implements IStateManager {
     try {
       // Clean up listeners
       this.listeners.clear();
-      
+
       // Clean up transaction stack
       this.transactionStack = [];
-      
+
       // Reset state
       await this.resetState();
-      
+
       this.initialized = false;
-      console.log('StateManager has been disposed');
+      console.log("StateManager has been disposed");
     } catch (error) {
-      console.error('StateManager disposal failed:', error);
+      console.error("StateManager disposal failed:", error);
     }
   }
 
@@ -497,7 +544,13 @@ export class StateManager implements IStateManager {
 
     for (const [key, value] of Object.entries(updates)) {
       if (value !== undefined) {
-        if (typeof value === 'object' && value !== null && !Array.isArray(value) && !(value instanceof Map) && !(value instanceof Set)) {
+        if (
+          typeof value === "object" &&
+          value !== null &&
+          !Array.isArray(value) &&
+          !(value instanceof Map) &&
+          !(value instanceof Set)
+        ) {
           (merged as any)[key] = { ...(merged as any)[key], ...value };
         } else {
           (merged as any)[key] = value;
@@ -513,12 +566,12 @@ export class StateManager implements IStateManager {
    */
   private notifyListeners(): void {
     const currentState = this.getState();
-    
+
     for (const listener of this.listeners) {
       try {
         listener(currentState);
       } catch (error) {
-        console.error('Listener execution failed:', error);
+        console.error("Listener execution failed:", error);
       }
     }
   }

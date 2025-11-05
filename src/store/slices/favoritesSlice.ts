@@ -1,24 +1,24 @@
-import { StateCreator } from 'zustand';
-import { FavoriteItem } from '../../types/chat';
-import type { AppState } from '../';
+import { StateCreator } from "zustand";
+import { FavoriteItem } from "../../types/chat";
+import type { AppState } from "../";
 
 // Simple in-memory/localStorage service for favorites
 const favoritesStorageService = {
   async loadFavorites(): Promise<FavoriteItem[]> {
     try {
-      const stored = localStorage.getItem('copilot_favorites');
+      const stored = localStorage.getItem("copilot_favorites");
       return stored ? JSON.parse(stored) : [];
     } catch (error) {
-      console.error('Failed to load favorites:', error);
+      console.error("Failed to load favorites:", error);
       return [];
     }
   },
 
   async saveFavorites(favorites: FavoriteItem[]): Promise<void> {
     try {
-      localStorage.setItem('copilot_favorites', JSON.stringify(favorites));
+      localStorage.setItem("copilot_favorites", JSON.stringify(favorites));
     } catch (error) {
-      console.error('Failed to save favorites:', error);
+      console.error("Failed to save favorites:", error);
     }
   },
 };
@@ -28,14 +28,22 @@ export interface FavoritesSlice {
   favorites: FavoriteItem[];
 
   // Actions
-  addFavorite: (favorite: Omit<FavoriteItem, 'id' | 'createdAt'>) => string;
+  addFavorite: (favorite: Omit<FavoriteItem, "id" | "createdAt">) => string;
   removeFavorite: (favoriteId: string) => void;
-  updateFavorite: (favoriteId: string, updates: Partial<Omit<FavoriteItem, 'id' | 'createdAt'>>) => void;
+  updateFavorite: (
+    favoriteId: string,
+    updates: Partial<Omit<FavoriteItem, "id" | "createdAt">>,
+  ) => void;
   loadFavorites: () => Promise<void>;
   saveFavorites: () => Promise<void>;
 }
 
-export const createFavoritesSlice: StateCreator<AppState, [], [], FavoritesSlice> = (set, get) => ({
+export const createFavoritesSlice: StateCreator<
+  AppState,
+  [],
+  [],
+  FavoritesSlice
+> = (set, get) => ({
   // Initial state
   favorites: [],
 
@@ -48,29 +56,35 @@ export const createFavoritesSlice: StateCreator<AppState, [], [], FavoritesSlice
       createdAt: Date.now(),
     };
 
-    set(state => ({ ...state, favorites: [...state.favorites, newFavorite] }));
+    set((state) => ({
+      ...state,
+      favorites: [...state.favorites, newFavorite],
+    }));
     get().saveFavorites();
     return id;
   },
 
   removeFavorite: (favoriteId) => {
-    set(state => ({ ...state, favorites: state.favorites.filter(fav => fav.id !== favoriteId) }));
+    set((state) => ({
+      ...state,
+      favorites: state.favorites.filter((fav) => fav.id !== favoriteId),
+    }));
     get().saveFavorites();
   },
 
   updateFavorite: (favoriteId, updates) => {
-    set(state => ({
+    set((state) => ({
       ...state,
-      favorites: state.favorites.map(fav =>
-        fav.id === favoriteId ? { ...fav, ...updates } : fav
-      )
+      favorites: state.favorites.map((fav) =>
+        fav.id === favoriteId ? { ...fav, ...updates } : fav,
+      ),
     }));
     get().saveFavorites();
   },
 
   loadFavorites: async () => {
     const favorites = await favoritesStorageService.loadFavorites();
-    set(state => ({ ...state, favorites }));
+    set((state) => ({ ...state, favorites }));
   },
 
   saveFavorites: async () => {

@@ -10,14 +10,23 @@ import {
   Tag,
   Button,
   Card,
+  message,
 } from "antd";
 import {
   ModalFooter,
   createCancelButton,
   createOkButton,
 } from "../ModalFooter";
-import { ToolOutlined, EyeOutlined } from "@ant-design/icons";
+import {
+  ToolOutlined,
+  EyeOutlined,
+  EyeInvisibleOutlined,
+  CopyOutlined,
+} from "@ant-design/icons";
 import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
+import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism";
 import { UserSystemPrompt } from "../../types/chat";
 import { useAppStore } from "../../store";
 
@@ -42,17 +51,47 @@ const SystemPromptSelector: React.FC<SystemPromptSelectorProps> = ({
   showCancelButton = true,
 }) => {
   const { token } = useToken();
+  const [messageApi, contextHolder] = message.useMessage();
   const lastSelectedPromptId = useAppStore(
-    (state) => state.lastSelectedPromptId
+    (state) => state.lastSelectedPromptId,
   );
   const setLastSelectedPromptId = useAppStore(
-    (state) => state.setLastSelectedPromptId
+    (state) => state.setLastSelectedPromptId,
   );
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [expandedPreviewId, setExpandedPreviewId] = useState<string | null>(
-    null
+    null,
   );
+
+  const handleCopyPrompt = async (
+    event: React.MouseEvent,
+    prompt: UserSystemPrompt,
+  ) => {
+    event.stopPropagation();
+
+    const content = prompt.content ?? "";
+
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(content);
+      } else {
+        const textarea = document.createElement("textarea");
+        textarea.value = content;
+        textarea.style.position = "fixed";
+        textarea.style.opacity = "0";
+        document.body.appendChild(textarea);
+        textarea.select();
+        document.execCommand("copy");
+        document.body.removeChild(textarea);
+      }
+
+      messageApi.success(`Copied "${prompt.name}" prompt`);
+    } catch (error) {
+      console.error("[SystemPromptSelector] Failed to copy prompt:", error);
+      messageApi.error("Failed to copy prompt content");
+    }
+  };
 
   useEffect(() => {
     if (open) {
@@ -77,6 +116,16 @@ const SystemPromptSelector: React.FC<SystemPromptSelectorProps> = ({
   const renderPromptItem = (prompt: UserSystemPrompt) => {
     const isSelected = selectedId === prompt.id;
     const isExpanded = expandedPreviewId === prompt.id;
+    const content = prompt.content || "";
+    const lines = content ? content.split(/\r?\n/) : [];
+    const nonEmptyLineCount = lines.filter(
+      (line) => line.trim().length > 0,
+    ).length;
+    const wordCount = content.trim()
+      ? content.trim().split(/\s+/).filter(Boolean).length
+      : 0;
+    const characterCount = content.length;
+    const showGradient = !isExpanded && characterCount > 600;
 
     return (
       <List.Item
@@ -107,43 +156,85 @@ const SystemPromptSelector: React.FC<SystemPromptSelectorProps> = ({
               justifyContent: "space-between",
               alignItems: "flex-start",
               width: "100%",
+              gap: token.marginSM,
             }}
           >
-            <Space>
+            <Space align="start">
               <Radio
                 checked={isSelected}
                 onChange={() => setSelectedId(prompt.id)}
                 onClick={(e) => e.stopPropagation()}
               />
-              <Text strong>{prompt.name}</Text>
-              {prompt.isDefault && <Tag>Default</Tag>}
+              <div>
+                <Text strong>{prompt.name || prompt.id}</Text>
+                <div>
+                  <Text
+                    code
+                    style={{
+                      fontSize: token.fontSizeSM,
+                      color: token.colorTextSecondary,
+                    }}
+                  >
+                    {prompt.id}
+                  </Text>
+                </div>
+              </div>
+              {prompt.isDefault && <Tag color="gold">Default</Tag>}
             </Space>
-            <Button
-              type="text"
-              size="small"
-              icon={<EyeOutlined />}
-              onClick={(e) => {
-                e.stopPropagation();
-                setExpandedPreviewId(isExpanded ? null : prompt.id);
-              }}
-            >
-              {isExpanded ? "Hide" : "Preview"}
-            </Button>
+
+            <Space size="small">
+              <Button
+                type="text"
+                size="small"
+                icon={isExpanded ? <EyeInvisibleOutlined /> : <EyeOutlined />}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setExpandedPreviewId(isExpanded ? null : prompt.id);
+                }}
+              >
+                {isExpanded ? "Hide" : "Preview"}
+              </Button>
+              <Button
+                type="text"
+                size="small"
+                icon={<CopyOutlined />}
+                onClick={(event) => handleCopyPrompt(event, prompt)}
+              >
+                Copy
+              </Button>
+            </Space>
           </div>
 
-          {!isExpanded && (
+          {prompt.description && (
             <Text
+              type="secondary"
               style={{
-                fontSize: token.fontSize,
                 marginLeft: token.marginLG,
-                lineHeight: 1.5,
-                color: token.colorTextSecondary,
-                display: "block",
+                fontSize: token.fontSizeSM,
               }}
             >
-              {prompt.content.substring(0, 150) +
-                (prompt.content.length > 150 ? "..." : "")}
+              {prompt.description}
             </Text>
+          )}
+
+          <Space size="small" wrap style={{ marginLeft: token.marginLG }}>
+            <Tag color="geekblue">Lines: {nonEmptyLineCount}</Tag>
+            <Tag color="purple">Words: {wordCount}</Tag>
+            <Tag color="green">Chars: {characterCount}</Tag>
+          </Space>
+
+          {!isExpanded && (
+            <Paragraph
+              type="secondary"
+              ellipsis={{ rows: 3 }}
+              style={{
+                marginLeft: token.marginLG,
+                marginBottom: 0,
+                color: token.colorTextSecondary,
+              }}
+            >
+              {content || "No content available."}
+            </Paragraph>
           )}
 
           {isExpanded && (
@@ -153,17 +244,21 @@ const SystemPromptSelector: React.FC<SystemPromptSelectorProps> = ({
                 marginLeft: token.marginLG,
                 marginTop: token.marginXS,
                 backgroundColor: token.colorBgLayout,
+                borderColor: token.colorBorderSecondary,
               }}
+              bodyStyle={{ padding: token.paddingMD }}
               onClick={(e) => e.stopPropagation()}
             >
               <div
                 style={{
-                  maxHeight: "400px",
+                  maxHeight: "60vh",
                   overflowY: "auto",
+                  position: "relative",
                   paddingRight: token.paddingXS,
                 }}
               >
                 <ReactMarkdown
+                  remarkPlugins={[remarkGfm]}
                   components={{
                     p: ({ children }) => (
                       <Paragraph style={{ marginBottom: token.marginSM }}>
@@ -174,7 +269,7 @@ const SystemPromptSelector: React.FC<SystemPromptSelectorProps> = ({
                       <ol
                         style={{
                           marginBottom: token.marginSM,
-                          paddingLeft: 20,
+                          paddingLeft: token.paddingLG,
                         }}
                       >
                         {children}
@@ -184,7 +279,7 @@ const SystemPromptSelector: React.FC<SystemPromptSelectorProps> = ({
                       <ul
                         style={{
                           marginBottom: token.marginSM,
-                          paddingLeft: 20,
+                          paddingLeft: token.paddingLG,
                         }}
                       >
                         {children}
@@ -219,10 +314,53 @@ const SystemPromptSelector: React.FC<SystemPromptSelectorProps> = ({
                         {children}
                       </Text>
                     ),
+                    code: ({ inline, className, children, ...props }: any) => {
+                      const match = /language-(\w+)/.exec(className || "");
+                      if (!inline) {
+                        return (
+                          <SyntaxHighlighter
+                            style={oneDark}
+                            language={match?.[1] || "text"}
+                            PreTag="div"
+                            wrapLongLines
+                          >
+                            {String(children).replace(/\n$/, "")}
+                          </SyntaxHighlighter>
+                        );
+                      }
+
+                      return (
+                        <code
+                          className={className}
+                          style={{
+                            backgroundColor: token.colorFillTertiary,
+                            padding: "0 4px",
+                            borderRadius: token.borderRadiusSM,
+                            fontSize: token.fontSizeSM,
+                          }}
+                          {...props}
+                        >
+                          {children}
+                        </code>
+                      );
+                    },
                   }}
                 >
-                  {prompt.content}
+                  {content || "No content available."}
                 </ReactMarkdown>
+
+                {showGradient && (
+                  <div
+                    style={{
+                      position: "sticky",
+                      bottom: 0,
+                      height: 48,
+                      background: `linear-gradient(180deg, transparent, ${token.colorBgLayout})`,
+                      pointerEvents: "none",
+                      marginTop: -48,
+                    }}
+                  />
+                )}
               </div>
             </Card>
           )}
@@ -232,63 +370,66 @@ const SystemPromptSelector: React.FC<SystemPromptSelectorProps> = ({
   };
 
   return (
-    <Modal
-      title={
-        <Space>
-          <ToolOutlined />
-          {title}
-        </Space>
-      }
-      open={open}
-      onCancel={handleCancel}
-      width={700}
-      footer={
-        <ModalFooter
-          buttons={[
-            ...(showCancelButton ? [createCancelButton(handleCancel)] : []),
-            createOkButton(
-              () => {
-                const prompt = prompts.find((p) => p.id === selectedId);
-                if (prompt) {
-                  handleSelect(prompt);
-                }
-              },
-              {
-                text: "Create New Chat",
-                disabled: !selectedId,
-              }
-            ),
-          ]}
-        />
-      }
-      styles={{
-        body: {
-          maxHeight: "70vh",
-          overflowY: "auto",
-          padding: token.paddingMD,
-        },
-      }}
-    >
-      <div style={{ marginBottom: token.marginMD }}>
-        <Text type="secondary" style={{ fontSize: token.fontSizeSM }}>
-          Select a base system prompt for the AI. You can add or edit prompts in
-          the System Settings.
-        </Text>
-      </div>
+    <>
+      {contextHolder}
+      <Modal
+        title={
+          <Space>
+            <ToolOutlined />
+            {title}
+          </Space>
+        }
+        open={open}
+        onCancel={handleCancel}
+        width={700}
+        footer={
+          <ModalFooter
+            buttons={[
+              ...(showCancelButton ? [createCancelButton(handleCancel)] : []),
+              createOkButton(
+                () => {
+                  const prompt = prompts.find((p) => p.id === selectedId);
+                  if (prompt) {
+                    handleSelect(prompt);
+                  }
+                },
+                {
+                  text: "Create New Chat",
+                  disabled: !selectedId,
+                },
+              ),
+            ]}
+          />
+        }
+        styles={{
+          body: {
+            maxHeight: "70vh",
+            overflowY: "auto",
+            padding: token.paddingMD,
+          },
+        }}
+      >
+        <div style={{ marginBottom: token.marginMD }}>
+          <Text type="secondary" style={{ fontSize: token.fontSizeSM }}>
+            Select a base system prompt for the AI. You can add or edit prompts
+            in the System Settings.
+          </Text>
+        </div>
 
-      {prompts.length === 0 ? (
-        <Empty
-          description="No system prompts found. Add one in System Settings."
-          style={{ margin: token.marginLG }}
-        />
-      ) : (
-        <List
-          dataSource={prompts}
-          renderItem={renderPromptItem}
-          split={false}
-        />
-      )}
-    </Modal>
+        {prompts.length === 0 ? (
+          <Empty
+            description="No system prompts found. Add one in System Settings."
+            style={{ margin: token.marginLG }}
+          />
+        ) : (
+          <List
+            dataSource={prompts}
+            renderItem={renderPromptItem}
+            split={false}
+          />
+        )}
+      </Modal>
+    </>
   );
 };
 

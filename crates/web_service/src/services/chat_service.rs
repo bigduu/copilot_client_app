@@ -1,22 +1,29 @@
-use crate::{error::AppError, storage::StorageProvider};
+use crate::{
+    error::AppError, services::workflow_service::WorkflowService, storage::StorageProvider,
+};
 use bytes::Bytes;
 use context_manager::fsm::ChatEvent;
 use context_manager::structs::{
     message::{ContentPart, InternalMessage, MessageType, Role},
     state::ContextState,
-    tool::ToolCallRequest,
+    tool::{ToolCallRequest, ToolCallResult},
 };
 use copilot_client::api::models::{
-    ChatCompletionRequest, ChatMessage, Content, Role as ClientRole,
+    ChatCompletionRequest, ChatCompletionStreamChunk, ChatMessage, Content, FunctionCall,
+    Role as ClientRole, StreamChoice, StreamDelta,
 };
 use copilot_client::CopilotClientTrait;
 use log::{debug, error, info};
-use serde::Serialize;
-use serde_json::Value as JsonValue;
-use std::sync::Arc;
+use serde::{Deserialize, Serialize};
+use serde_json::{json, Value as JsonValue};
+use std::{
+    collections::HashMap,
+    sync::Arc,
+    time::{SystemTime, UNIX_EPOCH},
+};
 use tokio::sync::mpsc;
 use tokio_stream::wrappers::ReceiverStream;
-use tool_system::ToolExecutor;
+use tool_system::{types::ToolArguments, ToolExecutor};
 use tracing;
 use uuid::Uuid;
 
@@ -51,6 +58,99 @@ pub struct ChatService<T: StorageProvider> {
     system_prompt_service: Arc<SystemPromptService>,
     agent_service: Arc<AgentService>,
     approval_manager: Arc<ApprovalManager>,
+    workflow_service: Arc<WorkflowService>,
+}
+
+#[derive(Debug, Deserialize)]
+struct TextPayload {
+    content: String,
+    #[serde(default)]
+    display_text: Option<String>,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+struct FileRangePayload {
+    #[serde(default)]
+    start_line: Option<usize>,
+    #[serde(default)]
+    end_line: Option<usize>,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+struct FileReferencePayload {
+    path: String,
+    #[serde(default)]
+    range: Option<FileRangePayload>,
+    #[serde(default)]
+    display_text: Option<String>,
+}
+
+#[derive(Debug, Deserialize, Clone, Default)]
+struct WorkflowPayload {
+    workflow: String,
+    #[serde(default)]
+    parameters: HashMap<String, serde_json::Value>,
+    #[serde(default)]
+    display_text: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(tag = "type", content = "payload")]
+enum StructuredUserMessage {
+    #[serde(rename = "user_text")]
+    Text(TextPayload),
+    #[serde(rename = "user_file_reference")]
+    FileReference(FileReferencePayload),
+    #[serde(rename = "user_workflow")]
+    Workflow(WorkflowPayload),
+}
+
+#[derive(Debug, Clone)]
+enum IncomingMessage {
+    Plain {
+        display_text: String,
+        llm_content: String,
+    },
+    FileReference(FileReferencePayload),
+    Workflow(WorkflowPayload),
+}
+
+fn parse_incoming_message(raw: &str) -> IncomingMessage {
+    if let Ok(structured) = serde_json::from_str::<StructuredUserMessage>(raw) {
+        match structured {
+            StructuredUserMessage::Text(payload) => {
+                let display_text = payload
+                    .display_text
+                    .clone()
+                    .unwrap_or_else(|| payload.content.clone());
+                IncomingMessage::Plain {
+                    display_text,
+                    llm_content: payload.content,
+                }
+            }
+            StructuredUserMessage::FileReference(payload) => {
+                IncomingMessage::FileReference(payload)
+            }
+            StructuredUserMessage::Workflow(payload) => IncomingMessage::Workflow(payload),
+        }
+    } else {
+        IncomingMessage::Plain {
+            display_text: raw.to_string(),
+            llm_content: raw.to_string(),
+        }
+    }
+}
+
+fn stringify_tool_output(value: &serde_json::Value) -> String {
+    if let Some(content) = value.get("content").and_then(|v| v.as_str()) {
+        return content.to_string();
+    }
+
+    if let Some(message) = value.get("message").and_then(|v| v.as_str()) {
+        return message.to_string();
+    }
+
+    serde_json::to_string_pretty(value).unwrap_or_else(|_| value.to_string())
 }
 
 // Helper function to convert internal Role to client Role
@@ -94,10 +194,39 @@ fn convert_content(parts: &[ContentPart]) -> Content {
 
 // Helper function to convert internal message to client ChatMessage
 fn convert_to_chat_message(msg: &InternalMessage) -> ChatMessage {
+    let tool_calls = msg.tool_calls.as_ref().map(|calls| {
+        calls
+            .iter()
+            .map(|call| {
+                let arguments =
+                    serde_json::to_string(&call.arguments).unwrap_or_else(|_| "{}".to_string());
+
+                copilot_client::api::models::ToolCall {
+                    id: call.id.clone(),
+                    tool_type: "function".to_string(),
+                    function: FunctionCall {
+                        name: call.tool_name.clone(),
+                        arguments,
+                    },
+                }
+            })
+            .collect()
+    });
+
+    // For direct tool execution results (Role::Tool + MessageType::ToolResult),
+    // convert to Assistant role to avoid LLM API validation errors.
+    // The LLM API requires Tool messages to follow an Assistant message with tool_calls,
+    // but we bypass the LLM for direct execution, so we convert Tool -> Assistant.
+    let role = if msg.role == Role::Tool && msg.message_type == MessageType::ToolResult {
+        ClientRole::Assistant
+    } else {
+        convert_role(&msg.role)
+    };
+
     ChatMessage {
-        role: convert_role(&msg.role),
+        role,
         content: convert_content(&msg.content),
-        tool_calls: None, // Tool calls need separate conversion - skip for now
+        tool_calls,
         tool_call_id: msg.tool_result.as_ref().map(|tr| tr.request_id.clone()),
     }
 }
@@ -146,6 +275,7 @@ fn extract_json_from_text(text: &str) -> Option<String> {
 }
 
 impl<T: StorageProvider + 'static> ChatService<T> {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         session_manager: Arc<ChatSessionManager<T>>,
         conversation_id: Uuid,
@@ -154,6 +284,7 @@ impl<T: StorageProvider + 'static> ChatService<T> {
         system_prompt_enhancer: Arc<SystemPromptEnhancer>,
         system_prompt_service: Arc<SystemPromptService>,
         approval_manager: Arc<ApprovalManager>,
+        workflow_service: Arc<WorkflowService>,
     ) -> Self {
         Self {
             session_manager,
@@ -164,7 +295,287 @@ impl<T: StorageProvider + 'static> ChatService<T> {
             system_prompt_service,
             agent_service: Arc::new(AgentService::with_default_config()),
             approval_manager,
+            workflow_service,
         }
+    }
+
+    async fn add_user_message(
+        &self,
+        context: &Arc<tokio::sync::RwLock<context_manager::structs::context::ChatContext>>,
+        text: String,
+    ) -> Result<(), AppError> {
+        let user_message = InternalMessage {
+            role: Role::User,
+            content: vec![ContentPart::Text { text }],
+            ..Default::default()
+        };
+
+        {
+            let mut context_lock = context.write().await;
+            context_lock.add_message_to_branch("main", user_message);
+            context_lock.handle_event(ChatEvent::UserMessageSent);
+        }
+
+        self.auto_save_context(context).await?;
+        Ok(())
+    }
+
+    async fn execute_file_reference(
+        &self,
+        context: &Arc<tokio::sync::RwLock<context_manager::structs::context::ChatContext>>,
+        payload: FileReferencePayload,
+        fallback_display: &str,
+    ) -> Result<String, AppError> {
+        let FileReferencePayload {
+            path,
+            range,
+            display_text,
+        } = payload;
+
+        let display_text = display_text.unwrap_or_else(|| fallback_display.to_string());
+
+        {
+            let mut context_lock = context.write().await;
+            context_lock.handle_event(ChatEvent::LLMRequestInitiated);
+            context_lock.handle_event(ChatEvent::LLMStreamStarted);
+        }
+
+        let mut args_map = serde_json::Map::new();
+        args_map.insert("path".to_string(), serde_json::Value::String(path.clone()));
+
+        if let Some(range) = range {
+            if let Some(start_line) = range.start_line {
+                args_map.insert(
+                    "start_line".to_string(),
+                    serde_json::Value::String(start_line.to_string()),
+                );
+            }
+            if let Some(end_line) = range.end_line {
+                args_map.insert(
+                    "end_line".to_string(),
+                    serde_json::Value::String(end_line.to_string()),
+                );
+            }
+        }
+
+        let request_id = Uuid::new_v4().to_string();
+        let path_for_payload = path.clone();
+        let tool_result = self
+            .tool_executor
+            .execute_tool(
+                "read_file",
+                ToolArguments::Json(serde_json::Value::Object(args_map)),
+            )
+            .await;
+
+        let (result_payload, file_content, is_error) = match tool_result {
+            Ok(value) => {
+                let content = stringify_tool_output(&value);
+                let payload_json = json!({
+                    "tool_name": "read_file",
+                    "path": path_for_payload,
+                    "result": value,
+                    "display_preference": "Default",
+                    "is_error": false,
+                });
+                (payload_json, content, false)
+            }
+            Err(err) => {
+                let error_message = err.to_string();
+                let payload_json = json!({
+                    "tool_name": "read_file",
+                    "path": path_for_payload,
+                    "error": error_message.clone(),
+                    "display_preference": "Default",
+                    "is_error": true,
+                });
+                (
+                    payload_json,
+                    format!("读取文件失败: {}", error_message),
+                    true,
+                )
+            }
+        };
+
+        {
+            let mut context_lock = context.write().await;
+
+            // For direct tool execution (bypassing LLM):
+            // 1. Add user's original request
+            let user_message = InternalMessage {
+                role: Role::User,
+                content: vec![ContentPart::Text {
+                    text: display_text.clone(),
+                }],
+                ..Default::default()
+            };
+            context_lock.add_message_to_branch("main", user_message);
+
+            // 2. Add tool result with Role::Tool
+            //    Will be converted to Role::Assistant when sending to LLM
+            //    Frontend will display it as a tool card based on MessageType::ToolResult
+            let tool_result_text = if is_error {
+                file_content.clone()
+            } else {
+                format!("文件 {} 的内容：\n\n{}", path, file_content)
+            };
+
+            let tool_result_message = InternalMessage {
+                role: Role::Tool,
+                content: vec![ContentPart::Text {
+                    text: tool_result_text,
+                }],
+                tool_result: Some(ToolCallResult {
+                    request_id: request_id.clone(),
+                    result: result_payload.clone(),
+                }),
+                message_type: MessageType::ToolResult,
+                ..Default::default()
+            };
+            context_lock.add_message_to_branch("main", tool_result_message);
+
+            context_lock.handle_event(ChatEvent::LLMStreamEnded);
+            context_lock.handle_event(ChatEvent::LLMResponseProcessed {
+                has_tool_calls: false,
+            });
+        }
+
+        self.auto_save_context(context).await?;
+
+        let final_response = if is_error {
+            file_content
+        } else {
+            format!("已读取文件 {} 的内容。", path)
+        };
+        Ok(final_response)
+    }
+
+    async fn execute_workflow(
+        &self,
+        context: &Arc<tokio::sync::RwLock<context_manager::structs::context::ChatContext>>,
+        payload: WorkflowPayload,
+        fallback_display: &str,
+    ) -> Result<String, AppError> {
+        let WorkflowPayload {
+            workflow,
+            parameters,
+            display_text,
+        } = payload;
+
+        let display_text = display_text.unwrap_or_else(|| fallback_display.to_string());
+        self.add_user_message(context, display_text).await?;
+
+        {
+            let mut context_lock = context.write().await;
+            context_lock.handle_event(ChatEvent::LLMRequestInitiated);
+            context_lock.handle_event(ChatEvent::LLMStreamStarted);
+        }
+
+        let parameters_clone = parameters.clone();
+        let execution_result = self
+            .workflow_service
+            .execute_workflow(&workflow, parameters_clone)
+            .await;
+
+        let (result_payload, assistant_text) = match execution_result {
+            Ok(value) => {
+                let assistant_text = stringify_tool_output(&value);
+                let payload_json = json!({
+                    "workflow_name": workflow,
+                    "parameters": parameters,
+                    "result": value,
+                    "status": "success",
+                });
+                (payload_json, assistant_text)
+            }
+            Err(err) => {
+                let error_message = err.to_string();
+                let payload_json = json!({
+                    "workflow_name": workflow,
+                    "parameters": parameters,
+                    "status": "error",
+                    "error": error_message,
+                });
+                (
+                    payload_json,
+                    format!("Workflow 执行失败: {}", error_message),
+                )
+            }
+        };
+
+        {
+            let mut context_lock = context.write().await;
+            let mut extra = HashMap::new();
+            extra.insert("workflow_name".to_string(), json!(&workflow));
+            extra.insert("payload".to_string(), result_payload.clone());
+
+            let workflow_message = InternalMessage {
+                role: Role::Assistant,
+                content: vec![ContentPart::Text {
+                    text: assistant_text.clone(),
+                }],
+                metadata: Some(context_manager::structs::metadata::MessageMetadata {
+                    extra: Some(extra),
+                    ..Default::default()
+                }),
+                message_type: MessageType::ToolResult,
+                ..Default::default()
+            };
+            context_lock.add_message_to_branch("main", workflow_message);
+
+            context_lock.handle_event(ChatEvent::LLMStreamEnded);
+            context_lock.handle_event(ChatEvent::LLMResponseProcessed {
+                has_tool_calls: false,
+            });
+        }
+
+        self.auto_save_context(context).await?;
+
+        Ok(assistant_text)
+    }
+
+    async fn build_text_stream(
+        text: String,
+    ) -> Result<ReceiverStream<Result<Bytes, String>>, AppError> {
+        let chunk = ChatCompletionStreamChunk {
+            id: Uuid::new_v4().to_string(),
+            object: Some("chat.completion.chunk".to_string()),
+            created: SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .map_err(|e| AppError::InternalError(anyhow::anyhow!(e.to_string())))?
+                .as_secs(),
+            model: Some("structured-response".to_string()),
+            choices: vec![StreamChoice {
+                index: 0,
+                delta: StreamDelta {
+                    role: Some(ClientRole::Assistant),
+                    content: Some(text),
+                    tool_calls: None,
+                },
+                finish_reason: None,
+            }],
+        };
+
+        let chunk_json = serde_json::to_string(&chunk).map_err(|err| {
+            AppError::InternalError(anyhow::anyhow!(format!(
+                "Failed to serialise structured response chunk: {}",
+                err
+            )))
+        })?;
+
+        let (tx, rx) = mpsc::channel(2);
+        if tx
+            .send(Ok(Bytes::from(format!("data: {}\n\n", chunk_json))))
+            .await
+            .is_err()
+        {
+            return Err(AppError::InternalError(anyhow::anyhow!(
+                "Failed to emit structured response chunk"
+            )));
+        }
+        let _ = tx.send(Ok(Bytes::from("data: [DONE]\n\n"))).await;
+
+        Ok(ReceiverStream::new(rx))
     }
 
     pub async fn process_message(&mut self, message: String) -> Result<ServiceResponse, AppError> {
@@ -183,7 +594,9 @@ impl<T: StorageProvider + 'static> ChatService<T> {
 
         log::info!("Context loaded successfully");
 
-        let mut context_lock = context.write().await;
+        let incoming_message = parse_incoming_message(&message);
+
+        let context_lock = context.write().await;
         let trace_id = context_lock.get_trace_id().map(|s| s.to_string());
 
         tracing::info!(
@@ -199,24 +612,39 @@ impl<T: StorageProvider + 'static> ChatService<T> {
             context_lock.current_state
         );
         log::info!("Message pool size: {}", context_lock.message_pool.len());
+        drop(context_lock);
 
-        let user_message = InternalMessage {
-            role: Role::User,
-            content: vec![ContentPart::Text {
-                text: message.clone(),
-            }],
-            ..Default::default()
+        if let IncomingMessage::FileReference(payload) = incoming_message.clone() {
+            let assistant_text = self
+                .execute_file_reference(&context, payload, &message)
+                .await?;
+            log::info!("=== ChatService::process_message END (structured file reference) ===");
+            return Ok(ServiceResponse::FinalMessage(assistant_text));
+        }
+
+        if let IncomingMessage::Workflow(payload) = incoming_message.clone() {
+            let assistant_text = self.execute_workflow(&context, payload, &message).await?;
+            log::info!("=== ChatService::process_message END (structured workflow) ===");
+            return Ok(ServiceResponse::FinalMessage(assistant_text));
+        }
+
+        let (display_text, _llm_content) = match incoming_message {
+            IncomingMessage::Plain {
+                display_text,
+                llm_content,
+            } => (display_text, llm_content),
+            _ => unreachable!("Structured messages should have returned early"),
         };
-        context_lock.add_message_to_branch("main", user_message);
+
+        self.add_user_message(&context, display_text.clone())
+            .await?;
+
+        let context_lock = context.write().await;
         log::info!("User message added to branch 'main'");
         log::info!(
             "Message pool size after add: {}",
             context_lock.message_pool.len()
         );
-
-        // Transition state: Idle -> ProcessingUserMessage
-        context_lock.handle_event(ChatEvent::UserMessageSent);
-        log::info!("FSM: Idle -> ProcessingUserMessage");
 
         // Get messages and model for LLM
         let messages: Vec<InternalMessage> = context_lock
@@ -260,11 +688,6 @@ impl<T: StorageProvider + 'static> ChatService<T> {
         } else {
             None
         };
-
-        // Auto-save after adding user message
-        log::info!("Auto-saving context after adding user message");
-        self.auto_save_context(&context).await?;
-        log::info!("Context auto-saved successfully");
 
         // Call LLM with streaming and handle response
         log::info!(
@@ -341,22 +764,37 @@ impl<T: StorageProvider + 'static> ChatService<T> {
             Ok(response) => {
                 let status = response.status();
                 if !status.is_success() {
-                    let error_msg = format!("LLM API error. Status: {}", status);
+                    let body_text = match response.text().await {
+                        Ok(text) => text,
+                        Err(err) => {
+                            log::warn!("Failed to read LLM error body: {}", err);
+                            String::new()
+                        }
+                    };
+                    let error_msg = if body_text.is_empty() {
+                        format!("LLM API error. Status: {}", status)
+                    } else {
+                        format!("LLM API error. Status: {} Body: {}", status, body_text)
+                    };
                     error!("{}", error_msg);
 
-                    let mut context_lock = context.write().await;
-                    context_lock.handle_event(ChatEvent::FatalError {
-                        error: error_msg.clone(),
-                    });
-                    let error_message = InternalMessage {
-                        role: Role::Assistant,
-                        content: vec![ContentPart::Text {
-                            text: format!("Sorry, I encountered an error: {}", error_msg),
-                        }],
-                        ..Default::default()
-                    };
-                    context_lock.add_message_to_branch("main", error_message);
-                    drop(context_lock);
+                    {
+                        let mut context_lock = context.write().await;
+                        context_lock.handle_event(ChatEvent::FatalError {
+                            error: error_msg.clone(),
+                        });
+                        let error_message = InternalMessage {
+                            role: Role::Assistant,
+                            content: vec![ContentPart::Text {
+                                text: format!(
+                                    "I ran into a problem talking to the model: {}",
+                                    error_msg
+                                ),
+                            }],
+                            ..Default::default()
+                        };
+                        context_lock.add_message_to_branch("main", error_message);
+                    }
 
                     self.auto_save_context(&context).await?;
                     return Err(AppError::InternalError(anyhow::anyhow!(error_msg)));
@@ -568,21 +1006,36 @@ impl<T: StorageProvider + 'static> ChatService<T> {
 
         log::info!("Context loaded successfully");
 
-        let mut context_lock = context.write().await;
+        let incoming_message = parse_incoming_message(&message);
 
-        // Add user message to context
-        let user_message = InternalMessage {
-            role: Role::User,
-            content: vec![ContentPart::Text {
-                text: message.clone(),
-            }],
-            ..Default::default()
+        if let IncomingMessage::FileReference(payload) = incoming_message.clone() {
+            let assistant_text = self
+                .execute_file_reference(&context, payload, &message)
+                .await?;
+            log::info!(
+                "=== ChatService::process_message_stream END (structured file reference) ==="
+            );
+            return Self::build_text_stream(assistant_text).await;
+        }
+
+        if let IncomingMessage::Workflow(payload) = incoming_message.clone() {
+            let assistant_text = self.execute_workflow(&context, payload, &message).await?;
+            log::info!("=== ChatService::process_message_stream END (structured workflow) ===");
+            return Self::build_text_stream(assistant_text).await;
+        }
+
+        let (display_text, _llm_content) = match incoming_message {
+            IncomingMessage::Plain {
+                display_text,
+                llm_content,
+            } => (display_text, llm_content),
+            _ => unreachable!("Structured messages should have returned early"),
         };
-        context_lock.add_message_to_branch("main", user_message);
 
-        // Transition state: Idle -> ProcessingUserMessage
-        context_lock.handle_event(ChatEvent::UserMessageSent);
-        log::info!("FSM: Idle -> ProcessingUserMessage");
+        self.add_user_message(&context, display_text.clone())
+            .await?;
+
+        let context_lock = context.write().await;
 
         // Get messages and model for LLM
         let messages: Vec<InternalMessage> = context_lock
@@ -625,9 +1078,6 @@ impl<T: StorageProvider + 'static> ChatService<T> {
         } else {
             None
         };
-
-        // Auto-save after adding user message
-        self.auto_save_context(&context).await?;
 
         // Enhance system prompt if available
         let enhanced_system_prompt = if let Some(base_prompt) = &final_system_prompt_content {
@@ -697,7 +1147,18 @@ impl<T: StorageProvider + 'static> ChatService<T> {
 
         let status = response.status();
         if !status.is_success() {
-            let error_msg = format!("LLM API error. Status: {}", status);
+            let body_text = match response.text().await {
+                Ok(text) => text,
+                Err(err) => {
+                    log::warn!("Failed to read LLM error body: {}", err);
+                    String::new()
+                }
+            };
+            let error_msg = if body_text.is_empty() {
+                format!("LLM API error. Status: {}", status)
+            } else {
+                format!("LLM API error. Status: {} Body: {}", status, body_text)
+            };
             let mut ctx = context.write().await;
             ctx.handle_event(ChatEvent::FatalError {
                 error: error_msg.clone(),

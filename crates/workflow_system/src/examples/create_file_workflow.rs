@@ -4,8 +4,8 @@ use async_trait::async_trait;
 use std::collections::HashMap;
 use tokio::fs;
 
-use crate::types::{Parameter, Workflow, WorkflowDefinition, WorkflowError};
 use crate::register_workflow;
+use crate::types::{Parameter, Workflow, WorkflowDefinition, WorkflowError};
 
 /// A workflow that creates a file with the specified content
 #[derive(Debug, Default)]
@@ -38,7 +38,7 @@ impl Workflow for CreateFileWorkflow {
             custom_prompt: Some("This workflow will create a new file. Please review the path and content before approving.".to_string()),
         }
     }
-    
+
     async fn execute(
         &self,
         parameters: HashMap<String, serde_json::Value>,
@@ -46,18 +46,22 @@ impl Workflow for CreateFileWorkflow {
         let path = parameters
             .get("path")
             .and_then(|v| v.as_str())
-            .ok_or_else(|| WorkflowError::InvalidParameters("path parameter is required and must be a string".to_string()))?;
-        
+            .ok_or_else(|| {
+                WorkflowError::InvalidParameters(
+                    "path parameter is required and must be a string".to_string(),
+                )
+            })?;
+
         let content = parameters
             .get("content")
             .and_then(|v| v.as_str())
             .unwrap_or("");
-        
+
         // Write the file
         fs::write(path, content)
             .await
             .map_err(|e| WorkflowError::ExecutionFailed(format!("Failed to write file: {}", e)))?;
-        
+
         Ok(serde_json::json!({
             "success": true,
             "path": path,
@@ -67,5 +71,3 @@ impl Workflow for CreateFileWorkflow {
 }
 
 register_workflow!(CreateFileWorkflow, "create_file");
-
-

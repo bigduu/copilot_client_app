@@ -2,12 +2,12 @@
 //!
 //! Supports loading configuration from environment variables with fallback to defaults.
 
-use std::time::Duration;
 use crate::services::agent_service::AgentLoopConfig;
 use crate::services::system_prompt_enhancer::EnhancementConfig;
+use std::time::Duration;
 
 /// Load AgentLoopConfig from environment variables
-/// 
+///
 /// Environment variables:
 /// - `AGENT_MAX_ITERATIONS`: Maximum agent loop iterations (default: 10)
 /// - `AGENT_TIMEOUT_SECS`: Total timeout in seconds (default: 300)
@@ -24,7 +24,7 @@ pub fn load_agent_loop_config() -> AgentLoopConfig {
             std::env::var("AGENT_TIMEOUT_SECS")
                 .ok()
                 .and_then(|v| v.parse().ok())
-                .unwrap_or(300)
+                .unwrap_or(300),
         ),
         max_json_parse_retries: std::env::var("AGENT_MAX_JSON_RETRIES")
             .ok()
@@ -38,13 +38,13 @@ pub fn load_agent_loop_config() -> AgentLoopConfig {
             std::env::var("AGENT_TOOL_TIMEOUT_SECS")
                 .ok()
                 .and_then(|v| v.parse().ok())
-                .unwrap_or(60)
+                .unwrap_or(60),
         ),
     }
 }
 
 /// Load EnhancementConfig from environment variables
-/// 
+///
 /// Environment variables:
 /// - `PROMPT_ENABLE_TOOLS`: Enable tool injection (default: true)
 /// - `PROMPT_ENABLE_MERMAID`: Enable Mermaid support (default: true)
@@ -64,7 +64,7 @@ pub fn load_enhancement_config() -> EnhancementConfig {
             std::env::var("PROMPT_CACHE_TTL_SECS")
                 .ok()
                 .and_then(|v| v.parse().ok())
-                .unwrap_or(300)
+                .unwrap_or(300),
         ),
         max_prompt_size: std::env::var("PROMPT_MAX_SIZE")
             .ok()
@@ -96,4 +96,3 @@ mod tests {
         assert!(config.max_prompt_size > 0);
     }
 }
-

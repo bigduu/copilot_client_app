@@ -16,10 +16,12 @@ The current hybrid persistence model creates unnecessary complexity and potentia
 ## Impact
 
 ### Affected Specs
+
 - `backend-context-management` - Auto-persistence in FSM
 - `frontend-ui-layer` - Remove manual persistence, add state polling
 
 ### Affected Code
+
 - **Backend**:
   - `crates/web_service/src/controllers/context_controller.rs` - New action-based endpoints
   - `crates/web_service/src/services/chat_service.rs` - Auto-save after FSM transitions
@@ -30,18 +32,19 @@ The current hybrid persistence model creates unnecessary complexity and potentia
   - `src/services/BackendContextService.ts` - Add action-based methods
 
 ### Migration Strategy
+
 - Backward compatible during transition
 - Old CRUD endpoints remain but deprecated
 - New action endpoints automatically handle persistence
 - Frontend gradually migrates from manual persistence to read-only sync
 
 ## Dependencies
+
 - Requires `migrate-frontend-to-context-manager` to be complete (currently at 50/65 tasks)
 
 ## Success Criteria
+
 - Zero manual persistence calls in frontend code
 - Backend FSM logs show automatic saves after state transitions
 - Chat history persists correctly after page refresh
 - Performance remains equivalent or improves (fewer roundtrips)
-
-

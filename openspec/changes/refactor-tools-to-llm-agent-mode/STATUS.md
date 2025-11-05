@@ -1,4 +1,5 @@
 # Implementation Status Report
+
 ## refactor-tools-to-llm-agent-mode
 
 **Last Updated:** 2025-11-02  
@@ -23,7 +24,7 @@ The refactor to transform the tool system into an LLM agent mode with autonomous
    - Caching and size optimization
    - API endpoint: `GET /v1/system-prompts/{id}/enhanced`
 
-3. **Frontend Workflow Integration**: 
+3. **Frontend Workflow Integration**:
    - Type `/` to open workflow selector
    - Dynamic parameter forms for workflow inputs
    - Direct execution without approval modals
@@ -37,13 +38,13 @@ The refactor to transform the tool system into an LLM agent mode with autonomous
 
 ### What's Not Done Yet 🚧
 
-1. **Agent Loop Integration**: 
+1. **Agent Loop Integration**:
    - Tool call approval mechanism
    - Error handling and retry logic
    - OpenAI controller integration
    - Frontend approval modal for agent-initiated calls
 
-2. **Testing**: 
+2. **Testing**:
    - Comprehensive unit tests
    - Integration tests
    - End-to-end tests
@@ -67,40 +68,49 @@ The refactor to transform the tool system into an LLM agent mode with autonomous
 ### ✅ Phase 1: Backend Foundation (100% - 20/20 tasks)
 
 #### 1.1 Workflow System Crate ✅
+
 **Status:** Complete  
 **Key Files:**
+
 - `crates/workflow_system/src/types/workflow.rs` - Workflow trait and definition
 - `crates/workflow_system/src/registry/registries.rs` - Compile-time registration
 - `crates/workflow_system/src/executor.rs` - Workflow execution engine
 
 **Highlights:**
+
 - Compile-time workflow registration using `inventory` crate
 - Type-safe parameter validation
 - Async execution support with `tokio`
 
 #### 1.2 Workflow Examples ✅
+
 **Status:** Complete  
 **Examples:**
+
 - `EchoWorkflow`: Echo back user input
 - `CreateFileWorkflow`: Create files with content (requires approval)
 
 **Verification:**
+
 ```bash
 curl http://localhost:8080/v1/workflows/available | jq '.workflows[] | .name'
 # Output: echo, create_file
 ```
 
 #### 1.3 Agent Service ✅
+
 **Status:** Complete  
 **Key File:** `crates/web_service/src/services/agent_service.rs`
 
 **Features:**
+
 - JSON tool call parsing with regex fallback
 - Validation for required fields: `tool_name`, `parameters`, `terminate`
 - Agent loop state tracking (iterations, tool calls, timing)
 - Max iterations limit (default: 10)
 
 #### 1.4 Tool Termination Flags ✅
+
 **Status:** Complete  
 **Impact:** All existing tools updated with `termination_behavior_doc` field
 
@@ -109,15 +119,18 @@ curl http://localhost:8080/v1/workflows/available | jq '.workflows[] | .name'
 ### ✅ Phase 2: System Prompt Enhancement (100% - 15/15 tasks)
 
 #### 2.1 Tool-to-Prompt Conversion ✅
+
 **Key File:** `crates/tool_system/src/prompt_formatter.rs`
 
 **Features:**
+
 - XML format for tool definitions
 - JSON calling convention instructions
 - Termination flag guidance
 - Parameter type documentation
 
 **Example Output:**
+
 ```xml
 <tool name="read_file">
   <description>Reads and displays the contents of a file</description>
@@ -130,9 +143,11 @@ curl http://localhost:8080/v1/workflows/available | jq '.workflows[] | .name'
 ```
 
 #### 2.2 System Prompt Enhancement Service ✅
+
 **Key File:** `crates/web_service/src/services/system_prompt_enhancer.rs`
 
 **Features:**
+
 - Fetches tools from ToolRegistry
 - Converts tools to XML format
 - Adds Mermaid diagram support
@@ -140,9 +155,11 @@ curl http://localhost:8080/v1/workflows/available | jq '.workflows[] | .name'
 - Size limits (32KB max)
 
 #### 2.3 Enhanced Prompt API ✅
+
 **Endpoint:** `GET /v1/system-prompts/{id}/enhanced`
 
 **Response:**
+
 ```json
 {
   "id": "default",
@@ -156,15 +173,18 @@ curl http://localhost:8080/v1/workflows/available | jq '.workflows[] | .name'
 ### ✅ Phase 3: Backend Workflows API (100% - 18/18 tasks)
 
 #### 3.1 Workflow Controller ✅
+
 **Key File:** `crates/web_service/src/controllers/workflow_controller.rs`
 
 **Endpoints:**
+
 - `GET /v1/workflows/available` - List all workflows
 - `GET /v1/workflows/{name}` - Get workflow details
 - `GET /v1/workflows/categories` - List categories
 - `POST /v1/workflows/execute` - Execute workflow
 
 **Request/Response DTOs:**
+
 ```rust
 WorkflowExecutionRequest {
     workflow_name: String,
@@ -179,17 +199,21 @@ WorkflowExecutionResponse {
 ```
 
 #### 3.2 Workflow Service ✅
+
 **Key File:** `crates/web_service/src/services/workflow_service.rs`
 
 **Methods:**
+
 - `list_workflows()` - Returns all workflow definitions
 - `get_workflow(name)` - Returns single workflow
 - `execute_workflow(name, params)` - Executes with validation
 
 #### 3.3 Workflow Categories ✅
+
 **Implementation:** Category system using workflow definitions
 
 **Categories:**
+
 - `general` - General utility workflows
 - `file_operations` - File manipulation workflows
 
@@ -202,6 +226,7 @@ WorkflowExecutionResponse {
 **Integration Point:** After LLM response completion, before streaming to frontend
 
 **Flow:**
+
 1. LLM generates response
 2. Agent service checks for JSON tool calls
 3. If found: Execute tool → Feed result back to LLM → Repeat
@@ -209,6 +234,7 @@ WorkflowExecutionResponse {
 5. Max iterations: 10 (configurable)
 
 **Key Decisions:**
+
 - Backend-managed agent loop (not frontend)
 - Frontend receives only final responses
 - Tool execution results added to conversation history
@@ -222,6 +248,7 @@ WorkflowExecutionResponse {
 **Dependencies:** None (can start immediately)
 
 **Pending Tasks:**
+
 - [ ] Tool approval mechanism design
 - [ ] Approval API endpoint
 - [ ] Frontend approval modal integration
@@ -229,6 +256,7 @@ WorkflowExecutionResponse {
 - [ ] Timeout handling
 
 **Design Questions:**
+
 1. Should approval be per-tool or per-invocation?
 2. How long should the approval wait before timeout?
 3. Should we show intermediate tool calls in chat?
@@ -238,19 +266,24 @@ WorkflowExecutionResponse {
 ### ✅ Phase 5: Frontend Refactor (100% - 35/35 tasks)
 
 #### 5.1 Remove Tool System Frontend Code ✅
+
 **Deleted Files:**
+
 - `src/services/SystemPromptEnhancer.ts` (moved to backend)
 - `src/components/ToolSelector/` (replaced with WorkflowSelector)
 
 **Updated Files:**
+
 - `src/hooks/useChatManager.ts` - Removed tool command parsing
 - `src/core/chatInteractionMachine.ts` - Disabled AI tool detection
 - `src/services/SystemPromptService.ts` - Added `getEnhancedSystemPrompt()`
 
 #### 5.2 Workflow Service ✅
+
 **File:** `src/services/WorkflowService.ts`
 
 **Key Methods:**
+
 ```typescript
 getAvailableWorkflows(): Promise<WorkflowDefinition[]>
 getWorkflowDetails(name: string): Promise<WorkflowDefinition | null>
@@ -258,15 +291,18 @@ executeWorkflow(request: WorkflowExecutionRequest): Promise<WorkflowExecutionRes
 ```
 
 #### 5.3 Workflow Selector Component ✅
+
 **File:** `src/components/WorkflowSelector/index.tsx`
 
 **Features:**
+
 - Triggered by typing `/` in chat input
 - Real-time filtering as user types
 - Keyboard navigation (arrow keys, Enter)
 - Auto-completion (Space/Tab)
 
 **UX Flow:**
+
 ```
 User types "/" → Selector appears
 User types "cre" → Filters to "create_file"
@@ -274,26 +310,33 @@ User presses Enter → Parameter form appears
 ```
 
 #### 5.4-5.5 Workflow Input & Parameter Form ✅
+
 **Files:**
+
 - `src/components/InputContainer/index.tsx` - Input handling
 - `src/components/WorkflowParameterForm/index.tsx` - Dynamic form
 
 **Features:**
+
 - Dynamic form field generation from workflow definition
 - Required/optional field validation
 - Description pre-fill from user input
 - Clear visual feedback
 
 #### 5.6 Workflow Execution Feedback ✅
+
 **File:** `src/components/WorkflowExecutionFeedback/index.tsx`
 
 **Features:**
+
 - Success/error toast messages
 - Workflow output display (planned for chat integration)
 - Retry option on failure
 
 #### 5.7-5.8 State Machine Cleanup ✅
+
 **Changes:**
+
 - Disabled old tool invocation path in `useChatManager.ts`
 - Removed AI tool detection from `chatInteractionMachine.ts`
 - Updated terminology to "Workflow" throughout
@@ -307,12 +350,14 @@ User presses Enter → Parameter form appears
 **Priority:** Medium
 
 **Pending Tasks:**
+
 - [ ] Tool classification analysis
 - [ ] Deprecation notices
 - [ ] Documentation updates
 - [ ] Migration guide for users
 
 **Considerations:**
+
 - Which tools should remain LLM-accessible?
 - Which tools should become user-invoked workflows?
 - Breaking changes communication strategy
@@ -364,6 +409,7 @@ User presses Enter → Parameter form appears
 **Priority:** Low
 
 **UI/UX Polish:**
+
 - Loading states for workflows
 - Animations for workflow selector
 - Better error messages
@@ -371,18 +417,21 @@ User presses Enter → Parameter form appears
 - Keyboard shortcuts help
 
 **Monitoring:**
+
 - Structured logging for agent loop
 - Metrics for workflow execution time
 - Agent loop iteration tracking
 - Error rate monitoring
 
 **Configuration:**
+
 - Max agent loop iterations (default: 10)
 - Agent loop timeout (default: 30s)
 - Max prompt size (default: 32KB)
 - Workflow approval defaults
 
 **Deployment:**
+
 - Migration scripts
 - Environment variables
 - Rollback plan
@@ -393,17 +442,20 @@ User presses Enter → Parameter form appears
 ## Recent Bug Fixes
 
 ### Fixed: Frontend/Backend API Mismatch
+
 **Issue:** Frontend sent `{ name: "..." }`, backend expected `{ workflow_name: "..." }`  
 **Fix:** Updated `WorkflowService.ts` and `InputContainer/index.tsx`  
 **Verification:** `create_file` workflow now executes successfully
 
 ### Fixed: Workflow Triggering Approval Modal
+
 **Issue:** Typing `/echo hi` triggered old tool approval flow  
 **Root Cause:** Old tool command parsing still active in `useChatManager.ts`  
 **Fix:** Disabled text-based command parsing; workflows ONLY through UI selector  
 **Impact:** User-invoked workflows execute immediately, no approval modal
 
 ### Fixed: Tool vs Workflow Terminology
+
 **Issue:** UI still showed "Tool" instead of "Workflow"  
 **Fix:** Updated `ApprovalCard.tsx`, `ToolService.ts` error messages  
 **Result:** Consistent "Workflow" terminology throughout frontend
@@ -413,8 +465,10 @@ User presses Enter → Parameter form appears
 ## Architecture Decisions
 
 ### 1. Backend-Managed System Prompt Enhancement
+
 **Decision:** Move prompt enhancement from frontend to backend  
 **Rationale:**
+
 - Single source of truth
 - Better caching and performance
 - Consistent enhancement across all clients
@@ -423,8 +477,10 @@ User presses Enter → Parameter form appears
 **Implementation:** `SystemPromptEnhancer` service with caching
 
 ### 2. Workflow vs Tool Separation
+
 **Decision:** Clear separation between user-invoked workflows and LLM-invoked tools  
 **Rationale:**
+
 - Different UX patterns (explicit vs. autonomous)
 - Different approval flows (pre-approval vs. runtime approval)
 - Clearer mental model for users
@@ -432,8 +488,10 @@ User presses Enter → Parameter form appears
 **Implementation:** Separate `WorkflowRegistry` and `ToolRegistry`
 
 ### 3. Backend Agent Loop Orchestration
+
 **Decision:** Backend manages agent loop, not frontend  
 **Rationale:**
+
 - Centralized control and monitoring
 - Consistent behavior across clients
 - Better error handling
@@ -442,8 +500,10 @@ User presses Enter → Parameter form appears
 **Status:** Foundation complete, approval integration pending
 
 ### 4. Compile-Time Workflow Registration
+
 **Decision:** Use `inventory` crate for compile-time registration  
 **Rationale:**
+
 - Zero runtime cost
 - Type-safe registration
 - No manual registry updates
@@ -456,6 +516,7 @@ User presses Enter → Parameter form appears
 ## Next Steps (Priority Order)
 
 ### Immediate (High Priority)
+
 1. **Add Backend Unit Tests** (7.1)
    - Test core workflow and agent service functionality
    - Ensure robustness before agent loop integration
@@ -466,6 +527,7 @@ User presses Enter → Parameter form appears
    - Integrate with OpenAI controller
 
 ### Short Term (Medium Priority)
+
 3. **Backend Integration Tests** (7.2)
    - Test full workflow execution flow
    - Test enhanced prompt API
@@ -477,6 +539,7 @@ User presses Enter → Parameter form appears
    - Create migration plan
 
 ### Medium Term (Medium Priority)
+
 5. **Frontend Tests** (7.3-7.4)
    - Test workflow UI components
    - Test end-to-end workflow flow
@@ -489,6 +552,7 @@ User presses Enter → Parameter form appears
    - Migration guide
 
 ### Long Term (Low Priority)
+
 7. **Polish & Deploy** (8.1-8.4)
    - UI improvements
    - Monitoring setup
@@ -544,6 +608,7 @@ User presses Enter → Parameter form appears
 ### Manual Testing Checklist
 
 #### Workflow Execution ✅
+
 ```bash
 # Backend API test
 curl -X POST http://localhost:8080/v1/workflows/execute \
@@ -559,6 +624,7 @@ curl -X POST http://localhost:8080/v1/workflows/execute \
 ```
 
 #### Frontend Workflow Selector ✅
+
 1. Type `/` in chat input
 2. Workflow selector appears
 3. Type `echo`
@@ -570,12 +636,14 @@ curl -X POST http://localhost:8080/v1/workflows/execute \
 9. Success toast appears
 
 #### Enhanced Prompt API ✅
+
 ```bash
 curl http://localhost:8080/v1/system-prompts/default/enhanced
 # Expected: JSON with tools section
 ```
 
 ### Automated Testing Status
+
 - Backend unit tests: ❌ Not implemented
 - Backend integration tests: ❌ Not implemented
 - Frontend unit tests: ❌ Not implemented
@@ -587,13 +655,13 @@ curl http://localhost:8080/v1/system-prompts/default/enhanced
 
 ### Current Performance (Estimated)
 
-| Operation | Time | Notes |
-|-----------|------|-------|
-| Workflow execution (echo) | <10ms | Simple workflow |
-| Workflow execution (create_file) | <50ms | File I/O |
-| Enhanced prompt fetch (cached) | <5ms | Cache hit |
-| Enhanced prompt fetch (cold) | <100ms | Tool fetching + formatting |
-| Workflow list API | <10ms | Registry lookup |
+| Operation                        | Time   | Notes                      |
+| -------------------------------- | ------ | -------------------------- |
+| Workflow execution (echo)        | <10ms  | Simple workflow            |
+| Workflow execution (create_file) | <50ms  | File I/O                   |
+| Enhanced prompt fetch (cached)   | <5ms   | Cache hit                  |
+| Enhanced prompt fetch (cold)     | <100ms | Tool fetching + formatting |
+| Workflow list API                | <10ms  | Registry lookup            |
 
 ### Optimization Opportunities
 
@@ -617,16 +685,17 @@ curl http://localhost:8080/v1/system-prompts/default/enhanced
 
 ### Lines of Code Added
 
-| Component | Files | Lines |
-|-----------|-------|-------|
-| Workflow System (Rust) | 10 | ~800 |
-| Agent Service (Rust) | 1 | ~400 |
-| System Prompt Enhancer (Rust) | 1 | ~300 |
-| Frontend Workflow (TypeScript) | 5 | ~600 |
-| Tests | 2 | ~200 |
-| **Total** | **19** | **~2,300** |
+| Component                      | Files  | Lines      |
+| ------------------------------ | ------ | ---------- |
+| Workflow System (Rust)         | 10     | ~800       |
+| Agent Service (Rust)           | 1      | ~400       |
+| System Prompt Enhancer (Rust)  | 1      | ~300       |
+| Frontend Workflow (TypeScript) | 5      | ~600       |
+| Tests                          | 2      | ~200       |
+| **Total**                      | **19** | **~2,300** |
 
 ### Code Quality Checks
+
 - Rust: ✅ Compiles without warnings
 - TypeScript: ✅ No linter errors
 - Tests: ❌ Insufficient coverage
@@ -637,6 +706,7 @@ curl http://localhost:8080/v1/system-prompts/default/enhanced
 ## Dependencies Added
 
 ### Rust Crates
+
 - `inventory` (^0.3) - Compile-time registration
 - `async-trait` (^0.1) - Async trait support
 - `tokio` (^1.0) - Async runtime
@@ -644,6 +714,7 @@ curl http://localhost:8080/v1/system-prompts/default/enhanced
 - `lru` (^0.12) - Prompt caching
 
 ### TypeScript Packages
+
 - No new dependencies (using existing Ant Design, etc.)
 
 ---
@@ -651,6 +722,7 @@ curl http://localhost:8080/v1/system-prompts/default/enhanced
 ## Risk Assessment
 
 ### High Risk Items
+
 1. **Agent Loop Infinite Loops** 🔴
    - Mitigation: Max iteration limit
    - Status: Implemented but not tested
@@ -662,6 +734,7 @@ curl http://localhost:8080/v1/system-prompts/default/enhanced
    - Risk: Could reject valid prompts with many tools
 
 ### Medium Risk Items
+
 3. **Tool Classification Decisions** 🟡
    - Impact: User-facing breaking changes
    - Mitigation: Clear migration guide
@@ -673,6 +746,7 @@ curl http://localhost:8080/v1/system-prompts/default/enhanced
    - Status: Unknown
 
 ### Low Risk Items
+
 5. **Frontend State Machine Cleanup** 🟢
    - Impact: Code maintainability
    - Status: Deferred, not critical
@@ -684,6 +758,7 @@ curl http://localhost:8080/v1/system-prompts/default/enhanced
 ### Definition of Done for Current Phase
 
 ✅ **Completed:**
+
 - [x] Workflows can be created and registered
 - [x] Workflows can be executed via API
 - [x] Frontend can list and select workflows
@@ -693,6 +768,7 @@ curl http://localhost:8080/v1/system-prompts/default/enhanced
 - [x] No approval modal for user-invoked workflows
 
 ❌ **Remaining:**
+
 - [ ] Agent loop integrated with OpenAI controller
 - [ ] Tool approval mechanism working
 - [ ] Comprehensive test coverage
@@ -708,7 +784,7 @@ curl http://localhost:8080/v1/system-prompts/default/enhanced
    - Agent loop terminates correctly
 
 2. **Quality:**
-   - >80% test coverage
+   - > 80% test coverage
    - <100ms p95 for workflow execution
    - <500ms p95 for agent loop
    - Zero known critical bugs
@@ -778,23 +854,27 @@ curl http://localhost:8080/v1/system-prompts/default/enhanced
 ## Stakeholder Communication
 
 ### For Product Management
+
 - **Feature Status:** Core workflow system complete, agent loop pending
 - **User Impact:** Users can now invoke workflows via `/` command
 - **Timeline:** Agent loop completion ~1-2 weeks, full deployment ~3-4 weeks
 - **Risks:** Testing gap, tool classification decisions needed
 
 ### For Engineering Leadership
+
 - **Technical Debt:** Old state machine code kept for compatibility
 - **Architecture:** Backend-managed agent loop, compile-time registration
 - **Quality:** Good code quality, insufficient test coverage
 - **Next Steps:** Testing → Agent loop → Deployment
 
 ### For Design
+
 - **UX Changes:** New workflow selector UI, no approval modal for workflows
 - **Pending:** Approval modal redesign for agent loop
 - **Feedback Needed:** Workflow execution feedback display in chat
 
 ### For QA
+
 - **Test Coverage:** Manual testing complete, automated tests missing
 - **Test Plan Needed:** Backend unit/integration, frontend unit, E2E
 - **Priority:** High - blocking production deployment
@@ -808,8 +888,7 @@ curl http://localhost:8080/v1/system-prompts/default/enhanced
 **Next Review:** TBD (after agent loop completion)
 
 **Questions?**
+
 - Check `openspec/changes/refactor-tools-to-llm-agent-mode/design.md` for technical decisions
 - Check `openspec/changes/refactor-tools-to-llm-agent-mode/proposal.md` for rationale
 - Check `openspec/changes/refactor-tools-to-llm-agent-mode/tasks.md` for task details
-
-

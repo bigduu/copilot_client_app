@@ -44,6 +44,3 @@ export function cleanupLegacyStorage(): { removedKeys: string[] } {
 
   return { removedKeys };
 }
-
-
-

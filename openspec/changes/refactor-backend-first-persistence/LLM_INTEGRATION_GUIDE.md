@@ -40,6 +40,7 @@ Your app already has LLM infrastructure:
 Check these files for reference:
 
 **Non-streaming example:**
+
 ```rust
 // crates/web_service/src/controllers/openai_controller.rs (lines 94-106)
 let response = app_state
@@ -52,6 +53,7 @@ let body = response.bytes().await?;
 ```
 
 **Streaming example:**
+
 ```rust
 // crates/web_service/src/controllers/openai_controller.rs (lines 58-92)
 let (tx, rx) = mpsc::channel(10);
@@ -70,7 +72,7 @@ client.process_chat_completion_stream(response, tx).await?;
 ```rust
 ContextState::ProcessingUserMessage => {
     log::info!("FSM: Entered ProcessingUserMessage state");
-    
+
     // Step 1: Extract messages from context
     let (model_id, messages) = {
         let ctx = context.lock().await;
@@ -87,9 +89,9 @@ ContextState::ProcessingUserMessage => {
             .unwrap_or_default();
         (ctx.config.model_id.clone(), msgs)
     };
-    
+
     // Step 2: Convert to ChatCompletionRequest
-    let chat_messages: Vec<copilot_client::api::models::ChatMessage> = 
+    let chat_messages: Vec<copilot_client::api::models::ChatMessage> =
         messages.into_iter().map(|msg| {
             copilot_client::api::models::ChatMessage {
                 role: convert_role(&msg.role),
@@ -98,7 +100,7 @@ ContextState::ProcessingUserMessage => {
                 tool_call_id: None,
             }
         }).collect();
-    
+
     let request = copilot_client::api::models::ChatCompletionRequest {
         model: model_id,
         messages: chat_messages,
@@ -107,7 +109,7 @@ ContextState::ProcessingUserMessage => {
         tool_choice: None,
         ..Default::default()
     };
-    
+
     // Step 3: Call LLM
     log::info!("Calling real LLM...");
     match self.copilot_client.send_chat_completion_request(request).await {
@@ -115,15 +117,15 @@ ContextState::ProcessingUserMessage => {
             // Step 4: Parse response
             let body = response.bytes().await?;
             let completion: serde_json::Value = serde_json::from_slice(&body)?;
-            
+
             let assistant_text = completion
                 ["choices"][0]["message"]["content"]
                 .as_str()
                 .unwrap_or("(empty response)")
                 .to_string();
-            
+
             log::info!("LLM response received: {} chars", assistant_text.len());
-            
+
             // Step 5: Add to context
             let mut context_lock = context.lock().await;
             let assistant_message = InternalMessage {
@@ -134,7 +136,7 @@ ContextState::ProcessingUserMessage => {
             context_lock.add_message_to_branch("main", assistant_message);
             context_lock.current_state = ContextState::Idle;
             drop(context_lock);
-            
+
             // Step 6: Auto-save
             self.auto_save_context(&context).await?;
         }
@@ -150,12 +152,12 @@ ContextState::ProcessingUserMessage => {
 
 ```rust
 // Convert internal Role to copilot_client Role
-fn convert_role(role: &context_manager::structs::message::Role) 
-    -> copilot_client::api::models::Role 
+fn convert_role(role: &context_manager::structs::message::Role)
+    -> copilot_client::api::models::Role
 {
     use context_manager::structs::message::Role as InternalRole;
     use copilot_client::api::models::Role as ClientRole;
-    
+
     match role {
         InternalRole::User => ClientRole::User,
         InternalRole::Assistant => ClientRole::Assistant,
@@ -199,6 +201,7 @@ curl -X POST http://localhost:8080/v1/contexts/{ID}/actions/send_message \
 ```
 
 Backend logs should show:
+
 ```
 INFO  Calling real LLM...
 INFO  LLM response received: 42 chars
@@ -207,6 +210,7 @@ INFO  LLM response received: 42 chars
 ## Why This Wasn't Done Yet
 
 The refactor focused on **infrastructure**:
+
 - ✅ Dirty flag optimization
 - ✅ Auto-save hooks
 - ✅ FSM state management
@@ -214,6 +218,7 @@ The refactor focused on **infrastructure**:
 - ✅ Frontend integration
 
 LLM integration requires:
+
 - ❌ Message format conversion
 - ❌ Error handling for API failures
 - ❌ Streaming support
@@ -233,10 +238,10 @@ These are **separate concerns** that should be implemented after the persistence
 ## Need Help?
 
 Check these files for working examples:
+
 - `crates/web_service/src/controllers/openai_controller.rs` - Full LLM integration
 - `crates/web_service/tests/openai_api_tests.rs` - Test examples
 - `crates/copilot_client/src/api/models.rs` - Request/response models
 - `crates/copilot_client/src/client_trait.rs` - Client interface
 
 The infrastructure is ready - you just need to plug in the LLM client! 🚀
-

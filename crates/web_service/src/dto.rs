@@ -20,6 +20,7 @@ pub struct ChatConfigDTO {
     pub parameters: serde_json::Value,
     pub system_prompt_id: Option<String>,
     pub agent_role: String, // "planner" or "actor"
+    pub workspace_path: Option<String>,
 }
 
 /// DTO representing a branch
@@ -112,6 +113,7 @@ impl From<context_manager::structs::context::ChatConfig> for ChatConfigDTO {
             parameters: serde_json::to_value(config.parameters).unwrap_or_default(),
             system_prompt_id: config.system_prompt_id,
             agent_role: format!("{:?}", config.agent_role).to_lowercase(),
+            workspace_path: config.workspace_path,
         }
     }
 }

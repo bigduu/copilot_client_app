@@ -1,8 +1,7 @@
-pub mod workflow;
-pub mod parameter;
 pub mod category;
+pub mod parameter;
+pub mod workflow;
 
-pub use workflow::{Workflow, WorkflowDefinition, WorkflowError};
+pub use category::{Category, WorkflowCategory};
 pub use parameter::Parameter;
-pub use category::{WorkflowCategory, Category};
-
+pub use workflow::{Workflow, WorkflowDefinition, WorkflowError};

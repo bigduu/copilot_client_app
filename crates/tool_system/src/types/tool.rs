@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
 use thiserror::Error;
 
-use super::{Parameter, ToolType, ToolArguments};
+use super::{Parameter, ToolArguments, ToolType};
 
 /// Permission types required for tool execution.
 /// These should match the Permission enum in context_manager.
@@ -41,7 +41,6 @@ pub enum ToolError {
     InternalError(#[from] anyhow::Error),
 }
 
-
 /// The static definition of a tool.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ToolDefinition {
@@ -57,16 +56,16 @@ pub struct ToolDefinition {
     pub hide_in_selector: bool,
     #[serde(default)]
     pub display_preference: DisplayPreference,
-    
+
     /// Documentation for how the LLM should use the terminate flag with this tool.
     /// When the LLM calls this tool, it must include a "terminate" field in the JSON:
     /// - terminate: true = This is the final action, return results to the user
     /// - terminate: false = Continue the agent loop after this tool execution
-    /// 
+    ///
     /// This field provides guidance on typical usage patterns for the terminate flag.
     #[serde(skip_serializing_if = "Option::is_none", default)]
     pub termination_behavior_doc: Option<String>,
-    
+
     /// Permissions required to use this tool.
     /// Tools with only ReadFiles permission can be used in Planner role.
     /// Tools requiring other permissions need Actor role or higher.
@@ -81,7 +80,6 @@ fn default_requires_approval() -> bool {
 fn default_hide_in_selector() -> bool {
     true
 }
-
 
 /// Tool trait definition
 #[async_trait]

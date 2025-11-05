@@ -25,7 +25,7 @@ export const useImageHandler = (allowImages: boolean) => {
         message.error(`Failed to process images: ${error}`);
       }
     },
-    [allowImages]
+    [allowImages],
   );
 
   const handleRemoveImage = useCallback(
@@ -36,7 +36,7 @@ export const useImageHandler = (allowImages: boolean) => {
       }
       setImages((prevImages) => prevImages.filter((img) => img.id !== imageId));
     },
-    [images]
+    [images],
   );
 
   const handleImagePreview = useCallback(
@@ -45,7 +45,7 @@ export const useImageHandler = (allowImages: boolean) => {
       setPreviewImageIndex(index >= 0 ? index : 0);
       setPreviewModalVisible(true);
     },
-    [images]
+    [images],
   );
 
   const clearImages = useCallback(() => {

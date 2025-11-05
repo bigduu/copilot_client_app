@@ -3,6 +3,7 @@
 ## Why
 
 The current tool system exposes all tools to the frontend for user selection and invocation. This creates several limitations:
+
 1. Users must manually invoke tools with `/command` syntax
 2. The LLM cannot autonomously use tools to accomplish tasks
 3. No support for agent-style autonomous execution loops
@@ -14,6 +15,7 @@ This refactor enables **LLM-driven tool usage with agent loops** while introduci
 ## What Changes
 
 ### **BREAKING** Tool System Refactor
+
 - Tools are NO LONGER exposed to frontend via `/tools/available` endpoint
 - Tools are injected into system prompt with strict JSON calling convention
 - LLM generates structured JSON tool calls: `{"tool": "name", "parameters": {...}, "terminate": true/false}`
@@ -22,6 +24,7 @@ This refactor enables **LLM-driven tool usage with agent loops** while introduci
 - Frontend only handles tool approval modals, not tool discovery/selection
 
 ### **NEW** Workflow System
+
 - Workflows are user-invoked actions visible in the frontend UI
 - Users trigger workflows via commands (e.g., `/create_project`) or UI buttons
 - Workflows extract parameters from user input (similar to current tool handling)
@@ -29,6 +32,7 @@ This refactor enables **LLM-driven tool usage with agent loops** while introduci
 - Categories apply to Workflows for organization
 
 ### **NEW** Agent Loop Execution
+
 - Backend implements autonomous agent execution loop
 - When LLM returns `terminate: false`, backend automatically:
   1. Executes the tool call
@@ -38,8 +42,9 @@ This refactor enables **LLM-driven tool usage with agent loops** while introduci
 - Agent loop is transparent to frontend (frontend sees final result)
 
 ### **MODIFIED** System Prompt Management
+
 - System prompt enhancement (tool injection) moves to **backend**
-- **Two modes**: 
+- **Two modes**:
   - **Passthrough mode** (`/v1/chat/completions`): Uses base prompt without enhancement (for external clients like Cline)
   - **Context mode** (`/context/*`): Uses enhanced prompt with tools (for our frontend)
 - Backend provides endpoint to get "enhanced prompt" (base + tools + mermaid)
@@ -48,6 +53,7 @@ This refactor enables **LLM-driven tool usage with agent loops** while introduci
 - Maintains OpenAI API compatibility for external integrations
 
 ### **MODIFIED** Category System
+
 - Categories now apply to **Workflows** instead of Tools
 - Categories determine which workflows appear in frontend UI
 - Tool categories are internal to backend (for system prompt organization)
@@ -55,6 +61,7 @@ This refactor enables **LLM-driven tool usage with agent loops** while introduci
 ## Impact
 
 ### Affected Specs
+
 - **NEW**: `tool-system` - LLM-driven tool invocation with JSON format and agent loops
 - **NEW**: `workflow-system` - User-invoked actions with parameter extraction
 - **NEW**: `system-prompt-enhancement` - Backend-driven prompt augmentation
@@ -63,6 +70,7 @@ This refactor enables **LLM-driven tool usage with agent loops** while introduci
 ### Affected Code
 
 #### Backend (Rust)
+
 - `crates/tool_system/` - Add JSON output format, termination flag support
 - `crates/web_service/src/controllers/tool_controller.rs` - Remove/refactor tool listing endpoint
 - `crates/web_service/src/controllers/openai_controller.rs` - Add agent loop logic
@@ -72,6 +80,7 @@ This refactor enables **LLM-driven tool usage with agent loops** while introduci
 - **NEW**: `crates/web_service/src/services/agent_service.rs` - Agent loop orchestration
 
 #### Frontend (TypeScript)
+
 - `src/services/ToolService.ts` - Remove tool listing, keep execution
 - **NEW**: `src/services/WorkflowService.ts` - Workflow invocation and parameter handling
 - `src/services/SystemPromptEnhancer.ts` - Remove (logic moves to backend)
@@ -81,7 +90,7 @@ This refactor enables **LLM-driven tool usage with agent loops** while introduci
 - `src/types/toolConfig.ts` - Rename/refactor to workflowConfig.ts
 
 ### Migration Notes
+
 - **No backward compatibility** - Clean break from old system
 - Existing tool configurations will need to be classified as Tools or Workflows
 - Frontend tool selector UI will be replaced entirely
-

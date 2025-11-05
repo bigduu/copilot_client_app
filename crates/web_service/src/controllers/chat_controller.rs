@@ -50,6 +50,7 @@ pub async fn send_message(
         app_state.system_prompt_enhancer.clone(),
         app_state.system_prompt_service.clone(),
         app_state.approval_manager.clone(),
+        app_state.workflow_service.clone(),
     );
     match chat_service.process_message(message.into_inner()).await {
         Ok(response) => Ok(HttpResponse::Ok().json(response)),
@@ -73,6 +74,7 @@ pub async fn send_message_stream(
         app_state.system_prompt_enhancer.clone(),
         app_state.system_prompt_service.clone(),
         app_state.approval_manager.clone(),
+        app_state.workflow_service.clone(),
     );
 
     match chat_service
@@ -112,6 +114,7 @@ pub async fn approve_tools(
         app_state.system_prompt_enhancer.clone(),
         app_state.system_prompt_service.clone(),
         app_state.approval_manager.clone(),
+        app_state.workflow_service.clone(),
     );
     match chat_service
         .approve_tool_calls(approved_tool_calls.into_inner())
@@ -143,6 +146,7 @@ pub async fn approve_agent_tool_call(
         app_state.system_prompt_enhancer.clone(),
         app_state.system_prompt_service.clone(),
         app_state.approval_manager.clone(),
+        app_state.workflow_service.clone(),
     );
 
     match chat_service

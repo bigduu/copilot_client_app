@@ -28,11 +28,11 @@ export const ImageGrid: React.FC<ImageGridProps> = ({
   }
 
   return (
-    <div 
+    <div
       className={className}
-      style={{ 
+      style={{
         marginBottom: token.marginMD,
-        ...style 
+        ...style,
       }}
     >
       <div
@@ -42,8 +42,8 @@ export const ImageGrid: React.FC<ImageGridProps> = ({
             images.length === 1
               ? "1fr"
               : images.length === 2
-              ? "1fr 1fr"
-              : "repeat(auto-fit, minmax(200px, 1fr))",
+                ? "1fr 1fr"
+                : "repeat(auto-fit, minmax(200px, 1fr))",
           gap: token.marginSM,
           maxWidth: "100%",
         }}
@@ -65,7 +65,8 @@ export const ImageGrid: React.FC<ImageGridProps> = ({
               style={{
                 width: "100%",
                 height: "auto",
-                maxHeight: images.length === 1 ? maxHeight.single : maxHeight.multiple,
+                maxHeight:
+                  images.length === 1 ? maxHeight.single : maxHeight.multiple,
                 objectFit: "cover",
               }}
               preview={{
@@ -92,8 +93,7 @@ export const ImageGrid: React.FC<ImageGridProps> = ({
                 bottom: 0,
                 left: 0,
                 right: 0,
-                background:
-                  "linear-gradient(transparent, rgba(0,0,0,0.7))",
+                background: "linear-gradient(transparent, rgba(0,0,0,0.7))",
                 color: token.colorTextLightSolid,
                 padding: `${token.paddingXS}px ${token.paddingSM}px`,
                 fontSize: token.fontSizeSM,

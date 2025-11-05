@@ -1,6 +1,6 @@
 //! Unit tests for AgentService
 
-use web_service::services::agent_service::{AgentService, AgentLoopConfig};
+use web_service::services::agent_service::{AgentLoopConfig, AgentService};
 
 #[test]
 fn test_parse_valid_json_tool_call() {
@@ -13,13 +13,13 @@ fn test_parse_valid_json_tool_call() {
         "terminate": false
     }
     "#;
-    
+
     let result = agent_service.parse_tool_call_from_response(response);
     assert!(result.is_ok());
-    
+
     let tool_call_opt = result.unwrap();
     assert!(tool_call_opt.is_some());
-    
+
     let tool_call = tool_call_opt.unwrap();
     assert_eq!(tool_call.tool, "read_file");
     assert_eq!(tool_call.parameters["path"], "/test.txt");
@@ -36,13 +36,13 @@ fn test_parse_json_with_terminate_true() {
         "terminate": true
     }
     "#;
-    
+
     let result = agent_service.parse_tool_call_from_response(response);
     assert!(result.is_ok());
-    
+
     let tool_call_opt = result.unwrap();
     assert!(tool_call_opt.is_some());
-    
+
     let tool_call = tool_call_opt.unwrap();
     assert_eq!(tool_call.terminate, true);
 }
@@ -51,14 +51,15 @@ fn test_parse_json_with_terminate_true() {
 fn test_parse_json_only_tool_call() {
     let agent_service = AgentService::with_default_config();
     // LLM returns ONLY the JSON, no explanation
-    let response = r#"{"tool": "search_code", "parameters": {"query": "test"}, "terminate": false}"#;
-    
+    let response =
+        r#"{"tool": "search_code", "parameters": {"query": "test"}, "terminate": false}"#;
+
     let result = agent_service.parse_tool_call_from_response(response);
     assert!(result.is_ok());
-    
+
     let tool_call_opt = result.unwrap();
     assert!(tool_call_opt.is_some());
-    
+
     let tool_call = tool_call_opt.unwrap();
     assert_eq!(tool_call.tool, "search_code");
 }
@@ -77,13 +78,13 @@ fn test_parse_json_with_markdown_code_blocks() {
     }
     ```
     "#;
-    
+
     let result = agent_service.parse_tool_call_from_response(response);
     assert!(result.is_ok());
-    
+
     let tool_call_opt = result.unwrap();
     assert!(tool_call_opt.is_some());
-    
+
     let tool_call = tool_call_opt.unwrap();
     assert_eq!(tool_call.tool, "read_file");
 }
@@ -92,10 +93,10 @@ fn test_parse_json_with_markdown_code_blocks() {
 fn test_parse_no_json_in_response() {
     let agent_service = AgentService::with_default_config();
     let response = "This is just a regular text response with no JSON";
-    
+
     let result = agent_service.parse_tool_call_from_response(response);
     assert!(result.is_ok());
-    
+
     let tool_call_opt = result.unwrap();
     assert!(tool_call_opt.is_none());
 }
@@ -109,10 +110,10 @@ fn test_parse_malformed_json() {
         "parameters": {"path": "/test.txt"},
         // Missing closing brace
     "#;
-    
+
     let result = agent_service.parse_tool_call_from_response(response);
     assert!(result.is_ok());
-    
+
     let tool_call_opt = result.unwrap();
     assert!(tool_call_opt.is_none());
 }
@@ -130,13 +131,13 @@ fn test_parse_json_with_extra_fields() {
         "confidence": 0.95
     }
     "#;
-    
+
     let result = agent_service.parse_tool_call_from_response(response);
     assert!(result.is_ok()); // Should tolerate extra fields
-    
+
     let tool_call_opt = result.unwrap();
     assert!(tool_call_opt.is_some());
-    
+
     let tool_call = tool_call_opt.unwrap();
     assert_eq!(tool_call.tool, "read_file");
 }
@@ -157,13 +158,13 @@ fn test_parse_nested_json_in_parameters() {
         "terminate": false
     }
     "#;
-    
+
     let result = agent_service.parse_tool_call_from_response(response);
     assert!(result.is_ok());
-    
+
     let tool_call_opt = result.unwrap();
     assert!(tool_call_opt.is_some());
-    
+
     let tool_call = tool_call_opt.unwrap();
     assert_eq!(tool_call.parameters["config"]["nested"]["value"], 123);
 }
@@ -171,14 +172,14 @@ fn test_parse_nested_json_in_parameters() {
 #[test]
 fn test_validate_tool_call_valid() {
     use web_service::services::agent_service::ToolCall;
-    
+
     let agent_service = AgentService::with_default_config();
     let tool_call = ToolCall {
         tool: "read_file".to_string(),
         parameters: serde_json::json!({"path": "/test.txt"}),
         terminate: false,
     };
-    
+
     let result = agent_service.validate_tool_call(&tool_call);
     assert!(result.is_ok());
 }
@@ -186,14 +187,14 @@ fn test_validate_tool_call_valid() {
 #[test]
 fn test_validate_tool_call_empty_tool_name() {
     use web_service::services::agent_service::ToolCall;
-    
+
     let agent_service = AgentService::with_default_config();
     let tool_call = ToolCall {
         tool: "".to_string(),
         parameters: serde_json::json!({"path": "/test.txt"}),
         terminate: false,
     };
-    
+
     let result = agent_service.validate_tool_call(&tool_call);
     assert!(result.is_err());
     assert!(result.unwrap_err().to_string().contains("empty"));
@@ -202,14 +203,14 @@ fn test_validate_tool_call_empty_tool_name() {
 #[test]
 fn test_validate_tool_call_null_parameters() {
     use web_service::services::agent_service::ToolCall;
-    
+
     let agent_service = AgentService::with_default_config();
     let tool_call = ToolCall {
         tool: "read_file".to_string(),
         parameters: serde_json::Value::Null,
         terminate: false,
     };
-    
+
     let result = agent_service.validate_tool_call(&tool_call);
     assert!(result.is_err());
     assert!(result.unwrap_err().to_string().contains("object"));
@@ -228,13 +229,13 @@ fn test_parse_with_explanation_before_json() {
         "terminate": false
     }
     "#;
-    
+
     let result = agent_service.parse_tool_call_from_response(response);
     assert!(result.is_ok());
-    
+
     let tool_call_opt = result.unwrap();
     assert!(tool_call_opt.is_some());
-    
+
     let tool_call = tool_call_opt.unwrap();
     assert_eq!(tool_call.tool, "read_file");
 }
@@ -252,13 +253,13 @@ fn test_parse_json_with_string_escaping() {
         "terminate": false
     }
     "#;
-    
+
     let result = agent_service.parse_tool_call_from_response(response);
     assert!(result.is_ok());
-    
+
     let tool_call_opt = result.unwrap();
     assert!(tool_call_opt.is_some());
-    
+
     let tool_call = tool_call_opt.unwrap();
     let content = tool_call.parameters["content"].as_str().unwrap();
     assert!(content.contains("\n"));
@@ -282,8 +283,11 @@ fn test_agent_service_getters() {
         max_tool_execution_retries: 2,
         tool_execution_timeout: std::time::Duration::from_secs(30),
     };
-    
+
     let agent_service = AgentService::new(config.clone());
-    assert_eq!(agent_service.tool_execution_timeout(), std::time::Duration::from_secs(30));
+    assert_eq!(
+        agent_service.tool_execution_timeout(),
+        std::time::Duration::from_secs(30)
+    );
     assert_eq!(agent_service.max_tool_execution_retries(), 2);
 }

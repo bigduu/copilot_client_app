@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, lazy, Suspense } from "react";
 import {
   Modal,
   Button,
@@ -24,8 +24,8 @@ import {
   isMermaidEnhancementEnabled,
   setMermaidEnhancementEnabled,
 } from "../../utils/mermaidUtils";
-import SystemPromptManager from "../SystemPromptManager";
-import TemplateVariableEditor from "../TemplateVariableEditor";
+const SystemPromptManager = lazy(() => import("../SystemPromptManager"));
+const TemplateVariableEditor = lazy(() => import("../TemplateVariableEditor"));
 
 const { Text } = Typography;
 const { useToken } = theme;
@@ -119,7 +119,13 @@ const SystemSettingsModal = ({
   onThemeModeChange: (mode: "light" | "dark") => void;
 }) => {
   const { token } = useToken();
-  const { deleteAllUnpinnedChats, deleteEmptyChats } = useChatManager();
+  const {
+    deleteAllUnpinnedChats,
+    deleteEmptyChats,
+    autoGenerateTitles,
+    setAutoGenerateTitlesPreference,
+    isUpdatingAutoTitlePreference,
+  } = useChatManager();
   const [msgApi, contextHolder] = message.useMessage();
   const [mermaidEnhancementEnabled, setMermaidEnhancementEnabledState] =
     useState<boolean>(() => {
@@ -153,6 +159,15 @@ const SystemSettingsModal = ({
     onClose();
   };
 
+  const handleAutoTitleToggle = async (checked: boolean) => {
+    try {
+      await setAutoGenerateTitlesPreference(checked);
+      msgApi.success(checked ? "自动标题生成已开启" : "自动标题生成已关闭");
+    } catch (error) {
+      msgApi.error("更新自动标题生成偏好失败");
+    }
+  };
+
   return (
     <Modal
       title="System Settings"
@@ -174,7 +189,9 @@ const SystemSettingsModal = ({
         />
 
         {/* System Prompt Manager Section */}
-        <SystemPromptManager />
+        <Suspense fallback={<Spin size="small" />}>
+          <SystemPromptManager />
+        </Suspense>
 
         {/* Template Variables Section */}
         <Space
@@ -204,6 +221,19 @@ const SystemSettingsModal = ({
           size={token.marginSM}
           style={{ width: "100%" }}
         >
+          <Flex align="center" gap={token.marginSM}>
+            <Text strong>自动生成聊天标题</Text>
+            <Switch
+              checked={autoGenerateTitles}
+              loading={isUpdatingAutoTitlePreference}
+              onChange={handleAutoTitleToggle}
+              checkedChildren="ON"
+              unCheckedChildren="OFF"
+            />
+          </Flex>
+          <Text type="secondary" style={{ fontSize: token.fontSizeSM }}>
+            启用后,在新会话开始时会自动调用 AI 生成更具描述性的聊天标题。
+          </Text>
           <Flex align="center" gap={token.marginSM}>
             <Text strong>Service Mode</Text>
             <Switch
@@ -301,10 +331,12 @@ const SystemSettingsModal = ({
         </Space>
       </Flex>
 
-      <TemplateVariableEditor
-        open={isTemplateVariableEditorOpen}
-        onClose={() => setIsTemplateVariableEditorOpen(false)}
-      />
+      <Suspense fallback={null}>
+        <TemplateVariableEditor
+          open={isTemplateVariableEditorOpen}
+          onClose={() => setIsTemplateVariableEditorOpen(false)}
+        />
+      </Suspense>
     </Modal>
   );
 };

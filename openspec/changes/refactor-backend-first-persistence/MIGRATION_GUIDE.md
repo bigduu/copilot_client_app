@@ -7,6 +7,7 @@ This guide explains how to complete the migration from manual frontend persisten
 ## ✅ Completed Infrastructure
 
 ### Backend (Complete)
+
 - ✅ Auto-save hooks in FSM after every state transition
 - ✅ Dirty flag optimization in `ChatContext`
 - ✅ Action-based API endpoints:
@@ -15,6 +16,7 @@ This guide explains how to complete the migration from manual frontend persisten
   - `GET /api/contexts/{id}/state`
 
 ### Frontend Service Layer (Complete)
+
 - ✅ `BackendContextService.sendMessageAction()`
 - ✅ `BackendContextService.approveToolsAction()`
 - ✅ `BackendContextService.getChatState()`
@@ -27,12 +29,12 @@ This guide explains how to complete the migration from manual frontend persisten
 Add the `useChatStateSync` hook to your main chat component:
 
 ```typescript
-import { useChatStateSync } from '../hooks/useChatStateSync';
+import { useChatStateSync } from "../hooks/useChatStateSync";
 
 function ChatComponent() {
   const currentChatId = useAppStore((state) => state.currentChatId);
   const updateChat = useAppStore((state) => state.updateChat);
-  
+
   // Start polling for backend state
   useChatStateSync({
     chatId: currentChatId,
@@ -40,19 +42,19 @@ function ChatComponent() {
     onStateUpdate: (actionResponse) => {
       // Reconcile backend state with local state
       const { context, status } = actionResponse;
-      
+
       // Update local chat with backend messages
       if (currentChatId) {
         // TODO: Convert backend DTO to local Message format
         // TODO: Merge with local optimistic updates
-        console.log('Backend state update:', context, status);
+        console.log("Backend state update:", context, status);
       }
     },
     onError: (error) => {
-      console.error('Polling error:', error);
+      console.error("Polling error:", error);
     },
   });
-  
+
   // ... rest of component
 }
 ```
@@ -62,6 +64,7 @@ function ChatComponent() {
 Update `useChatManager.sendMessage()` to use the action API:
 
 **Current (Hybrid):**
+
 ```typescript
 // In sendMessage():
 await addMessage(chatId, userMessage); // Manual persistence
@@ -69,6 +72,7 @@ send({ type: "USER_SUBMITS", payload: { ... } }); // Local state machine
 ```
 
 **Target (Backend-First):**
+
 ```typescript
 // Option A: Direct action API call
 const response = await backendContextService.sendMessageAction(chatId, content);
@@ -98,6 +102,7 @@ The following calls are marked with `TODO [REFACTOR-BACKEND-FIRST]` and should b
 ```
 
 **After removal:**
+
 ```typescript
 addMessage: async (chatId, message) => {
   const chat = get().chats.find((c) => c.id === chatId);
@@ -112,7 +117,7 @@ updateMessageContent: async (chatId, messageId, content) => {
   if (chat) {
     // Optimistic update only - backend FSM handles persistence
     const updatedMessages = chat.messages.map((msg) =>
-      msg.id === messageId && 
+      msg.id === messageId &&
       (msg.role === "user" || (msg.role === "assistant" && msg.type === "text"))
         ? { ...msg, content }
         : msg
@@ -129,18 +134,18 @@ Create a reconciliation function to merge backend state with local optimistic up
 ```typescript
 function reconcileMessages(
   localMessages: Message[],
-  backendMessages: MessageDTO[]
+  backendMessages: MessageDTO[],
 ): Message[] {
   // Strategy 1: Backend wins (simple)
   // Convert backend DTOs to local Message format and replace
-  
+
   // Strategy 2: Merge with conflict resolution
   // - Keep messages with temporary IDs (optimistic)
   // - Replace with backend when IDs match
   // - Handle message ordering
-  
+
   // Example (Backend wins):
-  return backendMessages.map(dto => convertDTOToMessage(dto));
+  return backendMessages.map((dto) => convertDTOToMessage(dto));
 }
 ```
 
@@ -149,16 +154,18 @@ function reconcileMessages(
 Replace manual tool approval with action API:
 
 **Current:**
+
 ```typescript
 await approveTools(contextId, { tool_call_ids: [...] });
 // Manually saves to backend
 ```
 
 **Target:**
+
 ```typescript
 const response = await backendContextService.approveToolsAction(
   contextId,
-  toolCallIds
+  toolCallIds,
 );
 // Backend FSM continues processing and auto-saves
 // Update local state with response.context
@@ -183,6 +190,7 @@ After migration, verify:
 ### Check Auto-Save Logs
 
 Backend logs should show:
+
 ```
 DEBUG FSM: ProcessingUserMessage -> Calling LLM
 DEBUG Saving dirty context <id>
@@ -191,6 +199,7 @@ DEBUG Saving dirty context <id>
 ### Check Polling Behavior
 
 Frontend console should show:
+
 ```
 [ChatStateSync] State changed, resetting interval
 [ChatStateSync] No changes, backing off to 1500ms
@@ -199,11 +208,13 @@ Frontend console should show:
 ### Verify No Manual Saves
 
 Network tab should NOT show:
+
 ```
 POST /api/contexts/{id}/messages  # Old CRUD endpoint
 ```
 
 Network tab SHOULD show:
+
 ```
 POST /api/contexts/{id}/actions/send_message  # New action endpoint
 GET  /api/contexts/{id}/state                 # Polling endpoint
@@ -232,4 +243,3 @@ After core migration is complete, consider:
 3. **Optimistic update conflict resolution** for better UX
 4. **Request deduplication** to handle rapid user actions
 5. **Offline queue** for actions when backend is unavailable
-

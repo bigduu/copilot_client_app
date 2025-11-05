@@ -3,12 +3,12 @@ import { hasImageFiles, extractImageFiles } from "../utils/imageUtils";
 
 interface DragAndDropOptions {
   onFiles: (files: File[]) => void;
-  allowImages: boolean;
+  mode?: "images" | "any";
 }
 
 export const useDragAndDrop = ({
   onFiles,
-  allowImages,
+  mode = "images",
 }: DragAndDropOptions) => {
   const [isDragOver, setIsDragOver] = useState(false);
 
@@ -16,11 +16,13 @@ export const useDragAndDrop = ({
     (e: React.DragEvent) => {
       e.preventDefault();
       e.stopPropagation();
-      if (allowImages && hasImageFiles(e.dataTransfer)) {
-        setIsDragOver(true);
-      }
+      const hasAllowedFiles =
+        mode === "images"
+          ? hasImageFiles(e.dataTransfer)
+          : e.dataTransfer?.files?.length > 0;
+      if (hasAllowedFiles) setIsDragOver(true);
     },
-    [allowImages]
+    [mode],
   );
 
   const handleDragLeave = useCallback((e: React.DragEvent) => {
@@ -35,14 +37,20 @@ export const useDragAndDrop = ({
       e.stopPropagation();
       setIsDragOver(false);
 
-      if (!allowImages) return;
+      if (mode === "images") {
+        const imageFiles = extractImageFiles(e.dataTransfer);
+        if (imageFiles.length > 0) {
+          onFiles(imageFiles);
+        }
+        return;
+      }
 
-      const imageFiles = extractImageFiles(e.dataTransfer);
-      if (imageFiles.length > 0) {
-        onFiles(imageFiles);
+      const droppedFiles = Array.from(e.dataTransfer.files || []);
+      if (droppedFiles.length > 0) {
+        onFiles(droppedFiles);
       }
     },
-    [allowImages, onFiles]
+    [mode, onFiles],
   );
 
   return {

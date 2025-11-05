@@ -71,15 +71,15 @@ impl ChatContext {
     pub fn mark_dirty(&mut self) {
         self.dirty = true;
     }
-    
+
     pub fn is_dirty(&self) -> bool {
         self.dirty
     }
-    
+
     pub fn clear_dirty(&mut self) {
         self.dirty = false;
     }
-    
+
     pub fn add_message_to_branch(&mut self, branch: &str, msg: InternalMessage) {
         // ... add message to pool
         self.mark_dirty();  // ← Automatically mark dirty
@@ -97,15 +97,15 @@ pub async fn save_context(&self, context: &mut ChatContext) -> Result<(), AppErr
         debug!("Context {} not dirty, skipping save", context.id);
         return Ok(());  // ← No-op if clean
     }
-    
+
     debug!("Saving dirty context {}", context.id);
-    
+
     // Convert to DTO and save to DB
     let dto = ChatContextDTO::from(context.clone());
     self.context_repo
         .save_or_update_context(&context.id.to_string(), &dto)
         .await?;
-    
+
     context.clear_dirty();  // ← Mark as clean after save
     Ok(())
 }
@@ -119,15 +119,15 @@ pub async fn save_context(&self, context: &mut ChatContext) -> Result<(), AppErr
 pub async fn process_message(&mut self, message: String) -> Result<ServiceResponse, AppError> {
     let context = self.session_manager.load_context(self.conversation_id).await?;
     let mut context_lock = context.lock().await;
-    
+
     // Add user message
     let user_message = InternalMessage { role: Role::User, content: [...] };
     context_lock.add_message_to_branch("main", user_message);  // ← Marks dirty
     drop(context_lock);
-    
+
     // ✅ AUTO-SAVE #1: User message persisted
     self.auto_save_context(&context).await?;
-    
+
     // Run FSM (generates assistant response)
     self.run_fsm(context).await
 }
@@ -135,13 +135,13 @@ pub async fn process_message(&mut self, message: String) -> Result<ServiceRespon
 async fn run_fsm(&mut self, context: Arc<Mutex<ChatContext>>) -> Result<ServiceResponse, AppError> {
     loop {
         // ... FSM state transition logic
-        
+
         // After assistant message added
         context.add_message_to_branch("main", assistant_msg);  // ← Marks dirty
-        
+
         // ✅ AUTO-SAVE #2: Assistant message persisted
         self.auto_save_context(&context).await?;
-        
+
         // ... continue FSM loop
     }
 }
@@ -160,25 +160,25 @@ pub async fn send_message_action(
 ) -> Result<HttpResponse> {
     let context_id = path.into_inner();
     let content = req.content.clone();
-    
+
     info!("=== send_message_action CALLED ===");
     info!("Context ID: {}", context_id);
     info!("Message: {}", content);
-    
+
     // Create ChatService and process message
     let mut chat_service = ChatService::new(
         context_id,
         app_state.session_manager.clone(),
         // ... other params
     );
-    
+
     // ✅ This handles EVERYTHING:
     // - Save user message
     // - Run FSM
     // - Generate response
     // - Save response
     let response = chat_service.process_message(content).await?;
-    
+
     info!("Action completed successfully");
     Ok(HttpResponse::Ok().json(ActionResponse {
         success: true,
@@ -196,21 +196,24 @@ const sendMessage = useCallback(
   async (content: string, images?: ImageFile[]) => {
     // 1. Optimistic UI update (local only)
     const userMessage = { role: "user", content, id: crypto.randomUUID() };
-    await addMessage(chatId, userMessage);  // ← NO backend persistence
-    
+    await addMessage(chatId, userMessage); // ← NO backend persistence
+
     // 2. Call backend action API
     const backendService = new BackendContextService();
-    const actionResponse = await backendService.sendMessageAction(chatId, content);
+    const actionResponse = await backendService.sendMessageAction(
+      chatId,
+      content,
+    );
     //                                              ^^^^^^^^^^^^^^^^
     //                                              Backend handles ALL persistence
-    
+
     // 3. Backend returns complete state (user + assistant messages)
     console.log("Backend saved:", actionResponse);
-    
+
     // 4. Trigger FSM for streaming/UI updates
     send({ type: "USER_SUBMITS", payload: { messages, chat } });
   },
-  [chatId, addMessage, send]
+  [chatId, addMessage, send],
 );
 ```
 
@@ -229,12 +232,12 @@ const sendMessage = useCallback(
 
 ### ⚠️ When Persistence Happens
 
-| Event | Trigger | Persistence Point |
-|-------|---------|------------------|
-| User sends message | `POST /actions/send_message` | After `add_message_to_branch()` |
-| FSM generates response | FSM state transition | After assistant message added |
-| Tool call approved | `POST /actions/approve_tools` | After tool messages added |
-| Context state changes | Any `mark_dirty()` call | Next `auto_save_context()` |
+| Event                  | Trigger                       | Persistence Point               |
+| ---------------------- | ----------------------------- | ------------------------------- |
+| User sends message     | `POST /actions/send_message`  | After `add_message_to_branch()` |
+| FSM generates response | FSM state transition          | After assistant message added   |
+| Tool call approved     | `POST /actions/approve_tools` | After tool messages added       |
+| Context state changes  | Any `mark_dirty()` call       | Next `auto_save_context()`      |
 
 ### 🚫 What Doesn't Get Persisted
 
@@ -268,21 +271,25 @@ await backendService.sendMessageAction(chatId, "hi");
 ## Benefits
 
 ### 1. **Single Source of Truth**
+
 - Backend DB is authoritative
 - No frontend/backend state drift
 - Easier debugging
 
 ### 2. **Automatic Consistency**
+
 - All related messages saved together
 - FSM state transitions atomic
 - No partial updates
 
 ### 3. **Optimized Performance**
+
 - Dirty flag prevents redundant saves
 - Batch operations possible
 - Reduced DB writes
 
 ### 4. **Simplified Frontend**
+
 - No manual persistence logic
 - Just call action API
 - Backend handles complexity
@@ -318,6 +325,7 @@ curl http://localhost:8080/v1/contexts/{context_id}/messages
 ```
 
 Should return BOTH messages:
+
 ```json
 [
   {
@@ -326,7 +334,7 @@ Should return BOTH messages:
     "id": "..."
   },
   {
-    "role": "assistant", 
+    "role": "assistant",
     "content": "I'm a mock response...",
     "id": "..."
   }
@@ -346,4 +354,3 @@ Should return BOTH messages:
 ## Summary
 
 The backend now **automatically persists all context messages** when processing user requests through the action API. The frontend doesn't need to worry about persistence—it just calls the action endpoint and receives the complete, persisted state back. This ensures data consistency and simplifies the frontend architecture.
-

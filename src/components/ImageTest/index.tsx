@@ -18,7 +18,7 @@ export const ImageTest: React.FC = () => {
   const [messageApi, contextHolder] = message.useMessage();
 
   const handleFileSelect = async (
-    event: React.ChangeEvent<HTMLInputElement>
+    event: React.ChangeEvent<HTMLInputElement>,
   ) => {
     const files = event.target.files;
     if (!files || files.length === 0) return;

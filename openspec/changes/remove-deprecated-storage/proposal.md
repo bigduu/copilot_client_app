@@ -7,6 +7,7 @@ The frontend still uses deprecated LocalStorage-based chat management methods (`
 **BREAKING**: This change removes all deprecated LocalStorage chat management code from the frontend.
 
 ### Frontend Changes
+
 - Remove deprecated chat storage methods from `StorageService.ts`:
   - `saveAllData()`
   - `saveChats()` (private)
@@ -25,6 +26,7 @@ The frontend still uses deprecated LocalStorage-based chat management methods (`
 - Keep only UI-related storage methods (theme, layout preferences)
 
 ### Impact on Users
+
 - **Zero impact**: All chat data is now managed by the backend Context Manager
 - Console will be clean without deprecation warnings
 - Reduced frontend bundle size
@@ -40,5 +42,3 @@ The frontend still uses deprecated LocalStorage-based chat management methods (`
   - `src/types/storage.ts` - May need cleanup of unused types
 - **Breaking Changes**: None for end users (backend already handles everything)
 - **Dependencies**: Requires `migrate-frontend-to-context-manager` to be complete
-
-

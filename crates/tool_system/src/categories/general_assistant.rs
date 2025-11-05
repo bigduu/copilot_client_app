@@ -2,7 +2,10 @@
 //!
 //! Contains general AI assistant tools
 
-use crate::{registry::macros::auto_register_category, types::{Category, CategoryId, CategoryMetadata}};
+use crate::{
+    registry::macros::auto_register_category,
+    types::{Category, CategoryId, CategoryMetadata},
+};
 
 /// General Assistant Category
 #[derive(Debug)]

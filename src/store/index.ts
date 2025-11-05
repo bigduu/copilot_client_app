@@ -21,8 +21,8 @@ export const useAppStore = create<AppState>()(
       ...createFavoritesSlice(...a),
       ...createSessionSlice(...a),
     })),
-    { name: "AppStore" }
-  )
+    { name: "AppStore" },
+  ),
 );
 
 // Initialize the store

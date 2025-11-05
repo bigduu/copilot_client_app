@@ -28,7 +28,7 @@ const SystemMessageCard: React.FC<SystemMessageCardProps> = ({ message }) => {
 
   const systemPromptService = React.useMemo(
     () => SystemPromptService.getInstance(),
-    []
+    [],
   );
   const systemMessageContent =
     message.role === "system" && typeof message.content === "string"
@@ -61,7 +61,7 @@ const SystemMessageCard: React.FC<SystemMessageCardProps> = ({ message }) => {
       if (!currentChat?.config) {
         // Try to get from backend context
         const activeBranch = currentContext?.branches?.find(
-          (b) => b.name === currentContext?.active_branch_name
+          (b) => b.name === currentContext?.active_branch_name,
         );
         if (activeBranch?.system_prompt?.content) {
           setBasePrompt(activeBranch.system_prompt.content);
@@ -87,9 +87,8 @@ const SystemMessageCard: React.FC<SystemMessageCardProps> = ({ message }) => {
 
         // 2. If not found, try the original logic with the service
         if (systemPromptId) {
-          const preset = await systemPromptService.findPresetById(
-            systemPromptId
-          );
+          const preset =
+            await systemPromptService.findPresetById(systemPromptId);
           if (preset?.content) {
             setBasePrompt(preset.content);
             return;
@@ -106,7 +105,7 @@ const SystemMessageCard: React.FC<SystemMessageCardProps> = ({ message }) => {
           const presets = await systemPromptService.getSystemPromptPresets();
           const matchingPreset = presets.find(
             (preset) =>
-              preset.id === toolCategory || preset.category === toolCategory
+              preset.id === toolCategory || preset.category === toolCategory,
           );
           if (matchingPreset?.content) {
             setBasePrompt(matchingPreset.content);

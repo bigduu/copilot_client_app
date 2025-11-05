@@ -68,7 +68,7 @@ export const getDateGroupWeight = (dateKey: string): number => {
 };
 
 export const groupChatsByDate = (
-  chats: ChatItem[]
+  chats: ChatItem[],
 ): Record<string, ChatItem[]> => {
   const grouped: Record<string, ChatItem[]> = {};
   // Add pinned group at the top if any pinned chats
@@ -102,7 +102,7 @@ export const groupChatsByDate = (
  * Group chats by tool category, sort by time within each category
  */
 export const groupChatsByToolCategory = (
-  chats: ChatItem[]
+  chats: ChatItem[],
 ): Record<string, ChatItem[]> => {
   const grouped: Record<string, ChatItem[]> = {};
 
@@ -146,7 +146,9 @@ export interface DateCategoryGroup {
 /**
  * Get sorted date keys for consistent ordering
  */
-export const getSortedDateKeys = (grouped: Record<string, ChatItem[]> | DateCategoryGroup): string[] => {
+export const getSortedDateKeys = (
+  grouped: Record<string, ChatItem[]> | DateCategoryGroup,
+): string[] => {
   return Object.keys(grouped).sort((a, b) => {
     // Pinned always comes first
     if (a === "Pinned") return -1;
@@ -162,7 +164,7 @@ export const getSortedDateKeys = (grouped: Record<string, ChatItem[]> | DateCate
  */
 export const getChatIdsByDate = (
   grouped: Record<string, ChatItem[]>,
-  dateKey: string
+  dateKey: string,
 ): string[] => {
   if (!grouped[dateKey]) return [];
   return grouped[dateKey].map((chat) => chat.id);
@@ -173,7 +175,7 @@ export const getChatIdsByDate = (
  */
 export const getChatCountByDate = (
   grouped: Record<string, ChatItem[]>,
-  dateKey: string
+  dateKey: string,
 ): number => {
   if (!grouped[dateKey]) return 0;
   return grouped[dateKey].length;

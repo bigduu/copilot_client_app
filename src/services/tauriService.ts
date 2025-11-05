@@ -10,7 +10,7 @@ export class TauriChatService {
     messages: Message[],
     model?: string,
     onChunk?: (chunk: string) => void,
-    abortSignal?: AbortSignal
+    abortSignal?: AbortSignal,
   ): Promise<void> {
     const channel = new Channel<string>();
     let cancelled = false;
@@ -97,7 +97,7 @@ export class TauriUtilityService implements UtilityService {
    */
   async invoke<T = any>(
     command: string,
-    args?: Record<string, any>
+    args?: Record<string, any>,
   ): Promise<T> {
     return await invoke(command, args);
   }

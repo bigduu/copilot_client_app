@@ -72,12 +72,12 @@ export class ToolService {
    */
   parseUserCommand(content: string): ToolCallRequest | null {
     console.log(
-      `[ToolService] parseUserCommand: Parsing content: "${content}"`
+      `[ToolService] parseUserCommand: Parsing content: "${content}"`,
     );
     const trimmedContent = content.trim();
     if (!trimmedContent.startsWith("/")) {
       console.log(
-        '[ToolService] parseUserCommand: Content does not start with "/", not a tool command.'
+        '[ToolService] parseUserCommand: Content does not start with "/", not a tool command.',
       );
       return null;
     }
@@ -100,13 +100,13 @@ export class ToolService {
       const result = { tool_name, user_description };
       console.log(
         "[ToolService] parseUserCommand: Successfully parsed command:",
-        result
+        result,
       );
       return result;
     }
 
     console.log(
-      "[ToolService] parseUserCommand: Failed to parse tool name from content."
+      "[ToolService] parseUserCommand: Failed to parse tool name from content.",
     );
     return null;
   }
@@ -131,32 +131,32 @@ export class ToolService {
    * Execute tool
    */
   async executeTool(
-    request: ToolExecutionRequest
+    request: ToolExecutionRequest,
   ): Promise<ToolExecutionResult> {
     console.log(
       "[ToolService] executeTool: Attempting to execute tool via Tauri with request:",
-      request
+      request,
     );
     try {
       // The backend now returns a JSON string containing the result and display preference.
       const jsonResult = await invoke<string>("execute_tool", { request });
       console.log(
         '[ToolService] executeTool: Tauri command "execute_tool" returned successfully with JSON result:',
-        jsonResult
+        jsonResult,
       );
 
       // Parse the JSON string into a structured object.
       const structuredResult: ToolExecutionResult = JSON.parse(jsonResult);
       console.log(
         "[ToolService] executeTool: Parsed structured result:",
-        structuredResult
+        structuredResult,
       );
 
       return structuredResult;
     } catch (error) {
       console.error(
         '[ToolService] executeTool: Tauri command "execute_tool" invocation failed:',
-        error
+        error,
       );
       throw new Error(`Workflow execution failed: ${error}`);
     }

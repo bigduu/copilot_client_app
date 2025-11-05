@@ -8,7 +8,7 @@ import {
 
 export const useBackendContext = () => {
   const [currentContext, setCurrentContext] = useState<ChatContextDTO | null>(
-    null
+    null,
   );
   const [messages, setMessages] = useState<MessageDTO[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -40,7 +40,7 @@ export const useBackendContext = () => {
         setIsLoading(false);
       }
     },
-    [service]
+    [service],
   );
 
   // Create new context
@@ -54,7 +54,7 @@ export const useBackendContext = () => {
         return id;
       } catch (err) {
         setError(
-          err instanceof Error ? err.message : "Failed to create context"
+          err instanceof Error ? err.message : "Failed to create context",
         );
         console.error("Failed to create context:", err);
         throw err;
@@ -62,7 +62,7 @@ export const useBackendContext = () => {
         setIsLoading(false);
       }
     },
-    [service, loadContext]
+    [service, loadContext],
   );
 
   // Add message
@@ -71,7 +71,7 @@ export const useBackendContext = () => {
       contextId: string,
       role: string,
       content: string,
-      branch?: string
+      branch?: string,
     ) => {
       try {
         await service.addMessage(contextId, { role, content, branch });
@@ -93,7 +93,7 @@ export const useBackendContext = () => {
         setMessages((prev) => prev.slice(0, -1));
       }
     },
-    [service, loadContext]
+    [service, loadContext],
   );
 
   // Approve tool calls
@@ -107,7 +107,7 @@ export const useBackendContext = () => {
         await loadContext(contextId);
       } catch (err) {
         setError(
-          err instanceof Error ? err.message : "Failed to approve tools"
+          err instanceof Error ? err.message : "Failed to approve tools",
         );
         console.error("Failed to approve tools:", err);
         throw err;
@@ -115,7 +115,7 @@ export const useBackendContext = () => {
         setIsLoading(false);
       }
     },
-    [service, loadContext]
+    [service, loadContext],
   );
 
   // Switch branch
@@ -127,14 +127,14 @@ export const useBackendContext = () => {
         await loadContext(contextId, branchName);
       } catch (err) {
         setError(
-          err instanceof Error ? err.message : "Failed to switch branch"
+          err instanceof Error ? err.message : "Failed to switch branch",
         );
         console.error("Failed to switch branch:", err);
       } finally {
         setIsLoading(false);
       }
     },
-    [loadContext]
+    [loadContext],
   );
 
   // Delete context
@@ -148,12 +148,12 @@ export const useBackendContext = () => {
         }
       } catch (err) {
         setError(
-          err instanceof Error ? err.message : "Failed to delete context"
+          err instanceof Error ? err.message : "Failed to delete context",
         );
         console.error("Failed to delete context:", err);
       }
     },
-    [service, currentContext]
+    [service, currentContext],
   );
 
   // List all contexts
@@ -172,28 +172,28 @@ export const useBackendContext = () => {
     async (id: string, content: string) => {
       return service.createSystemPrompt(id, content);
     },
-    [service]
+    [service],
   );
 
   const getSystemPrompt = useCallback(
     async (id: string) => {
       return service.getSystemPrompt(id);
     },
-    [service]
+    [service],
   );
 
   const updateSystemPrompt = useCallback(
     async (id: string, content: string) => {
       return service.updateSystemPrompt(id, content);
     },
-    [service]
+    [service],
   );
 
   const deleteSystemPrompt = useCallback(
     async (id: string) => {
       return service.deleteSystemPrompt(id);
     },
-    [service]
+    [service],
   );
 
   const listSystemPrompts = useCallback(async () => {
@@ -211,7 +211,7 @@ export const useBackendContext = () => {
 
       try {
         console.log(
-          `[useBackendContext] updateAgentRole called: ${role}, current: ${currentContext?.config.agent_role}`
+          `[useBackendContext] updateAgentRole called: ${role}, current: ${currentContext?.config.agent_role}`,
         );
 
         // Optimistically update local state first for instant UI feedback
@@ -232,21 +232,21 @@ export const useBackendContext = () => {
         // Don't reload context immediately - trust the optimistic update
         // Polling will eventually sync any other changes from backend
         console.log(
-          `[useBackendContext] Agent role updated to ${role}, polling disabled for 3s`
+          `[useBackendContext] Agent role updated to ${role}, polling disabled for 3s`,
         );
 
         // Wait a bit before re-enabling polling to ensure backend is consistent
         setTimeout(() => {
           if (wasPollingEnabled) {
             console.log(
-              "[useBackendContext] Re-enabling polling after role update"
+              "[useBackendContext] Re-enabling polling after role update",
             );
             setPollingEnabled(true);
           }
         }, 3000); // Increased to 3 seconds for more safety
       } catch (err) {
         setError(
-          err instanceof Error ? err.message : "Failed to update agent role"
+          err instanceof Error ? err.message : "Failed to update agent role",
         );
         console.error("Failed to update agent role:", err);
         // Re-enable polling even on error
@@ -258,7 +258,7 @@ export const useBackendContext = () => {
         setIsLoading(false);
       }
     },
-    [service, loadContext, pollingEnabled, currentContext]
+    [service, loadContext, pollingEnabled, currentContext],
   );
 
   // Enable/disable polling

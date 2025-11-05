@@ -73,7 +73,7 @@ export const FavoritesPanel: React.FC = () => {
     setIsExporting(true);
     const hideLoading = message.loading(
       `Exporting favorites as ${format.toUpperCase()}...`,
-      0
+      0,
     );
 
     try {
@@ -122,7 +122,7 @@ export const FavoritesPanel: React.FC = () => {
     } catch (error) {
       console.error(`Failed to export as ${format}:`, error);
       message.error(
-        `Failed to export favorites as ${format.toUpperCase()}. Please try again.`
+        `Failed to export favorites as ${format.toUpperCase()}. Please try again.`,
       );
     } finally {
       hideLoading();
@@ -132,7 +132,7 @@ export const FavoritesPanel: React.FC = () => {
 
   // Export as Markdown file using unified ExportService
   const exportAsMarkdown = async (
-    favorites: FavoriteItem[]
+    favorites: FavoriteItem[],
   ): Promise<string> => {
     if (!currentChatId) {
       throw new Error("No chat selected");
@@ -250,13 +250,13 @@ export const FavoritesPanel: React.FC = () => {
   };
 
   const [sortOrder, setSortOrder] = useState<"descending" | "ascending">(
-    "descending"
+    "descending",
   );
   const [sortField, setSortField] = useState<"createdAt" | "role">("createdAt");
   const [collapsed, setCollapsed] = useState(true);
   const [noteModalVisible, setNoteModalVisible] = useState(false);
   const [currentFavoriteId, setCurrentFavoriteId] = useState<string | null>(
-    null
+    null,
   );
   const [noteText, setNoteText] = useState("");
   const [isExporting, setIsExporting] = useState(false);
@@ -418,7 +418,7 @@ export const FavoritesPanel: React.FC = () => {
                   }
                   onClick={() =>
                     setSortOrder(
-                      sortOrder === "descending" ? "ascending" : "descending"
+                      sortOrder === "descending" ? "ascending" : "descending",
                     )
                   }
                   size="small"
@@ -571,13 +571,13 @@ export const FavoritesPanel: React.FC = () => {
                               ),
                               code({ className, children, ...props }) {
                                 const match = /language-(\w+)/.exec(
-                                  className || ""
+                                  className || "",
                                 );
                                 const language = match ? match[1] : "";
                                 const isInline = !match && !className;
                                 const codeString = String(children).replace(
                                   /\n$/,
-                                  ""
+                                  "",
                                 );
 
                                 if (isInline) {

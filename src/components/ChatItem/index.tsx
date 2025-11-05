@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { memo, useState } from "react";
 import { List, Button, Input, Tooltip } from "antd";
 import {
   DeleteOutlined,
@@ -8,6 +8,7 @@ import {
   CheckOutlined,
   CloseOutlined,
   BulbOutlined,
+  LoadingOutlined,
 } from "@ant-design/icons";
 import { ChatItem as ChatItemType } from "../../types/chat";
 import theme from "../../styles/theme";
@@ -21,9 +22,11 @@ interface ChatItemProps {
   onUnpin: (chatId: string) => void;
   onEdit?: (chatId: string, newTitle: string) => void;
   onGenerateTitle?: (chatId: string) => void;
+  isGeneratingTitle?: boolean;
+  titleGenerationError?: string;
 }
 
-export const ChatItem: React.FC<ChatItemProps> = ({
+const ChatItemComponent: React.FC<ChatItemProps> = ({
   chat,
   isSelected,
   onSelect,
@@ -32,6 +35,8 @@ export const ChatItem: React.FC<ChatItemProps> = ({
   onUnpin,
   onEdit,
   onGenerateTitle,
+  isGeneratingTitle,
+  titleGenerationError,
 }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [editValue, setEditValue] = useState(chat.title);
@@ -153,11 +158,30 @@ export const ChatItem: React.FC<ChatItemProps> = ({
                 </Tooltip>,
                 ...(onGenerateTitle
                   ? [
-                      <Tooltip key="generate-title" title="Generate AI Title">
+                      <Tooltip
+                        key="generate-title"
+                        title={titleGenerationError || "Generate AI Title"}
+                        color={
+                          titleGenerationError ? theme.colors.error : undefined
+                        }
+                      >
                         <Button
                           type="text"
                           size="small"
-                          icon={<BulbOutlined />}
+                          icon={
+                            isGeneratingTitle ? (
+                              <LoadingOutlined />
+                            ) : (
+                              <BulbOutlined
+                                style={
+                                  titleGenerationError
+                                    ? { color: theme.colors.error }
+                                    : undefined
+                                }
+                              />
+                            )
+                          }
+                          disabled={isGeneratingTitle}
                           onClick={(e) => {
                             e.stopPropagation();
                             onGenerateTitle(chat.id);
@@ -214,3 +238,8 @@ export const ChatItem: React.FC<ChatItemProps> = ({
     </List.Item>
   );
 };
+
+export const ChatItem = memo(ChatItemComponent);
+ChatItem.displayName = "ChatItem";
+
+export default ChatItem;

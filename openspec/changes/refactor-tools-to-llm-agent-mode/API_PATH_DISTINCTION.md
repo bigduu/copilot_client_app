@@ -7,11 +7,13 @@ System prompt enhancement (tool injection) will **only apply to our context-base
 ## The Two API Modes
 
 ### 1. Passthrough Mode (OpenAI Compatible)
+
 **API Paths**: `/v1/chat/completions`, `/v1/models`
 
 **Clients**: External integrations like Cline, Continue, any OpenAI-compatible client
 
 **Behavior**:
+
 - ✅ Use **base system prompt** (no enhancement)
 - ❌ **NO** tool definitions injected
 - ❌ **NO** agent loop enabled
@@ -21,6 +23,7 @@ System prompt enhancement (tool injection) will **only apply to our context-base
 **Why**: External clients expect standard OpenAI API compatibility. Adding our custom tool definitions would break their expectations and potentially confuse their LLMs.
 
 **Example Request**:
+
 ```bash
 POST /v1/chat/completions
 {
@@ -31,16 +34,19 @@ POST /v1/chat/completions
   ]
 }
 ```
+
 → System prompt remains: "You are a helpful assistant." (unchanged)
 
 ---
 
 ### 2. Context Mode (Our System)
+
 **API Paths**: `/context/*`, custom chat endpoints
 
 **Clients**: Our frontend application
 
 **Behavior**:
+
 - ✅ Use **enhanced system prompt** (base + tools + mermaid)
 - ✅ Tool definitions injected in XML format
 - ✅ Agent loop enabled (LLM can chain tool calls)
@@ -50,6 +56,7 @@ POST /v1/chat/completions
 **Why**: Our frontend is designed to work with the enhanced prompt and agent capabilities. We control the full interaction flow.
 
 **Example Request**:
+
 ```bash
 POST /context/chat/send
 {
@@ -58,7 +65,9 @@ POST /context/chat/send
   "system_prompt_id": "default"
 }
 ```
+
 → System prompt becomes:
+
 ```
 You are a helpful assistant.
 
@@ -83,27 +92,29 @@ When you need to use a tool, output ONLY a JSON object:
 ## Detection Logic
 
 ### Request Path Analysis
+
 ```rust
 fn is_passthrough_mode(req: &HttpRequest) -> bool {
     let path = req.path();
-    
+
     // Passthrough mode for standard OpenAI endpoints
-    if path.starts_with("/v1/chat/completions") 
+    if path.starts_with("/v1/chat/completions")
         || path.starts_with("/v1/models") {
         return true;
     }
-    
+
     // Context mode for our custom endpoints
     if path.starts_with("/context/") {
         return false;
     }
-    
+
     // Default to passthrough for safety (preserve compatibility)
     true
 }
 ```
 
 ### Prompt Selection
+
 ```rust
 async fn prepare_system_prompt(
     req: &HttpRequest,
@@ -138,6 +149,7 @@ async fn prepare_system_prompt(
 ## Testing Strategy
 
 ### Test Case 1: Passthrough Mode (Cline)
+
 ```bash
 # Simulate Cline connecting to our server
 POST /v1/chat/completions
@@ -151,6 +163,7 @@ Expected:
 ```
 
 ### Test Case 2: Context Mode (Our Frontend)
+
 ```bash
 # Our frontend chat request
 POST /context/chat/send
@@ -164,6 +177,7 @@ Expected:
 ```
 
 ### Test Case 3: Migration Safety
+
 ```bash
 # Before deployment: ensure no breaking changes
 # Run both test suites:
@@ -192,26 +206,32 @@ Both must pass before deployment.
 ## Risks and Mitigations
 
 ### Risk 1: Path Detection Fails
+
 **Risk**: Misidentifying request mode could break external clients or disable our features
 
 **Mitigation**:
+
 - Explicit path prefix matching
 - Default to passthrough (safer)
 - Comprehensive integration tests
 - Monitor logs for misidentified requests
 
 ### Risk 2: External Client Sends Custom Prompt
+
 **Risk**: External client sends a prompt that expects tool calling, but we don't enhance it
 
 **Mitigation**:
+
 - This is expected behavior (external clients control their own prompts)
 - If external clients want tool calling, they should implement it themselves
 - We don't override their prompts
 
 ### Risk 3: Configuration Drift
+
 **Risk**: Different environments might have different path routing
 
 **Mitigation**:
+
 - Hardcode path prefixes (not configurable)
 - Include in integration tests
 - Document clearly in code
@@ -221,6 +241,7 @@ Both must pass before deployment.
 ## Future Considerations
 
 ### Option: Allow External Clients to Opt-In
+
 In the future, we could allow external clients to explicitly request enhanced mode:
 
 ```bash
@@ -236,21 +257,19 @@ This is **NOT** in scope for initial implementation, but noted as a future enhan
 
 ## Summary Table
 
-| Feature | Passthrough Mode | Context Mode |
-|---------|-----------------|-------------|
-| **API Paths** | `/v1/chat/completions`, `/v1/models` | `/context/*` |
-| **Clients** | Cline, Continue, external | Our frontend |
-| **System Prompt** | Base (original) | Enhanced (tools injected) |
-| **Tool Definitions** | ❌ Not included | ✅ Injected as XML |
-| **Agent Loop** | ❌ Disabled | ✅ Enabled |
-| **JSON Tool Calls** | ❌ Not parsed | ✅ Parsed and executed |
-| **OpenAI Compatibility** | ✅ Fully compatible | ⚠️ Custom behavior |
-| **Mermaid Instructions** | ❌ Not included | ✅ Included |
+| Feature                  | Passthrough Mode                     | Context Mode              |
+| ------------------------ | ------------------------------------ | ------------------------- |
+| **API Paths**            | `/v1/chat/completions`, `/v1/models` | `/context/*`              |
+| **Clients**              | Cline, Continue, external            | Our frontend              |
+| **System Prompt**        | Base (original)                      | Enhanced (tools injected) |
+| **Tool Definitions**     | ❌ Not included                      | ✅ Injected as XML        |
+| **Agent Loop**           | ❌ Disabled                          | ✅ Enabled                |
+| **JSON Tool Calls**      | ❌ Not parsed                        | ✅ Parsed and executed    |
+| **OpenAI Compatibility** | ✅ Fully compatible                  | ⚠️ Custom behavior        |
+| **Mermaid Instructions** | ❌ Not included                      | ✅ Included               |
 
 ---
 
 **Status**: ✅ Validated and ready for implementation
 
 **Priority**: 🔴 CRITICAL - Must be implemented correctly to maintain external client compatibility
-
-

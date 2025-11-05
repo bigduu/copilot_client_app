@@ -2,15 +2,15 @@
 //!
 //! Contains all file-related tools
 
-pub mod read;
-pub mod create;
-pub mod update;
-pub mod delete;
 pub mod append;
+pub mod create;
+pub mod delete;
+pub mod read;
+pub mod update;
 
 // Re-export all tools
-pub use read::ReadFileTool;
-pub use create::CreateFileTool;
-pub use update::UpdateFileTool;
-pub use delete::DeleteFileTool;
 pub use append::AppendFileTool;
+pub use create::CreateFileTool;
+pub use delete::DeleteFileTool;
+pub use read::ReadFileTool;
+pub use update::UpdateFileTool;

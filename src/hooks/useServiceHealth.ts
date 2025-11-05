@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { useServiceMode } from './useServiceMode';
+import { useState, useEffect } from "react";
+import { useServiceMode } from "./useServiceMode";
 
 interface ServiceHealth {
   isHealthy: boolean;
@@ -13,7 +13,7 @@ export const useServiceHealth = () => {
   const { serviceMode } = useServiceMode();
 
   const checkHealth = async () => {
-    if (serviceMode === 'tauri') {
+    if (serviceMode === "tauri") {
       // Tauri mode is always considered healthy since it's native
       setHealth({ isHealthy: true, lastChecked: new Date() });
       return;
@@ -22,10 +22,10 @@ export const useServiceHealth = () => {
     setIsChecking(true);
     try {
       // Check if the web service is responding
-      const response = await fetch('http://localhost:8080/v1/models', {
-        method: 'GET',
+      const response = await fetch("http://localhost:8080/v1/models", {
+        method: "GET",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
         signal: AbortSignal.timeout(5000), // 5 second timeout
       });
@@ -42,7 +42,7 @@ export const useServiceHealth = () => {
     } catch (error) {
       setHealth({
         isHealthy: false,
-        error: error instanceof Error ? error.message : 'Unknown error',
+        error: error instanceof Error ? error.message : "Unknown error",
         lastChecked: new Date(),
       });
     } finally {
@@ -52,9 +52,9 @@ export const useServiceHealth = () => {
 
   useEffect(() => {
     checkHealth();
-    
+
     // Check health every 30 seconds when in OpenAI mode
-    if (serviceMode === 'openai') {
+    if (serviceMode === "openai") {
       const interval = setInterval(checkHealth, 30000);
       return () => clearInterval(interval);
     }

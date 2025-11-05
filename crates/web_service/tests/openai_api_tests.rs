@@ -15,13 +15,24 @@ use copilot_client::{
 };
 use reqwest::Response;
 use serde::{Deserialize, Serialize};
-use std::{path::PathBuf, sync::Arc};
+use std::{
+    path::PathBuf,
+    sync::{Arc, Mutex},
+};
 use tokio::sync::mpsc::Sender;
+use tool_system::{registry::ToolRegistry, ToolExecutor};
 use web_service::server::{app_config, AppState};
+use web_service::services::{
+    approval_manager::ApprovalManager, session_manager::ChatSessionManager,
+    system_prompt_enhancer::SystemPromptEnhancer, system_prompt_service::SystemPromptService,
+    template_variable_service::TemplateVariableService,
+    user_preference_service::UserPreferenceService, workflow_service::WorkflowService,
+};
 use wiremock::{
     matchers::{method, path},
     Mock, MockServer, ResponseTemplate,
 };
+use workflow_system::WorkflowRegistry;
 
 #[derive(Serialize, Deserialize, Debug, PartialEq)]
 struct ListModelsResponse {
@@ -100,31 +111,40 @@ async fn setup_test_environment() -> (
         client: reqwest::Client::new(),
     });
 
+    let system_prompt_service = Arc::new(SystemPromptService::new(PathBuf::from(
+        "test_system_prompts",
+    )));
+    let template_variable_service = Arc::new(TemplateVariableService::new(PathBuf::from(
+        "test_template_variables",
+    )));
+    let system_prompt_enhancer = Arc::new(
+        SystemPromptEnhancer::with_default_config(Arc::new(ToolRegistry::new()))
+            .with_template_service(template_variable_service.clone()),
+    );
+    let session_manager = Arc::new(ChatSessionManager::new(
+        Arc::new(
+            web_service::storage::file_provider::FileStorageProvider::new("test_conversations"),
+        ),
+        10,
+    ));
+    let tool_registry = Arc::new(Mutex::new(ToolRegistry::new()));
+    let tool_executor = Arc::new(ToolExecutor::new(tool_registry));
+    let approval_manager = Arc::new(ApprovalManager::new());
+    let user_preference_service = Arc::new(UserPreferenceService::new(PathBuf::from(
+        "test_user_preferences",
+    )));
+    let workflow_service = Arc::new(WorkflowService::new(Arc::new(WorkflowRegistry::new())));
+
     let app_state = actix_web::web::Data::new(AppState {
-        system_prompt_service: Arc::new(
-            web_service::services::system_prompt_service::SystemPromptService::new(
-                PathBuf::from("test_system_prompts")
-            )
-        ),
-        system_prompt_enhancer: Arc::new(
-            web_service::services::system_prompt_enhancer::SystemPromptEnhancer::with_default_config(
-                Arc::new(tool_system::registry::ToolRegistry::new())
-            )
-        ),
-        session_manager: Arc::new(
-            web_service::services::session_manager::ChatSessionManager::new(
-                Arc::new(
-                    web_service::storage::file_provider::FileStorageProvider::new(
-                        "test_conversations",
-                    ),
-                ),
-                10,
-            ),
-        ),
+        system_prompt_service,
+        system_prompt_enhancer,
+        session_manager,
         copilot_client: copilot_client.clone(),
-        tool_executor: Arc::new(tool_system::ToolExecutor::new(Arc::new(
-            std::sync::Mutex::new(tool_system::registry::ToolRegistry::new()),
-        ))),
+        tool_executor,
+        template_variable_service,
+        approval_manager,
+        user_preference_service,
+        workflow_service,
     });
 
     let app =
@@ -174,9 +194,9 @@ async fn test_chat_completions_non_streaming() {
 
     let expected_completion = ChatCompletionResponse {
         id: "chatcmpl-123".to_string(),
-        object: "chat.completion".to_string(),
-        created: 1677652288,
-        model: "gpt-3.5-turbo-0125".to_string(),
+        object: Some("chat.completion".to_string()),
+        created: Some(1677652288),
+        model: Some("gpt-3.5-turbo-0125".to_string()),
         choices: vec![ResponseChoice {
             index: 0,
             message: ChatMessage {
@@ -185,13 +205,13 @@ async fn test_chat_completions_non_streaming() {
                 tool_calls: None,
                 tool_call_id: None,
             },
-            finish_reason: "stop".to_string(),
+            finish_reason: Some("stop".to_string()),
         }],
-        usage: Usage {
+        usage: Some(Usage {
             prompt_tokens: 9,
             completion_tokens: 12,
             total_tokens: 21,
-        },
+        }),
         system_fingerprint: Some("fp_44709d6fcb".to_string()),
     };
 

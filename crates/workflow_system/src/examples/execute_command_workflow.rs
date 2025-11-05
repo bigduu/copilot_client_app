@@ -8,8 +8,8 @@ use async_trait::async_trait;
 use std::collections::HashMap;
 use tokio::process::Command;
 
-use crate::types::{Parameter, Workflow, WorkflowDefinition, WorkflowError};
 use crate::register_workflow;
+use crate::types::{Parameter, Workflow, WorkflowDefinition, WorkflowError};
 
 /// A workflow that executes shell commands with user confirmation
 #[derive(Debug, Default)]
@@ -31,11 +31,12 @@ impl Workflow for ExecuteCommandWorkflow {
                 },
                 Parameter {
                     name: "working_directory".to_string(),
-                    description: "The working directory for command execution (optional)".to_string(),
+                    description: "The working directory for command execution (optional)"
+                        .to_string(),
                     required: false,
                     param_type: "string".to_string(),
                     default: None,
-                }
+                },
             ],
             category: "system".to_string(),
             requires_approval: true,
@@ -48,11 +49,11 @@ impl Workflow for ExecuteCommandWorkflow {
                 - Commands can access the network\n\
                 - Commands run with your user permissions\n\n\
                 Only approve commands you understand and trust."
-                .to_string()
+                    .to_string(),
             ),
         }
     }
-    
+
     async fn execute(
         &self,
         parameters: HashMap<String, serde_json::Value>,
@@ -62,38 +63,40 @@ impl Workflow for ExecuteCommandWorkflow {
             .and_then(|v| v.as_str())
             .ok_or_else(|| {
                 WorkflowError::InvalidParameters(
-                    "command parameter is required and must be a string".to_string()
+                    "command parameter is required and must be a string".to_string(),
                 )
             })?;
-        
-        let working_directory = parameters
-            .get("working_directory")
-            .and_then(|v| v.as_str());
-        
+
+        let working_directory = parameters.get("working_directory").and_then(|v| v.as_str());
+
         // Build the command
         let mut cmd = Command::new("sh");
         cmd.arg("-c").arg(command);
-        
+
         // Set working directory if provided
         if let Some(dir) = working_directory {
             cmd.current_dir(dir);
         }
-        
+
         // Execute with timeout
         let output = tokio::time::timeout(
             std::time::Duration::from_secs(300), // 5 minute timeout
-            cmd.output()
+            cmd.output(),
         )
         .await
-        .map_err(|_| WorkflowError::ExecutionFailed("Command execution timed out after 5 minutes".to_string()))?
+        .map_err(|_| {
+            WorkflowError::ExecutionFailed(
+                "Command execution timed out after 5 minutes".to_string(),
+            )
+        })?
         .map_err(|e| WorkflowError::ExecutionFailed(format!("Failed to execute command: {}", e)))?;
-        
+
         let stdout = String::from_utf8_lossy(&output.stdout).to_string();
         let stderr = String::from_utf8_lossy(&output.stderr).to_string();
         let exit_code = output.status.code().unwrap_or(-1);
-        
+
         let success = output.status.success();
-        
+
         Ok(serde_json::json!({
             "success": success,
             "exit_code": exit_code,
@@ -109,4 +112,3 @@ impl Workflow for ExecuteCommandWorkflow {
 }
 
 register_workflow!(ExecuteCommandWorkflow, "execute_command");
-

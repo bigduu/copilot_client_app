@@ -1,5 +1,5 @@
 use crate::{
-    dto::{get_branch_messages, ChatContextDTO},
+    dto::{get_branch_messages, ChatContextDTO, ContentPartDTO},
     middleware::extract_trace_id,
     server::AppState,
 };
@@ -9,8 +9,13 @@ use actix_web::{
     HttpRequest, HttpResponse, Result,
 };
 use context_manager::structs::context::AgentRole;
+use copilot_client::api::models::{
+    ChatCompletionRequest, ChatCompletionResponse, ChatMessage, Content,
+    ContentPart as ClientContentPart, Role as ClientRole,
+};
 use log::{error, info};
 use serde::{Deserialize, Serialize};
+use std::{fs, path::Path as FsPath};
 use tracing;
 use uuid::Uuid;
 
@@ -19,6 +24,7 @@ pub struct CreateContextRequest {
     pub model_id: String,
     pub mode: String,
     pub system_prompt_id: Option<String>,
+    pub workspace_path: Option<String>,
 }
 
 #[derive(Serialize, Debug)]
@@ -45,6 +51,86 @@ pub struct ConfigSummary {
     pub model_id: String,
     pub mode: String,
     pub system_prompt_id: Option<String>,
+    pub workspace_path: Option<String>,
+}
+
+#[derive(Deserialize, Debug)]
+pub struct WorkspaceUpdateRequest {
+    pub workspace_path: String,
+}
+
+#[derive(Serialize, Debug)]
+pub struct WorkspaceInfoResponse {
+    pub workspace_path: Option<String>,
+}
+
+#[derive(Serialize, Debug)]
+pub struct WorkspaceFileEntry {
+    pub name: String,
+    pub path: String,
+    pub is_directory: bool,
+}
+
+#[derive(Serialize, Debug)]
+pub struct WorkspaceFilesResponse {
+    pub workspace_path: String,
+    pub files: Vec<WorkspaceFileEntry>,
+}
+
+#[derive(Deserialize, Debug, Default)]
+pub struct GenerateTitleRequest {
+    pub max_length: Option<usize>,
+    pub message_limit: Option<usize>,
+    pub fallback_title: Option<String>,
+}
+
+#[derive(Serialize, Debug)]
+pub struct GenerateTitleResponse {
+    pub title: String,
+}
+
+fn extract_message_text(content: &Content) -> String {
+    match content {
+        Content::Text(text) => text.clone(),
+        Content::Parts(parts) => parts
+            .iter()
+            .filter_map(|part| match part {
+                ClientContentPart::Text { text } => Some(text.as_str()),
+                _ => None,
+            })
+            .collect::<Vec<_>>()
+            .join("\n"),
+    }
+}
+
+fn sanitize_title(raw: &str, max_length: usize, fallback: &str) -> String {
+    let first_line = raw.lines().next().unwrap_or("");
+    let cleaned = first_line.trim().trim_matches(|c: char| match c {
+        '"' | '\'' | '“' | '”' | '‘' | '’' => true,
+        _ => false,
+    });
+
+    if cleaned.is_empty() {
+        return fallback.to_string();
+    }
+
+    let mut truncated: String = cleaned.chars().take(max_length).collect();
+    if truncated.chars().count() == max_length && cleaned.chars().count() > max_length {
+        if let Some(last_space) = truncated.rfind(' ') {
+            truncated.truncate(last_space);
+        }
+    }
+
+    let trimmed = truncated
+        .trim()
+        .trim_matches(|c: char| matches!(c, '.' | '-' | ':' | ','))
+        .trim();
+
+    if trimmed.is_empty() {
+        fallback.to_string()
+    } else {
+        trimmed.to_string()
+    }
 }
 
 /// Create a new chat context
@@ -91,6 +177,25 @@ pub async fn create_context(
                         .await
                         .map_err(|e| {
                             error!("Failed to save context with system prompt: {}", e);
+                            actix_web::error::ErrorInternalServerError("Failed to save context")
+                        })?;
+                }
+
+                if let Some(workspace_path) = &req.workspace_path {
+                    tracing::debug!(
+                        trace_id = ?trace_id,
+                        context_id = %id,
+                        workspace_path = %workspace_path,
+                        "Attaching workspace path to context"
+                    );
+                    session_guard.set_workspace_path(Some(workspace_path.clone()));
+
+                    app_state
+                        .session_manager
+                        .save_context(&mut *session_guard)
+                        .await
+                        .map_err(|e| {
+                            error!("Failed to save context with workspace path: {}", e);
                             actix_web::error::ErrorInternalServerError("Failed to save context")
                         })?;
                 }
@@ -174,6 +279,357 @@ pub async fn get_context(
             );
             Ok(HttpResponse::InternalServerError().json(serde_json::json!({
                 "error": format!("Failed to load context: {}", e)
+            })))
+        }
+    }
+}
+
+#[put("/contexts/{id}/workspace")]
+pub async fn set_context_workspace(
+    path: Path<Uuid>,
+    app_state: Data<AppState>,
+    payload: Json<WorkspaceUpdateRequest>,
+    http_req: HttpRequest,
+) -> Result<HttpResponse> {
+    let context_id = path.into_inner();
+    let trace_id = extract_trace_id(&http_req);
+    let requested_path = payload.workspace_path.trim();
+
+    if requested_path.is_empty() {
+        return Ok(HttpResponse::BadRequest().json(serde_json::json!({
+            "error": "workspace_path cannot be empty"
+        })));
+    }
+
+    let canonical_path = match fs::canonicalize(FsPath::new(requested_path)) {
+        Ok(path) => path,
+        Err(err) => {
+            return Ok(HttpResponse::BadRequest().json(serde_json::json!({
+                "error": format!("Invalid workspace path: {}", err)
+            })));
+        }
+    };
+
+    match fs::metadata(&canonical_path) {
+        Ok(metadata) => {
+            if !metadata.is_dir() {
+                return Ok(HttpResponse::BadRequest().json(serde_json::json!({
+                    "error": "workspace_path must be a directory"
+                })));
+            }
+        }
+        Err(err) => {
+            return Ok(HttpResponse::BadRequest().json(serde_json::json!({
+                "error": format!("Failed to read workspace metadata: {}", err)
+            })));
+        }
+    }
+
+    let workspace_string = canonical_path.to_string_lossy().to_string();
+
+    match app_state
+        .session_manager
+        .load_context(context_id, trace_id.clone())
+        .await
+    {
+        Ok(Some(context)) => {
+            let mut ctx = context.write().await;
+            ctx.set_workspace_path(Some(workspace_string.clone()));
+
+            if let Err(err) = app_state.session_manager.save_context(&mut ctx).await {
+                error!("Failed to save workspace path: {}", err);
+                return Ok(HttpResponse::InternalServerError().json(serde_json::json!({
+                    "error": "Failed to persist workspace path"
+                })));
+            }
+
+            Ok(HttpResponse::Ok().json(WorkspaceInfoResponse {
+                workspace_path: Some(workspace_string),
+            }))
+        }
+        Ok(None) => Ok(HttpResponse::NotFound().json(serde_json::json!({
+            "error": "Context not found"
+        }))),
+        Err(err) => {
+            error!("Failed to load context for workspace update: {}", err);
+            Ok(HttpResponse::InternalServerError().json(serde_json::json!({
+                "error": "Failed to load context"
+            })))
+        }
+    }
+}
+
+#[get("/contexts/{id}/workspace")]
+pub async fn get_context_workspace(
+    path: Path<Uuid>,
+    app_state: Data<AppState>,
+    http_req: HttpRequest,
+) -> Result<HttpResponse> {
+    let context_id = path.into_inner();
+    let trace_id = extract_trace_id(&http_req);
+
+    match app_state
+        .session_manager
+        .load_context(context_id, trace_id)
+        .await
+    {
+        Ok(Some(context)) => {
+            let ctx = context.read().await;
+            Ok(HttpResponse::Ok().json(WorkspaceInfoResponse {
+                workspace_path: ctx.workspace_path().map(|s| s.to_string()),
+            }))
+        }
+        Ok(None) => Ok(HttpResponse::NotFound().json(serde_json::json!({
+            "error": "Context not found"
+        }))),
+        Err(err) => {
+            error!("Failed to load context for workspace fetch: {}", err);
+            Ok(HttpResponse::InternalServerError().json(serde_json::json!({
+                "error": "Failed to load context"
+            })))
+        }
+    }
+}
+
+#[get("/contexts/{id}/workspace/files")]
+pub async fn list_workspace_files(
+    path: Path<Uuid>,
+    app_state: Data<AppState>,
+    http_req: HttpRequest,
+) -> Result<HttpResponse> {
+    let context_id = path.into_inner();
+    let trace_id = extract_trace_id(&http_req);
+
+    match app_state
+        .session_manager
+        .load_context(context_id, trace_id)
+        .await
+    {
+        Ok(Some(context)) => {
+            let ctx = context.read().await;
+            let workspace_path = match ctx.workspace_path() {
+                Some(path) => path.to_string(),
+                None => {
+                    return Ok(HttpResponse::BadRequest().json(serde_json::json!({
+                        "error": "Workspace path is not set for this context"
+                    })));
+                }
+            };
+
+            match fs::read_dir(&workspace_path) {
+                Ok(entries) => {
+                    let mut files: Vec<WorkspaceFileEntry> = Vec::new();
+
+                    for entry_result in entries {
+                        if let Ok(entry) = entry_result {
+                            if let Ok(file_name) = entry.file_name().into_string() {
+                                if file_name.starts_with('.') {
+                                    continue;
+                                }
+
+                                if let Ok(file_type) = entry.file_type() {
+                                    files.push(WorkspaceFileEntry {
+                                        name: file_name.clone(),
+                                        path: entry.path().to_string_lossy().to_string(),
+                                        is_directory: file_type.is_dir(),
+                                    });
+                                }
+                            }
+                        }
+                    }
+
+                    files.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
+
+                    Ok(HttpResponse::Ok().json(WorkspaceFilesResponse {
+                        workspace_path,
+                        files,
+                    }))
+                }
+                Err(err) => Ok(HttpResponse::InternalServerError().json(serde_json::json!({
+                    "error": format!("Failed to read workspace directory: {}", err)
+                }))),
+            }
+        }
+        Ok(None) => Ok(HttpResponse::NotFound().json(serde_json::json!({
+            "error": "Context not found"
+        }))),
+        Err(err) => {
+            error!("Failed to load context for workspace file listing: {}", err);
+            Ok(HttpResponse::InternalServerError().json(serde_json::json!({
+                "error": "Failed to load context"
+            })))
+        }
+    }
+}
+
+#[post("/contexts/{id}/generate-title")]
+pub async fn generate_context_title(
+    app_state: Data<AppState>,
+    path: Path<Uuid>,
+    req: Json<GenerateTitleRequest>,
+    http_req: HttpRequest,
+) -> Result<HttpResponse> {
+    let context_id = path.into_inner();
+    let trace_id = extract_trace_id(&http_req);
+    let params = req.into_inner();
+
+    let max_length = params.max_length.unwrap_or(60).max(10);
+    let message_limit = params.message_limit.unwrap_or(6).max(1);
+    let fallback_title = params
+        .fallback_title
+        .unwrap_or_else(|| "New Chat".to_string());
+
+    match app_state
+        .session_manager
+        .load_context(context_id, trace_id.clone())
+        .await
+    {
+        Ok(Some(context)) => {
+            let (model_id, conversation_lines) = {
+                let ctx = context.read().await;
+                let model_id = ctx.config.model_id.clone();
+                let mut lines: Vec<String> = Vec::new();
+                let branch_messages = get_branch_messages(&ctx, &ctx.active_branch_name);
+
+                for message in branch_messages.iter().filter(|msg| {
+                    msg.role.eq_ignore_ascii_case("user")
+                        || msg.role.eq_ignore_ascii_case("assistant")
+                }) {
+                    let mut text_parts = Vec::new();
+                    for part in &message.content {
+                        if let ContentPartDTO::Text { text } = part {
+                            if !text.trim().is_empty() {
+                                text_parts.push(text.trim());
+                            }
+                        }
+                    }
+
+                    if text_parts.is_empty() {
+                        continue;
+                    }
+
+                    let role_label = if message.role.eq_ignore_ascii_case("user") {
+                        "User"
+                    } else {
+                        "Assistant"
+                    };
+                    lines.push(format!("{}: {}", role_label, text_parts.join("\n")));
+                }
+
+                if lines.len() > message_limit {
+                    let start = lines.len() - message_limit;
+                    lines = lines.split_off(start);
+                }
+
+                (model_id, lines)
+            };
+
+            if conversation_lines.is_empty() {
+                return Ok(HttpResponse::Ok().json(GenerateTitleResponse {
+                    title: fallback_title,
+                }));
+            }
+
+            let conversation_input = conversation_lines.join("\n");
+            let instructions = format!(
+                "You generate concise, descriptive chat titles. Respond with Title Case text, without quotes or trailing punctuation. Maximum length: {} characters. If there is not enough context, respond with '{}'.",
+                max_length, fallback_title
+            );
+
+            let mut request = ChatCompletionRequest::default();
+            request.model = model_id;
+            request.stream = Some(false);
+            request.messages = vec![
+                ChatMessage {
+                    role: ClientRole::System,
+                    content: Content::Text(instructions),
+                    tool_calls: None,
+                    tool_call_id: None,
+                },
+                ChatMessage {
+                    role: ClientRole::User,
+                    content: Content::Text(conversation_input),
+                    tool_calls: None,
+                    tool_call_id: None,
+                },
+            ];
+
+            let response = match app_state
+                .copilot_client
+                .send_chat_completion_request(request)
+                .await
+            {
+                Ok(resp) => resp,
+                Err(err) => {
+                    error!(
+                        "Failed to request title generation for context {}: {}",
+                        context_id, err
+                    );
+                    return Ok(HttpResponse::InternalServerError().json(serde_json::json!({
+                        "error": "Failed to generate chat title"
+                    })));
+                }
+            };
+
+            let status = response.status();
+            let body = match response.bytes().await {
+                Ok(bytes) => bytes,
+                Err(err) => {
+                    error!(
+                        "Failed to read title generation response for context {}: {}",
+                        context_id, err
+                    );
+                    return Ok(HttpResponse::InternalServerError().json(serde_json::json!({
+                        "error": "Failed to read title generation response"
+                    })));
+                }
+            };
+
+            if !status.is_success() {
+                error!(
+                    "Title generation request failed for context {}: status {} body {}",
+                    context_id,
+                    status,
+                    String::from_utf8_lossy(&body)
+                );
+                return Ok(HttpResponse::InternalServerError().json(serde_json::json!({
+                    "error": "Upstream service failed to generate title"
+                })));
+            }
+
+            let completion: ChatCompletionResponse = match serde_json::from_slice(&body) {
+                Ok(parsed) => parsed,
+                Err(err) => {
+                    error!(
+                        "Failed to parse title generation response for context {}: {}",
+                        context_id, err
+                    );
+                    return Ok(HttpResponse::InternalServerError().json(serde_json::json!({
+                        "error": "Failed to parse title generation response"
+                    })));
+                }
+            };
+
+            let raw_title = completion
+                .choices
+                .first()
+                .map(|choice| extract_message_text(&choice.message.content))
+                .unwrap_or_default();
+
+            let sanitized = sanitize_title(&raw_title, max_length, &fallback_title);
+
+            Ok(HttpResponse::Ok().json(GenerateTitleResponse { title: sanitized }))
+        }
+        Ok(None) => Ok(HttpResponse::NotFound().json(serde_json::json!({
+            "error": "Context not found"
+        }))),
+        Err(err) => {
+            error!(
+                "Failed to load context {} for title generation: {}",
+                context_id, err
+            );
+            Ok(HttpResponse::InternalServerError().json(serde_json::json!({
+                "error": "Failed to load context"
             })))
         }
     }
@@ -266,20 +722,42 @@ pub async fn list_contexts(
     // Simplified version - just return IDs without loading full contexts
     match app_state.session_manager.list_contexts().await {
         Ok(context_ids) => {
-            let summaries: Vec<ContextSummary> = context_ids
-                .into_iter()
-                .map(|id| ContextSummary {
-                    id: id.to_string(),
-                    config: ConfigSummary {
-                        model_id: "gpt-4".to_string(),
-                        mode: "chat".to_string(),
-                        system_prompt_id: None,
-                    },
-                    current_state: "Idle".to_string(),
-                    active_branch_name: "main".to_string(),
-                    message_count: 0,
-                })
-                .collect();
+            let mut summaries: Vec<ContextSummary> = Vec::new();
+
+            for id in context_ids {
+                let summary = if let Ok(Some(context)) =
+                    app_state.session_manager.load_context(id, None).await
+                {
+                    let ctx = context.read().await;
+                    ContextSummary {
+                        id: ctx.id.to_string(),
+                        config: ConfigSummary {
+                            model_id: ctx.config.model_id.clone(),
+                            mode: ctx.config.mode.clone(),
+                            system_prompt_id: ctx.config.system_prompt_id.clone(),
+                            workspace_path: ctx.config.workspace_path.clone(),
+                        },
+                        current_state: format!("{:?}", ctx.current_state),
+                        active_branch_name: ctx.active_branch_name.clone(),
+                        message_count: ctx.message_pool.len(),
+                    }
+                } else {
+                    ContextSummary {
+                        id: id.to_string(),
+                        config: ConfigSummary {
+                            model_id: "gpt-4".to_string(),
+                            mode: "chat".to_string(),
+                            system_prompt_id: None,
+                            workspace_path: None,
+                        },
+                        current_state: "Unknown".to_string(),
+                        active_branch_name: "main".to_string(),
+                        message_count: 0,
+                    }
+                };
+
+                summaries.push(summary);
+            }
 
             Ok(HttpResponse::Ok().json(ListContextsResponse {
                 contexts: summaries,
@@ -585,6 +1063,7 @@ pub async fn send_message_action(
         app_state.system_prompt_enhancer.clone(),
         app_state.system_prompt_service.clone(),
         app_state.approval_manager.clone(),
+        app_state.workflow_service.clone(),
     );
 
     tracing::debug!(
@@ -671,6 +1150,7 @@ pub async fn approve_tools_action(
         app_state.system_prompt_enhancer.clone(),
         app_state.system_prompt_service.clone(),
         app_state.approval_manager.clone(),
+        app_state.workflow_service.clone(),
     );
 
     // Approve tool calls (FSM handles everything including auto-save)
@@ -877,6 +1357,7 @@ pub fn config(cfg: &mut actix_web::web::ServiceConfig) {
         .service(update_context)
         .service(delete_context)
         .service(list_contexts)
+        .service(generate_context_title)
         .service(get_context_messages)
         .service(add_context_message)
         .service(approve_context_tools)
@@ -885,5 +1366,9 @@ pub fn config(cfg: &mut actix_web::web::ServiceConfig) {
         .service(approve_tools_action)
         .service(get_context_state)
         // Agent role management
-        .service(update_agent_role);
+        .service(update_agent_role)
+        // Workspace management
+        .service(set_context_workspace)
+        .service(get_context_workspace)
+        .service(list_workspace_files);
 }

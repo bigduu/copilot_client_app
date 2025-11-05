@@ -62,7 +62,7 @@ export class ToolConfigService {
     try {
       // Get all tool configs and find the specific one
       const allConfigs = await this.getAvailableToolConfigs();
-      return allConfigs.find(config => config.name === toolName) || null;
+      return allConfigs.find((config) => config.name === toolName) || null;
     } catch (error) {
       console.error("Failed to get tool config:", error);
       throw new Error(`Failed to get tool config: ${error}`);
@@ -72,9 +72,16 @@ export class ToolConfigService {
   /**
    * Update tool configuration (dynamic updates are not supported in the new architecture; tool configuration is managed by categories)
    */
-  async updateToolConfig(_toolName: string, _config: ToolConfig): Promise<void> {
-    console.warn("Tool config updates are not supported in the new category-based architecture");
-    throw new Error("Tool configuration updates are managed through categories and cannot be modified at runtime");
+  async updateToolConfig(
+    _toolName: string,
+    _config: ToolConfig,
+  ): Promise<void> {
+    console.warn(
+      "Tool config updates are not supported in the new category-based architecture",
+    );
+    throw new Error(
+      "Tool configuration updates are managed through categories and cannot be modified at runtime",
+    );
   }
 
   /**
@@ -109,7 +116,9 @@ export class ToolConfigService {
   async isToolEnabled(toolName: string): Promise<boolean> {
     try {
       const allConfigs = await this.getAvailableToolConfigs();
-      return allConfigs.some(config => config.name === toolName && config.enabled);
+      return allConfigs.some(
+        (config) => config.name === toolName && config.enabled,
+      );
     } catch (error) {
       console.error("Failed to check if tool is enabled:", error);
       return false;
@@ -149,17 +158,22 @@ export class ToolConfigService {
    * Get the display name for a category (dynamically fetched from backend data)
    * If backend data is unavailable, provide a default mapping
    */
-  getCategoryDisplayName(categoryId: string, categoriesData?: ToolCategoryInfo[]): string {
+  getCategoryDisplayName(
+    categoryId: string,
+    categoriesData?: ToolCategoryInfo[],
+  ): string {
     // The display name must be obtained from the backend data
     if (categoriesData) {
-      const category = categoriesData.find(cat => cat.id === categoryId);
+      const category = categoriesData.find((cat) => cat.id === categoryId);
       if (category) {
         return category.name || category.id;
       }
     }
-    
+
     // The frontend does not provide any default mapping; it must be obtained from the backend
-    throw new Error(`The display name for tool category "${categoryId}" must be obtained from the backend configuration; no default value is provided on the frontend`);
+    throw new Error(
+      `The display name for tool category "${categoryId}" must be obtained from the backend configuration; no default value is provided on the frontend`,
+    );
   }
 
   /**
@@ -168,6 +182,8 @@ export class ToolConfigService {
    */
   inferCategoryFromToolName(toolName: string): string {
     // This method is deprecated - tool classification must be provided entirely by the backend
-    throw new Error(`The category for tool "${toolName}" must be obtained from the backend; the frontend does not provide inference logic`);
+    throw new Error(
+      `The category for tool "${toolName}" must be obtained from the backend; the frontend does not provide inference logic`,
+    );
   }
 }

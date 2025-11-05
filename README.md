@@ -30,6 +30,14 @@ This application brings the power of the GitHub Copilot API to your desktop! �
 * **Dual-Mode Architecture**: Plan-Act agent roles for complex tasks
 * **MCP Server Integration**: Connect to external tools and services
 
+### 🧭 Refined UI/UX (2025 Refactor)
+* **Chat Memory Across Devices**: Your last open conversation is automatically restored on startup and synced through backend preferences.
+* **AI Chat Title Generation**: Titles are generated after each conversation, with opt-in controls and inline retry indicators.
+* **System Prompt Preview Improvements**: Live Markdown rendering, syntax highlighting, and one-click copy make editing prompts effortless.
+* **Virtualized Message Stream**: Large conversations stay smooth thanks to react-virtual powered rendering and Profiler-driven optimizations.
+* **Actionable Tool & Workflow Results**: Dedicated result cards add collapsible previews, syntax highlighting, and clear status badges.
+* **Smarter Input Enhancements**: Drag or paste multiple file types, highlight `/workflow` commands, and insert workspace files via `@` mentions.
+
 ## 🛠️ How to Get Started
 
 Ready to dive in? Here's how you can get the application up and running on your local machine:
@@ -69,6 +77,15 @@ Ready to dive in? Here's how you can get the application up and running on your 
     yarn tauri build # or npm run tauri build
     ```
 
+6. **Keep the Codebase Styled:** 🧹
+   Run Prettier before sending changes to ensure a consistent style.
+
+   ```bash
+   npm run format
+   # or validate without writing changes
+   npm run format:check
+   ```
+
 ## 🤗 How to Contribute
 
 We love contributions! 🎉 Whether you're a seasoned developer or just starting, there are many ways to help make this project even better.
@@ -99,7 +116,7 @@ Ready to write some code? Fantastic!
 1. **Fork the Repository:** Create your own copy of the project.
 2. **Create a New Branch:** `git checkout -b feature/your-amazing-feature` or `git checkout -b fix/annoying-bug-fix`. Meaningful branch names are a plus!
 3. **Code Away!** Make your changes, improvements, or fixes.
-4. **Follow Coding Standards:** If there are defined coding styles or linters, please adhere to them. (We'll add these if they don't exist yet!)
+4. **Follow Coding Standards:** Run `npm run format` before opening a PR so Prettier keeps the diff clean.
 5. **Write Great Commit Messages:** Clear, concise, and descriptive. Prefix with type (e.g., `feat:`, `fix:`, `docs:`, `style:`, `refactor:`, `test:`, `chore:`).
 6. **Push to Your Fork:** `git push origin feature/your-amazing-feature`.
 7. **Open a Pull Request:** Target the `main` (or `master`) branch of the original repository.
@@ -131,6 +148,7 @@ See [Context Manager Migration Guide](./docs/architecture/context-manager-migrat
 - **[Development Guide](./docs/development/README.md)** - Development best practices
 - **[Styling Guidelines](./docs/development/STYLING_GUIDELINES.md)** - Code style and formatting
 - **[Tool System Documentation](./docs/extension-system/README.md)** - Tool creation and registration
+- **[0.2.0 Upgrade Guide](./docs/release/0.2.0-upgrade-guide.md)** - Deployment notes for the latest refactor
 
 ### OpenSpec
 - **[Refactor Proposal](./openspec/changes/refactor-tools-to-llm-agent-mode/proposal.md)** - Why and what changes

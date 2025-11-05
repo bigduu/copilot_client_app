@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
-import { ServiceMode } from '../services/types';
-import { serviceFactory } from '../services/ServiceFactory';
+import { useState, useEffect } from "react";
+import { ServiceMode } from "../services/types";
+import { serviceFactory } from "../services/ServiceFactory";
 
 export const useServiceMode = () => {
   const [serviceMode, setServiceModeState] = useState<ServiceMode>(() => {
@@ -15,7 +15,7 @@ export const useServiceMode = () => {
   // Listen for changes in other components/tabs
   useEffect(() => {
     const handleStorageChange = (e: StorageEvent) => {
-      if (e.key === 'copilot_service_mode' && e.newValue) {
+      if (e.key === "copilot_service_mode" && e.newValue) {
         const newMode = e.newValue as ServiceMode;
         if (newMode !== serviceMode) {
           setServiceModeState(newMode);
@@ -23,14 +23,14 @@ export const useServiceMode = () => {
       }
     };
 
-    window.addEventListener('storage', handleStorageChange);
-    return () => window.removeEventListener('storage', handleStorageChange);
+    window.addEventListener("storage", handleStorageChange);
+    return () => window.removeEventListener("storage", handleStorageChange);
   }, [serviceMode]);
 
   return {
     serviceMode,
     setServiceMode,
-    isOpenAIMode: serviceMode === 'openai',
-    isTauriMode: serviceMode === 'tauri',
+    isOpenAIMode: serviceMode === "openai",
+    isTauriMode: serviceMode === "tauri",
   };
 };

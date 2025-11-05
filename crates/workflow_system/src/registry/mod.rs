@@ -1,6 +1,4 @@
-pub mod registries;
 pub mod macros;
+pub mod registries;
 
-pub use registries::{WorkflowRegistry, CategoryRegistry};
-
-
+pub use registries::{CategoryRegistry, WorkflowRegistry};

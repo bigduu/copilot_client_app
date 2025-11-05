@@ -1,7 +1,8 @@
 use crate::{
     registry::macros::auto_register_tool,
     types::{
-        DisplayPreference, Parameter, Tool, ToolArguments, ToolDefinition, ToolError, ToolType, ToolPermission,
+        DisplayPreference, Parameter, Tool, ToolArguments, ToolDefinition, ToolError,
+        ToolPermission, ToolType,
     },
 };
 use anyhow::Context;
@@ -68,12 +69,16 @@ Keep your response concise and user-friendly."#
     async fn execute(&self, args: ToolArguments) -> Result<serde_json::Value, ToolError> {
         let query = match args {
             ToolArguments::String(query) => query,
-            _ => return Err(ToolError::InvalidArguments("Expected a single string query".to_string())),
+            _ => {
+                return Err(ToolError::InvalidArguments(
+                    "Expected a single string query".to_string(),
+                ))
+            }
         };
 
         // Simple file search implementation
-        let current_dir = std::env::current_dir()
-            .map_err(|e| ToolError::ExecutionFailed(e.to_string()))?;
+        let current_dir =
+            std::env::current_dir().map_err(|e| ToolError::ExecutionFailed(e.to_string()))?;
 
         let mut results = Vec::new();
         search_in_directory(&current_dir, &query, &mut results, 0)

@@ -128,11 +128,16 @@ pub struct FunctionCall {
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct ChatCompletionResponse {
     pub id: String,
-    pub object: String,
-    pub created: u64,
-    pub model: String,
+    #[serde(default)]
+    pub object: Option<String>,
+    #[serde(default)]
+    pub created: Option<u64>,
+    #[serde(default)]
+    pub model: Option<String>,
+    #[serde(default)]
     pub choices: Vec<ResponseChoice>,
-    pub usage: Usage,
+    #[serde(default)]
+    pub usage: Option<Usage>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub system_fingerprint: Option<String>,
 }
@@ -141,13 +146,17 @@ pub struct ChatCompletionResponse {
 pub struct ResponseChoice {
     pub index: u32,
     pub message: ChatMessage,
-    pub finish_reason: String,
+    #[serde(default)]
+    pub finish_reason: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct Usage {
+    #[serde(default)]
     pub prompt_tokens: u32,
+    #[serde(default)]
     pub completion_tokens: u32,
+    #[serde(default)]
     pub total_tokens: u32,
 }
 

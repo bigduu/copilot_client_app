@@ -1,16 +1,16 @@
-import { useEffect } from 'react';
-import { useAppStore } from '../store';
+import { useEffect } from "react";
+import { useAppStore } from "../store";
 
 export const useModels = () => {
   // Select model-related state from the global Zustand store
-  const models = useAppStore(state => state.models);
-  const selectedModel = useAppStore(state => state.selectedModel);
-  const isLoading = useAppStore(state => state.isLoadingModels);
-  const error = useAppStore(state => state.modelsError);
+  const models = useAppStore((state) => state.models);
+  const selectedModel = useAppStore((state) => state.selectedModel);
+  const isLoading = useAppStore((state) => state.isLoadingModels);
+  const error = useAppStore((state) => state.modelsError);
 
   // Get actions from the store
-  const fetchModels = useAppStore(state => state.fetchModels);
-  const setSelectedModel = useAppStore(state => state.setSelectedModel);
+  const fetchModels = useAppStore((state) => state.fetchModels);
+  const setSelectedModel = useAppStore((state) => state.setSelectedModel);
 
   // Trigger model loading once when the hook is mounted
   useEffect(() => {

@@ -1,8 +1,8 @@
-import { StateCreator } from 'zustand';
-import { serviceFactory } from '../../services/ServiceFactory';
-import type { AppState } from '../';
+import { StateCreator } from "zustand";
+import { serviceFactory } from "../../services/ServiceFactory";
+import type { AppState } from "../";
 
-const SELECTED_MODEL_LS_KEY = 'copilot_selected_model_id';
+const SELECTED_MODEL_LS_KEY = "copilot_selected_model_id";
 
 export interface ModelSlice {
   // Model Management State
@@ -16,7 +16,10 @@ export interface ModelSlice {
   setSelectedModel: (modelId: string) => void;
 }
 
-export const createModelSlice: StateCreator<AppState, [], [], ModelSlice> = (set, get) => ({
+export const createModelSlice: StateCreator<AppState, [], [], ModelSlice> = (
+  set,
+  get,
+) => ({
   // Initial state
   models: [],
   selectedModel: undefined,
@@ -29,7 +32,7 @@ export const createModelSlice: StateCreator<AppState, [], [], ModelSlice> = (set
     try {
       localStorage.setItem(SELECTED_MODEL_LS_KEY, modelId);
     } catch (error) {
-      console.error('Failed to save selected model to localStorage:', error);
+      console.error("Failed to save selected model to localStorage:", error);
     }
   },
 
@@ -37,7 +40,7 @@ export const createModelSlice: StateCreator<AppState, [], [], ModelSlice> = (set
     set({ isLoadingModels: true, modelsError: null });
     try {
       const availableModels = await serviceFactory.getModels();
-      set(state => {
+      set((state) => {
         const storedModelId = localStorage.getItem(SELECTED_MODEL_LS_KEY);
         const currentSelected = state.selectedModel;
 
@@ -58,7 +61,8 @@ export const createModelSlice: StateCreator<AppState, [], [], ModelSlice> = (set
           ...state,
           models: availableModels,
           selectedModel: newSelectedModel,
-          modelsError: availableModels.length > 0 ? null : "No available model options",
+          modelsError:
+            availableModels.length > 0 ? null : "No available model options",
         };
       });
 
@@ -67,17 +71,32 @@ export const createModelSlice: StateCreator<AppState, [], [], ModelSlice> = (set
       }
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : String(err);
-      console.error('Failed to fetch models:', err);
-      set(state => {
+      console.error("Failed to fetch models:", err);
+      set((state) => {
         const storedModelId = localStorage.getItem(SELECTED_MODEL_LS_KEY);
         if (storedModelId) {
-          return { ...state, models: [storedModelId], selectedModel: storedModelId, modelsError: errorMessage };
+          return {
+            ...state,
+            models: [storedModelId],
+            selectedModel: storedModelId,
+            modelsError: errorMessage,
+          };
         } else {
-          const fallbackModels = ['gpt-4.1', 'gpt-5', 'gpt-5-mini','gemini-2.5-pro'];
+          const fallbackModels = [
+            "gpt-4.1",
+            "gpt-5",
+            "gpt-5-mini",
+            "gemini-2.5-pro",
+          ];
           const fallbackModel = fallbackModels[0];
           localStorage.setItem(SELECTED_MODEL_LS_KEY, fallbackModel);
-          console.warn('Using fallback models due to service unavailability');
-          return { ...state, models: fallbackModels, selectedModel: fallbackModel, modelsError: errorMessage };
+          console.warn("Using fallback models due to service unavailability");
+          return {
+            ...state,
+            models: fallbackModels,
+            selectedModel: fallbackModel,
+            modelsError: errorMessage,
+          };
         }
       });
     } finally {

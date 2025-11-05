@@ -1,13 +1,7 @@
 import { StateCreator } from "zustand";
-import {
-  ChatItem,
-  Message,
-  UserMessage,
-  SystemMessage,
-  AssistantTextMessage,
-  AssistantToolCallMessage,
-} from "../../types/chat";
+import { ChatItem, Message } from "../../types/chat";
 import type { AppState } from "../";
+import { transformMessageDTOToMessage } from "../../utils/messageTransformers";
 
 export interface ChatSlice {
   // State
@@ -16,6 +10,8 @@ export interface ChatSlice {
   latestActiveChatId: string | null; // Store the last active chat ID
   isProcessing: boolean;
   streamingMessage: { chatId: string; content: string } | null;
+  autoGenerateTitles: boolean;
+  isUpdatingAutoTitlePreference: boolean;
 
   // Actions
   addChat: (chat: Omit<ChatItem, "id">) => Promise<void>;
@@ -46,6 +42,7 @@ export interface ChatSlice {
   setStreamingMessage: (
     streamingMessage: { chatId: string; content: string } | null
   ) => void;
+  setAutoGenerateTitlesPreference: (enabled: boolean) => Promise<void>;
 }
 
 export const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (
@@ -58,6 +55,8 @@ export const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (
   latestActiveChatId: null,
   isProcessing: false,
   streamingMessage: null,
+  autoGenerateTitles: true,
+  isUpdatingAutoTitlePreference: false,
 
   // Chat management actions
   addChat: async (chatData) => {
@@ -77,7 +76,9 @@ export const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (
       const createResponse = await backendService.createContext({
         model_id: "gpt-4",
         mode: "chat",
-        system_prompt_id: (chatData as ChatItem).config?.systemPromptId,
+        system_prompt_id:
+          (chatData as ChatItem).config?.systemPromptId || undefined,
+        workspace_path: (chatData as ChatItem).config?.workspacePath,
       });
 
       // Use the backend-generated ID
@@ -113,6 +114,24 @@ export const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (
 
   selectChat: (chatId) => {
     set({ currentChatId: chatId, latestActiveChatId: chatId });
+
+    // Persist the latest active chat ID asynchronously without blocking the UI
+    void (async () => {
+      try {
+        const { UserPreferenceService } = await import(
+          "../../services/UserPreferenceService"
+        );
+        const preferenceService = new UserPreferenceService();
+        await preferenceService.updatePreferences({
+          last_opened_chat_id: chatId ?? null,
+        });
+      } catch (error) {
+        console.warn(
+          "[ChatSlice] Failed to persist last opened chat preference:",
+          error
+        );
+      }
+    })();
     // Note: Message loading is now handled by the backend Context Manager
   },
 
@@ -392,58 +411,9 @@ export const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (
           const messagesResponse = await backendService.getMessages(context.id);
 
           // Convert backend messages to frontend message format
-          const messages: Message[] = messagesResponse.messages.map((msg) => {
-            const baseContent =
-              msg.content
-                .map((c) => {
-                  if (c.type === "text") return c.text;
-                  if (c.type === "image") return c.url;
-                  return "";
-                })
-                .join("\n") || "";
-
-            // Backend returns capitalized roles (User, Assistant, System)
-            const roleLower = msg.role.toLowerCase();
-
-            if (roleLower === "user") {
-              return {
-                id: msg.id,
-                role: "user",
-                content: baseContent,
-                createdAt: new Date().toISOString(),
-              } as UserMessage;
-            } else if (roleLower === "system") {
-              return {
-                id: msg.id,
-                role: "system",
-                content: baseContent,
-                createdAt: new Date().toISOString(),
-              } as SystemMessage;
-            } else {
-              // assistant message - check if it has tool calls
-              if (msg.tool_calls && msg.tool_calls.length > 0) {
-                return {
-                  id: msg.id,
-                  role: "assistant",
-                  type: "tool_call",
-                  toolCalls: msg.tool_calls.map((tc) => ({
-                    toolCallId: tc.id,
-                    toolName: tc.tool_name,
-                    parameters: tc.arguments,
-                  })),
-                  createdAt: new Date().toISOString(),
-                } as AssistantToolCallMessage;
-              } else {
-                return {
-                  id: msg.id,
-                  role: "assistant",
-                  type: "text",
-                  content: baseContent,
-                  createdAt: new Date().toISOString(),
-                } as AssistantTextMessage;
-              }
-            }
-          });
+          const messages: Message[] = messagesResponse.messages.map(
+            transformMessageDTOToMessage
+          );
 
           return {
             id: context.id,
@@ -451,22 +421,68 @@ export const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (
             createdAt: Date.now(),
             messages,
             config: {
-              systemPromptId: context.config.system_prompt_id || undefined,
+              systemPromptId: context.config.system_prompt_id ?? "",
               baseSystemPrompt: "",
               toolCategory: "general",
               lastUsedEnhancedPrompt: null,
+              workspacePath: context.config.workspace_path || undefined,
             },
             currentInteraction: null,
           };
         })
       );
 
+      let preferredChatId: string | null = null;
+      let latestActiveChatId: string | null =
+        chats.length > 0 ? chats[0].id : null;
+      let autoGenerateTitlesPref = get().autoGenerateTitles;
+
+      if (chats.length > 0) {
+        try {
+          const { UserPreferenceService } = await import(
+            "../../services/UserPreferenceService"
+          );
+          const preferenceService = new UserPreferenceService();
+          const prefs = await preferenceService.getPreferences();
+          const storedChatId = prefs?.last_opened_chat_id ?? null;
+          if (typeof prefs?.auto_generate_titles === "boolean") {
+            autoGenerateTitlesPref = prefs.auto_generate_titles;
+          }
+
+          if (storedChatId) {
+            const matchingChat = chats.find((chat) => chat.id === storedChatId);
+            if (matchingChat) {
+              preferredChatId = matchingChat.id;
+              latestActiveChatId = matchingChat.id;
+            } else if (chats.length > 0) {
+              preferredChatId = chats[0].id;
+              latestActiveChatId = chats[0].id;
+
+              await preferenceService.updatePreferences({
+                last_opened_chat_id: preferredChatId,
+              });
+            }
+          }
+        } catch (prefError) {
+          console.warn(
+            "[ChatSlice] Failed to load last opened chat preference:",
+            prefError
+          );
+        }
+      }
+
+      if (!preferredChatId && chats.length > 0) {
+        preferredChatId = chats[0].id;
+        latestActiveChatId = chats[0].id;
+      }
+
       set({
         chats,
-        latestActiveChatId: chats.length > 0 ? chats[0].id : null,
-        currentChatId: null,
+        latestActiveChatId,
+        currentChatId: preferredChatId,
         isProcessing: false,
         streamingMessage: null,
+        autoGenerateTitles: autoGenerateTitlesPref,
       });
 
       console.log(`[ChatSlice] Loaded ${chats.length} chats from backend`);
@@ -479,6 +495,7 @@ export const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (
         currentChatId: null,
         isProcessing: false,
         streamingMessage: null,
+        autoGenerateTitles: get().autoGenerateTitles,
       });
     }
   },
@@ -489,5 +506,28 @@ export const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (
 
   setStreamingMessage: (streamingMessage) => {
     set({ streamingMessage });
+  },
+
+  setAutoGenerateTitlesPreference: async (enabled) => {
+    const previousValue = get().autoGenerateTitles;
+    set({ autoGenerateTitles: enabled, isUpdatingAutoTitlePreference: true });
+    try {
+      const { UserPreferenceService } = await import(
+        "../../services/UserPreferenceService"
+      );
+      const preferenceService = new UserPreferenceService();
+      await preferenceService.updatePreferences({
+        auto_generate_titles: enabled,
+      });
+    } catch (error) {
+      console.warn(
+        "[ChatSlice] Failed to update auto-generate titles preference:",
+        error
+      );
+      set({ autoGenerateTitles: previousValue });
+      throw error;
+    } finally {
+      set({ isUpdatingAutoTitlePreference: false });
+    }
   },
 });

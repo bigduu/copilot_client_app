@@ -13,6 +13,7 @@ export interface ChatContextDTO {
     parameters: Record<string, any>;
     system_prompt_id?: string;
     agent_role: "planner" | "actor"; // Agent role (always present from backend)
+    workspace_path?: string;
   };
   current_state: string;
   active_branch_name: string;
@@ -50,6 +51,10 @@ export interface MessageDTO {
   };
 }
 
+export interface GenerateTitleResponse {
+  title: string;
+}
+
 export interface SystemPromptDTO {
   id: string;
   content: string;
@@ -59,6 +64,26 @@ export interface CreateContextRequest {
   model_id: string;
   mode: string;
   system_prompt_id?: string;
+  workspace_path?: string;
+}
+
+export interface ContextSummaryDTO {
+  id: string;
+  config: {
+    model_id: string;
+    mode: string;
+    system_prompt_id?: string;
+    workspace_path?: string;
+  };
+  current_state: string;
+  active_branch_name: string;
+  message_count: number;
+}
+
+export interface WorkspaceFileEntry {
+  name: string;
+  path: string;
+  is_directory: boolean;
 }
 
 export interface AddMessageRequest {
@@ -85,7 +110,7 @@ export interface ActionResponse {
 export class BackendContextService {
   private async request<T>(
     endpoint: string,
-    options?: RequestInit
+    options?: RequestInit,
   ): Promise<T> {
     try {
       const response = await fetch(`${API_BASE_URL}${endpoint}`, {
@@ -128,7 +153,7 @@ export class BackendContextService {
 
   async updateContext(
     id: string,
-    updates: Partial<ChatContextDTO>
+    updates: Partial<ChatContextDTO>,
   ): Promise<void> {
     await this.request<void>(`/contexts/${id}`, {
       method: "PUT",
@@ -142,9 +167,9 @@ export class BackendContextService {
     });
   }
 
-  async listContexts(): Promise<Array<ChatContextDTO>> {
-    const response = await this.request<{ contexts: ChatContextDTO[] }>(
-      "/contexts"
+  async listContexts(): Promise<Array<ContextSummaryDTO>> {
+    const response = await this.request<{ contexts: ContextSummaryDTO[] }>(
+      "/contexts",
     );
     return response.contexts || [];
   }
@@ -152,7 +177,7 @@ export class BackendContextService {
   // Message operations
   async getMessages(
     contextId: string,
-    params?: MessageQueryParams
+    params?: MessageQueryParams,
   ): Promise<{
     messages: MessageDTO[];
     total: number;
@@ -179,7 +204,7 @@ export class BackendContextService {
 
   async addMessage(
     contextId: string,
-    message: AddMessageRequest
+    message: AddMessageRequest,
   ): Promise<void> {
     await this.request<void>(`/contexts/${contextId}/messages`, {
       method: "POST",
@@ -189,12 +214,35 @@ export class BackendContextService {
 
   async approveTools(
     contextId: string,
-    req: ApproveToolsRequest
+    req: ApproveToolsRequest,
   ): Promise<void> {
     await this.request<void>(`/contexts/${contextId}/tools/approve`, {
       method: "POST",
       body: JSON.stringify(req),
     });
+  }
+
+  async generateTitle(
+    contextId: string,
+    options?: {
+      maxLength?: number;
+      messageLimit?: number;
+      fallbackTitle?: string;
+    },
+  ): Promise<GenerateTitleResponse> {
+    const payload = {
+      max_length: options?.maxLength,
+      message_limit: options?.messageLimit,
+      fallback_title: options?.fallbackTitle,
+    };
+
+    return this.request<GenerateTitleResponse>(
+      `/contexts/${contextId}/generate-title`,
+      {
+        method: "POST",
+        body: JSON.stringify(payload),
+      },
+    );
   }
 
   // ============================================================================
@@ -208,14 +256,14 @@ export class BackendContextService {
    */
   async sendMessageAction(
     contextId: string,
-    content: string
+    content: string,
   ): Promise<ActionResponse> {
     return this.request<ActionResponse>(
       `/contexts/${contextId}/actions/send_message`,
       {
         method: "POST",
         body: JSON.stringify({ content }),
-      }
+      },
     );
   }
 
@@ -241,7 +289,7 @@ export class BackendContextService {
       tool: string;
       tool_description: string;
       parameters: Record<string, any>;
-    }) => void
+    }) => void,
   ): Promise<void> {
     try {
       // Use API_BASE_URL which already includes /v1, then add /chat path
@@ -279,6 +327,14 @@ export class BackendContextService {
         for (const line of lines) {
           if (line.startsWith("data: ")) {
             const data = line.slice(6); // Remove "data: " prefix
+            
+            // Check for [DONE] signal
+            if (data === "[DONE]") {
+              streamCompleted = true;
+              onDone();
+              return;
+            }
+            
             try {
               const parsed = JSON.parse(data);
               if (parsed.type === "approval_required") {
@@ -329,14 +385,14 @@ export class BackendContextService {
    */
   async approveToolsAction(
     contextId: string,
-    toolCallIds: string[]
+    toolCallIds: string[],
   ): Promise<ActionResponse> {
     return this.request<ActionResponse>(
       `/contexts/${contextId}/actions/approve_tools`,
       {
         method: "POST",
         body: JSON.stringify({ tool_call_ids: toolCallIds }),
-      }
+      },
     );
   }
 
@@ -348,7 +404,7 @@ export class BackendContextService {
     sessionId: string,
     requestId: string,
     approved: boolean,
-    reason?: string
+    reason?: string,
   ): Promise<{ status: string; message: string }> {
     return await this.request<{ status: string; message: string }>(
       `/chat/${sessionId}/approve-agent`,
@@ -359,7 +415,7 @@ export class BackendContextService {
           approved,
           reason,
         }),
-      }
+      },
     );
   }
 
@@ -379,7 +435,7 @@ export class BackendContextService {
    */
   async updateAgentRole(
     contextId: string,
-    role: "planner" | "actor"
+    role: "planner" | "actor",
   ): Promise<{
     success: boolean;
     context_id: string;
@@ -393,10 +449,32 @@ export class BackendContextService {
     });
   }
 
+  async setWorkspacePath(
+    contextId: string,
+    workspacePath: string,
+  ): Promise<{ workspace_path?: string }> {
+    return this.request(`/contexts/${contextId}/workspace`, {
+      method: "PUT",
+      body: JSON.stringify({ workspace_path: workspacePath }),
+    });
+  }
+
+  async getWorkspacePath(
+    contextId: string,
+  ): Promise<{ workspace_path?: string }> {
+    return this.request(`/contexts/${contextId}/workspace`);
+  }
+
+  async getWorkspaceFiles(
+    contextId: string,
+  ): Promise<{ workspace_path: string; files: WorkspaceFileEntry[] }> {
+    return this.request(`/contexts/${contextId}/workspace/files`);
+  }
+
   // System prompt operations
   async createSystemPrompt(
     id: string,
-    content: string
+    content: string,
   ): Promise<{ id: string }> {
     return this.request<{ id: string }>("/system-prompts", {
       method: "POST",
@@ -423,11 +501,16 @@ export class BackendContextService {
 
   async listSystemPrompts(): Promise<SystemPromptDTO[]> {
     const response = await this.request<{ prompts: SystemPromptDTO[] }>(
-      "/system-prompts"
+      "/system-prompts",
     );
     return response.prompts || [];
   }
+
+  async reloadSystemPrompts(): Promise<{ reloaded: number }> {
+    return this.request<{ reloaded: number }>("/system-prompts/reload", {
+      method: "POST",
+    });
+  }
 }
 
-// Singleton instance
 export const backendContextService = new BackendContextService();

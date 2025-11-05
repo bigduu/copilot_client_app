@@ -2,7 +2,10 @@
 //!
 //! Contains all file-related tools: read, create, delete, update, search, etc.
 
-use crate::{registry::macros::auto_register_category, types::{Category, CategoryId, CategoryMetadata}};
+use crate::{
+    registry::macros::auto_register_category,
+    types::{Category, CategoryId, CategoryMetadata},
+};
 
 /// File Operations Category
 #[derive(Debug)]

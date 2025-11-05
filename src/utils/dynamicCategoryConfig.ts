@@ -3,7 +3,7 @@
  * Core principle: Frontend cannot have any hardcoded definitions, must throw error if no configuration
  */
 
-import { ToolCategoryInfo } from '../types/toolCategory';
+import { ToolCategoryInfo } from "../types/toolCategory";
 
 // Interface definition remains unchanged
 export interface IconMapping {
@@ -24,7 +24,7 @@ export interface DisplayNameMapping {
  */
 export class StrictCategoryConfigManager {
   private static instance: StrictCategoryConfigManager;
-  
+
   // Configuration obtained from backend - no default values
   private configuredIcons: IconMapping = {};
   private configuredColors: ColorMapping = {};
@@ -45,7 +45,7 @@ export class StrictCategoryConfigManager {
   loadConfigFromBackend(
     icons: IconMapping,
     colors: ColorMapping,
-    displayNames: DisplayNameMapping
+    displayNames: DisplayNameMapping,
   ): void {
     this.configuredIcons = { ...icons };
     this.configuredColors = { ...colors };
@@ -58,7 +58,9 @@ export class StrictCategoryConfigManager {
    */
   private ensureConfigLoaded(): void {
     if (!this.isConfigLoaded) {
-      throw new Error('Category configuration has not been loaded from backend. Frontend contains no default configuration, must first obtain configuration information from backend.');
+      throw new Error(
+        "Category configuration has not been loaded from backend. Frontend contains no default configuration, must first obtain configuration information from backend.",
+      );
     }
   }
 
@@ -67,10 +69,12 @@ export class StrictCategoryConfigManager {
    */
   getCategoryIcon(categoryType: string): string {
     this.ensureConfigLoaded();
-    
+
     const icon = this.configuredIcons[categoryType];
     if (!icon) {
-      throw new Error(`Unconfigured category type icon: ${categoryType}. Please ensure backend has provided icon configuration for this category.`);
+      throw new Error(
+        `Unconfigured category type icon: ${categoryType}. Please ensure backend has provided icon configuration for this category.`,
+      );
     }
     return icon;
   }
@@ -80,10 +84,12 @@ export class StrictCategoryConfigManager {
    */
   getCategoryColor(categoryType: string): string {
     this.ensureConfigLoaded();
-    
+
     const color = this.configuredColors[categoryType];
     if (!color) {
-      throw new Error(`Unconfigured category type color: ${categoryType}. Please ensure backend has provided color configuration for this category.`);
+      throw new Error(
+        `Unconfigured category type color: ${categoryType}. Please ensure backend has provided color configuration for this category.`,
+      );
     }
     return color;
   }
@@ -93,10 +99,12 @@ export class StrictCategoryConfigManager {
    */
   getCategoryDisplayName(categoryType: string): string {
     this.ensureConfigLoaded();
-    
+
     const displayName = this.configuredDisplayNames[categoryType];
     if (!displayName) {
-      throw new Error(`Unconfigured category type display name: ${categoryType}. Please ensure backend has provided display name configuration for this category.`);
+      throw new Error(
+        `Unconfigured category type display name: ${categoryType}. Please ensure backend has provided display name configuration for this category.`,
+      );
     }
     return displayName;
   }
@@ -116,11 +124,11 @@ export class StrictCategoryConfigManager {
    */
   getAllConfiguredCategories(): string[] {
     this.ensureConfigLoaded();
-    
+
     const allCategories = new Set([
       ...Object.keys(this.configuredIcons),
       ...Object.keys(this.configuredColors),
-      ...Object.keys(this.configuredDisplayNames)
+      ...Object.keys(this.configuredDisplayNames),
     ]);
     return Array.from(allCategories);
   }
@@ -129,10 +137,12 @@ export class StrictCategoryConfigManager {
    * Check if category is fully configured
    */
   isCategoryFullyConfigured(categoryType: string): boolean {
-    return this.isConfigLoaded &&
-           this.configuredIcons.hasOwnProperty(categoryType) &&
-           this.configuredColors.hasOwnProperty(categoryType) &&
-           this.configuredDisplayNames.hasOwnProperty(categoryType);
+    return (
+      this.isConfigLoaded &&
+      this.configuredIcons.hasOwnProperty(categoryType) &&
+      this.configuredColors.hasOwnProperty(categoryType) &&
+      this.configuredDisplayNames.hasOwnProperty(categoryType)
+    );
   }
 
   /**
@@ -147,28 +157,29 @@ export class StrictCategoryConfigManager {
       return {
         isValid: false,
         missingConfigs: [],
-        error: 'Configuration has not been loaded from backend'
+        error: "Configuration has not been loaded from backend",
       };
     }
 
     const missingConfigs: string[] = [];
-    
+
     if (!this.configuredIcons.hasOwnProperty(categoryType)) {
-      missingConfigs.push('icon');
+      missingConfigs.push("icon");
     }
     if (!this.configuredColors.hasOwnProperty(categoryType)) {
-      missingConfigs.push('color');
+      missingConfigs.push("color");
     }
     if (!this.configuredDisplayNames.hasOwnProperty(categoryType)) {
-      missingConfigs.push('display name');
+      missingConfigs.push("display name");
     }
 
     return {
       isValid: missingConfigs.length === 0,
       missingConfigs,
-      error: missingConfigs.length > 0 ? 
-        `Category ${categoryType} missing configuration: ${missingConfigs.join(', ')}` :
-        undefined
+      error:
+        missingConfigs.length > 0
+          ? `Category ${categoryType} missing configuration: ${missingConfigs.join(", ")}`
+          : undefined,
     };
   }
 }
@@ -177,15 +188,19 @@ export class StrictCategoryConfigManager {
  * Create strict mode tool category information
  * All information must be obtained from backend configuration
  */
-export const createStrictCategoryInfo = (categoryType: string): ToolCategoryInfo => {
+export const createStrictCategoryInfo = (
+  categoryType: string,
+): ToolCategoryInfo => {
   const manager = StrictCategoryConfigManager.getInstance();
-  
+
   // Validate configuration completeness
   const validation = manager.validateCategoryConfig(categoryType);
   if (!validation.isValid) {
-    throw new Error(`Unable to create category information: ${validation.error}`);
+    throw new Error(
+      `Unable to create category information: ${validation.error}`,
+    );
   }
-  
+
   return {
     id: categoryType,
     name: manager.getCategoryDisplayName(categoryType),
@@ -197,7 +212,7 @@ export const createStrictCategoryInfo = (categoryType: string): ToolCategoryInfo
     icon: manager.getCategoryIcon(categoryType),
     color: manager.getCategoryColor(categoryType),
     strict_tools_mode: false,
-    category_type: categoryType
+    category_type: categoryType,
   };
 };
 
@@ -206,42 +221,52 @@ export const createStrictCategoryInfo = (categoryType: string): ToolCategoryInfo
  */
 export const testStrictModeConfig = () => {
   const manager = StrictCategoryConfigManager.getInstance();
-  
-  console.log('=== Strict Mode Category Configuration Test ===');
-  
+
+  console.log("=== Strict Mode Category Configuration Test ===");
+
   try {
     // Try to get behavior when configuration is not loaded
-    console.log('Testing behavior when configuration is not loaded:');
-    manager.getCategoryIcon('file_operations');
+    console.log("Testing behavior when configuration is not loaded:");
+    manager.getCategoryIcon("file_operations");
   } catch (error) {
-    console.log('✅ Correctly threw error:', (error as Error).message);
+    console.log("✅ Correctly threw error:", (error as Error).message);
   }
-  
+
   // Simulate loading configuration from backend
-  console.log('\nSimulating loading configuration from backend...');
+  console.log("\nSimulating loading configuration from backend...");
   manager.loadConfigFromBackend(
-    { 'file_operations': '📁', 'command_execution': '⚡' },
-    { 'file_operations': 'green', 'command_execution': 'magenta' },
-    { 'file_operations': 'File Operations', 'command_execution': 'Command Execution' }
+    { file_operations: "📁", command_execution: "⚡" },
+    { file_operations: "green", command_execution: "magenta" },
+    {
+      file_operations: "File Operations",
+      command_execution: "Command Execution",
+    },
   );
-  
+
   // Test configured categories
-  console.log('\nTesting configured categories:');
+  console.log("\nTesting configured categories:");
   try {
-    const icon = manager.getCategoryIcon('file_operations');
-    const color = manager.getCategoryColor('file_operations');
-    const name = manager.getCategoryDisplayName('file_operations');
-    console.log('✅ file_operations configuration normal:', { icon, color, name });
+    const icon = manager.getCategoryIcon("file_operations");
+    const color = manager.getCategoryColor("file_operations");
+    const name = manager.getCategoryDisplayName("file_operations");
+    console.log("✅ file_operations configuration normal:", {
+      icon,
+      color,
+      name,
+    });
   } catch (error) {
-    console.log('❌ Configuration error:', (error as Error).message);
+    console.log("❌ Configuration error:", (error as Error).message);
   }
-  
+
   // Test unconfigured categories
-  console.log('\nTesting unconfigured categories:');
+  console.log("\nTesting unconfigured categories:");
   try {
-    manager.getCategoryIcon('unknown_category');
+    manager.getCategoryIcon("unknown_category");
   } catch (error) {
-    console.log('✅ Correctly rejected unconfigured category:', (error as Error).message);
+    console.log(
+      "✅ Correctly rejected unconfigured category:",
+      (error as Error).message,
+    );
   }
 };
 

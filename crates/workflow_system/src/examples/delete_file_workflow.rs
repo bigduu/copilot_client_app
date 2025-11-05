@@ -7,8 +7,8 @@ use async_trait::async_trait;
 use std::collections::HashMap;
 use tokio::fs;
 
-use crate::types::{Parameter, Workflow, WorkflowDefinition, WorkflowError};
 use crate::register_workflow;
+use crate::types::{Parameter, Workflow, WorkflowDefinition, WorkflowError};
 
 /// A workflow that deletes a file with user confirmation
 #[derive(Debug, Default)]
@@ -34,7 +34,7 @@ impl Workflow for DeleteFileWorkflow {
                     required: true,
                     param_type: "string".to_string(),
                     default: None,
-                }
+                },
             ],
             category: "file_operations".to_string(),
             requires_approval: true,
@@ -43,11 +43,11 @@ impl Workflow for DeleteFileWorkflow {
                 This will permanently delete the specified file.\n\
                 This action cannot be undone.\n\n\
                 Please review the file path carefully before approving."
-                .to_string()
+                    .to_string(),
             ),
         }
     }
-    
+
     async fn execute(
         &self,
         parameters: HashMap<String, serde_json::Value>,
@@ -57,34 +57,35 @@ impl Workflow for DeleteFileWorkflow {
             .and_then(|v| v.as_str())
             .ok_or_else(|| {
                 WorkflowError::InvalidParameters(
-                    "path parameter is required and must be a string".to_string()
+                    "path parameter is required and must be a string".to_string(),
                 )
             })?;
-        
+
         let confirm = parameters
             .get("confirm")
             .and_then(|v| v.as_str())
             .unwrap_or("");
-        
+
         // Require explicit confirmation
         if confirm != "DELETE" {
             return Err(WorkflowError::InvalidParameters(
-                "Deletion not confirmed. Please type 'DELETE' to confirm.".to_string()
+                "Deletion not confirmed. Please type 'DELETE' to confirm.".to_string(),
             ));
         }
-        
+
         // Check if file exists
         if !fs::metadata(path).await.is_ok() {
-            return Err(WorkflowError::InvalidParameters(
-                format!("File does not exist: {}", path)
-            ));
+            return Err(WorkflowError::InvalidParameters(format!(
+                "File does not exist: {}",
+                path
+            )));
         }
-        
+
         // Delete the file
         fs::remove_file(path)
             .await
             .map_err(|e| WorkflowError::ExecutionFailed(format!("Failed to delete file: {}", e)))?;
-        
+
         Ok(serde_json::json!({
             "success": true,
             "path": path,
@@ -94,4 +95,3 @@ impl Workflow for DeleteFileWorkflow {
 }
 
 register_workflow!(DeleteFileWorkflow, "delete_file");
-

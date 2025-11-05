@@ -29,7 +29,7 @@ export function useAgentApproval() {
         error: null,
       }));
     },
-    []
+    [],
   );
 
   /**
@@ -48,7 +48,7 @@ export function useAgentApproval() {
         const response = await agentApprovalService.approveAgentToolCall(
           state.pendingRequest.session_id,
           requestId,
-          true
+          true,
         );
 
         // Clear pending request after successful approval
@@ -72,7 +72,7 @@ export function useAgentApproval() {
         return null;
       }
     },
-    [state.pendingRequest]
+    [state.pendingRequest],
   );
 
   /**
@@ -81,7 +81,7 @@ export function useAgentApproval() {
   const reject = useCallback(
     async (
       requestId: string,
-      reason?: string
+      reason?: string,
     ): Promise<AgentApprovalResponse | null> => {
       if (!state.pendingRequest) {
         console.error("No pending request to reject");
@@ -95,7 +95,7 @@ export function useAgentApproval() {
           state.pendingRequest.session_id,
           requestId,
           false,
-          reason
+          reason,
         );
 
         // Clear pending request after successful rejection
@@ -119,7 +119,7 @@ export function useAgentApproval() {
         return null;
       }
     },
-    [state.pendingRequest]
+    [state.pendingRequest],
   );
 
   /**
@@ -139,4 +139,3 @@ export function useAgentApproval() {
     clearError,
   };
 }
-

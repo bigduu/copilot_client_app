@@ -32,6 +32,7 @@ cd openspec/changes/refactor-backend-first-persistence
 ```
 
 **Expected output:**
+
 ```
 ✅ Context created: <uuid>
 ✅ Context has no messages (as expected)
@@ -44,6 +45,7 @@ cd openspec/changes/refactor-backend-first-persistence
 ### Step 4: Check Backend Logs
 
 You should see:
+
 ```
 INFO === send_message_action CALLED ===
 INFO User message added to branch 'main'
@@ -79,6 +81,7 @@ curl "http://localhost:8080/v1/contexts/${CONTEXT_ID}/messages" | jq
 ```
 
 **Expected result:**
+
 ```json
 [
   {
@@ -112,7 +115,8 @@ curl "http://localhost:8080/v1/contexts/${CONTEXT_ID}/messages" | jq
 
 **Result**: Only 1 new user message (NO assistant response)
 
-**Backend logs**: 
+**Backend logs**:
+
 ```
 WARN ⚠️  WARNING: This endpoint does NOT trigger FSM!
 WARN ⚠️  No assistant response will be generated!
@@ -148,16 +152,16 @@ When you call `POST /actions/send_message`:
 const sendMessage = async (content: string) => {
   // 1. Add message locally (optimistic UI)
   await addMessage(chatId, userMessage);
-  
+
   // 2. Call backend action API
   const backendService = new BackendContextService();
   const response = await backendService.sendMessageAction(chatId, content);
   //                                      ^^^^^^^^^^^^^^^^
   //                                      Backend handles ALL persistence
-  
+
   // 3. Backend returns complete state
   console.log("Backend saved:", response);
-  
+
   // 4. Trigger FSM for streaming/UI
   send({ type: "USER_SUBMITS", payload: { messages } });
 };
@@ -166,16 +170,18 @@ const sendMessage = async (content: string) => {
 ### What Changed in Frontend
 
 **Before:**
+
 ```typescript
 // Manual persistence
-await backendService.addMessage(chatId, message);  // ❌ Old CRUD
+await backendService.addMessage(chatId, message); // ❌ Old CRUD
 // No FSM trigger, no assistant response
 ```
 
 **Now:**
+
 ```typescript
 // Backend handles everything
-await backendService.sendMessageAction(chatId, content);  // ✅ Action API
+await backendService.sendMessageAction(chatId, content); // ✅ Action API
 // Backend saves user message + generates & saves assistant response
 ```
 
@@ -195,6 +201,7 @@ await backendService.sendMessageAction(chatId, content);  // ✅ Action API
 ### Issue: User message saved, but no assistant response
 
 **Check:**
+
 1. Backend logs for FSM execution
 2. Look for "FSM: Entered ProcessingUserMessage state"
 3. Verify "Creating mock assistant response" appears
@@ -204,6 +211,7 @@ await backendService.sendMessageAction(chatId, content);  // ✅ Action API
 ### Issue: Messages not persisted
 
 **Check:**
+
 1. Backend logs for "Saving dirty context"
 2. Verify dirty flag is set: look for `mark_dirty()` calls
 3. Check database connection
@@ -213,6 +221,7 @@ await backendService.sendMessageAction(chatId, content);  // ✅ Action API
 ### Issue: Frontend shows error
 
 **Check:**
+
 1. Network tab: is action API endpoint being called?
 2. Console: any errors from `sendMessageAction()`?
 3. Backend: is endpoint responding?
@@ -228,11 +237,13 @@ await backendService.sendMessageAction(chatId, content);  // ✅ Action API
 ## 🎉 Summary
 
 Your backend now automatically persists all context messages when you call:
+
 ```
 POST /v1/contexts/{id}/actions/send_message
 ```
 
 **No manual persistence needed!** Just call the action endpoint, and the backend:
+
 1. Saves your user message
 2. Runs the FSM
 3. Generates an assistant response
@@ -240,4 +251,3 @@ POST /v1/contexts/{id}/actions/send_message
 5. Returns everything to you
 
 **That's it!** The backend is now the single source of truth. 🚀
-

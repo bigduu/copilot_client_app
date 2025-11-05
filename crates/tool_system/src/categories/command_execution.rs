@@ -2,7 +2,10 @@
 //!
 //! Contains tools related to system command execution
 
-use crate::{registry::macros::auto_register_category, types::{Category, CategoryId, CategoryMetadata}};
+use crate::{
+    registry::macros::auto_register_category,
+    types::{Category, CategoryId, CategoryMetadata},
+};
 
 /// Command Execution Category
 #[derive(Debug)]

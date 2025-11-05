@@ -6,14 +6,14 @@
 //! - Contextual instructions
 
 use anyhow::Result;
+use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::sync::RwLock;
-use std::collections::HashMap;
 
-use tool_system::{format_tools_section, ToolRegistry, ToolPermission};
-use context_manager::structs::context::AgentRole;
 use crate::services::template_variable_service::TemplateVariableService;
+use context_manager::structs::context::AgentRole;
+use tool_system::{format_tools_section, ToolPermission, ToolRegistry};
 
 /// Cache entry for enhanced prompts
 #[derive(Clone)]
@@ -41,7 +41,7 @@ impl Default for EnhancementConfig {
             enable_tools: true,
             enable_mermaid: true,
             cache_ttl: Duration::from_secs(300), // 5 minutes
-            max_prompt_size: 100_000, // 100k characters
+            max_prompt_size: 100_000,            // 100k characters
         }
     }
 }
@@ -63,7 +63,7 @@ impl SystemPromptEnhancer {
             template_service: None,
         }
     }
-    
+
     pub fn with_default_config(tool_registry: Arc<ToolRegistry>) -> Self {
         Self::new(tool_registry, EnhancementConfig::default())
     }
@@ -73,16 +73,25 @@ impl SystemPromptEnhancer {
         self.template_service = Some(template_service);
         self
     }
-    
+
     /// Enhance a base system prompt with tools and additional features
-    /// 
+    ///
     /// # Arguments
     /// * `base_prompt` - The base system prompt to enhance
     /// * `agent_role` - The agent's current role (determines available tools and behavior)
-    pub async fn enhance_prompt(&self, base_prompt: &str, agent_role: &AgentRole) -> Result<String> {
+    pub async fn enhance_prompt(
+        &self,
+        base_prompt: &str,
+        agent_role: &AgentRole,
+    ) -> Result<String> {
         // Check cache first (include role in cache key)
-        let cache_key = format!("{:?}:{}:{}", agent_role, base_prompt.len(), base_prompt.chars().take(50).collect::<String>());
-        
+        let cache_key = format!(
+            "{:?}:{}:{}",
+            agent_role,
+            base_prompt.len(),
+            base_prompt.chars().take(50).collect::<String>()
+        );
+
         {
             let cache = self.cache.read().await;
             if let Some(cached) = cache.get(&cache_key) {
@@ -91,34 +100,34 @@ impl SystemPromptEnhancer {
                 }
             }
         }
-        
+
         // Build enhanced prompt
         let mut enhanced = String::new();
-        
+
         // Replace template variables in base prompt first
         let processed_prompt = self.replace_template_variables(base_prompt).await;
-        
+
         // Add base prompt (with template variables replaced)
         enhanced.push_str(&processed_prompt);
         enhanced.push_str("\n\n");
-        
+
         // Add role-specific instructions
         enhanced.push_str(&self.build_role_section(agent_role));
         enhanced.push_str("\n\n");
-        
+
         // Add tools section if enabled (filtered by role)
         if self.config.enable_tools {
             let tools_section = self.build_tools_section(agent_role).await?;
             enhanced.push_str(&tools_section);
             enhanced.push_str("\n\n");
         }
-        
+
         // Add Mermaid support if enabled
         if self.config.enable_mermaid {
             enhanced.push_str(&self.build_mermaid_section());
             enhanced.push_str("\n\n");
         }
-        
+
         // Truncate if too large
         if enhanced.len() > self.config.max_prompt_size {
             log::warn!(
@@ -129,7 +138,7 @@ impl SystemPromptEnhancer {
             enhanced.truncate(self.config.max_prompt_size);
             enhanced.push_str("\n\n[... prompt truncated due to size limits ...]");
         }
-        
+
         // Update cache
         {
             let mut cache = self.cache.write().await;
@@ -141,10 +150,10 @@ impl SystemPromptEnhancer {
                 },
             );
         }
-        
+
         Ok(enhanced)
     }
-    
+
     /// Build role-specific instructions
     fn build_role_section(&self, agent_role: &AgentRole) -> String {
         match agent_role {
@@ -236,30 +245,44 @@ When to ask:
             }
         }
     }
-    
+
     /// Build the tools section of the prompt, filtered by agent role
     async fn build_tools_section(&self, agent_role: &AgentRole) -> Result<String> {
         // Convert AgentRole permissions to ToolPermission
-        let role_permissions: Vec<ToolPermission> = agent_role.permissions().iter().map(|p| {
-            match p {
-                context_manager::structs::context::Permission::ReadFiles => ToolPermission::ReadFiles,
-                context_manager::structs::context::Permission::WriteFiles => ToolPermission::WriteFiles,
-                context_manager::structs::context::Permission::CreateFiles => ToolPermission::CreateFiles,
-                context_manager::structs::context::Permission::DeleteFiles => ToolPermission::DeleteFiles,
-                context_manager::structs::context::Permission::ExecuteCommands => ToolPermission::ExecuteCommands,
-            }
-        }).collect();
-        
+        let role_permissions: Vec<ToolPermission> = agent_role
+            .permissions()
+            .iter()
+            .map(|p| match p {
+                context_manager::structs::context::Permission::ReadFiles => {
+                    ToolPermission::ReadFiles
+                }
+                context_manager::structs::context::Permission::WriteFiles => {
+                    ToolPermission::WriteFiles
+                }
+                context_manager::structs::context::Permission::CreateFiles => {
+                    ToolPermission::CreateFiles
+                }
+                context_manager::structs::context::Permission::DeleteFiles => {
+                    ToolPermission::DeleteFiles
+                }
+                context_manager::structs::context::Permission::ExecuteCommands => {
+                    ToolPermission::ExecuteCommands
+                }
+            })
+            .collect();
+
         // Get filtered tools based on role permissions
-        let tools = self.tool_registry.filter_tools_by_permissions(&role_permissions);
-        
+        let tools = self
+            .tool_registry
+            .filter_tools_by_permissions(&role_permissions);
+
         if tools.is_empty() {
             return Ok(String::new());
         }
-        
+
         Ok(format_tools_section(&tools))
     }
-    
+
     /// Build the Mermaid diagram support section
     fn build_mermaid_section(&self) -> String {
         r#"
@@ -287,18 +310,19 @@ Use Mermaid diagrams to visualize:
 - Data relationships
 - State transitions
 - Project timelines
-"#.to_string()
+"#
+        .to_string()
     }
-    
+
     /// Check if the request is in passthrough mode (standard OpenAI API)
     /// Passthrough mode uses base prompts without enhancement
     pub fn is_passthrough_mode(request_path: &str) -> bool {
         // Passthrough for standard OpenAI API endpoints
-        request_path == "/v1/chat/completions" 
+        request_path == "/v1/chat/completions"
             || request_path == "/v1/models"
             || request_path.starts_with("/v1/embeddings")
     }
-    
+
     /// Clear the cache
     pub async fn clear_cache(&self) {
         let mut cache = self.cache.write().await;
@@ -325,7 +349,7 @@ Use Mermaid diagrams to visualize:
             // Replace {{key}}
             let pattern_double = format!("{{{{{}}}}}", key);
             result = result.replace(&pattern_double, &value);
-            
+
             // Replace {key} (only if not already replaced and not part of {{key}})
             let pattern_single = format!("{{{}}}", key);
             // Only replace if it's not already inside {{ }}
@@ -341,73 +365,92 @@ Use Mermaid diagrams to visualize:
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[test]
     fn test_is_passthrough_mode() {
-        assert!(SystemPromptEnhancer::is_passthrough_mode("/v1/chat/completions"));
+        assert!(SystemPromptEnhancer::is_passthrough_mode(
+            "/v1/chat/completions"
+        ));
         assert!(SystemPromptEnhancer::is_passthrough_mode("/v1/models"));
-        assert!(SystemPromptEnhancer::is_passthrough_mode("/v1/embeddings/create"));
-        
+        assert!(SystemPromptEnhancer::is_passthrough_mode(
+            "/v1/embeddings/create"
+        ));
+
         assert!(!SystemPromptEnhancer::is_passthrough_mode("/context/chat"));
         assert!(!SystemPromptEnhancer::is_passthrough_mode("/api/chat"));
     }
-    
+
     #[tokio::test]
     async fn test_enhance_prompt_basic() {
         let tool_registry = Arc::new(ToolRegistry::new());
         let enhancer = SystemPromptEnhancer::with_default_config(tool_registry);
-        
+
         let base = "You are a helpful assistant.";
-        let enhanced = enhancer.enhance_prompt(base, &AgentRole::Actor).await.unwrap();
-        
+        let enhanced = enhancer
+            .enhance_prompt(base, &AgentRole::Actor)
+            .await
+            .unwrap();
+
         assert!(enhanced.contains(base));
         assert!(enhanced.contains("MERMAID"));
         assert!(enhanced.contains("ACTOR"));
     }
-    
+
     #[tokio::test]
     async fn test_enhance_prompt_role_specific() {
         let tool_registry = Arc::new(ToolRegistry::new());
         let enhancer = SystemPromptEnhancer::with_default_config(tool_registry);
-        
+
         let base = "You are a helpful assistant.";
-        
+
         // Test Planner role
-        let planner_prompt = enhancer.enhance_prompt(base, &AgentRole::Planner).await.unwrap();
+        let planner_prompt = enhancer
+            .enhance_prompt(base, &AgentRole::Planner)
+            .await
+            .unwrap();
         assert!(planner_prompt.contains("PLANNER"));
         assert!(planner_prompt.contains("read-only"));
-        
+
         // Test Actor role
-        let actor_prompt = enhancer.enhance_prompt(base, &AgentRole::Actor).await.unwrap();
+        let actor_prompt = enhancer
+            .enhance_prompt(base, &AgentRole::Actor)
+            .await
+            .unwrap();
         assert!(actor_prompt.contains("ACTOR"));
         assert!(actor_prompt.contains("Full tool access"));
-        
+
         // They should be different
         assert_ne!(planner_prompt, actor_prompt);
     }
-    
+
     #[tokio::test]
     async fn test_enhance_prompt_caching() {
         let tool_registry = Arc::new(ToolRegistry::new());
         let enhancer = SystemPromptEnhancer::with_default_config(tool_registry);
-        
+
         let base = "You are a helpful assistant.";
-        
+
         // First call
         let start = Instant::now();
-        let enhanced1 = enhancer.enhance_prompt(base, &AgentRole::Actor).await.unwrap();
+        let enhanced1 = enhancer
+            .enhance_prompt(base, &AgentRole::Actor)
+            .await
+            .unwrap();
         let duration1 = start.elapsed();
-        
+
         // Second call (should be cached)
         let start = Instant::now();
-        let enhanced2 = enhancer.enhance_prompt(base, &AgentRole::Actor).await.unwrap();
+        let enhanced2 = enhancer
+            .enhance_prompt(base, &AgentRole::Actor)
+            .await
+            .unwrap();
         let duration2 = start.elapsed();
-        
+
         assert_eq!(enhanced1, enhanced2);
         // Cache should be significantly faster (though this is not guaranteed in tests)
         log::debug!("First call: {:?}, Second call: {:?}", duration1, duration2);
     }
-    
+
     #[tokio::test]
     async fn test_enhance_prompt_size_limit() {
         let tool_registry = Arc::new(ToolRegistry::new());
@@ -416,12 +459,14 @@ mod tests {
             ..Default::default()
         };
         let enhancer = SystemPromptEnhancer::new(tool_registry, config);
-        
+
         let base = "a".repeat(200); // Longer than limit
-        let enhanced = enhancer.enhance_prompt(&base, &AgentRole::Actor).await.unwrap();
-        
+        let enhanced = enhancer
+            .enhance_prompt(&base, &AgentRole::Actor)
+            .await
+            .unwrap();
+
         assert!(enhanced.len() <= 100 + 50); // Some buffer for truncation message
         assert!(enhanced.contains("truncated"));
     }
 }
-

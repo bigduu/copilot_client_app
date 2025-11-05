@@ -1,7 +1,8 @@
 use crate::{
     registry::macros::auto_register_tool,
     types::{
-        Parameter, Tool, ToolArguments, ToolDefinition, ToolError, ToolType, DisplayPreference, ToolPermission,
+        DisplayPreference, Parameter, Tool, ToolArguments, ToolDefinition, ToolError,
+        ToolPermission, ToolType,
     },
 };
 use async_trait::async_trait;
@@ -85,7 +86,11 @@ impl Tool for ReadFileTool {
                 (path, start_line, end_line)
             }
             ToolArguments::String(path) => (path, None, None),
-            _ => return Err(ToolError::InvalidArguments("Expected a single string path or a JSON object".to_string())),
+            _ => {
+                return Err(ToolError::InvalidArguments(
+                    "Expected a single string path or a JSON object".to_string(),
+                ))
+            }
         };
 
         // Read the file
@@ -104,7 +109,9 @@ impl Tool for ReadFileTool {
         let end = end_line.unwrap_or(lines.len());
 
         if start >= lines.len() {
-            return Err(ToolError::InvalidArguments("Start line exceeds file length".to_string()));
+            return Err(ToolError::InvalidArguments(
+                "Start line exceeds file length".to_string(),
+            ));
         }
 
         let end = end.min(lines.len());

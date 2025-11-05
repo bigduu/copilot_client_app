@@ -9,13 +9,14 @@ use tokio::sync::oneshot;
 
 use crate::controllers::{
     chat_controller, context_controller, openai_controller, system_controller,
-    system_prompt_controller, template_variable_controller, tool_controller, workflow_controller,
+    system_prompt_controller, template_variable_controller, tool_controller,
+    user_preference_controller, workflow_controller,
 };
 use crate::services::{
     approval_manager::ApprovalManager, session_manager::ChatSessionManager,
     system_prompt_enhancer::SystemPromptEnhancer, system_prompt_service::SystemPromptService,
     template_variable_service::TemplateVariableService, tool_service::ToolService,
-    workflow_service::WorkflowService,
+    user_preference_service::UserPreferenceService, workflow_service::WorkflowService,
 };
 use crate::storage::file_provider::FileStorageProvider;
 use copilot_client::{config::Config, CopilotClient, CopilotClientTrait};
@@ -30,6 +31,8 @@ pub struct AppState {
     pub system_prompt_enhancer: Arc<SystemPromptEnhancer>,
     pub template_variable_service: Arc<TemplateVariableService>,
     pub approval_manager: Arc<ApprovalManager>,
+    pub user_preference_service: Arc<UserPreferenceService>,
+    pub workflow_service: Arc<WorkflowService>,
 }
 
 const DEFAULT_WORKER_COUNT: usize = 10;
@@ -44,7 +47,8 @@ pub fn app_config(cfg: &mut web::ServiceConfig) {
             .configure(system_prompt_controller::config)
             .configure(template_variable_controller::config)
             .configure(tool_controller::config)
-            .configure(workflow_controller::config),
+            .configure(workflow_controller::config)
+            .configure(user_preference_controller::config),
     );
 }
 
@@ -58,8 +62,8 @@ pub async fn run(app_data_dir: PathBuf, port: u16) -> Result<(), String> {
 
     // Initialize workflow system
     let workflow_registry = Arc::new(WorkflowRegistry::new());
-    let workflow_service = WorkflowService::new(workflow_registry);
-    let workflow_service_data = web::Data::new(workflow_service);
+    let workflow_service = Arc::new(WorkflowService::new(workflow_registry));
+    let workflow_service_data = web::Data::from(workflow_service.clone());
 
     let storage_provider = Arc::new(FileStorageProvider::new(app_data_dir.join("conversations")));
     let session_manager = Arc::new(ChatSessionManager::new(storage_provider, 100)); // Cache up to 100 sessions
@@ -77,6 +81,11 @@ pub async fn run(app_data_dir: PathBuf, port: u16) -> Result<(), String> {
         error!("Failed to load template variables: {}", e);
     }
 
+    let user_preference_service = Arc::new(UserPreferenceService::new(app_data_dir.clone()));
+    if let Err(e) = user_preference_service.load_from_storage().await {
+        error!("Failed to load user preferences: {}", e);
+    }
+
     let config = Config::new();
     let copilot_client: Arc<dyn CopilotClientTrait> =
         Arc::new(CopilotClient::new(config, app_data_dir.clone()));
@@ -85,7 +94,7 @@ pub async fn run(app_data_dir: PathBuf, port: u16) -> Result<(), String> {
     let tool_registry_arc = Arc::new(ToolRegistry::new());
     let system_prompt_enhancer = Arc::new(
         SystemPromptEnhancer::with_default_config(tool_registry_arc)
-            .with_template_service(template_variable_service.clone())
+            .with_template_service(template_variable_service.clone()),
     );
 
     let approval_manager = Arc::new(ApprovalManager::new());
@@ -102,16 +111,18 @@ pub async fn run(app_data_dir: PathBuf, port: u16) -> Result<(), String> {
         system_prompt_enhancer,
         template_variable_service: template_variable_service.clone(),
         approval_manager: approval_manager.clone(),
+        user_preference_service: user_preference_service.clone(),
+        workflow_service: workflow_service.clone(),
     });
 
-        let server = HttpServer::new(move || {
-            App::new()
-                .app_data(app_state.clone())
-                .app_data(tool_service_data.clone())
-                .app_data(system_prompt_data.clone())
-                .app_data(enhancer_data.clone())
-                .app_data(template_variable_data.clone())
-                .app_data(workflow_service_data.clone())
+    let server = HttpServer::new(move || {
+        App::new()
+            .app_data(app_state.clone())
+            .app_data(tool_service_data.clone())
+            .app_data(system_prompt_data.clone())
+            .app_data(enhancer_data.clone())
+            .app_data(template_variable_data.clone())
+            .app_data(workflow_service_data.clone())
             // CORS only - no middleware for testing
             .wrap(Cors::permissive())
             .configure(app_config)
@@ -161,8 +172,8 @@ impl WebService {
 
         // Initialize workflow system
         let workflow_registry = Arc::new(WorkflowRegistry::new());
-        let workflow_service = WorkflowService::new(workflow_registry);
-        let workflow_service_data = web::Data::new(workflow_service);
+        let workflow_service = Arc::new(WorkflowService::new(workflow_registry));
+        let workflow_service_data = web::Data::from(workflow_service.clone());
 
         let storage_provider = Arc::new(FileStorageProvider::new(
             self.app_data_dir.join("conversations"),
@@ -176,10 +187,17 @@ impl WebService {
         }
 
         // Initialize template variable service
-        let template_variable_service = Arc::new(TemplateVariableService::new(self.app_data_dir.clone()));
+        let template_variable_service =
+            Arc::new(TemplateVariableService::new(self.app_data_dir.clone()));
         // Load template variables from storage
         if let Err(e) = template_variable_service.load_from_storage().await {
             error!("Failed to load template variables: {}", e);
+        }
+
+        let user_preference_service =
+            Arc::new(UserPreferenceService::new(self.app_data_dir.clone()));
+        if let Err(e) = user_preference_service.load_from_storage().await {
+            error!("Failed to load user preferences: {}", e);
         }
 
         let config = Config::new();
@@ -190,7 +208,7 @@ impl WebService {
         let tool_registry_arc = Arc::new(ToolRegistry::new());
         let system_prompt_enhancer = Arc::new(
             SystemPromptEnhancer::with_default_config(tool_registry_arc)
-                .with_template_service(template_variable_service.clone())
+                .with_template_service(template_variable_service.clone()),
         );
 
         let approval_manager = Arc::new(ApprovalManager::new());
@@ -207,6 +225,8 @@ impl WebService {
             system_prompt_enhancer,
             template_variable_service: template_variable_service.clone(),
             approval_manager: approval_manager.clone(),
+            user_preference_service: user_preference_service.clone(),
+            workflow_service: workflow_service.clone(),
         });
 
         let server = HttpServer::new(move || {

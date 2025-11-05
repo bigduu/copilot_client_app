@@ -1,4 +1,4 @@
-import { ApprovalData } from '../components/MessageCard/ApprovalCard';
+import { ApprovalData } from "../components/MessageCard/ApprovalCard";
 
 /**
  * Check if a message content is an approval request format
@@ -7,11 +7,11 @@ export function isApprovalRequest(content: string): boolean {
   try {
     const parsed = JSON.parse(content.trim());
     return (
-      typeof parsed === 'object' &&
+      typeof parsed === "object" &&
       parsed !== null &&
-      typeof parsed.tool_call === 'string' &&
+      typeof parsed.tool_call === "string" &&
       Array.isArray(parsed.parameters) &&
-      (parsed.approval === undefined || typeof parsed.approval === 'boolean')
+      (parsed.approval === undefined || typeof parsed.approval === "boolean")
     );
   } catch {
     return false;
@@ -24,28 +24,28 @@ export function isApprovalRequest(content: string): boolean {
 export function parseApprovalRequest(content: string): ApprovalData | null {
   try {
     const parsed = JSON.parse(content.trim());
-    
+
     if (!isApprovalRequest(content)) {
       return null;
     }
 
     // Ensure parameters have the correct structure
     const parameters = parsed.parameters.map((param: any) => {
-      if (typeof param === 'object' && param.name && param.value) {
+      if (typeof param === "object" && param.name && param.value) {
         return {
           name: param.name,
           value: param.value,
         };
       }
       // Handle simple string parameters
-      if (typeof param === 'string') {
+      if (typeof param === "string") {
         return {
-          name: 'value',
+          name: "value",
           value: param,
         };
       }
       return {
-        name: 'unknown',
+        name: "unknown",
         value: String(param),
       };
     });
@@ -66,7 +66,7 @@ export function parseApprovalRequest(content: string): ApprovalData | null {
 export function createApprovalRequest(
   toolCall: string,
   parameters: Array<{ name: string; value: string }>,
-  approval?: boolean
+  approval?: boolean,
 ): string {
   const data: ApprovalData = {
     tool_call: toolCall,
@@ -87,7 +87,7 @@ export function createApprovedRequest(approvalData: ApprovalData): string {
   return createApprovalRequest(
     approvalData.tool_call,
     approvalData.parameters,
-    true
+    true,
   );
 }
 
@@ -98,6 +98,6 @@ export function createRejectedRequest(approvalData: ApprovalData): string {
   return createApprovalRequest(
     approvalData.tool_call,
     approvalData.parameters,
-    false
+    false,
   );
 }

@@ -17,6 +17,7 @@
 ## Immediate Actions (Before v2.0 Release)
 
 ### 1. Final Pre-Deployment Checklist
+
 ```bash
 # Verify all systems
 cd /Users/bigduu/Workspace/TauriProjects/copilot_chat
@@ -24,7 +25,7 @@ cd /Users/bigduu/Workspace/TauriProjects/copilot_chat
 # Backend build check
 cargo build --release
 
-# Frontend build check  
+# Frontend build check
 npm run build
 
 # OpenSpec final validation
@@ -42,28 +43,34 @@ Create `docs/releases/v2.0-MIGRATION-GUIDE.md` with:
 # v2.0 Migration Guide
 
 ## Breaking Changes
+
 ⚠️ This release migrates chat storage from LocalStorage to backend Context Manager.
 
 ## What Happens on First Launch
+
 1. App detects existing LocalStorage data
 2. Migration banner appears with data summary
 3. Click "Migrate" to transfer data to backend
 4. Original data backed up for 30 days
 
 ## Rollback Instructions
+
 If issues occur:
+
 1. Stop the application
 2. Navigate to browser DevTools → Application → Local Storage
 3. Find `copilot_migration_backup_v1`
 4. Click "Restore from Backup" in migration banner
 
 ## New Features
+
 - ✅ Unified backend chat state management
 - ✅ Improved performance and reliability
 - ✅ Foundation for multi-branch conversations (v2.1)
 - ✅ Better tool call approval workflow
 
 ## Known Limitations
+
 - Branch selector UI not yet implemented (coming in v2.1)
 - SSE streaming not yet enabled (using polling, coming in v2.1)
 ```
@@ -71,6 +78,7 @@ If issues occur:
 ### 3. Add User-Facing Documentation
 
 Update `README.md` to mention migration:
+
 ```markdown
 ## Upgrading to v2.0
 
@@ -91,12 +99,14 @@ See [Migration Guide](docs/releases/v2.0-MIGRATION-GUIDE.md) for details.
 **Timeframe**: 2-3 weeks
 
 **Tasks**:
+
 1. Set up Jest/Vitest for frontend unit tests
 2. Create mock AppState for backend integration tests
 3. Implement test fixtures for Context Manager
 4. Add 14 documented test cases from `context_api_tests.rs`
 
 **Files to Test**:
+
 - `BackendContextService.ts` - All API methods
 - `LocalStorageMigrator.ts` - Migration logic
 - `useBackendContext.ts` - React hook behavior
@@ -109,17 +119,19 @@ See [Migration Guide](docs/releases/v2.0-MIGRATION-GUIDE.md) for details.
 **Timeframe**: 1 week
 
 **Tasks**:
+
 - Task 4.8: Add branch selector UI in ChatView
 - Implement branch switching with API calls
 - Add branch creation UI
 - Update routing to handle branch parameter
 
 **Implementation Sketch**:
+
 ```typescript
 // src/components/BranchSelector.tsx
 export const BranchSelector = ({ contextId, currentBranch, branches }) => {
   const { switchBranch } = useBackendContext();
-  
+
   return (
     <Select value={currentBranch} onChange={(branch) => switchBranch(contextId, branch)}>
       {branches.map(b => (
@@ -139,12 +151,14 @@ export const BranchSelector = ({ contextId, currentBranch, branches }) => {
 **Timeframe**: 1-2 weeks
 
 **Tasks**:
+
 - Task 4.9: Replace polling with SSE
 - Add `/v1/contexts/{id}/stream` endpoint
 - Implement EventSource client in frontend
 - Handle reconnection logic
 
 **Implementation Sketch**:
+
 ```rust
 // Backend: crates/web_service/src/controllers/context_controller.rs
 pub async fn stream_context_updates(
@@ -176,6 +190,7 @@ export const useBackendContextStream = (contextId: string) => {
 **Timeframe**: 1 week (after 2-3 months transition period)
 
 **Tasks**:
+
 - Task 5.2-5.7: Remove deprecated Zustand slices
 - Clean up LocalStorage methods from StorageService
 - Remove deprecated warnings
@@ -188,22 +203,26 @@ export const useBackendContextStream = (contextId: string) => {
 ## Optional Enhancements (v2.2+)
 
 ### 1. Performance Optimizations
+
 - Add LRU cache for frequently accessed contexts
 - Implement pagination for large message lists
 - Add database indexing for fast lookups
 
 ### 2. Advanced Features
+
 - Context search and filtering
 - Context templates
 - Export/import contexts
 - Context sharing between users
 
 ### 3. Multi-User Support
+
 - Add authentication layer
 - User-specific context isolation
 - Role-based access control
 
 ### 4. Alternative Storage Backends
+
 - PostgreSQL provider
 - SQLite provider for embedded scenarios
 - Cloud storage integration
@@ -213,6 +232,7 @@ export const useBackendContextStream = (contextId: string) => {
 ### Key Metrics to Track Post-Deployment
 
 1. **Migration Success Rate**
+
    ```typescript
    // Track in analytics
    {
@@ -237,6 +257,7 @@ export const useBackendContextStream = (contextId: string) => {
 ### Error Monitoring
 
 Watch for:
+
 - Migration failures (trigger alerts)
 - API timeout errors (> 5s)
 - Context not found errors
@@ -247,12 +268,14 @@ Watch for:
 ### Should You Deploy v2.0 Now?
 
 **YES, if**:
+
 - ✅ You need better state management
 - ✅ You want foundation for advanced features
 - ✅ You can handle a one-time migration UX
 - ✅ You're okay with polling (SSE comes in v2.1)
 
 **WAIT for v2.1, if**:
+
 - ⏸ You require comprehensive automated tests
 - ⏸ You need SSE streaming (not polling)
 - ⏸ You want branch UI before deployment
@@ -260,6 +283,7 @@ Watch for:
 ### Recommended Path: Deploy Now
 
 **Rationale**:
+
 1. All critical functionality is complete and tested
 2. Migration is safe with rollback capability
 3. Deferred items are enhancements, not blockers
@@ -269,18 +293,21 @@ Watch for:
 ## Communication Plan
 
 ### For Development Team
+
 1. Review VALIDATION_REPORT.md
 2. Review IMPLEMENTATION_SUMMARY.md
 3. Run manual smoke tests
 4. Deploy to staging first
 
 ### For Users
+
 1. Announce v2.0 migration in advance (1 week notice)
 2. Provide migration guide documentation
 3. Offer rollback instructions
 4. Collect feedback on migration experience
 
 ### For Stakeholders
+
 1. Share completion metrics (77% tasks, 100% critical paths)
 2. Highlight benefits (performance, reliability, future features)
 3. Communicate deferred items timeline
@@ -297,9 +324,8 @@ The Context Manager migration is **complete and ready for production deployment*
 ---
 
 **Questions or Issues?**
+
 - Review: `VALIDATION_REPORT.md` for detailed acceptance criteria validation
 - Review: `COMPLETION_STATUS.md` for task-by-task breakdown
 - Review: `IMPLEMENTATION_SUMMARY.md` for technical details
 - Contact: Development team for deployment support
-
-

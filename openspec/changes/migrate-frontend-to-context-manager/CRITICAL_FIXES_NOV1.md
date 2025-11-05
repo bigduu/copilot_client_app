@@ -10,18 +10,22 @@
 ## Issues Discovered During Initial Testing
 
 ### Issue 1: Excessive API Requests (404 Spam)
+
 **Severity**: CRITICAL - Browser nearly crashed  
 **Symptom**: Frontend making hundreds of `/v1/contexts` requests per minute, all returning 404
 
 ### Issue 1b: Rapid Repeated Requests (Follow-up)
+
 **Severity**: HIGH - Performance Impact  
 **Symptom**: After fixing 404s, frontend still making multiple simultaneous `/v1/contexts` requests
 
 ### Issue 2: Unwanted Automatic Migration
+
 **Severity**: HIGH - User Experience  
 **Symptom**: App automatically attempting to migrate LocalStorage data on every startup
 
 ### Issue 3: Backend Route Registration Failure
+
 **Severity**: CRITICAL - Blocking  
 **Symptom**: All `/v1/contexts/*` endpoints returning 404 despite being defined
 
@@ -30,7 +34,9 @@
 ## Root Cause Analysis
 
 ### Issue 1: Aggressive Polling Configuration
-**Root Cause**: 
+
+**Root Cause**:
+
 - Polling was enabled by default (`pollingEnabled: true`)
 - No validation check for valid context ID before starting polling
 - Polling interval too aggressive (3 seconds)
@@ -40,7 +46,9 @@
 **Impact**: Browser performance degradation, excessive network traffic, poor UX
 
 ### Issue 1b: useEffect Dependency Array Bug
+
 **Root Cause**:
+
 - `ChatSidebar` component had `listContexts` in useEffect dependency array
 - `listContexts` is a `useCallback` that depends on `service`
 - When `service` reference changes, `listContexts` is recreated
@@ -50,7 +58,9 @@
 **Impact**: Multiple simultaneous requests to `/v1/contexts` endpoint, unnecessary network traffic
 
 ### Issue 2: Automatic Migration on Startup
+
 **Root Cause**:
+
 - Migration utility called in `useEffect` on every app mount
 - MigrationBanner always rendered
 - User preference to start fresh was not accommodated
@@ -58,7 +68,9 @@
 **Impact**: Unwanted data processing, user confusion
 
 ### Issue 3: Incorrect Route Registration Pattern
+
 **Root Cause**:
+
 - Used manual route registration with `web::scope()` and `.route()`
 - Actix Web expects route macros (`#[get]`, `#[post]`, etc.) when using `.service()`
 - Pattern mismatch with rest of codebase (openai_controller uses macros)
@@ -74,12 +86,15 @@
 **File**: `src/hooks/useBackendContext.ts`
 
 **Changes**:
+
 1. **Disabled polling by default**
+
    ```typescript
    const [pollingEnabled, setPollingEnabled] = useState(false); // Was: true
    ```
 
 2. **Added context ID validation**
+
    ```typescript
    if (!currentContext?.id || !pollingEnabled) {
      if (pollingIntervalRef.current) {
@@ -91,11 +106,13 @@
    ```
 
 3. **Reduced polling frequency**
+
    ```typescript
    const pollInterval = 5000; // Was: 3000 (5s instead of 3s)
    ```
 
 4. **Added automatic error recovery**
+
    ```typescript
    catch (err) {
      console.error("Polling error:", err);
@@ -117,25 +134,27 @@
 **File**: `src/components/ChatSidebar/index.tsx`
 
 **Changes**:
+
 1. **Removed `listContexts` from dependency array**
+
    ```typescript
    // BEFORE: Effect re-runs whenever listContexts changes
    useEffect(() => {
      const load = async () => {
        const contexts = await listContexts();
        setBackendContexts(
-         contexts.map((c) => ({ id: c.id, title: c.active_branch_name }))
+         contexts.map((c) => ({ id: c.id, title: c.active_branch_name })),
        );
      };
      load();
    }, [listContexts]); // ❌ Causes re-runs
-   
+
    // AFTER: Effect only runs once on mount
    useEffect(() => {
      const load = async () => {
        const contexts = await listContexts();
        setBackendContexts(
-         contexts.map((c) => ({ id: c.id, title: c.active_branch_name }))
+         contexts.map((c) => ({ id: c.id, title: c.active_branch_name })),
        );
      };
      load();
@@ -157,7 +176,9 @@
 **File**: `src/App.tsx`
 
 **Changes**:
+
 1. **Commented out migration imports**
+
    ```typescript
    // Migration disabled per user request
    // import { MigrationBanner } from "./components/MigrationBanner";
@@ -166,6 +187,7 @@
    ```
 
 2. **Disabled migration effect**
+
    ```typescript
    // Migration disabled per user request - starting fresh
    // useEffect(() => {
@@ -176,7 +198,9 @@
 
 3. **Removed MigrationBanner from render**
    ```typescript
-   {/* MigrationBanner removed - migration disabled per user request */}
+   {
+     /* MigrationBanner removed - migration disabled per user request */
+   }
    ```
 
 **Result**: Clean startup, no automatic data processing, fresh start for users
@@ -190,6 +214,7 @@
 **Changes**:
 
 1. **Added route macro imports**
+
    ```rust
    use actix_web::{
        delete, get, post, put,  // ← Added these
@@ -199,33 +224,35 @@
    ```
 
 2. **Added route macros to all 8 handlers**
+
    ```rust
    #[post("/contexts")]
    pub async fn create_context(...) { ... }
-   
+
    #[get("/contexts")]
    pub async fn list_contexts(...) { ... }
-   
+
    #[get("/contexts/{id}")]
    pub async fn get_context(...) { ... }
-   
+
    #[put("/contexts/{id}")]
    pub async fn update_context(...) { ... }
-   
+
    #[delete("/contexts/{id}")]
    pub async fn delete_context(...) { ... }
-   
+
    #[get("/contexts/{id}/messages")]
    pub async fn get_context_messages(...) { ... }
-   
+
    #[post("/contexts/{id}/messages")]
    pub async fn add_context_message(...) { ... }
-   
+
    #[post("/contexts/{id}/tools/approve")]
    pub async fn approve_context_tools(...) { ... }
    ```
 
 3. **Simplified config function**
+
    ```rust
    // BEFORE: Manual route registration (didn't work)
    pub fn config(cfg: &mut web::ServiceConfig) {
@@ -236,7 +263,7 @@
                ...
        );
    }
-   
+
    // AFTER: Service registration with macros (works)
    pub fn config(cfg: &mut actix_web::web::ServiceConfig) {
        cfg.service(create_context)
@@ -257,6 +284,7 @@
 ## Test Results
 
 ### Before Fixes
+
 ```bash
 # Frontend
 ❌ Polling running continuously
@@ -278,6 +306,7 @@ HTTP/1.1 404 Not Found
 ```
 
 ### After Fixes
+
 ```bash
 # Frontend
 ✅ No background polling
@@ -301,17 +330,20 @@ $ curl http://127.0.0.1:8080/v1/contexts
 ### 1. Actix Web Route Registration Patterns
 
 **Three valid patterns in Actix Web**:
+
 1. **Route Macros** (Recommended for our codebase):
+
    ```rust
    #[get("/path")]
    pub async fn handler(...) { ... }
-   
+
    pub fn config(cfg: &mut ServiceConfig) {
        cfg.service(handler);
    }
    ```
 
 2. **Manual Routes**:
+
    ```rust
    pub fn config(cfg: &mut ServiceConfig) {
        cfg.route("/path", web::get().to(handler));
@@ -333,6 +365,7 @@ $ curl http://127.0.0.1:8080/v1/contexts
 ### 2. React useEffect Dependencies
 
 **Issue**: Using full objects in dependency arrays causes unnecessary re-runs
+
 ```typescript
 // BAD: Re-runs on every context update
 }, [currentContext, pollingEnabled]);
@@ -342,6 +375,7 @@ $ curl http://127.0.0.1:8080/v1/contexts
 ```
 
 **Issue**: Including function references in dependency arrays
+
 ```typescript
 // BAD: Function recreated = effect re-runs
 useEffect(() => {
@@ -358,6 +392,7 @@ useEffect(() => {
 ### 3. Polling Best Practices
 
 **Key principles**:
+
 1. Always opt-in, never auto-enable
 2. Validate prerequisites before starting
 3. Implement error recovery
@@ -369,16 +404,19 @@ useEffect(() => {
 ## Impact Assessment
 
 ### Performance
+
 - **Before**: ~400 requests/minute (browser stress) + multiple simultaneous requests
 - **After**: 0 background requests (polling opt-in), single request on mount
 - **Improvement**: 100% reduction in unnecessary traffic
 
 ### User Experience
+
 - **Before**: Slow, laggy UI, automatic data processing
 - **After**: Fast, responsive, clean startup
 - **Improvement**: Significantly better UX
 
 ### Reliability
+
 - **Before**: Backend endpoints non-functional
 - **After**: All 8 endpoints working correctly
 - **Improvement**: Full API functionality restored
@@ -388,14 +426,17 @@ useEffect(() => {
 ## Files Modified
 
 ### Frontend
+
 1. `src/hooks/useBackendContext.ts` - Polling safety guards
 2. `src/components/ChatSidebar/index.tsx` - useEffect dependency fix
 3. `src/App.tsx` - Disabled automatic migration
 
 ### Backend
+
 1. `crates/web_service/src/controllers/context_controller.rs` - Route registration fix
 
 ### Documentation
+
 1. `CRITICAL_FIXES.md` - Frontend fixes detailed guide
 2. `BACKEND_FIX_SUMMARY.md` - Backend route fix guide
 3. This document - OpenSpec update
@@ -420,12 +461,14 @@ useEffect(() => {
 **Current Plan**: Fresh start, no historical data migration
 
 **Rationale**:
+
 - User preference to start clean
 - Simplifies deployment
 - Reduces complexity
 - Better performance
 
 **If Migration Needed Later**:
+
 1. Uncomment migration code in `App.tsx`
 2. Add manual trigger (button in settings)
 3. Never auto-migrate on startup
@@ -459,7 +502,7 @@ useEffect(() => {
 ✅ Clean console (no errors)  
 ✅ Fast page load (<2s)  
 ✅ Responsive UI  
-✅ Backend endpoints responding correctly  
+✅ Backend endpoints responding correctly
 
 ---
 
@@ -494,6 +537,7 @@ All fixes are backward compatible, build cleanly, and are ready for production d
 After fixing the critical runtime issues, all deprecated LocalStorage chat management code has been removed from the codebase:
 
 **Removed**:
+
 - 11 deprecated methods from `StorageService.ts` (saveAllData, saveChats, saveMessages, etc.)
 - Message cache and cache-related methods
 - `saveChats` action from Zustand store
@@ -501,10 +545,10 @@ After fixing the critical runtime issues, all deprecated LocalStorage chat manag
 - All LocalStorage writes for chat data
 
 **Result**:
+
 - ✅ Zero console warnings
 - ✅ Clean, maintainable codebase
 - ✅ 100% backend-first architecture
 - ✅ `StorageService` now only handles UI preferences (theme, layout)
 
 See `openspec/changes/remove-deprecated-storage/` for complete details.
-

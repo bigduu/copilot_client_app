@@ -5,19 +5,16 @@ use tracing_subscriber::{fmt, layer::SubscriberExt, util::SubscriberInitExt, Env
 #[tokio::main]
 async fn main() {
     dotenvy::dotenv().ok();
-    
+
     // Initialize tracing subscriber with DEBUG level by default for standalone mode
     tracing_subscriber::registry()
-        .with(
-            EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| EnvFilter::new("debug"))
-        )
+        .with(EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("debug")))
         .with(
             fmt::layer()
                 .with_target(true)
                 .with_thread_ids(false)
                 .with_line_number(true)
-                .with_file(false)
+                .with_file(false),
         )
         .init();
 

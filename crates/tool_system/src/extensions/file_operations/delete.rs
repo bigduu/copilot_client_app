@@ -1,7 +1,8 @@
 use crate::{
     registry::macros::auto_register_tool,
     types::{
-        Parameter, Tool, ToolArguments, ToolDefinition, ToolError, ToolType, DisplayPreference, ToolPermission,
+        DisplayPreference, Parameter, Tool, ToolArguments, ToolDefinition, ToolError,
+        ToolPermission, ToolType,
     },
 };
 use async_trait::async_trait;
@@ -58,7 +59,11 @@ impl Tool for DeleteFileTool {
                 .and_then(|v| v.as_str())
                 .ok_or_else(|| ToolError::InvalidArguments("Missing path".to_string()))?
                 .to_string(),
-            _ => return Err(ToolError::InvalidArguments("Expected a single string path or a JSON object with a path".to_string())),
+            _ => {
+                return Err(ToolError::InvalidArguments(
+                    "Expected a single string path or a JSON object with a path".to_string(),
+                ))
+            }
         };
 
         // Delete the file

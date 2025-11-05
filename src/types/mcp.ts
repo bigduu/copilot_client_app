@@ -12,4 +12,4 @@ export interface McpServerConfig {
 
 export interface McpServersConfig {
   mcpServers: Record<string, McpServerConfig>;
-} 
+}

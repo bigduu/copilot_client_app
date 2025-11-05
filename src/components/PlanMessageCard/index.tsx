@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { memo, useState } from "react";
 import {
   Card,
   Steps,
@@ -26,13 +26,15 @@ interface PlanMessageCardProps {
   contextId: string;
   onExecute: () => void; // Callback to switch to Actor role and continue
   onRefine: (feedback: string) => void; // Callback to send refinement message
+  timestamp?: string;
 }
 
-const PlanMessageCard: React.FC<PlanMessageCardProps> = ({
+const PlanMessageCardComponent: React.FC<PlanMessageCardProps> = ({
   plan,
   contextId: _contextId,
   onExecute,
   onRefine,
+  timestamp,
 }) => {
   const { token } = useToken();
   const [refineMode, setRefineMode] = useState(false);
@@ -61,6 +63,13 @@ const PlanMessageCard: React.FC<PlanMessageCardProps> = ({
             Execution Plan
           </Text>
         </Space>
+      }
+      extra={
+        timestamp ? (
+          <Text type="secondary" style={{ fontSize: token.fontSizeSM }}>
+            {timestamp}
+          </Text>
+        ) : undefined
       }
     >
       {/* Goal Section */}
@@ -218,5 +227,8 @@ const PlanMessageCard: React.FC<PlanMessageCardProps> = ({
     </Card>
   );
 };
+
+const PlanMessageCard = memo(PlanMessageCardComponent);
+PlanMessageCard.displayName = "PlanMessageCard";
 
 export default PlanMessageCard;

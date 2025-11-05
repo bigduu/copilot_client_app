@@ -39,33 +39,43 @@ You have access to tools that you can invoke by outputting a JSON object in this
 /// Format a tool definition as XML/markdown for the system prompt
 pub fn format_tool_as_xml(tool: &ToolDefinition) -> String {
     let mut output = String::new();
-    
+
     output.push_str(&format!("### {}\n", tool.name));
     output.push_str(&format!("**Description**: {}\n\n", tool.description));
-    
+
     if !tool.parameters.is_empty() {
         output.push_str("**Parameters**:\n");
         for param in &tool.parameters {
-            let required = if param.required { "(required)" } else { "(optional)" };
-            output.push_str(&format!("- `{}` {}: {}\n", param.name, required, param.description));
+            let required = if param.required {
+                "(required)"
+            } else {
+                "(optional)"
+            };
+            output.push_str(&format!(
+                "- `{}` {}: {}\n",
+                param.name, required, param.description
+            ));
         }
         output.push('\n');
     } else {
         output.push_str("**Parameters**: None\n\n");
     }
-    
+
     if tool.requires_approval {
         output.push_str("⚠️ *This tool requires user approval before execution*\n\n");
     }
-    
+
     if let Some(ref termination_doc) = tool.termination_behavior_doc {
-        output.push_str(&format!("**Termination Guidance**: {}\n\n", termination_doc));
+        output.push_str(&format!(
+            "**Termination Guidance**: {}\n\n",
+            termination_doc
+        ));
     }
-    
+
     if let Some(ref custom_prompt) = tool.custom_prompt {
         output.push_str(&format!("**Additional Notes**:\n{}\n\n", custom_prompt));
     }
-    
+
     output.push_str("---\n\n");
     output
 }
@@ -73,22 +83,22 @@ pub fn format_tool_as_xml(tool: &ToolDefinition) -> String {
 /// Format multiple tools into a complete system prompt section
 pub fn format_tools_section(tools: &[ToolDefinition]) -> String {
     let mut output = String::new();
-    
+
     // Add calling instructions
     output.push_str(TOOL_CALLING_INSTRUCTIONS);
     output.push('\n');
-    
+
     // Add each tool definition
     for tool in tools {
         output.push_str(&format_tool_as_xml(tool));
     }
-    
+
     output.push_str("\n## REMEMBER:\n");
     output.push_str("- Output ONLY valid JSON when calling tools\n");
     output.push_str("- Choose terminate=true or terminate=false based on whether you need to continue working\n");
     output.push_str("- You can call multiple tools in sequence by using terminate=false\n");
     output.push_str("- Always validate that your JSON is properly formatted\n");
-    
+
     output
 }
 
@@ -105,19 +115,17 @@ pub fn format_tool_list(tools: &[ToolDefinition]) -> String {
 mod tests {
     use super::*;
     use crate::types::Parameter;
-    
+
     #[test]
     fn test_format_tool_as_xml() {
         let tool = ToolDefinition {
             name: "test_tool".to_string(),
             description: "A test tool".to_string(),
-            parameters: vec![
-                Parameter {
-                    name: "param1".to_string(),
-                    description: "First parameter".to_string(),
-                    required: true,
-                }
-            ],
+            parameters: vec![Parameter {
+                name: "param1".to_string(),
+                description: "First parameter".to_string(),
+                required: true,
+            }],
             requires_approval: false,
             tool_type: crate::types::ToolType::AIParameterParsing,
             parameter_regex: None,
@@ -126,7 +134,7 @@ mod tests {
             display_preference: crate::types::DisplayPreference::Default,
             termination_behavior_doc: Some("Use terminate=false for multi-step tasks".to_string()),
         };
-        
+
         let formatted = format_tool_as_xml(&tool);
         assert!(formatted.contains("### test_tool"));
         assert!(formatted.contains("A test tool"));
@@ -134,7 +142,7 @@ mod tests {
         assert!(formatted.contains("First parameter"));
         assert!(formatted.contains("Termination Guidance"));
     }
-    
+
     #[test]
     fn test_format_tools_section() {
         let tools = vec![
@@ -163,37 +171,33 @@ mod tests {
                 termination_behavior_doc: None,
             },
         ];
-        
+
         let formatted = format_tools_section(&tools);
         assert!(formatted.contains("TOOL USAGE INSTRUCTIONS"));
         assert!(formatted.contains("tool1"));
         assert!(formatted.contains("tool2"));
         assert!(formatted.contains("terminate"));
-        assert!(formatted.contains("⚠️"));  // Approval warning for tool2
+        assert!(formatted.contains("⚠️")); // Approval warning for tool2
     }
-    
+
     #[test]
     fn test_format_tool_list() {
-        let tools = vec![
-            ToolDefinition {
-                name: "read_file".to_string(),
-                description: "Read file contents".to_string(),
-                parameters: vec![],
-                requires_approval: false,
-                tool_type: crate::types::ToolType::AIParameterParsing,
-                parameter_regex: None,
-                custom_prompt: None,
-                hide_in_selector: false,
-                display_preference: crate::types::DisplayPreference::Default,
-                termination_behavior_doc: None,
-            }
-        ];
-        
+        let tools = vec![ToolDefinition {
+            name: "read_file".to_string(),
+            description: "Read file contents".to_string(),
+            parameters: vec![],
+            requires_approval: false,
+            tool_type: crate::types::ToolType::AIParameterParsing,
+            parameter_regex: None,
+            custom_prompt: None,
+            hide_in_selector: false,
+            display_preference: crate::types::DisplayPreference::Default,
+            termination_behavior_doc: None,
+        }];
+
         let formatted = format_tool_list(&tools);
         assert!(formatted.contains("Available tools:"));
         assert!(formatted.contains("read_file"));
         assert!(formatted.contains("Read file contents"));
     }
 }
-
-

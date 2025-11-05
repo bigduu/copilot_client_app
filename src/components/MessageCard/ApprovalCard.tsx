@@ -1,6 +1,14 @@
-import React from 'react';
-import { Card, Button, Typography, Space, Descriptions, theme, Tag } from 'antd';
-import { CheckOutlined, CloseOutlined } from '@ant-design/icons';
+import React from "react";
+import {
+  Card,
+  Button,
+  Typography,
+  Space,
+  Descriptions,
+  theme,
+  Tag,
+} from "antd";
+import { CheckOutlined, CloseOutlined } from "@ant-design/icons";
 
 const { Text, Title } = Typography;
 
@@ -8,8 +16,8 @@ export interface ApprovalData {
   tool_call: string;
   parameters: Array<{ name: string; value: string }>;
   approval?: boolean;
-  approval_status?: 'pending' | 'approved' | 'rejected';
-  display_preference?: 'Visible' | 'Collapsible' | 'Hidden';
+  approval_status?: "pending" | "approved" | "rejected";
+  display_preference?: "Visible" | "Collapsible" | "Hidden";
 }
 
 interface ApprovalCardProps {
@@ -46,7 +54,7 @@ const ApprovalCard: React.FC<ApprovalCardProps> = ({
         borderRadius: token.borderRadiusLG,
       }}
     >
-      <Space direction="vertical" style={{ width: '100%' }} size="middle">
+      <Space direction="vertical" style={{ width: "100%" }} size="middle">
         <div>
           <Title level={5} style={{ margin: 0, color: token.colorInfo }}>
             🔧 Workflow Execution Request
@@ -58,11 +66,11 @@ const ApprovalCard: React.FC<ApprovalCardProps> = ({
             {data.approval_status && (
               <Tag
                 color={
-                  data.approval_status === 'approved'
-                    ? 'green'
-                    : data.approval_status === 'rejected'
-                    ? 'red'
-                    : 'gold'
+                  data.approval_status === "approved"
+                    ? "green"
+                    : data.approval_status === "rejected"
+                      ? "red"
+                      : "gold"
                 }
               >
                 {data.approval_status.toUpperCase()}
@@ -80,7 +88,10 @@ const ApprovalCard: React.FC<ApprovalCardProps> = ({
 
         {data.parameters.length > 0 && (
           <div>
-            <Text strong style={{ marginBottom: token.marginXS, display: 'block' }}>
+            <Text
+              strong
+              style={{ marginBottom: token.marginXS, display: "block" }}
+            >
               Parameters:
             </Text>
             <Descriptions
@@ -96,12 +107,16 @@ const ApprovalCard: React.FC<ApprovalCardProps> = ({
           </div>
         )}
 
-        <Space style={{ width: '100%', justifyContent: 'center' }}>
+        <Space style={{ width: "100%", justifyContent: "center" }}>
           <Button
             type="primary"
             icon={<CheckOutlined />}
             onClick={onApprove}
-            disabled={disabled || data.approval_status === 'approved' || data.approval_status === 'rejected'}
+            disabled={
+              disabled ||
+              data.approval_status === "approved" ||
+              data.approval_status === "rejected"
+            }
             style={{
               backgroundColor: token.colorSuccess,
               borderColor: token.colorSuccess,
@@ -113,7 +128,11 @@ const ApprovalCard: React.FC<ApprovalCardProps> = ({
             danger
             icon={<CloseOutlined />}
             onClick={onReject}
-            disabled={disabled || data.approval_status === 'approved' || data.approval_status === 'rejected'}
+            disabled={
+              disabled ||
+              data.approval_status === "approved" ||
+              data.approval_status === "rejected"
+            }
           >
             Reject
           </Button>

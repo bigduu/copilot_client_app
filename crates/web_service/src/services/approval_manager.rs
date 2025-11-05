@@ -160,4 +160,3 @@ impl Default for ApprovalManager {
         Self::new()
     }
 }
-

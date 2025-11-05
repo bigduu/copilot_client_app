@@ -1,6 +1,9 @@
 //! Workflow controller for HTTP API
 
-use actix_web::{web::{Data, Json, Path}, HttpResponse, Result};
+use actix_web::{
+    web::{Data, Json, Path},
+    HttpResponse, Result,
+};
 use log::{error, info};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -46,7 +49,7 @@ pub async fn get_workflow(
     service: Data<WorkflowService>,
 ) -> Result<HttpResponse> {
     let workflow_name = path.into_inner();
-    
+
     match service.get_workflow(&workflow_name) {
         Some(workflow) => Ok(HttpResponse::Ok().json(workflow)),
         None => {
@@ -61,15 +64,12 @@ pub async fn get_workflow(
 /// List all workflow categories
 pub async fn list_categories(service: Data<WorkflowService>) -> Result<HttpResponse> {
     let workflows = service.list_workflows();
-    let mut categories: Vec<String> = workflows
-        .iter()
-        .map(|w| w.category.clone())
-        .collect();
-    
+    let mut categories: Vec<String> = workflows.iter().map(|w| w.category.clone()).collect();
+
     // Remove duplicates
     categories.sort();
     categories.dedup();
-    
+
     Ok(HttpResponse::Ok().json(ListCategoriesResponse { categories }))
 }
 
@@ -78,16 +78,20 @@ pub async fn execute_workflow(
     req: Json<WorkflowExecutionRequest>,
     service: Data<WorkflowService>,
 ) -> Result<HttpResponse> {
-    info!("Executing workflow: {} with parameters: {:?}", req.workflow_name, req.parameters);
-    
-    match service.execute_workflow(&req.workflow_name, req.parameters.clone()).await {
-        Ok(result) => {
-            Ok(HttpResponse::Ok().json(WorkflowExecutionResponse {
-                success: true,
-                result: Some(result),
-                error: None,
-            }))
-        }
+    info!(
+        "Executing workflow: {} with parameters: {:?}",
+        req.workflow_name, req.parameters
+    );
+
+    match service
+        .execute_workflow(&req.workflow_name, req.parameters.clone())
+        .await
+    {
+        Ok(result) => Ok(HttpResponse::Ok().json(WorkflowExecutionResponse {
+            success: true,
+            result: Some(result),
+            error: None,
+        })),
         Err(e) => {
             error!("Workflow execution failed: {}", e);
             Ok(HttpResponse::Ok().json(WorkflowExecutionResponse {
@@ -109,5 +113,3 @@ pub fn config(cfg: &mut actix_web::web::ServiceConfig) {
             .route("/execute", actix_web::web::post().to(execute_workflow)),
     );
 }
-
-

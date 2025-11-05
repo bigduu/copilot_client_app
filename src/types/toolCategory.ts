@@ -44,7 +44,7 @@ export class ToolCategoryService {
    */
   validateMessageForStrictMode(
     message: string,
-    categoryInfo: ToolCategoryInfo | null
+    categoryInfo: ToolCategoryInfo | null,
   ): MessageValidationResult {
     // If no category info or strict mode not enabled, allow all messages
     if (!categoryInfo || !categoryInfo.strict_tools_mode) {

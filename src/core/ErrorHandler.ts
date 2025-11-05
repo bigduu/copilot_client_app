@@ -1,20 +1,16 @@
-import {
-  ErrorHandler as IErrorHandler,
-} from '../interfaces/chat-manager';
-import {
-  OperationResult
-} from '../types/unified-chat';
+import { ErrorHandler as IErrorHandler } from "../interfaces/chat-manager";
+import { OperationResult } from "../types/unified-chat";
 
 /**
  * Error Type Enum
  */
 enum ErrorType {
-  NETWORK = 'NETWORK',
-  VALIDATION = 'VALIDATION',
-  AUTHENTICATION = 'AUTHENTICATION',
-  PERMISSION = 'PERMISSION',
-  SYSTEM = 'SYSTEM',
-  UNKNOWN = 'UNKNOWN'
+  NETWORK = "NETWORK",
+  VALIDATION = "VALIDATION",
+  AUTHENTICATION = "AUTHENTICATION",
+  PERMISSION = "PERMISSION",
+  SYSTEM = "SYSTEM",
+  UNKNOWN = "UNKNOWN",
 }
 
 /**
@@ -31,12 +27,12 @@ class ExtendedError extends Error {
     message: string,
     type: ErrorType = ErrorType.UNKNOWN,
     code?: string,
-    context?: any
+    context?: any,
   ) {
     super(message);
-    this.name = 'ExtendedError';
+    this.name = "ExtendedError";
     this.type = type;
-    this.code = code || 'UNKNOWN_ERROR';
+    this.code = code || "UNKNOWN_ERROR";
     this.context = context;
     this.timestamp = Date.now();
   }
@@ -68,7 +64,7 @@ export class ErrorHandler implements IErrorHandler {
       baseDelay: 1000,
       maxDelay: 10000,
       exponentialBase: 2,
-      jitter: true
+      jitter: true,
     };
   }
 
@@ -78,18 +74,18 @@ export class ErrorHandler implements IErrorHandler {
   async processError(error: Error): Promise<never> {
     try {
       const enrichedError = this.enrichError(error);
-      
+
       // Log error
-      console.error('Handle error:', enrichedError);
-      
+      console.error("Handle error:", enrichedError);
+
       // Notify subscribers
       this.notifyErrorSubscribers(enrichedError);
-      
+
       // Determine handling based on error type
       if (enrichedError instanceof ExtendedError) {
         await this.handleErrorByType(enrichedError);
       }
-      
+
       throw enrichedError;
     } catch (err) {
       // Ensure an error is always thrown
@@ -102,9 +98,10 @@ export class ErrorHandler implements IErrorHandler {
    */
   async retryWithBackoff(
     operation: () => Promise<any>,
-    maxRetries?: number
+    maxRetries?: number,
   ): Promise<any> {
-    const retries = maxRetries !== undefined ? maxRetries : this.retryConfig.maxRetries;
+    const retries =
+      maxRetries !== undefined ? maxRetries : this.retryConfig.maxRetries;
     let lastError: Error | null = null;
 
     for (let attempt = 0; attempt <= retries; attempt++) {
@@ -112,7 +109,7 @@ export class ErrorHandler implements IErrorHandler {
         return await operation();
       } catch (error) {
         lastError = error instanceof Error ? error : new Error(String(error));
-        
+
         // If it's the last attempt, throw the error directly
         if (attempt === retries) {
           throw this.enrichError(lastError);
@@ -120,16 +117,19 @@ export class ErrorHandler implements IErrorHandler {
 
         // Calculate delay time
         const delay = this.calculateDelay(attempt);
-        
-        console.warn(`Operation failed, retrying for the ${attempt + 1} time, retrying after ${delay}ms:`, lastError.message);
-        
+
+        console.warn(
+          `Operation failed, retrying for the ${attempt + 1} time, retrying after ${delay}ms:`,
+          lastError.message,
+        );
+
         // Wait for delay
         await this.sleep(delay);
       }
     }
 
     // Should not be reached in theory
-    throw this.enrichError(lastError || new Error('Retry failed'));
+    throw this.enrichError(lastError || new Error("Retry failed"));
   }
 
   /**
@@ -138,15 +138,15 @@ export class ErrorHandler implements IErrorHandler {
   async rollbackAndNotify(error: Error): Promise<never> {
     try {
       const enrichedError = this.enrichError(error);
-      
-      console.error('Executing rollback operation:', enrichedError);
-      
+
+      console.error("Executing rollback operation:", enrichedError);
+
       // Notify subscribers
       this.notifyErrorSubscribers(enrichedError);
-      
+
       // Specific rollback logic can be executed here
       // e.g., clean up temporary data, restore state, etc.
-      
+
       throw enrichedError;
     } catch (err) {
       throw err instanceof Error ? err : new Error(String(err));
@@ -165,21 +165,16 @@ export class ErrorHandler implements IErrorHandler {
 
       // Determine error type
       const errorType = this.determineErrorType(error);
-      
+
       // Generate error code
       const errorCode = this.generateErrorCode(error, errorType);
-      
+
       // Collect context information
       const context = this.collectErrorContext(error);
 
-      return new ExtendedError(
-        error.message,
-        errorType,
-        errorCode,
-        context
-      );
+      return new ExtendedError(error.message, errorType, errorCode, context);
     } catch (enrichError) {
-      console.error('Failed to enrich error information:', enrichError);
+      console.error("Failed to enrich error information:", enrichError);
       return error; // Return original error
     }
   }
@@ -191,8 +186,8 @@ export class ErrorHandler implements IErrorHandler {
     return {
       success: false,
       error: message,
-      message: 'Operation failed',
-      errorCode: 'OPERATION_FAILED'
+      message: "Operation failed",
+      errorCode: "OPERATION_FAILED",
     };
   }
 
@@ -202,31 +197,34 @@ export class ErrorHandler implements IErrorHandler {
   handleError(error: any, operation: string): OperationResult<any> {
     try {
       const enrichedError = this.enrichError(
-        error instanceof Error ? error : new Error(String(error))
+        error instanceof Error ? error : new Error(String(error)),
       );
 
       const result: OperationResult<any> = {
         success: false,
         error: enrichedError.message,
         message: `Operation failed: ${operation}`,
-        errorCode: enrichedError instanceof ExtendedError ? enrichedError.code : 'UNKNOWN_ERROR'
+        errorCode:
+          enrichedError instanceof ExtendedError
+            ? enrichedError.code
+            : "UNKNOWN_ERROR",
       };
 
       // Log error
       console.error(`Operation ${operation} failed:`, enrichedError);
-      
+
       // Notify subscribers
       this.notifyErrorSubscribers(enrichedError);
 
       return result;
     } catch (handlingError) {
-      console.error('Exception occurred while handling error:', handlingError);
-      
+      console.error("Exception occurred while handling error:", handlingError);
+
       return {
         success: false,
-        error: 'Failed to handle error',
+        error: "Failed to handle error",
         message: `Operation failed: ${operation}`,
-        errorCode: 'ERROR_HANDLING_FAILED'
+        errorCode: "ERROR_HANDLING_FAILED",
       };
     }
   }
@@ -242,11 +240,13 @@ export class ErrorHandler implements IErrorHandler {
     try {
       // Set up global error handlers
       this.setupGlobalErrorHandlers();
-      
+
       this.initialized = true;
-      console.log('ErrorHandler initialized successfully');
+      console.log("ErrorHandler initialized successfully");
     } catch (error) {
-      throw new Error(`ErrorHandler initialization failed: ${error instanceof Error ? error.message : String(error)}`);
+      throw new Error(
+        `ErrorHandler initialization failed: ${error instanceof Error ? error.message : String(error)}`,
+      );
     }
   }
 
@@ -257,14 +257,14 @@ export class ErrorHandler implements IErrorHandler {
     try {
       // Clean up subscribers
       this.errorSubscribers.clear();
-      
+
       // Remove global error handlers
       this.removeGlobalErrorHandlers();
-      
+
       this.initialized = false;
-      console.log('ErrorHandler has been disposed');
+      console.log("ErrorHandler has been disposed");
     } catch (error) {
-      console.error('ErrorHandler disposal failed:', error);
+      console.error("ErrorHandler disposal failed:", error);
     }
   }
 
@@ -273,7 +273,7 @@ export class ErrorHandler implements IErrorHandler {
    */
   subscribe(callback: (error: Error) => void): () => void {
     this.errorSubscribers.add(callback);
-    
+
     return () => {
       this.errorSubscribers.delete(callback);
     };
@@ -298,27 +298,39 @@ export class ErrorHandler implements IErrorHandler {
    */
   private determineErrorType(error: Error): ErrorType {
     const message = error.message.toLowerCase();
-    
-    if (message.includes('network') || message.includes('fetch') || message.includes('connection')) {
+
+    if (
+      message.includes("network") ||
+      message.includes("fetch") ||
+      message.includes("connection")
+    ) {
       return ErrorType.NETWORK;
     }
-    
-    if (message.includes('validation') || message.includes('invalid') || message.includes('required')) {
+
+    if (
+      message.includes("validation") ||
+      message.includes("invalid") ||
+      message.includes("required")
+    ) {
       return ErrorType.VALIDATION;
     }
-    
-    if (message.includes('auth') || message.includes('unauthorized') || message.includes('forbidden')) {
+
+    if (
+      message.includes("auth") ||
+      message.includes("unauthorized") ||
+      message.includes("forbidden")
+    ) {
       return ErrorType.AUTHENTICATION;
     }
-    
-    if (message.includes('permission') || message.includes('access denied')) {
+
+    if (message.includes("permission") || message.includes("access denied")) {
       return ErrorType.PERMISSION;
     }
-    
-    if (message.includes('system') || message.includes('internal')) {
+
+    if (message.includes("system") || message.includes("internal")) {
       return ErrorType.SYSTEM;
     }
-    
+
     return ErrorType.UNKNOWN;
   }
 
@@ -337,10 +349,11 @@ export class ErrorHandler implements IErrorHandler {
   private collectErrorContext(error: Error): any {
     return {
       timestamp: new Date().toISOString(),
-      userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : 'unknown',
-      url: typeof window !== 'undefined' ? window.location.href : 'unknown',
+      userAgent:
+        typeof navigator !== "undefined" ? navigator.userAgent : "unknown",
+      url: typeof window !== "undefined" ? window.location.href : "unknown",
       stack: error.stack,
-      name: error.name
+      name: error.name,
     };
   }
 
@@ -351,26 +364,26 @@ export class ErrorHandler implements IErrorHandler {
     switch (error.type) {
       case ErrorType.NETWORK:
         // Network error handling
-        console.warn('Network error, may need to retry');
+        console.warn("Network error, may need to retry");
         break;
       case ErrorType.VALIDATION:
         // Validation error handling
-        console.warn('Validation error, check input data');
+        console.warn("Validation error, check input data");
         break;
       case ErrorType.AUTHENTICATION:
         // Authentication error handling
-        console.warn('Authentication error, may need to log in again');
+        console.warn("Authentication error, may need to log in again");
         break;
       case ErrorType.PERMISSION:
         // Permission error handling
-        console.warn('Insufficient permissions, cannot perform operation');
+        console.warn("Insufficient permissions, cannot perform operation");
         break;
       case ErrorType.SYSTEM:
         // System error handling
-        console.warn('System error, contact administrator');
+        console.warn("System error, contact administrator");
         break;
       default:
-        console.warn('Unknown error type');
+        console.warn("Unknown error type");
     }
   }
 
@@ -382,7 +395,7 @@ export class ErrorHandler implements IErrorHandler {
       try {
         subscriber(error);
       } catch (subscriberError) {
-        console.error('Error subscriber execution failed:', subscriberError);
+        console.error("Error subscriber execution failed:", subscriberError);
       }
     }
   }
@@ -391,16 +404,18 @@ export class ErrorHandler implements IErrorHandler {
    * Calculate delay time
    */
   private calculateDelay(attempt: number): number {
-    let delay = this.retryConfig.baseDelay * Math.pow(this.retryConfig.exponentialBase, attempt);
-    
+    let delay =
+      this.retryConfig.baseDelay *
+      Math.pow(this.retryConfig.exponentialBase, attempt);
+
     // Limit maximum delay
     delay = Math.min(delay, this.retryConfig.maxDelay);
-    
+
     // Add jitter
     if (this.retryConfig.jitter) {
       delay += Math.random() * 1000;
     }
-    
+
     return Math.floor(delay);
   }
 
@@ -408,7 +423,7 @@ export class ErrorHandler implements IErrorHandler {
    * Sleep function
    */
   private sleep(ms: number): Promise<void> {
-    return new Promise(resolve => setTimeout(resolve, ms));
+    return new Promise((resolve) => setTimeout(resolve, ms));
   }
 
   /**
@@ -418,7 +433,7 @@ export class ErrorHandler implements IErrorHandler {
     let hash = 0;
     for (let i = 0; i < str.length; i++) {
       const char = str.charCodeAt(i);
-      hash = ((hash << 5) - hash) + char;
+      hash = (hash << 5) - hash + char;
       hash = hash & hash; // Convert to 32-bit integer
     }
     return Math.abs(hash).toString(36);
@@ -428,17 +443,20 @@ export class ErrorHandler implements IErrorHandler {
    * Set up global error handlers
    */
   private setupGlobalErrorHandlers(): void {
-    if (typeof window !== 'undefined') {
+    if (typeof window !== "undefined") {
       // Handle uncaught errors
-      window.addEventListener('error', (event) => {
+      window.addEventListener("error", (event) => {
         const error = event.error || new Error(event.message);
-        this.handleError(error, 'global_error');
+        this.handleError(error, "global_error");
       });
 
       // Handle unhandled Promise rejections
-      window.addEventListener('unhandledrejection', (event) => {
-        const error = event.reason instanceof Error ? event.reason : new Error(String(event.reason));
-        this.handleError(error, 'unhandled_rejection');
+      window.addEventListener("unhandledrejection", (event) => {
+        const error =
+          event.reason instanceof Error
+            ? event.reason
+            : new Error(String(event.reason));
+        this.handleError(error, "unhandled_rejection");
       });
     }
   }

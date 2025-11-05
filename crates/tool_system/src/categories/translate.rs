@@ -2,7 +2,10 @@
 //!
 //! A non-strict category for translation between Chinese and English
 
-use crate::{registry::macros::auto_register_category, types::{Category, CategoryId, CategoryMetadata}};
+use crate::{
+    registry::macros::auto_register_category,
+    types::{Category, CategoryId, CategoryMetadata},
+};
 
 /// Translate category for Chinese-English translation
 #[derive(Debug)]

@@ -27,40 +27,43 @@ export class FileOperationsService {
   static async saveFile(options: SaveFileOptions): Promise<SaveFileResult> {
     try {
       const { content, filters, defaultPath } = options;
-      
+
       // Dynamic imports to avoid bundling if not needed
       const { save } = await import("@tauri-apps/plugin-dialog");
-      const { writeFile, writeTextFile } = await import("@tauri-apps/plugin-fs");
-      
+      const { writeFile, writeTextFile } = await import(
+        "@tauri-apps/plugin-fs"
+      );
+
       // Show save dialog
       const filePath = await save({
         filters,
         defaultPath,
       });
-      
+
       if (!filePath) {
         throw new Error("User cancelled save operation");
       }
-      
+
       // Write file based on content type
-      if (typeof content === 'string') {
+      if (typeof content === "string") {
         await writeTextFile(filePath, content);
       } else {
         await writeFile(filePath, content);
       }
-      
+
       // Extract filename from path
       const filename = filePath.split(/[/\\]/).pop() || defaultPath;
-      
+
       return {
         filename,
-        success: true
+        success: true,
       };
     } catch (error) {
       return {
-        filename: '',
+        filename: "",
         success: false,
-        error: error instanceof Error ? error.message : 'Unknown error occurred'
+        error:
+          error instanceof Error ? error.message : "Unknown error occurred",
       };
     }
   }
@@ -71,7 +74,7 @@ export class FileOperationsService {
   static async saveTextFile(
     content: string,
     filters: FileFilter[],
-    defaultPath: string
+    defaultPath: string,
   ): Promise<SaveFileResult> {
     return this.saveFile({ content, filters, defaultPath });
   }
@@ -82,7 +85,7 @@ export class FileOperationsService {
   static async saveBinaryFile(
     content: Uint8Array,
     filters: FileFilter[],
-    defaultPath: string
+    defaultPath: string,
   ): Promise<SaveFileResult> {
     return this.saveFile({ content, filters, defaultPath });
   }
@@ -101,16 +104,25 @@ export class FileOperationsService {
   /**
    * Generate timestamped filename
    */
-  static generateTimestampedFilename(prefix: string, extension: string): string {
-    const timestamp = new Date().toISOString().slice(0, 19).replace(/:/g, '-');
+  static generateTimestampedFilename(
+    prefix: string,
+    extension: string,
+  ): string {
+    const timestamp = new Date().toISOString().slice(0, 19).replace(/:/g, "-");
     return `${prefix}-${timestamp}.${extension}`;
   }
 
   /**
    * Generate filename for chat exports
    */
-  static generateChatExportFilename(chatId: string, format: 'md' | 'pdf'): string {
+  static generateChatExportFilename(
+    chatId: string,
+    format: "md" | "pdf",
+  ): string {
     const shortId = chatId.slice(0, 8);
-    return this.generateTimestampedFilename(`chat-favorites-${shortId}`, format);
+    return this.generateTimestampedFilename(
+      `chat-favorites-${shortId}`,
+      format,
+    );
   }
 }

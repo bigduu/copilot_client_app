@@ -1,7 +1,8 @@
 use crate::{
     registry::macros::auto_register_tool,
     types::{
-        DisplayPreference, Parameter, Tool, ToolArguments, ToolDefinition, ToolError, ToolType, ToolPermission,
+        DisplayPreference, Parameter, Tool, ToolArguments, ToolDefinition, ToolError,
+        ToolPermission, ToolType,
     },
 };
 use async_trait::async_trait;
@@ -67,7 +68,11 @@ Command:"#.to_string()),
                 .and_then(|v| v.as_str())
                 .ok_or_else(|| ToolError::InvalidArguments("Missing command".to_string()))?
                 .to_string(),
-            _ => return Err(ToolError::InvalidArguments("Expected a single string command or a JSON object with a command".to_string())),
+            _ => {
+                return Err(ToolError::InvalidArguments(
+                    "Expected a single string command or a JSON object with a command".to_string(),
+                ))
+            }
         };
 
         // Execute the command

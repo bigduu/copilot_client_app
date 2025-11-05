@@ -31,10 +31,12 @@ export const ModalFooter: React.FC<ModalFooterProps> = ({
     className,
     style: {
       width: "100%",
-      justifyContent: 
-        align === "left" ? "flex-start" : 
-        align === "center" ? "center" : 
-        "flex-end",
+      justifyContent:
+        align === "left"
+          ? "flex-start"
+          : align === "center"
+            ? "center"
+            : "flex-end",
       ...style,
     },
   };
@@ -60,7 +62,9 @@ export const ModalFooter: React.FC<ModalFooterProps> = ({
 };
 
 // Predefined common button configurations
-export const createCancelButton = (onCancel: () => void): ModalFooterButton => ({
+export const createCancelButton = (
+  onCancel: () => void,
+): ModalFooterButton => ({
   key: "cancel",
   text: "Cancel",
   type: "default",
@@ -73,7 +77,7 @@ export const createOkButton = (
     text?: string;
     disabled?: boolean;
     loading?: boolean;
-  }
+  },
 ): ModalFooterButton => ({
   key: "ok",
   text: options?.text || "OK",
@@ -89,7 +93,7 @@ export const createApplyButton = (
     text?: string;
     disabled?: boolean;
     loading?: boolean;
-  }
+  },
 ): ModalFooterButton => ({
   key: "apply",
   text: options?.text || "Apply",
@@ -104,7 +108,7 @@ export const createSaveButton = (
   options?: {
     disabled?: boolean;
     loading?: boolean;
-  }
+  },
 ): ModalFooterButton => ({
   key: "save",
   text: "Save",
@@ -120,7 +124,7 @@ export const createDeleteButton = (
     text?: string;
     disabled?: boolean;
     loading?: boolean;
-  }
+  },
 ): ModalFooterButton => ({
   key: "delete",
   text: options?.text || "Delete",

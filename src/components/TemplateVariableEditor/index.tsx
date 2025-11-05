@@ -13,7 +13,12 @@ import {
   Divider,
   Tag,
 } from "antd";
-import { PlusOutlined, DeleteOutlined, ReloadOutlined, SaveOutlined } from "@ant-design/icons";
+import {
+  PlusOutlined,
+  DeleteOutlined,
+  ReloadOutlined,
+  SaveOutlined,
+} from "@ant-design/icons";
 import { TemplateVariableService } from "../../services/TemplateVariableService";
 
 const { Text, Paragraph } = Typography;
@@ -29,7 +34,10 @@ interface VariableRecord {
   value: string;
 }
 
-const DEFAULT_VARIABLES: Record<string, { description: string; defaultValue: string }> = {
+const DEFAULT_VARIABLES: Record<
+  string,
+  { description: string; defaultValue: string }
+> = {
   preferred_language: {
     description: "Preferred communication language",
     defaultValue: "English",
@@ -169,10 +177,12 @@ const TemplateVariableEditor: React.FC<TemplateVariableEditorProps> = ({
     }
   };
 
-  const dataSource: VariableRecord[] = Object.entries(variables).map(([key, value]) => ({
-    key,
-    value,
-  }));
+  const dataSource: VariableRecord[] = Object.entries(variables).map(
+    ([key, value]) => ({
+      key,
+      value,
+    }),
+  );
 
   const columns = [
     {
@@ -220,7 +230,9 @@ const TemplateVariableEditor: React.FC<TemplateVariableEditorProps> = ({
                 onChange={(e) => {
                   setVariables({ ...variables, [record.key]: e.target.value });
                 }}
-                onPressEnter={() => handleSave(record.key, variables[record.key])}
+                onPressEnter={() =>
+                  handleSave(record.key, variables[record.key])
+                }
                 style={{ width: 300 }}
               />
               <Button
@@ -324,11 +336,18 @@ const TemplateVariableEditor: React.FC<TemplateVariableEditorProps> = ({
         </Button>,
       ]}
     >
-      <Space direction="vertical" size={token.marginMD} style={{ width: "100%" }}>
+      <Space
+        direction="vertical"
+        size={token.marginMD}
+        style={{ width: "100%" }}
+      >
         <Card size="small" style={{ backgroundColor: token.colorInfoBg }}>
           <Paragraph style={{ margin: 0 }}>
-            <Text strong>Template Variables Usage:</Text> Use <Text code>{`{{variable_name}}`}</Text> or <Text code>{`{variable_name}`}</Text> in your system prompts.
-            Variables will be automatically replaced when the prompt is enhanced.
+            <Text strong>Template Variables Usage:</Text> Use{" "}
+            <Text code>{`{{variable_name}}`}</Text> or{" "}
+            <Text code>{`{variable_name}`}</Text> in your system prompts.
+            Variables will be automatically replaced when the prompt is
+            enhanced.
           </Paragraph>
         </Card>
 
@@ -336,15 +355,16 @@ const TemplateVariableEditor: React.FC<TemplateVariableEditorProps> = ({
         {Object.entries(DEFAULT_VARIABLES).map(([key, info]) => {
           if (!(key in variables)) {
             return (
-              <Card key={key} size="small" style={{ backgroundColor: token.colorWarningBg }}>
+              <Card
+                key={key}
+                size="small"
+                style={{ backgroundColor: token.colorWarningBg }}
+              >
                 <Space>
                   <Text code>{key}</Text>
                   <Text type="secondary">{info.description}</Text>
                   <Tag color="orange">Not initialized</Tag>
-                  <Button
-                    size="small"
-                    onClick={() => handleInitDefault(key)}
-                  >
+                  <Button size="small" onClick={() => handleInitDefault(key)}>
                     Initialize with default: {info.defaultValue}
                   </Button>
                 </Space>
@@ -356,13 +376,20 @@ const TemplateVariableEditor: React.FC<TemplateVariableEditorProps> = ({
 
         {/* Add new variable */}
         {isAdding && (
-          <Card size="small" style={{ backgroundColor: token.colorBgContainer }}>
+          <Card
+            size="small"
+            style={{ backgroundColor: token.colorBgContainer }}
+          >
             <Form form={form} layout="inline" onFinish={handleAdd}>
               <Form.Item
                 name="key"
                 rules={[
                   { required: true, message: "Key is required" },
-                  { pattern: /^[a-zA-Z_][a-zA-Z0-9_]*$/, message: "Invalid key format (use alphanumeric and underscore)" },
+                  {
+                    pattern: /^[a-zA-Z_][a-zA-Z0-9_]*$/,
+                    message:
+                      "Invalid key format (use alphanumeric and underscore)",
+                  },
                 ]}
               >
                 <Input placeholder="Variable key" style={{ width: 200 }} />
@@ -377,7 +404,10 @@ const TemplateVariableEditor: React.FC<TemplateVariableEditorProps> = ({
                 <Button type="primary" htmlType="submit">
                   Add
                 </Button>
-                <Button onClick={() => setIsAdding(false)} style={{ marginLeft: 8 }}>
+                <Button
+                  onClick={() => setIsAdding(false)}
+                  style={{ marginLeft: 8 }}
+                >
                   Cancel
                 </Button>
               </Form.Item>
@@ -413,4 +443,3 @@ const TemplateVariableEditor: React.FC<TemplateVariableEditorProps> = ({
 };
 
 export default TemplateVariableEditor;
-

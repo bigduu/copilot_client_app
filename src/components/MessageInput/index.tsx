@@ -1,5 +1,11 @@
-import React, { useRef, useEffect } from "react";
-import { Button, Space, theme, message, Typography } from "antd";
+import React, {
+  useRef,
+  useEffect,
+  useMemo,
+  useCallback,
+  useState,
+} from "react";
+import { Button, Space, theme, message, Typography, Spin } from "antd";
 import {
   SendOutlined,
   SyncOutlined,
@@ -14,24 +20,45 @@ import ImagePreviewModal from "../ImagePreviewModal";
 import { useImageHandler } from "../../hooks/useImageHandler";
 import { useDragAndDrop } from "../../hooks/useDragAndDrop";
 import { usePasteHandler } from "../../hooks/usePasteHandler";
+import {
+  getInputHighlightSegments,
+  getWorkflowCommandInfo,
+  getFileReferenceInfo,
+  WorkflowCommandInfo,
+  FileReferenceInfo,
+} from "../../utils/inputHighlight";
+import {
+  processFiles,
+  separateImageFiles,
+  ProcessedFile,
+} from "../../utils/fileUtils";
+import { useDebouncedValue } from "../../hooks/useDebouncedValue";
 
 import { Input } from "antd";
+import type { TextAreaRef } from "antd/es/input/TextArea";
 
 const { TextArea } = Input;
 // ToolService import removed - no longer needed for tool validation
+
+export interface MessageInputInteractionControls {
+  isStreaming: boolean;
+  hasMessages: boolean;
+  allowRetry?: boolean;
+  onRetry?: () => void;
+  onCancel?: () => void;
+  onHistoryNavigate?: (
+    direction: "previous" | "next",
+    currentValue: string,
+  ) => string | null;
+}
 
 interface MessageInputProps {
   value: string;
   onChange: (value: string) => void;
   onSubmit: (content: string, images?: ImageFile[]) => void;
-  onRetry?: () => void;
-  onCancel?: () => void;
-  isStreaming: boolean;
-  isCenteredLayout?: boolean;
   placeholder?: string;
   disabled?: boolean;
-  showRetryButton?: boolean;
-  hasMessages?: boolean;
+  interaction: MessageInputInteractionControls;
   images?: ImageFile[];
   onImagesChange?: (images: ImageFile[]) => void;
   allowImages?: boolean;
@@ -40,29 +67,46 @@ interface MessageInputProps {
     isValid: boolean;
     errorMessage?: string;
   };
+  onAttachmentsAdded?: (files: ProcessedFile[]) => void;
+  onWorkflowCommandChange?: (info: WorkflowCommandInfo) => void;
+  onFileReferenceChange?: (info: FileReferenceInfo) => void;
+  maxCharCount?: number;
 }
 
 export const MessageInput: React.FC<MessageInputProps> = ({
   value,
   onChange,
   onSubmit,
-  onRetry,
-  onCancel,
-  isStreaming,
-  // isCenteredLayout = false,
+  interaction,
   placeholder = "Send a message...",
   disabled = false,
-  showRetryButton = true,
-  hasMessages = false,
   images: propImages,
   onImagesChange,
   allowImages = true,
   isWorkflowSelectorVisible = false,
   validateMessage,
+  onAttachmentsAdded,
+  onWorkflowCommandChange,
+  onFileReferenceChange,
+  maxCharCount = 8000,
 }) => {
+  const {
+    isStreaming,
+    hasMessages,
+    allowRetry = true,
+    onRetry,
+    onCancel,
+    onHistoryNavigate,
+  } = interaction;
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const textAreaRef = useRef<TextAreaRef>(null);
+  const highlightOverlayRef = useRef<HTMLDivElement>(null);
   const { token } = theme.useToken();
   const [messageApi, contextHolder] = message.useMessage();
+  const [isProcessingAttachments, setIsProcessingAttachments] = useState(false);
+  const charCount = value.length;
+  const isOverCharLimit = charCount > maxCharCount;
+  const isNearCharLimit = !isOverCharLimit && charCount >= maxCharCount * 0.9;
 
   const {
     images,
@@ -76,13 +120,77 @@ export const MessageInput: React.FC<MessageInputProps> = ({
     clearImages,
   } = useImageHandler(allowImages);
 
+  const handleDroppedFiles = useCallback(
+    async (files: File[]) => {
+      if (!files || files.length === 0) return;
+      const { images: imageFiles, others } = separateImageFiles(files);
+      if (imageFiles.length > 0) {
+        await handleImageFiles(imageFiles);
+      }
+      if (others.length > 0 && onAttachmentsAdded) {
+        setIsProcessingAttachments(true);
+        const { processed, errors } = await processFiles(others);
+        if (processed.length > 0) {
+          onAttachmentsAdded(processed);
+          messageApi.success(`Added ${processed.length} file(s)`);
+        }
+        errors.forEach((err) => messageApi.error(err));
+        setIsProcessingAttachments(false);
+      }
+    },
+    [handleImageFiles, messageApi, onAttachmentsAdded],
+  );
+
   const { isDragOver, handleDragOver, handleDragLeave, handleDrop } =
-    useDragAndDrop({ onFiles: handleImageFiles, allowImages });
+    useDragAndDrop({ onFiles: handleDroppedFiles, mode: "any" });
 
   const { handlePaste } = usePasteHandler({
-    onFiles: handleImageFiles,
+    onImages: handleImageFiles,
+    onAttachments: onAttachmentsAdded
+      ? async (files) => {
+          setIsProcessingAttachments(true);
+          const { processed, errors } = await processFiles(files);
+          if (processed.length > 0) {
+            onAttachmentsAdded(processed);
+            messageApi.success(`Attached ${processed.length} file(s)`);
+          }
+          errors.forEach((err) => messageApi.error(err));
+          setIsProcessingAttachments(false);
+        }
+      : undefined,
     allowImages,
   });
+
+  const debouncedValue = useDebouncedValue(value, 80);
+
+  const highlightSegments = useMemo(
+    () => getInputHighlightSegments(debouncedValue),
+    [debouncedValue],
+  );
+
+  const syncOverlayScroll = () => {
+    const textArea = textAreaRef.current?.resizableTextArea?.textArea;
+    if (!textArea || !highlightOverlayRef.current) return;
+    const scrollTop = textArea.scrollTop;
+    const scrollLeft = textArea.scrollLeft;
+    highlightOverlayRef.current.style.transform = `translate(${-scrollLeft}px, ${-scrollTop}px)`;
+  };
+
+  useEffect(() => {
+    syncOverlayScroll();
+  }, [value]);
+
+  useEffect(() => {
+    if (onWorkflowCommandChange) {
+      onWorkflowCommandChange(getWorkflowCommandInfo(debouncedValue));
+    }
+  }, [debouncedValue, onWorkflowCommandChange]);
+
+  useEffect(() => {
+    if (onFileReferenceChange) {
+      onFileReferenceChange(getFileReferenceInfo(debouncedValue));
+    }
+  }, [debouncedValue, onFileReferenceChange]);
 
   useEffect(() => {
     if (onImagesChange) {
@@ -101,6 +209,30 @@ export const MessageInput: React.FC<MessageInputProps> = ({
 
   const handleKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (
+      onHistoryNavigate &&
+      !disabled &&
+      !isStreaming &&
+      !event.shiftKey &&
+      (event.key === "ArrowUp" || event.key === "ArrowDown")
+    ) {
+      const direction = event.key === "ArrowUp" ? "previous" : "next";
+      const historyValue = onHistoryNavigate(direction, value);
+      if (historyValue !== null && historyValue !== undefined) {
+        event.preventDefault();
+        onChange(historyValue);
+        requestAnimationFrame(() => {
+          const textArea =
+            textAreaRef.current?.resizableTextArea?.textArea || null;
+          if (textArea) {
+            const caret = historyValue.length;
+            textArea.setSelectionRange(caret, caret);
+          }
+        });
+        return;
+      }
+    }
+
+    if (
       event.key === "Enter" &&
       !event.shiftKey &&
       !isStreaming &&
@@ -117,6 +249,13 @@ export const MessageInput: React.FC<MessageInputProps> = ({
     if ((!trimmedContent && images.length === 0) || isStreaming || disabled)
       return;
 
+    if (isOverCharLimit) {
+      messageApi.error(
+        `Message exceeds the maximum length of ${maxCharCount.toLocaleString()} characters.`,
+      );
+      return;
+    }
+
     // If validation function is provided, validate first
     if (validateMessage) {
       const validation = validateMessage(trimmedContent);
@@ -124,7 +263,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
       if (!validation.isValid) {
         // Show error message
         messageApi.error(
-          validation.errorMessage || "Message format is incorrect"
+          validation.errorMessage || "Message format is incorrect",
         );
         return;
       }
@@ -322,28 +461,92 @@ export const MessageInput: React.FC<MessageInputProps> = ({
           </div>
 
           {/* Text input */}
-          <TextArea
-            value={value}
-            onChange={(e) => onChange(e.target.value)}
-            onKeyDown={handleKeyDown}
-            onPaste={handlePaste}
-            placeholder={placeholder}
-            disabled={disabled}
-            autoSize={{ minRows: 2, maxRows: 6 }}
-            variant="borderless"
+          <div
             style={{
-              resize: "none",
+              position: "relative",
               flex: 1,
-              fontSize: token.fontSize,
-              padding: "8px 0",
-              minHeight: "100%",
-              height: "100%",
-              lineHeight: "1.5",
-              border: "none",
-              outline: "none",
-              // Keep clean appearance - visual feedback removed for better UX
             }}
-          />
+          >
+            <div
+              ref={highlightOverlayRef}
+              aria-hidden
+              style={{
+                position: "absolute",
+                top: 0,
+                left: 0,
+                right: 0,
+                bottom: 0,
+                padding: "8px 0",
+                whiteSpace: "pre-wrap",
+                wordBreak: "break-word",
+                pointerEvents: "none",
+                color: token.colorText,
+                fontSize: token.fontSize,
+                lineHeight: 1.5,
+                transform: "translate(0, 0)",
+              }}
+            >
+              {value ? (
+                highlightSegments.map((segment, index) => {
+                  let style: React.CSSProperties | undefined;
+                  if (segment.type === "workflow") {
+                    style = {
+                      backgroundColor: token.colorPrimaryBg,
+                      color: token.colorPrimary,
+                      fontWeight: 500,
+                      borderRadius: token.borderRadiusSM,
+                      padding: "0 2px",
+                    };
+                  } else if (segment.type === "file") {
+                    style = {
+                      backgroundColor: token.colorSuccessBg,
+                      color: token.colorSuccess,
+                      borderRadius: token.borderRadiusSM,
+                      padding: "0 2px",
+                    };
+                  }
+                  return (
+                    <span key={`segment-${index}`} style={style}>
+                      {segment.text}
+                    </span>
+                  );
+                })
+              ) : (
+                <span style={{ color: token.colorTextQuaternary }}>
+                  {placeholder}
+                </span>
+              )}
+              {value.endsWith("\n") ? "\n" : null}
+            </div>
+            <TextArea
+              ref={textAreaRef}
+              value={value}
+              onChange={(e) => onChange(e.target.value)}
+              onKeyDown={handleKeyDown}
+              onPaste={handlePaste}
+              placeholder={placeholder}
+              disabled={disabled}
+              autoSize={{ minRows: 2, maxRows: 6 }}
+              variant="borderless"
+              onScroll={syncOverlayScroll}
+              style={{
+                resize: "none",
+                flex: 1,
+                fontSize: token.fontSize,
+                padding: "8px 0",
+                minHeight: "100%",
+                height: "100%",
+                lineHeight: "1.5",
+                border: "none",
+                outline: "none",
+                background: "transparent",
+                color: "transparent",
+                caretColor: token.colorText,
+                position: "relative",
+                zIndex: 1,
+              }}
+            />
+          </div>
 
           {/* Right side buttons */}
           <div
@@ -354,7 +557,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
               gap: token.marginXS,
             }}
           >
-            {showRetryButton && hasMessages && (
+            {allowRetry && hasMessages && (
               <Button
                 type="text"
                 icon={<SyncOutlined spin={isStreaming} />}
@@ -380,7 +583,9 @@ export const MessageInput: React.FC<MessageInputProps> = ({
               disabled={
                 isStreaming
                   ? !onCancel || disabled
-                  : (!value.trim() && images.length === 0) || disabled
+                  : (!value.trim() && images.length === 0) ||
+                    disabled ||
+                    isOverCharLimit
               }
               size="small"
               danger={isStreaming}
@@ -396,6 +601,26 @@ export const MessageInput: React.FC<MessageInputProps> = ({
         </div>
       </div>
 
+      <div
+        style={{
+          marginTop: token.marginXXS,
+          textAlign: "right",
+        }}
+      >
+        <Text
+          type={
+            isOverCharLimit
+              ? "danger"
+              : isNearCharLimit
+                ? "warning"
+                : "secondary"
+          }
+          style={{ fontSize: token.fontSizeSM }}
+        >
+          {charCount.toLocaleString()} / {maxCharCount.toLocaleString()}
+        </Text>
+      </div>
+
       {/* Image Preview Modal */}
       {allowImages && (
         <ImagePreviewModal
@@ -404,6 +629,15 @@ export const MessageInput: React.FC<MessageInputProps> = ({
           currentIndex={previewImageIndex}
           onClose={() => setPreviewModalVisible(false)}
         />
+      )}
+
+      {isProcessingAttachments && (
+        <div style={{ marginTop: token.marginXS }}>
+          <Spin size="small" />
+          <Text type="secondary" style={{ marginLeft: token.marginXS }}>
+            Processing files…
+          </Text>
+        </div>
       )}
     </>
   );

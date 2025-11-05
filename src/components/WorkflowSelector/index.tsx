@@ -1,6 +1,9 @@
 import React, { useEffect, useState, useRef } from "react";
 import { theme } from "antd";
-import { WorkflowDefinition, WorkflowService } from "../../services/WorkflowService";
+import {
+  WorkflowDefinition,
+  WorkflowService,
+} from "../../services/WorkflowService";
 
 const { useToken } = theme;
 
@@ -22,7 +25,9 @@ const WorkflowSelector: React.FC<WorkflowSelectorProps> = ({
   categoryFilter,
 }) => {
   const [workflows, setWorkflows] = useState<WorkflowDefinition[]>([]);
-  const [filteredWorkflows, setFilteredWorkflows] = useState<WorkflowDefinition[]>([]);
+  const [filteredWorkflows, setFilteredWorkflows] = useState<
+    WorkflowDefinition[]
+  >([]);
   const [selectedIndex, setSelectedIndex] = useState(0);
   const { token } = useToken();
   const containerRef = useRef<HTMLDivElement>(null);
@@ -32,11 +37,15 @@ const WorkflowSelector: React.FC<WorkflowSelectorProps> = ({
   useEffect(() => {
     if (visible) {
       const workflowService = WorkflowService.getInstance();
-      
+
       const fetchWorkflows = async () => {
         try {
-          const fetchedWorkflows = await workflowService.getAvailableWorkflows();
-          console.log("[WorkflowSelector] Fetched workflows:", fetchedWorkflows);
+          const fetchedWorkflows =
+            await workflowService.getAvailableWorkflows();
+          console.log(
+            "[WorkflowSelector] Fetched workflows:",
+            fetchedWorkflows,
+          );
           setWorkflows(fetchedWorkflows);
           setSelectedIndex(0);
         } catch (error) {
@@ -54,12 +63,14 @@ const WorkflowSelector: React.FC<WorkflowSelectorProps> = ({
     let filtered = workflows.filter(
       (workflow) =>
         workflow.name.toLowerCase().includes(searchText.toLowerCase()) ||
-        workflow.description.toLowerCase().includes(searchText.toLowerCase())
+        workflow.description.toLowerCase().includes(searchText.toLowerCase()),
     );
 
     // Apply category filter if specified
     if (categoryFilter) {
-      filtered = filtered.filter((workflow) => workflow.category === categoryFilter);
+      filtered = filtered.filter(
+        (workflow) => workflow.category === categoryFilter,
+      );
     }
 
     setFilteredWorkflows(filtered);
@@ -98,7 +109,7 @@ const WorkflowSelector: React.FC<WorkflowSelectorProps> = ({
           event.preventDefault();
           event.stopPropagation();
           setSelectedIndex((prev) =>
-            prev < filteredWorkflows.length - 1 ? prev + 1 : 0
+            prev < filteredWorkflows.length - 1 ? prev + 1 : 0,
           );
           break;
         case "ArrowUp":
@@ -107,7 +118,7 @@ const WorkflowSelector: React.FC<WorkflowSelectorProps> = ({
           event.preventDefault();
           event.stopPropagation();
           setSelectedIndex((prev) =>
-            prev > 0 ? prev - 1 : filteredWorkflows.length - 1
+            prev > 0 ? prev - 1 : filteredWorkflows.length - 1,
           );
           break;
         case "Enter":
@@ -287,5 +298,3 @@ const WorkflowSelector: React.FC<WorkflowSelectorProps> = ({
 };
 
 export default WorkflowSelector;
-
-

@@ -8,7 +8,9 @@ export class HttpToolService implements ToolService {
   async getAvailableTools(): Promise<any[]> {
     // This method is kept for interface compatibility but returns empty array
     // Tools are no longer exposed to frontend - they're used by LLM via backend
-    console.warn("getAvailableTools() called but tools are no longer available to frontend");
+    console.warn(
+      "getAvailableTools() called but tools are no longer available to frontend",
+    );
     return [];
   }
 
@@ -59,7 +61,7 @@ export class HttpToolService implements ToolService {
       if (!response.ok) {
         const errorText = await response.text();
         throw new Error(
-          `HTTP error! status: ${response.status}, body: ${errorText}`
+          `HTTP error! status: ${response.status}, body: ${errorText}`,
         );
       }
 
@@ -90,7 +92,7 @@ export class HttpToolService implements ToolService {
   async getCategoryTools(categoryId: string): Promise<any[]> {
     try {
       const response = await fetch(
-        `${API_BASE_URL}/tools/category/${categoryId}/tools`
+        `${API_BASE_URL}/tools/category/${categoryId}/tools`,
       );
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
@@ -105,7 +107,7 @@ export class HttpToolService implements ToolService {
   async getToolCategoryInfo(categoryId: string): Promise<any> {
     try {
       const response = await fetch(
-        `${API_BASE_URL}/tools/category/${categoryId}/info`
+        `${API_BASE_URL}/tools/category/${categoryId}/info`,
       );
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
@@ -120,7 +122,7 @@ export class HttpToolService implements ToolService {
   async getCategorySystemPrompt(categoryId: string): Promise<string> {
     try {
       const response = await fetch(
-        `${API_BASE_URL}/tools/category/${categoryId}/system_prompt`
+        `${API_BASE_URL}/tools/category/${categoryId}/system_prompt`,
       );
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
@@ -131,7 +133,7 @@ export class HttpToolService implements ToolService {
     } catch (error) {
       console.error(
         `Failed to fetch system prompt for category ${categoryId}:`,
-        error
+        error,
       );
       return "";
     }

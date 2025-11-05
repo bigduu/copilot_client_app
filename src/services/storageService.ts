@@ -3,7 +3,7 @@
  *
  * This service manages only UI-related preferences and settings.
  * All chat data, messages, and system prompts are managed by the backend Context Manager.
- * 
+ *
  * @see BackendContextService for chat data management
  */
 
@@ -17,7 +17,7 @@ export class StorageService {
   // =========================
   // UI Preferences
   // =========================
-  
+
   /**
    * Get the current theme preference (light/dark mode)
    */

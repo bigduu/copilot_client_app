@@ -19,7 +19,7 @@ import { SystemPromptService } from "../services";
  * This hook is the single source of truth for chat management in the UI.
  */
 export const useChatManager = () => {
-  const { modal } = AntApp.useApp();
+  const { modal, message: appMessage } = AntApp.useApp();
 
   // --- STATE SELECTION FROM ZUSTAND ---
   const chats = useAppStore((state) => state.chats);
@@ -35,37 +35,150 @@ export const useChatManager = () => {
   const pinChat = useAppStore((state) => state.pinChat);
   const unpinChat = useAppStore((state) => state.unpinChat);
   const loadChats = useAppStore((state) => state.loadChats);
+  const autoGenerateTitles = useAppStore((state) => state.autoGenerateTitles);
+  const setAutoGenerateTitlesPreference = useAppStore(
+    (state) => state.setAutoGenerateTitlesPreference,
+  );
+  const isUpdatingAutoTitlePreference = useAppStore(
+    (state) => state.isUpdatingAutoTitlePreference,
+  );
   const updateMessageContent = useAppStore(
-    (state) => state.updateMessageContent
+    (state) => state.updateMessageContent,
   );
   const lastSelectedPromptId = useAppStore(
-    (state) => state.lastSelectedPromptId
+    (state) => state.lastSelectedPromptId,
   );
   const systemPrompts = useAppStore((state) => state.systemPrompts);
 
   // --- DERIVED STATE ---
   const currentChat = useMemo(
     () => chats.find((chat) => chat.id === currentChatId) || null,
-    [chats, currentChatId]
+    [chats, currentChatId],
   );
   const baseMessages = useMemo(
     () => currentChat?.messages || [],
-    [currentChat]
+    [currentChat],
   );
   const pinnedChats = useMemo(
     () => chats.filter((chat) => chat.pinned),
-    [chats]
+    [chats],
   );
   const unpinnedChats = useMemo(
     () => chats.filter((chat) => !chat.pinned),
-    [chats]
+    [chats],
   );
   const chatCount = chats.length;
+
+  const autoTitleGeneratedRef = useRef<Set<string>>(new Set());
+  const titleGenerationInFlightRef = useRef<Set<string>>(new Set());
+  const [titleGenerationState, setTitleGenerationState] = useState<
+    Record<string, { status: "idle" | "loading" | "error"; error?: string }>
+  >({});
+
+  const isDefaultTitle = useCallback((title: string | undefined | null) => {
+    if (!title) return true;
+    const normalized = title.trim().toLowerCase();
+    if (normalized.length === 0) return true;
+    if (normalized === "new chat" || normalized === "main") return true;
+    return normalized.startsWith("new chat -");
+  }, []);
+
+  const generateChatTitle = useCallback(
+    async (chatId: string, options?: { force?: boolean }) => {
+      const state = useAppStore.getState();
+      const chat = state.chats.find((c) => c.id === chatId);
+      if (!chat) {
+        return;
+      }
+
+      const userAssistantMessages = chat.messages.filter((msg) => {
+        if (msg.role === "user") return true;
+        if (msg.role === "assistant" && "type" in msg) {
+          return (msg as AssistantTextMessage).type === "text";
+        }
+        return false;
+      });
+
+      const isAuto = !options?.force;
+      if (isAuto && !autoGenerateTitles) {
+        return;
+      }
+      const MAX_AUTO_MESSAGES = 6;
+
+      if (isAuto) {
+        if (titleGenerationInFlightRef.current.has(chatId)) {
+          return;
+        }
+        if (autoTitleGeneratedRef.current.has(chatId)) {
+          return;
+        }
+        if (!isDefaultTitle(chat.title)) {
+          return;
+        }
+        if (userAssistantMessages.length === 0) {
+          return;
+        }
+        if (userAssistantMessages.length > MAX_AUTO_MESSAGES) {
+          return;
+        }
+      }
+
+      titleGenerationInFlightRef.current.add(chatId);
+      setTitleGenerationState((prev) => ({
+        ...prev,
+        [chatId]: { status: "loading" },
+      }));
+
+      try {
+        const { BackendContextService } = await import(
+          "../services/BackendContextService"
+        );
+        const backendService = new BackendContextService();
+        const response = await backendService.generateTitle(chatId, {
+          maxLength: 60,
+          messageLimit: 6,
+        });
+        const candidate = response.title?.trim();
+        if (!candidate) {
+          throw new Error("生成的标题为空");
+        }
+
+        updateChat(chatId, { title: candidate });
+        if (!isAuto || candidate.toLowerCase() !== "new chat") {
+          autoTitleGeneratedRef.current.add(chatId);
+        }
+
+        setTitleGenerationState((prev) => ({
+          ...prev,
+          [chatId]: { status: "idle" },
+        }));
+
+        if (options?.force) {
+          appMessage?.success?.("聊天标题已更新");
+        }
+      } catch (error) {
+        const errorMessage =
+          error instanceof Error ? error.message : "生成标题失败";
+        setTitleGenerationState((prev) => ({
+          ...prev,
+          [chatId]: { status: "error", error: errorMessage },
+        }));
+        if (options?.force) {
+          appMessage?.error?.(errorMessage);
+        } else {
+          appMessage?.warning?.(errorMessage);
+        }
+      } finally {
+        titleGenerationInFlightRef.current.delete(chatId);
+      }
+    },
+    [appMessage, autoGenerateTitles, isDefaultTitle, updateChat],
+  );
 
   // --- LOCAL UI STATE FOR STREAMING ---
   const [streamingText, setStreamingText] = useState("");
   const [streamingMessageId, setStreamingMessageId] = useState<string | null>(
-    null
+    null,
   );
 
   // --- AGENT APPROVAL STATE ---
@@ -101,7 +214,7 @@ export const useChatManager = () => {
             await updateMessageContent(
               chatId,
               streamingMessageId,
-              event.payload.finalContent
+              event.payload.finalContent,
             );
             // Reset local streaming UI state
             setStreamingMessageId(null);
@@ -124,7 +237,7 @@ export const useChatManager = () => {
     }
     // Ensure the streaming message placeholder is part of the list
     const messageExists = baseMessages.some(
-      (msg) => msg.id === streamingMessageId
+      (msg) => msg.id === streamingMessageId,
     );
     const list = messageExists
       ? baseMessages
@@ -140,7 +253,7 @@ export const useChatManager = () => {
         ];
 
     return list.map((msg) =>
-      msg.id === streamingMessageId ? { ...msg, content: streamingText } : msg
+      msg.id === streamingMessageId ? { ...msg, content: streamingText } : msg,
     );
   }, [baseMessages, streamingMessageId, streamingText]);
 
@@ -167,8 +280,8 @@ export const useChatManager = () => {
 
     console.log(
       `[ChatManager] State changed from ${JSON.stringify(
-        prevState.value
-      )} to ${JSON.stringify(state.value)}`
+        prevState.value,
+      )} to ${JSON.stringify(state.value)}`,
     );
 
     // --- Handle entering THINKING state ---
@@ -207,7 +320,7 @@ export const useChatManager = () => {
       }
       console.log(
         "[ChatManager] sendMessage: currentChat.config on entry:",
-        currentChat.config
+        currentChat.config,
       );
       const chatId = currentChat.id;
 
@@ -242,7 +355,7 @@ export const useChatManager = () => {
       // ✅ All messages now go through backend action API
       // Backend will: save user message → run FSM → generate response → save response
       console.log(
-        `[ChatManager] Calling backend action API for chat ${chatId}`
+        `[ChatManager] Calling backend action API for chat ${chatId}`,
       );
 
       try {
@@ -283,7 +396,7 @@ export const useChatManager = () => {
             const currentChat = chats.find((c) => c.id === chatId);
             if (currentChat) {
               const updatedMessages = currentChat.messages.map((msg) =>
-                msg.id === assistantMessageId ? updatedAssistantMessage : msg
+                msg.id === assistantMessageId ? updatedAssistantMessage : msg,
               );
               setMessages(chatId, updatedMessages);
             }
@@ -326,7 +439,7 @@ export const useChatManager = () => {
                     // ✅ Handle tool messages (tool execution results)
                     return {
                       id: msg.id,
-                      role: "assistant",  // Display as assistant message
+                      role: "assistant", // Display as assistant message
                       type: "text",
                       content: `[Tool Result]\n${baseContent}`,
                       createdAt: new Date().toISOString(),
@@ -339,12 +452,13 @@ export const useChatManager = () => {
               // Update local state with backend messages
               setMessages(chatId, allMessages);
               console.log(
-                `[ChatManager] Updated local state with ${allMessages.length} messages from backend`
+                `[ChatManager] Updated local state with ${allMessages.length} messages from backend`,
               );
+              void generateChatTitle(chatId);
             } catch (error) {
               console.error(
                 "[ChatManager] Failed to fetch final messages:",
-                error
+                error,
               );
             }
           },
@@ -369,7 +483,7 @@ export const useChatManager = () => {
           }) => {
             console.log("🔒 [ChatManager] Agent approval required:", data);
             setPendingAgentApproval(data);
-          }
+          },
         );
       } catch (error) {
         console.error("[ChatManager] Backend streaming failed:", error);
@@ -387,7 +501,8 @@ export const useChatManager = () => {
       baseMessages,
       systemPrompts,
       setMessages,
-    ]
+      generateChatTitle,
+    ],
   );
 
   const retryLastMessage = useCallback(async () => {
@@ -424,7 +539,7 @@ export const useChatManager = () => {
   const createNewChat = useCallback(
     async (title?: string, options?: Partial<Omit<ChatItem, "id">>) => {
       const selectedPrompt = systemPrompts.find(
-        (p) => p.id === lastSelectedPromptId
+        (p) => p.id === lastSelectedPromptId,
       );
 
       // Use actual prompt ID or undefined (no hardcoded defaults)
@@ -433,14 +548,14 @@ export const useChatManager = () => {
         (systemPrompts.length > 0
           ? systemPrompts.find((p) => p.id === "general_assistant")?.id ||
             systemPrompts[0].id
-          : undefined);
+          : "");
 
       const newChatData: Omit<ChatItem, "id"> = {
         title: title || "New Chat",
         createdAt: Date.now(),
         messages: [],
         config: {
-          systemPromptId: systemPromptId,
+          systemPromptId,
           baseSystemPrompt:
             selectedPrompt?.content ||
             (systemPrompts.length > 0
@@ -455,18 +570,18 @@ export const useChatManager = () => {
       };
       await addChat(newChatData);
     },
-    [addChat, lastSelectedPromptId, systemPrompts]
+    [addChat, lastSelectedPromptId, systemPrompts],
   );
 
   const createChatWithSystemPrompt = useCallback(
     async (prompt: UserSystemPrompt) => {
       console.log(
         "[ChatManager] createChatWithSystemPrompt started with prompt:",
-        prompt
+        prompt,
       );
       const systemPromptService = SystemPromptService.getInstance();
       const enhancedPrompt = await systemPromptService.getEnhancedSystemPrompt(
-        prompt.id
+        prompt.id,
       );
 
       const newChatData: Omit<ChatItem, "id"> = {
@@ -490,11 +605,11 @@ export const useChatManager = () => {
       };
       console.log(
         "[ChatManager] Calling addChat with newChatData.config:",
-        newChatData.config
+        newChatData.config,
       );
       await addChat(newChatData);
     },
-    [addChat]
+    [addChat],
   );
 
   const toggleChatPin = useCallback(
@@ -504,14 +619,14 @@ export const useChatManager = () => {
         chat.pinned ? unpinChat(chatId) : pinChat(chatId);
       }
     },
-    [chats, pinChat, unpinChat]
+    [chats, pinChat, unpinChat],
   );
 
   const updateChatTitle = useCallback(
     (chatId: string, newTitle: string) => {
       updateChat(chatId, { title: newTitle });
     },
-    [updateChat]
+    [updateChat],
   );
 
   const deleteEmptyChats = useCallback(() => {
@@ -542,6 +657,9 @@ export const useChatManager = () => {
     interactionState: state,
     pendingAgentApproval,
     setPendingAgentApproval,
+    titleGenerationState,
+    autoGenerateTitles,
+    isUpdatingAutoTitlePreference,
 
     // Actions
     addMessage,
@@ -561,6 +679,8 @@ export const useChatManager = () => {
     deleteAllUnpinnedChats,
     sendMessage,
     retryLastMessage,
+    generateChatTitle,
+    setAutoGenerateTitlesPreference,
 
     // Machine sender
     send,

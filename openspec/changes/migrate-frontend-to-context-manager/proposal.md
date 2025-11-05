@@ -18,6 +18,7 @@ The frontend currently manages chat context logic including message history, sta
 **BREAKING**: This migration fundamentally changes how chat context is managed, replacing frontend-local storage with backend-managed contexts.
 
 ### Backend Changes
+
 - Extend Context Manager to support system prompt CRUD operations
 - Add storage provider support for system prompts in branches
 - Extend ChatConfig to include system prompt ID mapping
@@ -27,6 +28,7 @@ The frontend currently manages chat context logic including message history, sta
 - Implement adapter layer to convert between Context Manager structures and frontend-friendly DTOs
 
 ### Frontend Changes
+
 - Remove LocalStorage-based chat state management (chatSessionSlice, StateManager)
 - Replace with API client that interacts with backend Context Manager
 - Migrate system prompt management from LocalStorage to backend API
@@ -37,6 +39,7 @@ The frontend currently manages chat context logic including message history, sta
 - Update all components that directly manipulate chat state to use API calls instead
 
 ### Data Migration
+
 - ~~Provide migration script to convert existing LocalStorage chats to backend contexts~~ **DISABLED per user request**
 - ~~Map ChatItem structure to ChatContext structure~~ **DISABLED per user request**
 - ~~Handle system prompt references across the migration~~ **DISABLED per user request**
@@ -47,7 +50,7 @@ The frontend currently manages chat context logic including message history, sta
 ## Impact
 
 - **Affected specs**: New capabilities for `backend-context-management`, `frontend-ui-layer`, `data-migration`
-- **Affected code**: 
+- **Affected code**:
   - `crates/context_manager/` - Extend for system prompts and CRUD APIs
   - `crates/web_service/` - Add context management endpoints
   - `src/store/slices/` - Remove chatSessionSlice, simplify state

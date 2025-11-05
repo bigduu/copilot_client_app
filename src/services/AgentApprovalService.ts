@@ -2,7 +2,7 @@
  * Service for handling agent-initiated tool call approvals
  */
 
-import { HttpServices } from "./HttpServices";
+const API_BASE_URL = "http://127.0.0.1:8080/v1";
 
 export interface AgentApprovalRequest {
   request_id: string;
@@ -23,10 +23,35 @@ export interface PendingApprovalResponse {
 }
 
 export class AgentApprovalService {
-  private httpService: HttpServices;
+  private async request<T>(
+    endpoint: string,
+    options: RequestInit = {},
+  ): Promise<T> {
+    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+      ...options,
+    });
 
-  constructor() {
-    this.httpService = new HttpServices();
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(
+        `AgentApprovalService error: ${response.status} ${response.statusText} - ${errorText}`,
+      );
+    }
+
+    if (response.status === 204) {
+      return {} as T;
+    }
+
+    const contentType = response.headers.get("content-type") || "";
+    if (contentType.includes("application/json")) {
+      return (await response.json()) as T;
+    }
+
+    return {} as T;
   }
 
   /**
@@ -35,7 +60,7 @@ export class AgentApprovalService {
    * in the backend to return pending approval requests.
    */
   async checkPendingApproval(
-    sessionId: string
+    _sessionId: string,
   ): Promise<PendingApprovalResponse> {
     try {
       // TODO: Implement backend endpoint to check for pending approvals
@@ -62,18 +87,20 @@ export class AgentApprovalService {
     sessionId: string,
     requestId: string,
     approved: boolean,
-    reason?: string
+    reason?: string,
   ): Promise<AgentApprovalResponse> {
     try {
-      const response = await this.httpService.post<AgentApprovalResponse>(
-        `/v1/chat/${sessionId}/approve-agent`,
+      return await this.request<AgentApprovalResponse>(
+        `/chat/${sessionId}/approve-agent`,
         {
-          request_id: requestId,
-          approved,
-          reason,
-        }
+          method: "POST",
+          body: JSON.stringify({
+            request_id: requestId,
+            approved,
+            reason,
+          }),
+        },
       );
-      return response;
     } catch (error) {
       console.error("Failed to approve agent tool call:", error);
       throw error;

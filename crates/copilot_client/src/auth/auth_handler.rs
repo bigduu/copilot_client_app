@@ -2,6 +2,7 @@ use anyhow::anyhow;
 use lazy_static::lazy_static;
 use log::{error, info};
 use reqwest::Client;
+use serde::{Deserialize, Serialize};
 use std::{
     collections::HashMap,
     fs::{create_dir_all, read_to_string, File},
@@ -10,7 +11,6 @@ use std::{
     sync::Arc,
     time::Duration,
 };
-use serde::{Deserialize, Serialize};
 use tokio::sync::Mutex;
 use tokio::time::sleep;
 

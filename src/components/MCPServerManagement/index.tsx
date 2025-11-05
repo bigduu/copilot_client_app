@@ -32,7 +32,7 @@ export const MCPServerManagementComponent = () => {
         } catch {
           statusMap[name] = "Unknown";
         }
-      })
+      }),
     );
     setStatuses(statusMap);
   };
@@ -60,8 +60,8 @@ export const MCPServerManagementComponent = () => {
                   statuses[name] === "Running"
                     ? "green"
                     : statuses[name] === "Error"
-                    ? "red"
-                    : "default"
+                      ? "red"
+                      : "default"
                 }
               >
                 {statuses[name] || "Unknown"}

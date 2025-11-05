@@ -21,7 +21,7 @@ const SystemPromptManager = () => {
 
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [editingPrompt, setEditingPrompt] = useState<UserSystemPrompt | null>(
-    null
+    null,
   );
   const [form] = Form.useForm();
 
@@ -53,7 +53,7 @@ const SystemPromptManager = () => {
       message.error(
         error instanceof Error
           ? error.message
-          : "Failed to save prompt. Please try again."
+          : "Failed to save prompt. Please try again.",
       );
     }
   };
@@ -67,7 +67,7 @@ const SystemPromptManager = () => {
       message.error(
         error instanceof Error
           ? error.message
-          : "Failed to delete prompt. Please try again."
+          : "Failed to delete prompt. Please try again.",
       );
     }
   };

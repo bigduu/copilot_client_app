@@ -5,7 +5,7 @@ import React, {
   useCallback,
   useMemo,
 } from "react";
-import { Layout, Space, theme, Button, Grid, Flex, Modal } from "antd";
+import { Layout, theme, Button, Grid, Flex, Modal } from "antd";
 import { useChatController } from "../../contexts/ChatControllerContext";
 import SystemMessageCard from "../SystemMessageCard";
 import { DownOutlined } from "@ant-design/icons";
@@ -23,6 +23,8 @@ import {
   backendContextService,
 } from "../../services/BackendContextService";
 import { useAppStore } from "../../store";
+import { useVirtualizer } from "@tanstack/react-virtual";
+import { transformMessageDTOToMessage } from "../../utils/messageTransformers";
 
 const { Content } = Layout;
 const { useToken } = theme;
@@ -31,7 +33,6 @@ const { useBreakpoint } = Grid;
 export const ChatView: React.FC = () => {
   const {
     currentChatId,
-    currentChat,
     currentMessages,
     deleteMessage,
     updateChat,
@@ -72,7 +73,6 @@ export const ChatView: React.FC = () => {
     },
     [currentChatId, deleteMessage]
   );
-  const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesListRef = useRef<HTMLDivElement>(null);
   const { token } = useToken();
   const screens = useBreakpoint();
@@ -118,75 +118,12 @@ export const ChatView: React.FC = () => {
   }, [currentChatId, currentMessages, updateChat]);
 
   // Add event listener for message navigation
-  useEffect(() => {
-    const handleMessageNavigation = (e: CustomEvent) => {
-      const { messageId } = e.detail;
-      console.log("Navigation event received for messageId:", messageId);
-
-      if (!messageId) {
-        console.error("No messageId provided for navigation");
-        return;
-      }
-
-      const messageElement = document.getElementById(`message-${messageId}`);
-      if (messageElement) {
-        console.log("Found message element, scrolling to:", messageId);
-        messageElement.scrollIntoView({ behavior: "smooth", block: "center" });
-
-        messageElement.classList.add("highlight-message");
-        setTimeout(() => {
-          messageElement.classList.remove("highlight-message");
-        }, 2000);
-      } else {
-        console.warn("Message element not found for ID:", messageId);
-      }
-    };
-
-    window.addEventListener(
-      "navigate-to-message",
-      handleMessageNavigation as EventListener
-    );
-    return () => {
-      window.removeEventListener(
-        "navigate-to-message",
-        handleMessageNavigation as EventListener
-      );
-    };
-  }, [currentMessages]);
-
   // Track chat changes (SystemMessage no longer needs expand/collapse management)
   useEffect(() => {
     if (currentChatId !== lastChatIdRef.current) {
       lastChatIdRef.current = currentChatId;
     }
   }, [currentChatId]);
-
-  // Handler to show/hide scroll-to-bottom button
-  const handleMessagesScroll = () => {
-    const el = messagesListRef.current;
-    if (!el) return;
-    const threshold = 40;
-    const atBottom =
-      el.scrollHeight - el.scrollTop - el.clientHeight < threshold;
-    setShowScrollToBottom(!atBottom);
-  };
-
-  // Scroll to bottom function
-  const scrollToBottom = () => {
-    if (messagesEndRef.current) {
-      messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
-    }
-  };
-
-  useEffect(() => {
-    if (!showScrollToBottom) {
-      scrollToBottom();
-    }
-  }, [
-    currentMessages,
-    interactionState.context.streamingContent,
-    showScrollToBottom,
-  ]);
 
   const [loadedSystemPrompt, setLoadedSystemPrompt] = useState<{
     id: string;
@@ -234,9 +171,8 @@ export const ChatView: React.FC = () => {
 
       // Fetch system prompt content from backend API using the ID
       try {
-        const prompt = await backendContextService.getSystemPrompt(
-          systemPromptId
-        );
+        const prompt =
+          await backendContextService.getSystemPrompt(systemPromptId);
         if (prompt?.content) {
           setLoadedSystemPrompt({
             id: systemPromptId,
@@ -315,6 +251,184 @@ export const ChatView: React.FC = () => {
 
   const showMessagesView =
     currentChatId && (hasMessages || hasBackendMessages || hasSystemPrompt);
+
+  type RenderableEntry = {
+    message: Message;
+    messageType?: MessageDTO["message_type"];
+  };
+
+  const convertRenderableEntry = useCallback(
+    (
+      entry: RenderableEntry
+    ): {
+      message: Message;
+      align: "flex-start" | "flex-end";
+      messageType?: MessageDTO["message_type"];
+    } => {
+      const align = entry.message.role === "user" ? "flex-end" : "flex-start";
+
+      let resolvedType = entry.messageType;
+      if (
+        !resolvedType &&
+        entry.message.role === "assistant" &&
+        "type" in entry.message
+      ) {
+        const assistantType = (entry.message as any).type as string | undefined;
+        if (
+          assistantType === "text" ||
+          assistantType === "plan" ||
+          assistantType === "question" ||
+          assistantType === "tool_call" ||
+          assistantType === "tool_result"
+        ) {
+          resolvedType = assistantType;
+        }
+      }
+
+      return {
+        message: entry.message,
+        align,
+        messageType: resolvedType,
+      };
+    },
+    []
+  );
+
+  const renderableMessages = useMemo<RenderableEntry[]>(() => {
+    const source =
+      backendMessages.length > 0 ? backendMessages : currentMessages;
+
+    const filtered = source.filter((item) => {
+      const role = (item as Message).role ?? (item as MessageDTO).role;
+      return (
+        role === "user" ||
+        role === "assistant" ||
+        role === "system" ||
+        role === "tool"
+      );
+    });
+
+    const hasSystemMessage = filtered.some((item) => {
+      const role = (item as Message).role ?? (item as MessageDTO).role;
+      return role === "system";
+    });
+
+    const entries: RenderableEntry[] = filtered.map((item) => {
+      if ("message_type" in item && Array.isArray((item as any).content)) {
+        const dto = item as MessageDTO;
+        const transformed = transformMessageDTOToMessage(dto);
+        return {
+          message: transformed,
+          messageType: dto.message_type,
+        };
+      }
+
+      const message = item as Message;
+      let inferredType: MessageDTO["message_type"] | undefined;
+      if (message.role === "assistant" && "type" in message) {
+        const assistantType = (message as any).type as string | undefined;
+        if (
+          assistantType === "text" ||
+          assistantType === "plan" ||
+          assistantType === "question" ||
+          assistantType === "tool_call" ||
+          assistantType === "tool_result"
+        ) {
+          inferredType = assistantType;
+        }
+      }
+
+      return {
+        message,
+        messageType: inferredType,
+      };
+    });
+
+    if (hasSystemPrompt && systemPromptMessage && !hasSystemMessage) {
+      entries.unshift({ message: systemPromptMessage });
+    }
+
+    return entries;
+  }, [backendMessages, currentMessages, hasSystemPrompt, systemPromptMessage]);
+
+  const rowVirtualizer = useVirtualizer({
+    count: renderableMessages.length,
+    getScrollElement: () => messagesListRef.current,
+    estimateSize: () => 320,
+    overscan: 6,
+  });
+
+  const rowGap = token.marginMD;
+
+  useEffect(() => {
+    const handleMessageNavigation = (event: Event) => {
+      const customEvent = event as CustomEvent<{ messageId: string }>;
+      const messageId = customEvent.detail?.messageId;
+
+      if (!messageId) {
+        console.error("No messageId provided for navigation");
+        return;
+      }
+
+      const targetIndex = renderableMessages.findIndex(
+        (item) => item.message.id === messageId
+      );
+
+      if (targetIndex === -1) {
+        console.warn("Message not found for navigation:", messageId);
+        return;
+      }
+
+      rowVirtualizer.scrollToIndex(targetIndex, { align: "center" });
+
+      setTimeout(() => {
+        const messageElement = document.getElementById(`message-${messageId}`);
+        if (messageElement) {
+          messageElement.classList.add("highlight-message");
+          setTimeout(() => {
+            messageElement.classList.remove("highlight-message");
+          }, 2000);
+        }
+      }, 200);
+    };
+
+    window.addEventListener(
+      "navigate-to-message",
+      handleMessageNavigation as EventListener
+    );
+    return () => {
+      window.removeEventListener(
+        "navigate-to-message",
+        handleMessageNavigation as EventListener
+      );
+    };
+  }, [renderableMessages, rowVirtualizer]);
+
+  const handleMessagesScroll = useCallback(() => {
+    const el = messagesListRef.current;
+    if (!el) return;
+    const threshold = 40;
+    const atBottom =
+      el.scrollHeight - el.scrollTop - el.clientHeight < threshold;
+    setShowScrollToBottom(!atBottom);
+  }, []);
+
+  const scrollToBottom = useCallback(() => {
+    if (renderableMessages.length === 0) return;
+    rowVirtualizer.scrollToIndex(renderableMessages.length - 1, {
+      align: "end",
+    });
+  }, [renderableMessages.length, rowVirtualizer]);
+
+  useEffect(() => {
+    if (!showScrollToBottom) {
+      scrollToBottom();
+    }
+  }, [
+    showScrollToBottom,
+    scrollToBottom,
+    interactionState.context.streamingContent,
+  ]);
 
   // Calculate scroll to bottom button position
   const getScrollButtonPosition = () => {
@@ -437,147 +551,74 @@ export const ChatView: React.FC = () => {
           ref={messagesListRef}
           onScroll={handleMessagesScroll}
         >
-          {(showMessagesView || hasSystemPrompt) && (
-            <Space
-              direction="vertical"
-              size={token.marginMD}
-              style={{ width: "100%" }}
-            >
-              {/* Show System Prompt as a message at the top of the list */}
-              {hasSystemPrompt &&
-                systemPromptMessage &&
-                !backendMessages.some(
-                  (msg: Message | MessageDTO) => msg.role === "system"
-                ) &&
-                !currentMessages.some(
-                  (msg: Message) => msg.role === "system"
-                ) && <SystemMessageCard message={systemPromptMessage} />}
-
-              {/* Use backend messages if available, otherwise fall back to currentMessages */}
-              {(backendMessages.length > 0 ? backendMessages : currentMessages)
-                .filter(
-                  (message: Message | MessageDTO) =>
-                    message.role === "user" ||
-                    message.role === "assistant" ||
-                    message.role === "system" ||
-                    message.role === "tool" // ✅ Include tool messages
-                )
-                .map((message: Message | MessageDTO, index: number) => {
-                  // Check if this is a MessageDTO from backend
-                  const isMessageDTO =
-                    "message_type" in message &&
-                    Array.isArray((message as any).content);
-
-                  // Extract message_type if it's a MessageDTO
-                  let messageType:
-                    | "text"
-                    | "plan"
-                    | "question"
-                    | "tool_call"
-                    | "tool_result"
-                    | undefined = undefined;
-                  let convertedMessage: Message;
-
-                  if (isMessageDTO) {
-                    const dto = message as MessageDTO;
-                    messageType = dto.message_type;
-
-                    // Extract text content from MessageDTO
-                    const textContent = dto.content.find(
-                      (c) => c.type === "text"
-                    );
-                    const messageContent =
-                      textContent && "text" in textContent
-                        ? textContent.text
-                        : "";
-
-                    // Convert MessageDTO to Message based on role
-                    if (dto.role === "system") {
-                      convertedMessage = {
-                        id: dto.id,
-                        role: "system",
-                        content: messageContent,
-                        createdAt: dto.id,
-                      };
-                    } else if (dto.role === "user") {
-                      convertedMessage = {
-                        id: dto.id,
-                        role: "user",
-                        content: messageContent,
-                        createdAt: dto.id,
-                      };
-                    } else if (dto.role === "tool") {
-                      // ✅ Tool message - display as assistant with prefix
-                      convertedMessage = {
-                        id: dto.id,
-                        role: "assistant",
-                        content: `[Tool Result]\n${messageContent}`,
-                        type: "text",
-                        createdAt: dto.id,
-                      } as Message;
-                    } else {
-                      // Assistant message
-                      convertedMessage = {
-                        id: dto.id,
-                        role: "assistant",
-                        content: messageContent,
-                        type:
-                          messageType === "tool_call"
-                            ? "tool_call"
-                            : messageType === "tool_result"
-                            ? "tool_result"
-                            : "text",
-                        createdAt: dto.id,
-                      } as Message;
-                    }
-                  } else {
-                    // Already a Message type
-                    convertedMessage = message as Message;
-                    messageType = undefined; // Will be detected from content in MessageCard
+          {(showMessagesView || hasSystemPrompt) &&
+            renderableMessages.length > 0 && (
+              <div
+                style={{
+                  height: rowVirtualizer.getTotalSize(),
+                  width: "100%",
+                  position: "relative",
+                }}
+              >
+                {rowVirtualizer.getVirtualItems().map((virtualRow) => {
+                  const entry = renderableMessages[virtualRow.index];
+                  if (!entry) {
+                    return null;
                   }
 
-                  if (convertedMessage.role === "system") {
-                    return (
-                      <SystemMessageCard
-                        key={index}
-                        message={convertedMessage}
-                      />
-                    );
-                  }
+                  const {
+                    message: convertedMessage,
+                    align,
+                    messageType,
+                  } = convertRenderableEntry(entry);
+
+                  const key = `${convertedMessage.id}-${virtualRow.index}`;
+                  const isLast =
+                    virtualRow.index === renderableMessages.length - 1;
 
                   return (
-                    <Flex
-                      key={index}
-                      justify={
-                        convertedMessage.role === "user"
-                          ? "flex-end"
-                          : "flex-start"
-                      }
+                    <div
+                      key={key}
+                      ref={rowVirtualizer.measureElement}
+                      data-index={virtualRow.index}
                       style={{
+                        position: "absolute",
+                        top: 0,
+                        left: 0,
                         width: "100%",
-                        maxWidth: "100%",
+                        transform: `translateY(${virtualRow.start}px)`,
+                        paddingBottom: isLast ? 0 : rowGap,
                       }}
                     >
-                      <div
-                        style={{
-                          width:
-                            convertedMessage.role === "user" ? "85%" : "100%",
-                          maxWidth: screens.xs ? "100%" : "90%",
-                        }}
-                      >
-                        <MessageCard
-                          message={convertedMessage}
-                          messageType={messageType}
-                          onDelete={handleDeleteMessage}
-                        />
-                      </div>
-                    </Flex>
+                      {convertedMessage.role === "system" ? (
+                        <SystemMessageCard message={convertedMessage} />
+                      ) : (
+                        <Flex
+                          justify={align}
+                          style={{ width: "100%", maxWidth: "100%" }}
+                        >
+                          <div
+                            style={{
+                              width:
+                                convertedMessage.role === "user"
+                                  ? "85%"
+                                  : "100%",
+                              maxWidth: screens.xs ? "100%" : "90%",
+                            }}
+                          >
+                            <MessageCard
+                              message={convertedMessage}
+                              messageType={messageType}
+                              onDelete={handleDeleteMessage}
+                            />
+                          </div>
+                        </Flex>
+                      )}
+                    </div>
                   );
                 })}
-
-              <div ref={messagesEndRef} />
-            </Space>
-          )}
+              </div>
+            )}
         </Content>
 
         {/* Real Approval Modal */}
@@ -638,49 +679,12 @@ export const ChatView: React.FC = () => {
                 );
                 if (currentChatId) {
                   // Fetch messages from backend
-                  const messages = await backendContextService.getMessages(
-                    currentChatId
-                  );
+                  const messages =
+                    await backendContextService.getMessages(currentChatId);
 
-                  // Transform messages (same logic as useChatManager)
-                  const allMessages = messages.messages
-                    .map((msg: any) => {
-                      const baseContent =
-                        msg.content
-                          .map((c: any) => {
-                            if (c.type === "text") return c.text;
-                            if (c.type === "image") return c.url;
-                            return "";
-                          })
-                          .join("\n") || "";
-                      const roleLower = msg.role.toLowerCase();
-                      if (roleLower === "user") {
-                        return {
-                          id: msg.id,
-                          role: "user" as const,
-                          content: baseContent,
-                          createdAt: new Date().toISOString(),
-                        };
-                      } else if (roleLower === "assistant") {
-                        return {
-                          id: msg.id,
-                          role: "assistant" as const,
-                          type: "text" as const,
-                          content: baseContent,
-                          createdAt: new Date().toISOString(),
-                        };
-                      } else if (roleLower === "tool") {
-                        return {
-                          id: msg.id,
-                          role: "assistant" as const,
-                          type: "text" as const,
-                          content: `[Tool Result]\n${baseContent}`,
-                          createdAt: new Date().toISOString(),
-                        };
-                      }
-                      return null;
-                    })
-                    .filter(Boolean) as Message[];
+                  const allMessages = messages.messages.map(
+                    transformMessageDTOToMessage
+                  );
 
                   // Update useChatManager's messages
                   const { setMessages } = useAppStore.getState();
@@ -727,49 +731,12 @@ export const ChatView: React.FC = () => {
                 );
                 if (currentChatId) {
                   // Fetch messages from backend
-                  const messages = await backendContextService.getMessages(
-                    currentChatId
-                  );
+                  const messages =
+                    await backendContextService.getMessages(currentChatId);
 
-                  // Transform messages (same logic as useChatManager)
-                  const allMessages = messages.messages
-                    .map((msg: any) => {
-                      const baseContent =
-                        msg.content
-                          .map((c: any) => {
-                            if (c.type === "text") return c.text;
-                            if (c.type === "image") return c.url;
-                            return "";
-                          })
-                          .join("\n") || "";
-                      const roleLower = msg.role.toLowerCase();
-                      if (roleLower === "user") {
-                        return {
-                          id: msg.id,
-                          role: "user" as const,
-                          content: baseContent,
-                          createdAt: new Date().toISOString(),
-                        };
-                      } else if (roleLower === "assistant") {
-                        return {
-                          id: msg.id,
-                          role: "assistant" as const,
-                          type: "text" as const,
-                          content: baseContent,
-                          createdAt: new Date().toISOString(),
-                        };
-                      } else if (roleLower === "tool") {
-                        return {
-                          id: msg.id,
-                          role: "assistant" as const,
-                          type: "text" as const,
-                          content: `[Tool Result]\n${baseContent}`,
-                          createdAt: new Date().toISOString(),
-                        };
-                      }
-                      return null;
-                    })
-                    .filter(Boolean) as Message[];
+                  const allMessages = messages.messages.map(
+                    transformMessageDTOToMessage
+                  );
 
                   // Update useChatManager's messages
                   const { setMessages } = useAppStore.getState();

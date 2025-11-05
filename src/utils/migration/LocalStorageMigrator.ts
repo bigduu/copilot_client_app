@@ -54,8 +54,13 @@ export class LocalStorageMigrator {
     console.info("[Migration] Validating legacy data...");
     const validationErrors = this.validateLegacyData();
     if (validationErrors.length > 0) {
-      console.error("[Migration] Validation failed with errors:", validationErrors);
-      throw new Error(`Data validation failed: ${validationErrors.slice(0, 3).join('; ')}`);
+      console.error(
+        "[Migration] Validation failed with errors:",
+        validationErrors,
+      );
+      throw new Error(
+        `Data validation failed: ${validationErrors.slice(0, 3).join("; ")}`,
+      );
     }
     console.info("[Migration] Validation passed");
 
@@ -64,7 +69,9 @@ export class LocalStorageMigrator {
 
     // Map legacy system prompts first (if any)
     const legacyPrompts = this.loadLegacyPrompts();
-    console.info(`[Migration] Found ${legacyPrompts.length} legacy system prompts`);
+    console.info(
+      `[Migration] Found ${legacyPrompts.length} legacy system prompts`,
+    );
     for (const prompt of legacyPrompts) {
       console.info(`[Migration] Creating system prompt: ${prompt.id}`);
       // Use existing ID to preserve references when possible
@@ -73,13 +80,19 @@ export class LocalStorageMigrator {
     }
 
     // Create contexts and push messages
-    console.info(`[Migration] Found ${legacyChats.length} legacy chats to migrate`);
+    console.info(
+      `[Migration] Found ${legacyChats.length} legacy chats to migrate`,
+    );
     for (const chat of legacyChats) {
-      console.info(`[Migration] Creating context for chat '${chat.title}' (${chat.id})`);
-      const system_prompt_id: string | undefined = chat.config?.baseSystemPromptId || chat.config?.systemPromptId;
+      console.info(
+        `[Migration] Creating context for chat '${chat.title}' (${chat.id})`,
+      );
+      const system_prompt_id: string | undefined =
+        chat.config?.baseSystemPromptId || chat.config?.systemPromptId;
 
       const { id: contextId } = await backendContextService.createContext({
-        model_id: chat.config?.modelId || chat.config?.model_id || "gpt-4o-mini",
+        model_id:
+          chat.config?.modelId || chat.config?.model_id || "gpt-4o-mini",
         mode: chat.config?.mode || "assistant",
         system_prompt_id: system_prompt_id,
       });
@@ -87,7 +100,9 @@ export class LocalStorageMigrator {
       result.migratedContexts += 1;
 
       const messages = this.loadLegacyMessages(chat.id);
-      console.info(`[Migration] Migrating ${messages.length} messages for chat '${chat.title}' (${chat.id})`);
+      console.info(
+        `[Migration] Migrating ${messages.length} messages for chat '${chat.title}' (${chat.id})`,
+      );
       for (const message of messages) {
         const { role, content } = this.convertMessage(message);
         await backendContextService.addMessage(contextId, { role, content });
@@ -96,7 +111,7 @@ export class LocalStorageMigrator {
     }
 
     console.info(
-      `[Migration] Completed. Contexts: ${result.migratedContexts}, Messages: ${result.migratedMessages}, Prompts: ${Object.keys(result.promptMappings).length}`
+      `[Migration] Completed. Contexts: ${result.migratedContexts}, Messages: ${result.migratedMessages}, Prompts: ${Object.keys(result.promptMappings).length}`,
     );
 
     try {
@@ -152,14 +167,14 @@ export class LocalStorageMigrator {
       for (const [chatId, msgs] of Object.entries(backup.messages)) {
         localStorage.setItem(
           `${STORAGE_KEYS.MESSAGES_PREFIX}${chatId}`,
-          JSON.stringify(msgs)
+          JSON.stringify(msgs),
         );
       }
 
       // Restore prompts
       localStorage.setItem(
         STORAGE_KEYS.SYSTEM_PROMPTS,
-        JSON.stringify(backup.prompts)
+        JSON.stringify(backup.prompts),
       );
 
       console.info("[Migration] Legacy data restored from backup");
@@ -201,7 +216,9 @@ export class LocalStorageMigrator {
 
   private loadLegacyMessages(chatId: string): Message[] {
     try {
-      const stored = localStorage.getItem(`${STORAGE_KEYS.MESSAGES_PREFIX}${chatId}`);
+      const stored = localStorage.getItem(
+        `${STORAGE_KEYS.MESSAGES_PREFIX}${chatId}`,
+      );
       return stored ? (JSON.parse(stored) as Message[]) : [];
     } catch {
       return [];
@@ -209,23 +226,26 @@ export class LocalStorageMigrator {
   }
 
   private convertMessage(message: Message): { role: string; content: string } {
-    const role = message.role === "assistant" || message.role === "user" || message.role === "system"
-      ? message.role
-      : "user";
-    
+    const role =
+      message.role === "assistant" ||
+      message.role === "user" ||
+      message.role === "system"
+        ? message.role
+        : "user";
+
     // Handle tool call messages - preserve metadata
-    if ('type' in message) {
-      if (message.type === 'tool_call') {
+    if ("type" in message) {
+      if (message.type === "tool_call") {
         // Convert tool call to JSON representation for backend
         const toolCallData = {
-          type: 'tool_call',
+          type: "tool_call",
           toolCalls: message.toolCalls,
         };
         return { role, content: JSON.stringify(toolCallData) };
-      } else if (message.type === 'tool_result') {
+      } else if (message.type === "tool_result") {
         // Convert tool result to JSON representation
         const toolResultData = {
-          type: 'tool_result',
+          type: "tool_result",
           toolName: message.toolName,
           toolCallId: message.toolCallId,
           result: message.result,
@@ -234,65 +254,68 @@ export class LocalStorageMigrator {
         return { role, content: JSON.stringify(toolResultData) };
       }
     }
-    
+
     // Handle regular content
-    const content = typeof message.content === "string"
-      ? message.content
-      : (message.content as any)?.text ?? JSON.stringify(message.content);
+    const content =
+      typeof message.content === "string"
+        ? message.content
+        : ((message.content as any)?.text ?? JSON.stringify(message.content));
     return { role, content };
   }
-  
+
   /**
    * Validate legacy data before migration
    * Returns list of validation errors, empty if valid
    */
   validateLegacyData(): string[] {
     const errors: string[] = [];
-    
+
     try {
       // Validate chats
       const chats = this.loadLegacyChats();
       for (const chat of chats) {
-        if (!chat.id || typeof chat.id !== 'string') {
+        if (!chat.id || typeof chat.id !== "string") {
           errors.push(`Invalid chat ID: ${JSON.stringify(chat)}`);
         }
-        if (!chat.title || typeof chat.title !== 'string') {
+        if (!chat.title || typeof chat.title !== "string") {
           errors.push(`Chat ${chat.id} has invalid title`);
         }
-        if (typeof chat.createdAt !== 'number' || chat.createdAt <= 0) {
+        if (typeof chat.createdAt !== "number" || chat.createdAt <= 0) {
           errors.push(`Chat ${chat.id} has invalid createdAt timestamp`);
         }
-        
+
         // Validate messages for this chat
         const messages = this.loadLegacyMessages(chat.id);
         for (const msg of messages) {
           if (!msg.id || !msg.role) {
-            errors.push(`Chat ${chat.id} has invalid message: ${JSON.stringify(msg)}`);
+            errors.push(
+              `Chat ${chat.id} has invalid message: ${JSON.stringify(msg)}`,
+            );
           }
-          if (!['user', 'assistant', 'system'].includes(msg.role)) {
-            errors.push(`Chat ${chat.id} has message with invalid role: ${msg.role}`);
+          if (!["user", "assistant", "system"].includes(msg.role)) {
+            errors.push(
+              `Chat ${chat.id} has message with invalid role: ${msg.role}`,
+            );
           }
         }
       }
-      
+
       // Validate prompts
       const prompts = this.loadLegacyPrompts();
       for (const prompt of prompts) {
-        if (!prompt.id || typeof prompt.id !== 'string') {
+        if (!prompt.id || typeof prompt.id !== "string") {
           errors.push(`Invalid prompt ID: ${JSON.stringify(prompt)}`);
         }
-        if (typeof prompt.content !== 'string') {
+        if (typeof prompt.content !== "string") {
           errors.push(`Prompt ${prompt.id} has invalid content type`);
         }
       }
     } catch (err) {
       errors.push(`Validation error: ${String(err)}`);
     }
-    
+
     return errors;
   }
 }
 
 export const localStorageMigrator = new LocalStorageMigrator();
-
-

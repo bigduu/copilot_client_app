@@ -26,14 +26,14 @@ export class SystemPromptService {
       const storedPrompt = localStorage.getItem(SYSTEM_PROMPT_KEY);
       if (!storedPrompt) {
         throw new Error(
-          "System prompt not configured, please configure it first"
+          "System prompt not configured, please configure it first",
         );
       }
       return storedPrompt;
     } catch (error) {
       console.error("Error loading global system prompt:", error);
       throw new Error(
-        "System prompt not configured, please configure it first"
+        "System prompt not configured, please configure it first",
       );
     }
   }
@@ -61,14 +61,14 @@ export class SystemPromptService {
       const id = localStorage.getItem(SYSTEM_PROMPT_SELECTED_ID_KEY);
       if (!id) {
         throw new Error(
-          "System prompt preset ID not set, must be configured from the backend first"
+          "System prompt preset ID not set, must be configured from the backend first",
         );
       }
       return id;
     } catch (error) {
       console.error("Error loading selected system prompt preset ID:", error);
       throw new Error(
-        "System prompt preset ID configuration is missing, no frontend default is provided"
+        "System prompt preset ID configuration is missing, no frontend default is provided",
       );
     }
   }
@@ -97,7 +97,7 @@ export class SystemPromptService {
       }
       const data = await response.json();
       // Handle both { prompts: [...] } and [...] formats
-      const prompts = Array.isArray(data) ? data : (data.prompts || []);
+      const prompts = Array.isArray(data) ? data : data.prompts || [];
 
       // Convert to preset format for backward compatibility
       const presets = prompts.map((prompt: any) => {
@@ -142,7 +142,7 @@ export class SystemPromptService {
    * Get current system prompt content
    */
   async getCurrentSystemPromptContent(
-    selectedPresetId: string
+    selectedPresetId: string,
   ): Promise<string> {
     const preset = await this.findPresetById(selectedPresetId);
     if (preset) return preset.content;
@@ -189,25 +189,34 @@ export class SystemPromptService {
    */
   async getEnhancedSystemPrompt(promptId: string): Promise<string> {
     try {
-      console.log(`[SystemPromptService] Fetching enhanced prompt for ID: ${promptId}`);
-      const response = await fetch(`http://127.0.0.1:8080/v1/system-prompts/${promptId}/enhanced`);
-      
+      console.log(
+        `[SystemPromptService] Fetching enhanced prompt for ID: ${promptId}`,
+      );
+      const response = await fetch(
+        `http://127.0.0.1:8080/v1/system-prompts/${promptId}/enhanced`,
+      );
+
       if (response.status === 404) {
-        console.warn(`[SystemPromptService] Prompt not found: ${promptId}, falling back to base content`);
+        console.warn(
+          `[SystemPromptService] Prompt not found: ${promptId}, falling back to base content`,
+        );
         // Fall back to getting the base content
         const preset = await this.findPresetById(promptId);
         return preset?.content || "";
       }
-      
+
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
-      
+
       const data = await response.json();
       console.log(`[SystemPromptService] Enhanced prompt fetched successfully`);
       return data.content || "";
     } catch (error) {
-      console.error(`[SystemPromptService] Failed to get enhanced prompt for ${promptId}:`, error);
+      console.error(
+        `[SystemPromptService] Failed to get enhanced prompt for ${promptId}:`,
+        error,
+      );
       // Fall back to base content on error
       const preset = await this.findPresetById(promptId);
       return preset?.content || "";
@@ -219,11 +228,15 @@ export class SystemPromptService {
    * For cases where we have content but no prompt ID
    * Fallback: returns the base content as-is if backend enhancement fails
    */
-  async getEnhancedSystemPromptFromContent(baseContent: string): Promise<string> {
+  async getEnhancedSystemPromptFromContent(
+    baseContent: string,
+  ): Promise<string> {
     console.log(`[SystemPromptService] Enhancing prompt content directly`);
     // Since backend requires a prompt ID, we can't enhance arbitrary content
     // Just return the base content and rely on backend's automatic enhancement during chat
-    console.warn(`[SystemPromptService] Direct content enhancement not supported, using base content`);
+    console.warn(
+      `[SystemPromptService] Direct content enhancement not supported, using base content`,
+    );
     return baseContent;
   }
 }

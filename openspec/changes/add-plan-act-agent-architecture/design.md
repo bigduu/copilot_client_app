@@ -3,17 +3,20 @@
 ## Context
 
 Current agent system executes tool calls immediately without role-based permissions. We need a role-based architecture:
+
 1. **Role System**: Extensible framework for different agent behaviors
 2. **Permission Model**: Each role has specific tool access permissions
 3. **Current Roles**: Planner (read-only planning) and Actor (execution)
 4. **Future Extensibility**: Support for Commander, Designer, Reviewer, Tester, etc.
 
 ### Stakeholders
+
 - **Backend developers**: Implement mode detection and tool filtering
 - **Frontend developers**: Implement mode selector and message type rendering
 - **End users**: Benefit from reviewable plans and controlled execution
 
 ### Constraints
+
 - Must be backward compatible with existing chats
 - Plan mode must be truly read-only (security requirement)
 - Act mode must maintain current tool capabilities
@@ -22,6 +25,7 @@ Current agent system executes tool calls immediately without role-based permissi
 ## Goals / Non-Goals
 
 ### Goals
+
 - ✅ Enable users to review complete plan before execution
 - ✅ Separate exploration (read-only) from modification (write)
 - ✅ Allow agent autonomy within approved plan
@@ -29,6 +33,7 @@ Current agent system executes tool calls immediately without role-based permissi
 - ✅ Manual mode switching for user control
 
 ### Non-Goals
+
 - ❌ Automatic plan approval (always require user confirmation)
 - ❌ Automatic mode switching (user must explicitly switch)
 - ❌ Sub-workflows or nested planning (keep simple)
@@ -41,6 +46,7 @@ Current agent system executes tool calls immediately without role-based permissi
 **What**: Agent roles are distinct identities with different permissions and behaviors.
 
 **Why**:
+
 - Clear separation of concerns
 - Extensible to future roles (Commander, Designer, etc.)
 - Permission-based access control
@@ -49,6 +55,7 @@ Current agent system executes tool calls immediately without role-based permissi
 - Follows principle of least privilege
 
 **How**:
+
 ```rust
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum AgentRole {
@@ -92,6 +99,7 @@ impl AgentRole {
 **What**: User must manually switch between roles (Planner → Actor).
 
 **Why**:
+
 - User maintains control over execution
 - Prevents accidental execution with wrong permissions
 - Clear approval checkpoint
@@ -99,8 +107,9 @@ impl AgentRole {
 - Security boundary between roles
 
 **Alternatives considered**:
+
 - **Automatic switch after plan**: Too implicit, could surprise users
-- **Prompt user to switch**: Adds extra step, less clear  
+- **Prompt user to switch**: Adds extra step, less clear
 - **Plan includes execute command**: Complex to implement
 - **Single role with dynamic permissions**: Less clear, harder to extend
 
@@ -109,6 +118,7 @@ impl AgentRole {
 **What**: Messages have explicit `message_type` field for frontend rendering.
 
 **Format**:
+
 ```rust
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum MessageType {
@@ -128,6 +138,7 @@ pub struct InternalMessage {
 ```
 
 **Why**:
+
 - Frontend can render specialized UI
 - Easy to extend with new types
 - Backward compatible (default to Text)
@@ -138,6 +149,7 @@ pub struct InternalMessage {
 **What**: Plans are structured JSON embedded in message content.
 
 **Format**:
+
 ```json
 {
   "type": "plan",
@@ -159,20 +171,20 @@ pub struct InternalMessage {
     }
   ],
   "estimated_total_time": "~5 seconds",
-  "risks": [
-    "May need to restart service after config change"
-  ],
+  "risks": ["May need to restart service after config change"],
   "prerequisites": []
 }
 ```
 
 **Why**:
+
 - Clear step-by-step breakdown
 - Reasoning for each step (auditable)
 - Tools listed (user knows what will be used)
 - Risks highlighted upfront
 
 **Prompt Template**:
+
 ```
 When in PLAN mode, output your plan in this exact JSON format:
 
@@ -192,7 +204,7 @@ When in PLAN mode, output your plan in this exact JSON format:
   "prerequisites": ["anything user needs to prepare"]
 }
 
-After presenting the plan, discuss it with the user. When they approve, 
+After presenting the plan, discuss it with the user. When they approve,
 they will switch to ACT mode for execution.
 ```
 
@@ -201,6 +213,7 @@ they will switch to ACT mode for execution.
 **What**: Act agent asks questions using structured format.
 
 **Format**:
+
 ```json
 {
   "type": "question",
@@ -230,6 +243,7 @@ they will switch to ACT mode for execution.
 ```
 
 **Why**:
+
 - Clear presentation of options
 - Context explains why asking
 - Severity helps user prioritize
@@ -237,6 +251,7 @@ they will switch to ACT mode for execution.
 - Custom answers optional
 
 **Prompt Template**:
+
 ```
 When in ACT mode, if you encounter a situation that requires user decision:
 
@@ -266,6 +281,7 @@ Guidelines for when to ask:
 **What**: Tools specify required permissions; roles grant permissions.
 
 **Implementation**:
+
 ```rust
 pub struct ToolDefinition {
     pub name: String,
@@ -286,23 +302,21 @@ pub enum Permission {
 ```
 
 **Tool Examples**:
+
 - **Read Tools** (require `ReadFiles`):
   - `read_file`, `list_directory`, `search_code`
   - `search_symbol`, `get_file_info`, `grep`
-  
 - **Write Tools** (require `WriteFiles`):
   - `update_file`: requires `[ReadFiles, WriteFiles]`
-  
 - **Create Tools** (require `CreateFiles`):
   - `create_file`: requires `[WriteFiles, CreateFiles]`
-  
 - **Delete Tools** (require `DeleteFiles`):
   - `delete_file`: requires `[ReadFiles, DeleteFiles]`
-  
 - **Execute Tools** (require `ExecuteCommands`):
   - `execute_command`: requires `[ExecuteCommands]`
 
 **Why**:
+
 - Granular permission control
 - Tools can require multiple permissions
 - Easy to add new permissions
@@ -315,6 +329,7 @@ pub enum Permission {
 **What**: Different prompt instructions based on active role and permissions.
 
 **Planner Role Prompt Addition**:
+
 ```
 # CURRENT ROLE: PLANNER
 
@@ -340,6 +355,7 @@ Output your plan in the following JSON format...
 ```
 
 **Actor Role Prompt Addition**:
+
 ```
 # CURRENT ROLE: ACTOR
 
@@ -363,6 +379,7 @@ When you need to ask, use this format...
 ```
 
 **Future Role Prompt Example (Commander)**:
+
 ```
 # CURRENT ROLE: COMMANDER
 
@@ -378,6 +395,7 @@ YOUR PERMISSIONS:
 ```
 
 **Why**:
+
 - Clear instructions for each role
 - AI understands permissions
 - Role-specific behaviors
@@ -453,6 +471,7 @@ User can now continue conversation in Act mode
 ## Data Model Changes
 
 ### Context Config
+
 ```rust
 pub struct ChatConfig {
     pub model_id: String,
@@ -477,6 +496,7 @@ pub enum Permission {
 ```
 
 ### Message Structure
+
 ```rust
 pub struct InternalMessage {
     pub role: Role,
@@ -491,43 +511,52 @@ pub struct InternalMessage {
 ## Risks / Trade-offs
 
 ### Risk: Plan May Become Outdated
+
 - **Mitigation**: Show timestamp on plan, allow re-planning
 
 ### Risk: Act Mode Asks Too Many Questions
+
 - **Mitigation**: Clear guidelines in prompt, severity levels
 
 ### Risk: User Forgets to Switch Modes
+
 - **Mitigation**: Clear UI indicator, prompts to switch when appropriate
 
 ### Risk: Plan Format Parsing Failures
+
 - **Mitigation**: Graceful fallback to text rendering, validation
 
 ## Migration Plan
 
 ### Phase 1: Add Fields (Backward Compatible)
+
 1. Add `agent_mode` to ChatConfig (default: Act for existing chats)
 2. Add `message_type` to InternalMessage (default: Text)
 3. Add `read_only` to ToolDefinition (default: false)
 4. Deploy backend changes
 
 ### Phase 2: Implement Plan Mode
+
 1. Add mode-specific prompt injection
 2. Add tool filtering by mode
 3. Add plan JSON parsing
 4. Test plan mode thoroughly
 
 ### Phase 3: Frontend Updates
+
 1. Add AgentModeSelector component
 2. Add PlanMessageCard component
 3. Add QuestionMessageCard component
 4. Add mode switching API calls
 
 ### Phase 4: Implement Act Mode Enhancements
+
 1. Add question JSON parsing
 2. Add question handling flow
 3. Test question interactions
 
 ### Phase 5: Testing & Refinement
+
 1. End-to-end testing
 2. Prompt refinement
 3. UI/UX polish
@@ -546,5 +575,3 @@ pub struct InternalMessage {
 
 4. **Should we version the plan/question JSON formats?**
    - Answer: Yes, add `format_version: "1.0"` field for future compatibility
-
-

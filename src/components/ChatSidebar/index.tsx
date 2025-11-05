@@ -36,7 +36,6 @@ import { ChatItem } from "../../types/chat";
 import SystemPromptSelector from "../SystemPromptSelector";
 import { UserSystemPrompt } from "../../types/chat";
 import { useChatController } from "../../contexts/ChatControllerContext";
-import { useBackendContext } from "../../hooks/useBackendContext";
 
 const { Sider } = Layout;
 const { Text } = Typography;
@@ -59,6 +58,8 @@ export const ChatSidebar: React.FC<{
     unpinChat,
     updateChat,
     createNewChat,
+    generateChatTitle,
+    titleGenerationState,
   } = useChatController();
 
   const systemPrompts = useAppStore((state) => state.systemPrompts);
@@ -68,14 +69,10 @@ export const ChatSidebar: React.FC<{
   const [isNewChatSelectorOpen, setIsNewChatSelectorOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
   const [footerHeight, setFooterHeight] = useState(0);
-  const [backendContexts, setBackendContexts] = useState<
-    { id: string; title?: string }[]
-  >([]);
-  const { listContexts, isLoading, error } = useBackendContext();
 
   // Collapse/expand state management
   const [expandedDates, setExpandedDates] = useState<Set<string>>(
-    new Set(["Today"]) // Expand Today by default
+    new Set(["Today"]), // Expand Today by default
   );
   const footerRef = useRef<HTMLDivElement>(null);
   const screens = useBreakpoint();
@@ -101,18 +98,6 @@ export const ChatSidebar: React.FC<{
   useEffect(() => {
     loadSystemPrompts();
   }, [loadSystemPrompts]);
-
-  // Load backend contexts on mount (only once)
-  useEffect(() => {
-    const load = async () => {
-      const contexts = await listContexts();
-      setBackendContexts(
-        contexts.map((c) => ({ id: c.id, title: c.active_branch_name }))
-      );
-    };
-    load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // Empty deps - only load once on mount
 
   // Dynamically calculate footer button area height
   useEffect(() => {
@@ -164,10 +149,12 @@ export const ChatSidebar: React.FC<{
     updateChat(chatId, { title: newTitle });
   };
 
-  const handleGenerateTitle = async () => {
-    // This feature is temporarily disabled during refactoring.
-    // A new implementation will be added if required.
-    console.warn("AI title generation is temporarily disabled.");
+  const handleGenerateTitle = async (chatId: string) => {
+    try {
+      await generateChatTitle(chatId, { force: true });
+    } catch (error) {
+      console.error("Failed to generate title:", error);
+    }
   };
 
   // Batch delete handler
@@ -359,42 +346,6 @@ export const ChatSidebar: React.FC<{
 
         {!collapsed ? (
           <Space direction="vertical" size="small" style={{ width: "100%" }}>
-            {/* Backend contexts section */}
-            <div>
-              <Flex align="center" justify="space-between" style={{ padding: "4px 8px" }}>
-                <Text strong>Backend Contexts</Text>
-                <Button size="small" loading={isLoading} onClick={async () => {
-                  const contexts = await listContexts();
-                  setBackendContexts(contexts.map((c) => ({ id: c.id, title: c.active_branch_name })));
-                }}>
-                  Refresh
-                </Button>
-              </Flex>
-              {error && (
-                <Text type="danger" style={{ padding: "0 8px" }}>{error}</Text>
-              )}
-              {backendContexts.length === 0 ? (
-                <Text type="secondary" style={{ padding: "0 8px", fontSize: 12 }}>No backend contexts</Text>
-              ) : (
-                <List
-                  itemLayout="horizontal"
-                  dataSource={backendContexts}
-                  split={false}
-                  style={{ marginTop: 4, marginLeft: 8 }}
-                  renderItem={(ctx) => (
-                    <div style={{ padding: "6px 8px", borderRadius: 6, cursor: "default" }}>
-                      <Text code>{ctx.id}</Text>
-                      {ctx.title ? (
-                        <Text type="secondary" style={{ marginLeft: 8, fontSize: 12 }}>
-                          ({ctx.title})
-                        </Text>
-                      ) : null}
-                    </div>
-                  )}
-                />
-              )}
-              <Divider style={{ margin: `${token.marginXS}px 0` }} />
-            </div>
             {sortedDateKeys.length === 0 ? (
               <div className="empty-state">
                 <div className="empty-icon">💬</div>
@@ -413,7 +364,7 @@ export const ChatSidebar: React.FC<{
                 const isDateOpen = isDateExpanded(dateKey);
                 const totalChatsInDate = getChatCountByDate(
                   groupedChatsByDate,
-                  dateKey
+                  dateKey,
                 );
 
                 return (
@@ -449,8 +400,8 @@ export const ChatSidebar: React.FC<{
                               dateKey === "Today"
                                 ? token.colorPrimary
                                 : themeMode === "light"
-                                ? "#000000"
-                                : "inherit",
+                                  ? "#000000"
+                                  : "inherit",
                           }}
                         >
                           {dateKey} ({totalChatsInDate})
@@ -489,6 +440,15 @@ export const ChatSidebar: React.FC<{
                             onUnpin={unpinChat}
                             onEdit={handleEditTitle}
                             onGenerateTitle={handleGenerateTitle}
+                            isGeneratingTitle={
+                              titleGenerationState[chat.id]?.status ===
+                              "loading"
+                            }
+                            titleGenerationError={
+                              titleGenerationState[chat.id]?.status === "error"
+                                ? titleGenerationState[chat.id]?.error
+                                : undefined
+                            }
                           />
                         )}
                       />

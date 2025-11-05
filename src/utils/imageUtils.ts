@@ -19,12 +19,12 @@ export interface ImageValidationResult {
 
 // Supported image types
 export const SUPPORTED_IMAGE_TYPES = [
-  'image/jpeg',
-  'image/jpg', 
-  'image/png',
-  'image/gif',
-  'image/webp',
-  'image/bmp'
+  "image/jpeg",
+  "image/jpg",
+  "image/png",
+  "image/gif",
+  "image/webp",
+  "image/bmp",
 ];
 
 // Maximum file size (10MB)
@@ -42,7 +42,7 @@ export const validateImageFile = (file: File): ImageValidationResult => {
   if (!SUPPORTED_IMAGE_TYPES.includes(file.type)) {
     return {
       isValid: false,
-      error: `Unsupported image type: ${file.type}. Supported types: ${SUPPORTED_IMAGE_TYPES.join(', ')}`
+      error: `Unsupported image type: ${file.type}. Supported types: ${SUPPORTED_IMAGE_TYPES.join(", ")}`,
     };
   }
 
@@ -50,7 +50,7 @@ export const validateImageFile = (file: File): ImageValidationResult => {
   if (file.size > MAX_IMAGE_SIZE) {
     return {
       isValid: false,
-      error: `Image size too large: ${(file.size / 1024 / 1024).toFixed(2)}MB. Maximum size: ${MAX_IMAGE_SIZE / 1024 / 1024}MB`
+      error: `Image size too large: ${(file.size / 1024 / 1024).toFixed(2)}MB. Maximum size: ${MAX_IMAGE_SIZE / 1024 / 1024}MB`,
     };
   }
 
@@ -64,13 +64,13 @@ export const fileToBase64 = (file: File): Promise<string> => {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = () => {
-      if (typeof reader.result === 'string') {
+      if (typeof reader.result === "string") {
         resolve(reader.result);
       } else {
-        reject(new Error('Failed to convert file to base64'));
+        reject(new Error("Failed to convert file to base64"));
       }
     };
-    reader.onerror = () => reject(new Error('Failed to read file'));
+    reader.onerror = () => reject(new Error("Failed to read file"));
     reader.readAsDataURL(file);
   });
 };
@@ -102,14 +102,16 @@ export const processImageFile = async (file: File): Promise<ImageFile> => {
     id,
     name: file.name,
     size: file.size,
-    type: file.type
+    type: file.type,
   };
 };
 
 /**
  * Process multiple image files
  */
-export const processImageFiles = async (files: FileList | File[]): Promise<ImageFile[]> => {
+export const processImageFiles = async (
+  files: FileList | File[],
+): Promise<ImageFile[]> => {
   const fileArray = Array.from(files);
   const processedImages: ImageFile[] = [];
 
@@ -130,7 +132,7 @@ export const processImageFiles = async (files: FileList | File[]): Promise<Image
  * Extract base64 data from data URL
  */
 export const extractBase64Data = (dataUrl: string): string => {
-  const base64Index = dataUrl.indexOf(',');
+  const base64Index = dataUrl.indexOf(",");
   return base64Index !== -1 ? dataUrl.substring(base64Index + 1) : dataUrl;
 };
 
@@ -139,17 +141,19 @@ export const extractBase64Data = (dataUrl: string): string => {
  */
 export const getMimeTypeFromDataUrl = (dataUrl: string): string => {
   const match = dataUrl.match(/^data:([^;]+);base64,/);
-  return match ? match[1] : 'image/png';
+  return match ? match[1] : "image/png";
 };
 
 /**
  * Validate image dimensions
  */
-export const validateImageDimensions = (image: HTMLImageElement): ImageValidationResult => {
+export const validateImageDimensions = (
+  image: HTMLImageElement,
+): ImageValidationResult => {
   if (image.width > MAX_IMAGE_WIDTH || image.height > MAX_IMAGE_HEIGHT) {
     return {
       isValid: false,
-      error: `Image dimensions too large: ${image.width}x${image.height}. Maximum: ${MAX_IMAGE_WIDTH}x${MAX_IMAGE_HEIGHT}`
+      error: `Image dimensions too large: ${image.width}x${image.height}. Maximum: ${MAX_IMAGE_WIDTH}x${MAX_IMAGE_HEIGHT}`,
     };
   }
   return { isValid: true };
@@ -158,7 +162,9 @@ export const validateImageDimensions = (image: HTMLImageElement): ImageValidatio
 /**
  * Load image and validate dimensions
  */
-export const loadAndValidateImage = (src: string): Promise<HTMLImageElement> => {
+export const loadAndValidateImage = (
+  src: string,
+): Promise<HTMLImageElement> => {
   return new Promise((resolve, reject) => {
     const img = new Image();
     img.onload = () => {
@@ -169,7 +175,7 @@ export const loadAndValidateImage = (src: string): Promise<HTMLImageElement> => 
         resolve(img);
       }
     };
-    img.onerror = () => reject(new Error('Failed to load image'));
+    img.onerror = () => reject(new Error("Failed to load image"));
     img.src = src;
   });
 };
@@ -181,14 +187,14 @@ export const resizeImageIfNeeded = (
   canvas: HTMLCanvasElement,
   image: HTMLImageElement,
   maxWidth: number = MAX_IMAGE_WIDTH,
-  maxHeight: number = MAX_IMAGE_HEIGHT
+  maxHeight: number = MAX_IMAGE_HEIGHT,
 ): void => {
   let { width, height } = image;
 
   // Calculate new dimensions if resizing is needed
   if (width > maxWidth || height > maxHeight) {
     const aspectRatio = width / height;
-    
+
     if (width > height) {
       width = maxWidth;
       height = width / aspectRatio;
@@ -201,7 +207,7 @@ export const resizeImageIfNeeded = (
   canvas.width = width;
   canvas.height = height;
 
-  const ctx = canvas.getContext('2d');
+  const ctx = canvas.getContext("2d");
   if (ctx) {
     ctx.drawImage(image, 0, 0, width, height);
   }
@@ -210,15 +216,18 @@ export const resizeImageIfNeeded = (
 /**
  * Convert canvas to base64 data URL
  */
-export const canvasToBase64 = (canvas: HTMLCanvasElement, quality: number = 0.8): string => {
-  return canvas.toDataURL('image/jpeg', quality);
+export const canvasToBase64 = (
+  canvas: HTMLCanvasElement,
+  quality: number = 0.8,
+): string => {
+  return canvas.toDataURL("image/jpeg", quality);
 };
 
 /**
  * Clean up object URLs to prevent memory leaks
  */
 export const cleanupImagePreview = (preview: string): void => {
-  if (preview.startsWith('blob:')) {
+  if (preview.startsWith("blob:")) {
     URL.revokeObjectURL(preview);
   }
 };
@@ -227,20 +236,20 @@ export const cleanupImagePreview = (preview: string): void => {
  * Clean up multiple image previews
  */
 export const cleanupImagePreviews = (images: ImageFile[]): void => {
-  images.forEach(image => cleanupImagePreview(image.preview));
+  images.forEach((image) => cleanupImagePreview(image.preview));
 };
 
 /**
  * Format file size for display
  */
 export const formatFileSize = (bytes: number): string => {
-  if (bytes === 0) return '0 Bytes';
-  
+  if (bytes === 0) return "0 Bytes";
+
   const k = 1024;
-  const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+  const sizes = ["Bytes", "KB", "MB", "GB"];
   const i = Math.floor(Math.log(bytes) / Math.log(k));
-  
-  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
 };
 
 /**
@@ -251,8 +260,8 @@ export const hasImageFiles = (dataTransfer: DataTransfer): boolean => {
     return false;
   }
 
-  return Array.from(dataTransfer.files).some(file => 
-    SUPPORTED_IMAGE_TYPES.includes(file.type)
+  return Array.from(dataTransfer.files).some((file) =>
+    SUPPORTED_IMAGE_TYPES.includes(file.type),
   );
 };
 
@@ -264,7 +273,7 @@ export const extractImageFiles = (dataTransfer: DataTransfer): File[] => {
     return [];
   }
 
-  return Array.from(dataTransfer.files).filter(file => 
-    SUPPORTED_IMAGE_TYPES.includes(file.type)
+  return Array.from(dataTransfer.files).filter((file) =>
+    SUPPORTED_IMAGE_TYPES.includes(file.type),
   );
 };

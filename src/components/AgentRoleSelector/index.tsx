@@ -30,7 +30,7 @@ const AgentRoleSelector: React.FC<AgentRoleSelectorProps> = ({
     try {
       await onRoleChange(newRole);
       messageApi.success(
-        `Switched to ${newRole === "planner" ? "Planner" : "Actor"} mode`
+        `Switched to ${newRole === "planner" ? "Planner" : "Actor"} mode`,
       );
     } catch (error) {
       console.error("Failed to update agent role:", error);

@@ -16,4 +16,3 @@ pub trait Category: std::fmt::Debug + Send + Sync {
     /// Returns the category metadata
     fn metadata(&self) -> WorkflowCategory;
 }
-

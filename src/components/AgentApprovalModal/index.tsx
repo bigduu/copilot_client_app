@@ -1,5 +1,13 @@
 import React, { useState } from "react";
-import { Modal, Button, Typography, Descriptions, Alert, Input, Space } from "antd";
+import {
+  Modal,
+  Button,
+  Typography,
+  Descriptions,
+  Alert,
+  Input,
+  Space,
+} from "antd";
 import { ExclamationCircleOutlined } from "@ant-design/icons";
 
 const { Text, Paragraph, Title } = Typography;
@@ -61,7 +69,11 @@ export const AgentApprovalModal: React.FC<AgentApprovalModalProps> = ({
       maskClosable={false}
       footer={[
         showReasonInput ? (
-          <Button key="back" onClick={() => setShowReasonInput(false)} disabled={loading}>
+          <Button
+            key="back"
+            onClick={() => setShowReasonInput(false)}
+            disabled={loading}
+          >
             Back
           </Button>
         ) : (
@@ -93,12 +105,12 @@ export const AgentApprovalModal: React.FC<AgentApprovalModalProps> = ({
         {/* Tool Details */}
         <Descriptions bordered column={1} size="small">
           <Descriptions.Item label="Tool Name">
-            <Text strong code>{toolName}</Text>
+            <Text strong code>
+              {toolName}
+            </Text>
           </Descriptions.Item>
           <Descriptions.Item label="Description">
-            <Paragraph style={{ marginBottom: 0 }}>
-              {toolDescription}
-            </Paragraph>
+            <Paragraph style={{ marginBottom: 0 }}>{toolDescription}</Paragraph>
           </Descriptions.Item>
         </Descriptions>
 
@@ -154,4 +166,3 @@ export const AgentApprovalModal: React.FC<AgentApprovalModalProps> = ({
     </Modal>
   );
 };
-

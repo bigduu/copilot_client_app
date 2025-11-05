@@ -1,6 +1,6 @@
 use crate::dto::SystemPromptDTO;
-use crate::services::system_prompt_service::SystemPromptService;
 use crate::services::system_prompt_enhancer::SystemPromptEnhancer;
+use crate::services::system_prompt_service::SystemPromptService;
 use actix_web::{
     web::{Data, Json, Path},
     HttpResponse, Result,
@@ -143,14 +143,18 @@ pub async fn get_enhanced_system_prompt(
     match prompt_service.get_prompt(&prompt_id).await {
         Some(prompt) => {
             // Enhance the prompt with Actor role (default for preview)
-            match enhancer_service.enhance_prompt(&prompt.content, &context_manager::structs::context::AgentRole::Actor).await {
-                Ok(enhanced_content) => {
-                    Ok(HttpResponse::Ok().json(serde_json::json!({
-                        "id": prompt.id,
-                        "content": enhanced_content,
-                        "enhanced": true
-                    })))
-                }
+            match enhancer_service
+                .enhance_prompt(
+                    &prompt.content,
+                    &context_manager::structs::context::AgentRole::Actor,
+                )
+                .await
+            {
+                Ok(enhanced_content) => Ok(HttpResponse::Ok().json(serde_json::json!({
+                    "id": prompt.id,
+                    "content": enhanced_content,
+                    "enhanced": true
+                }))),
                 Err(e) => {
                     error!("Failed to enhance system prompt: {}", e);
                     Ok(HttpResponse::InternalServerError().json(serde_json::json!({

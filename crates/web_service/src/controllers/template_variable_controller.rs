@@ -45,10 +45,7 @@ pub async fn get_template_variable(
     let key = path.into_inner();
 
     match service.get(&key).await {
-        Some(value) => Ok(HttpResponse::Ok().json(GetTemplateVariableResponse {
-            key,
-            value,
-        })),
+        Some(value) => Ok(HttpResponse::Ok().json(GetTemplateVariableResponse { key, value })),
         None => {
             info!("Template variable not found: {}", key);
             Ok(HttpResponse::NotFound().json(serde_json::json!({
@@ -166,4 +163,3 @@ pub fn config(cfg: &mut actix_web::web::ServiceConfig) {
             ),
     );
 }
-

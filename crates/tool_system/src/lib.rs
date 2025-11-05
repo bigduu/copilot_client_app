@@ -8,6 +8,8 @@ pub mod registry;
 pub mod types;
 
 pub use executor::ToolExecutor;
-pub use prompt_formatter::{format_tool_as_xml, format_tools_section, format_tool_list, TOOL_CALLING_INSTRUCTIONS};
+pub use prompt_formatter::{
+    format_tool_as_xml, format_tool_list, format_tools_section, TOOL_CALLING_INSTRUCTIONS,
+};
 pub use registry::{CategoryRegistry, ToolRegistry};
 pub use types::ToolPermission;

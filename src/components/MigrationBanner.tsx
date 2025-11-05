@@ -15,7 +15,7 @@ export function MigrationBanner() {
       const needsMigration = await localStorageMigrator.needsMigration();
       setNeeds(needsMigration);
       setHasBackup(localStorageMigrator.hasBackup());
-      
+
       // Run validation if migration is needed
       if (needsMigration) {
         const errors = localStorageMigrator.validateLegacyData();
@@ -30,7 +30,7 @@ export function MigrationBanner() {
       const res = await localStorageMigrator.migrateAll();
       setNeeds(false);
       setMessage(
-        `Migrated contexts: ${res.migratedContexts}, messages: ${res.migratedMessages}`
+        `Migrated contexts: ${res.migratedContexts}, messages: ${res.migratedMessages}`,
       );
       setHasBackup(localStorageMigrator.hasBackup());
     } catch (e: any) {
@@ -75,14 +75,20 @@ export function MigrationBanner() {
                 <ul style={{ margin: "8px 0", paddingLeft: "20px" }}>
                   {validationErrors.slice(0, 5).map((err, idx) => (
                     <li key={idx}>
-                      <Typography.Text type="danger" style={{ fontSize: "12px" }}>
+                      <Typography.Text
+                        type="danger"
+                        style={{ fontSize: "12px" }}
+                      >
                         {err}
                       </Typography.Text>
                     </li>
                   ))}
                   {validationErrors.length > 5 && (
                     <li>
-                      <Typography.Text type="secondary" style={{ fontSize: "12px" }}>
+                      <Typography.Text
+                        type="secondary"
+                        style={{ fontSize: "12px" }}
+                      >
                         ...and {validationErrors.length - 5} more errors
                       </Typography.Text>
                     </li>
@@ -92,14 +98,15 @@ export function MigrationBanner() {
             )}
             {last && !message && (
               <Typography.Text>
-                Last result — contexts: {last.migratedContexts}, messages: {last.migratedMessages}
+                Last result — contexts: {last.migratedContexts}, messages:{" "}
+                {last.migratedMessages}
               </Typography.Text>
             )}
             <Space>
               {needs && (
-                <Button 
-                  type="primary" 
-                  onClick={run} 
+                <Button
+                  type="primary"
+                  onClick={run}
                   loading={busy}
                   disabled={hasValidationErrors}
                 >
@@ -118,6 +125,3 @@ export function MigrationBanner() {
     </div>
   );
 }
-
-
-

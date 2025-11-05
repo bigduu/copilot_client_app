@@ -82,7 +82,7 @@ export const chatMachine = setup({
         "[ChatMachine] enhanceSystemPrompt: Actor started with chat.config:",
         input.chat.config,
         "and systemPrompts count:",
-        input.systemPrompts.length
+        input.systemPrompts.length,
       );
 
       const { systemPromptId } = input.chat.config;
@@ -95,7 +95,7 @@ export const chatMachine = setup({
         currentPrompt?.content ?? input.chat.config.baseSystemPrompt ?? "";
 
       console.log(
-        `[ChatMachine] enhanceSystemPrompt: Using basePrompt: "${basePrompt}"`
+        `[ChatMachine] enhanceSystemPrompt: Using basePrompt: "${basePrompt}"`,
       );
 
       // Get the prompt ID if available, otherwise fall back to content-based enhancement
@@ -103,11 +103,11 @@ export const chatMachine = setup({
       const enhancedPrompt = systemPromptId
         ? await systemPromptService.getEnhancedSystemPrompt(systemPromptId)
         : await systemPromptService.getEnhancedSystemPromptFromContent(
-            basePrompt
+            basePrompt,
           );
 
       console.log(
-        "[ChatMachine] enhanceSystemPrompt: Prompt enhanced successfully."
+        "[ChatMachine] enhanceSystemPrompt: Prompt enhanced successfully.",
       );
       return enhancedPrompt;
     }),
@@ -152,18 +152,18 @@ export const chatMachine = setup({
         return () => {
           controller.abort();
         };
-      }
+      },
     ),
     // Note: checkToolApproval removed - tool approval is now handled by backend agent loop
     // The backend will send approval requests via ServiceResponse::AwaitingToolApproval
     checkToolApproval: fromPromise<boolean, { toolName: string }>(
       async ({ input: _input }) => {
         console.warn(
-          `[ChatMachine] checkToolApproval: This should not be called - approval handled by backend`
+          `[ChatMachine] checkToolApproval: This should not be called - approval handled by backend`,
         );
         // Default to requiring approval for safety
         return true;
-      }
+      },
     ),
     toolExecutor: fromPromise<
       ToolExecutionResult,
@@ -171,7 +171,7 @@ export const chatMachine = setup({
     >(async ({ input }) => {
       console.log(
         "[ChatMachine] toolExecutor: Actor started with input:",
-        input
+        input,
       );
       const { tool_name, parameters } = input;
       if (!tool_name || !parameters) {
@@ -181,14 +181,14 @@ export const chatMachine = setup({
       const executionRequest = { tool_name, parameters };
       console.log(
         `[ChatMachine] toolExecutor: Calling toolService.executeTool with:`,
-        executionRequest
+        executionRequest,
       );
 
       // The service now returns a structured result.
       const structuredResult = await toolService.executeTool(executionRequest);
       console.log(
         `[ChatMachine] toolExecutor: toolService.executeTool returned:`,
-        structuredResult
+        structuredResult,
       );
 
       // The actor now returns the entire structured result object.
@@ -202,11 +202,11 @@ export const chatMachine = setup({
       { toolCallRequest: ToolCallRequest }
     >(async ({ input }) => {
       console.warn(
-        "[ChatMachine] parameterParser: This should not be called for LLM-driven tools"
+        "[ChatMachine] parameterParser: This should not be called for LLM-driven tools",
       );
       if (!input.toolCallRequest) {
         throw new Error(
-          "Parameter parser actor received no tool call request."
+          "Parameter parser actor received no tool call request.",
         );
       }
       // For workflows, return simple parameter extraction
@@ -273,7 +273,7 @@ export const chatMachine = setup({
                 createdAt: new Date().toISOString(),
               };
               const history = context.messages.filter(
-                (m) => m.role !== "system"
+                (m) => m.role !== "system",
               );
               return [systemMessage, ...history];
             },
@@ -285,7 +285,7 @@ export const chatMachine = setup({
             error: ({ event }) => {
               console.error(
                 "[ChatMachine] enhanceSystemPrompt actor failed:",
-                event.error
+                event.error,
               );
               return event.error as Error;
             },
@@ -308,14 +308,14 @@ export const chatMachine = setup({
             target: "AWAITING_APPROVAL",
             actions: () =>
               console.log(
-                "[ChatMachine] Approval required. Transitioning to AWAITING_APPROVAL."
+                "[ChatMachine] Approval required. Transitioning to AWAITING_APPROVAL.",
               ),
           },
           {
             target: "EXECUTING_TOOL", // If tool does not require approval
             actions: () =>
               console.log(
-                "[ChatMachine] Approval not required. Transitioning to EXECUTING_TOOL."
+                "[ChatMachine] Approval not required. Transitioning to EXECUTING_TOOL.",
               ),
           },
         ],
@@ -325,7 +325,7 @@ export const chatMachine = setup({
             error: ({ event }) => {
               console.error(
                 "[ChatMachine] checkToolApproval actor failed:",
-                event.error
+                event.error,
               );
               return event.error as Error;
             },
@@ -382,7 +382,7 @@ export const chatMachine = setup({
           actions: [
             () =>
               console.warn(
-                "[ChatMachine] STREAM_COMPLETE_TOOL_CALL received - tool calls should be handled by backend"
+                "[ChatMachine] STREAM_COMPLETE_TOOL_CALL received - tool calls should be handled by backend",
               ),
             assign({
               toolCallRequest: ({ event }) => event.payload.toolCall,
@@ -458,7 +458,7 @@ export const chatMachine = setup({
           actions: [
             () =>
               console.log(
-                "[ChatMachine] Routing directly to approval check for non-AI tool."
+                "[ChatMachine] Routing directly to approval check for non-AI tool.",
               ),
             assign({
               parsedParameters: ({ context }) => {
@@ -533,14 +533,14 @@ export const chatMachine = setup({
           target: "EXECUTING_TOOL",
           actions: () =>
             console.log(
-              "[ChatMachine] User approved. Transitioning to EXECUTING_TOOL."
+              "[ChatMachine] User approved. Transitioning to EXECUTING_TOOL.",
             ),
         },
         USER_REJECTS: {
           target: "THINKING", // 或者回到 IDLE，这里选择回到 THINKING 告诉 AI 用户拒绝了
           actions: () =>
             console.log(
-              "[ChatMachine] User rejected. Transitioning to THINKING."
+              "[ChatMachine] User rejected. Transitioning to THINKING.",
             ),
         },
       },
@@ -560,7 +560,7 @@ export const chatMachine = setup({
             messages: ({ context, event }) => {
               console.log(
                 "[ChatMachine] toolExecutor succeeded, output:",
-                event.output
+                event.output,
               );
               const toolResult: ToolExecutionResult = event.output;
               const newResultMessage: AssistantToolResultMessage = {
@@ -583,7 +583,7 @@ export const chatMachine = setup({
             messages: ({ context, event }) => {
               console.error(
                 "[ChatMachine] toolExecutor failed, error:",
-                event.error
+                event.error,
               );
               const toolResult: ToolExecutionResult = {
                 tool_name: context.toolCallRequest!.tool_name,
