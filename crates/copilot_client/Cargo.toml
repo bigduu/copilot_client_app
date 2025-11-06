@@ -5,7 +5,6 @@ edition = "2021"
 
 [dependencies]
 context_manager = { path = "../context_manager" }
-reqwest-sse = { path = "../reqwest-sse" }
 # Serialization
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
@@ -29,6 +28,7 @@ bytes = "1"
 anyhow = "1.0"
 dirs = "5.0"
 lazy_static = "1.4"
+eventsource-stream = "0.2"
 
 # Logging
 log = { version = "0.4", features = ["std"] }

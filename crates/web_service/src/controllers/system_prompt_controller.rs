@@ -144,10 +144,7 @@ pub async fn get_enhanced_system_prompt(
         Some(prompt) => {
             // Enhance the prompt with Actor role (default for preview)
             match enhancer_service
-                .enhance_prompt(
-                    &prompt.content,
-                    &context_manager::structs::context::AgentRole::Actor,
-                )
+                .enhance_prompt(&prompt.content, &context_manager::AgentRole::Actor)
                 .await
             {
                 Ok(enhanced_content) => Ok(HttpResponse::Ok().json(serde_json::json!({

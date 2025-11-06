@@ -16,7 +16,7 @@ The `ContextState` enum will represent the various states a chat session can be 
 -   **`StreamingLLMResponse`**: The system is actively receiving and processing a stream of response chunks (SSE) from the LLM.
 -   **`ProcessingLLMResponse`**: The LLM response (either full or streamed) is complete, and the system is processing the final output (e.g., for tool calls).
 -   **`AwaitingToolApproval`**: The LLM has requested to use tools that require user approval.
--   **`ExecutingTools`**: The system is executing approved tool calls.
+-   **`ExecutingTool`**: The system is executing the current tool call.
 -   **`ProcessingToolResults`**: Tool executions have finished, and the system is processing their results.
 -   **`GeneratingResponse`**: The system is preparing a new request to the LLM after a tool call or generating a final answer.
 -   **`TransientFailure`**: A recoverable error occurred (e.g., network issue).
@@ -39,21 +39,21 @@ stateDiagram-v2
     StreamingLLMResponse --> TransientFailure: Stream error
 
     ProcessingLLMResponse --> AwaitingToolApproval: Tool calls require approval
-    ProcessingLLMResponse --> ExecutingTools: Tool calls are auto-approved
+    ProcessingLLMResponse --> ExecutingTool: Tool calls are auto-approved
     ProcessingLLMResponse --> Idle: Final text answer
     
-    AwaitingToolApproval --> ExecutingTools: User approves
+    AwaitingToolApproval --> ExecutingTool: User approves
     AwaitingToolApproval --> GeneratingResponse: User denies
     
-    ExecutingTools --> ProcessingToolResults: Tools succeed
-    ExecutingTools --> TransientFailure: Recoverable tool error
-    ExecutingTools --> Failed: Unrecoverable tool error
+    ExecutingTool --> ProcessingToolResults: Tools succeed
+    ExecutingTool --> TransientFailure: Recoverable tool error
+    ExecutingTool --> Failed: Unrecoverable tool error
     
     ProcessingToolResults --> GeneratingResponse: Results added to context
     GeneratingResponse --> AwaitingLLMResponse: Send updated context to LLM
     
     TransientFailure --> AwaitingLLMResponse: Retry [from LLM error]
-    TransientFailure --> ExecutingTools: Retry [from tool error]
+    TransientFailure --> ExecutingTool: Retry [from tool error]
     TransientFailure --> Failed: Max retries exceeded
     
     state "Terminal Error" as Failed

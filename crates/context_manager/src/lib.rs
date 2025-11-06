@@ -2,16 +2,31 @@
 //! and multi-branch conversations with LLMs.
 
 // Declare the modules
+pub mod error;
 pub mod fsm;
+pub mod message_pipeline;
 pub mod structs;
 pub mod traits;
 
 // Re-export the public API
+pub use error::ContextError;
 pub use fsm::ChatEvent;
+pub use message_pipeline::{MessagePipeline, MessageProcessor, ProcessResult};
 pub use structs::branch::{Branch, SystemPrompt};
 pub use structs::context::{ChatConfig, ChatContext};
-pub use structs::message::{ContentPart, InternalMessage, MessageNode, Role};
+pub use structs::context_agent::{AgentRole, Permission};
+pub use structs::context_lifecycle::StreamingResponseBuilder;
+pub use structs::context_snapshot::{BranchSnapshot, LlmContextSnapshot};
+pub use structs::events::{ContextUpdate, MessageUpdate};
+pub use structs::llm_request::PreparedLlmRequest;
+pub use structs::message::{
+    ContentPart, IncomingMessage, IncomingTextMessage, InternalMessage, MessageNode, MessageType,
+    Role,
+};
 pub use structs::metadata::{MessageMetadata, TokenUsage};
 pub use structs::state::ContextState;
-pub use structs::tool::{ApprovalStatus, DisplayPreference, ToolCallRequest, ToolCallResult};
+pub use structs::tool::{
+    ApprovalStatus, CurrentToolExecution, DisplayPreference, PendingToolRequest, ToolCallRequest,
+    ToolCallResult, ToolExecutionContext,
+};
 pub use traits::{Adapter, Enhancer};

@@ -1,4 +1,5 @@
 use crate::{ChatContext, ContextState};
+use uuid::Uuid;
 
 /// Defines the events that can trigger state transitions in the ChatContext FSM.
 #[derive(Debug)]
@@ -9,13 +10,30 @@ pub enum ChatEvent {
     LLMStreamChunkReceived,
     LLMStreamEnded,
     LLMFullResponseReceived,
-    LLMResponseProcessed { has_tool_calls: bool },
-    ToolCallsApproved,
+    LLMResponseProcessed {
+        has_tool_calls: bool,
+    },
+    ToolApprovalRequested {
+        request_id: Uuid,
+        tool_name: String,
+    },
+    ToolExecutionStarted {
+        tool_name: String,
+        attempt: u8,
+        request_id: Option<Uuid>,
+    },
     ToolCallsDenied,
     ToolExecutionCompleted,
-    ToolExecutionFailed { error: String, retry_count: u8 },
+    ToolExecutionFailed {
+        tool_name: String,
+        error: String,
+        retry_count: u8,
+        request_id: Option<Uuid>,
+    },
     Retry,
-    FatalError { error: String },
+    FatalError {
+        error: String,
+    },
 }
 
 impl ChatContext {
@@ -45,7 +63,12 @@ impl ChatContext {
             }
             (
                 ContextState::AwaitingLLMResponse,
-                ChatEvent::ToolExecutionFailed { error, retry_count },
+                ChatEvent::ToolExecutionFailed {
+                    tool_name: _,
+                    error,
+                    retry_count,
+                    request_id: _,
+                },
             ) => ContextState::TransientFailure { error, retry_count },
 
             (ContextState::StreamingLLMResponse, ChatEvent::LLMStreamChunkReceived) => {
@@ -59,7 +82,12 @@ impl ChatContext {
             }
             (
                 ContextState::StreamingLLMResponse,
-                ChatEvent::ToolExecutionFailed { error, retry_count },
+                ChatEvent::ToolExecutionFailed {
+                    tool_name: _,
+                    error,
+                    retry_count,
+                    request_id: _,
+                },
             ) => ContextState::TransientFailure { error, retry_count },
 
             (
@@ -67,29 +95,116 @@ impl ChatContext {
                 ChatEvent::LLMResponseProcessed {
                     has_tool_calls: true,
                 },
-            ) => ContextState::AwaitingToolApproval,
+            ) => {
+                self.tool_execution.reset();
+                let (pending_requests, tool_names) = self.tool_execution.pending_snapshot();
+                ContextState::AwaitingToolApproval {
+                    pending_requests,
+                    tool_names,
+                }
+            }
             (
                 ContextState::ProcessingLLMResponse,
                 ChatEvent::LLMResponseProcessed {
                     has_tool_calls: false,
                 },
-            ) => ContextState::Idle,
-
-            (ContextState::AwaitingToolApproval, ChatEvent::ToolCallsApproved) => {
-                ContextState::ExecutingTools
+            ) => {
+                self.tool_execution.reset();
+                ContextState::Idle
             }
-            (ContextState::AwaitingToolApproval, ChatEvent::ToolCallsDenied) => {
+
+            (
+                ContextState::ProcessingLLMResponse,
+                ChatEvent::ToolApprovalRequested {
+                    request_id,
+                    tool_name,
+                },
+            ) => {
+                self.tool_execution
+                    .add_pending(request_id, tool_name.clone());
+                let (pending_requests, tool_names) = self.tool_execution.pending_snapshot();
+                ContextState::AwaitingToolApproval {
+                    pending_requests,
+                    tool_names,
+                }
+            }
+            (
+                ContextState::AwaitingToolApproval { .. },
+                ChatEvent::ToolApprovalRequested {
+                    request_id,
+                    tool_name,
+                },
+            ) => {
+                self.tool_execution
+                    .add_pending(request_id, tool_name.clone());
+                let (pending_requests, tool_names) = self.tool_execution.pending_snapshot();
+                ContextState::AwaitingToolApproval {
+                    pending_requests,
+                    tool_names,
+                }
+            }
+            (
+                ContextState::AwaitingToolApproval { .. },
+                ChatEvent::ToolExecutionStarted {
+                    tool_name,
+                    attempt,
+                    request_id,
+                },
+            ) => {
+                self.tool_execution
+                    .start_execution(tool_name.clone(), attempt, request_id);
+                if let Some(current) = self.tool_execution.current() {
+                    ContextState::ExecutingTool {
+                        tool_name: current.tool_name.clone(),
+                        attempt: current.attempt,
+                    }
+                } else {
+                    ContextState::ExecutingTool { tool_name, attempt }
+                }
+            }
+            (
+                ContextState::ProcessingLLMResponse,
+                ChatEvent::ToolExecutionStarted {
+                    tool_name,
+                    attempt,
+                    request_id,
+                },
+            ) => {
+                self.tool_execution
+                    .start_execution(tool_name.clone(), attempt, request_id);
+                ContextState::ExecutingTool { tool_name, attempt }
+            }
+            (
+                ContextState::TransientFailure { .. },
+                ChatEvent::ToolExecutionStarted {
+                    tool_name,
+                    attempt,
+                    request_id,
+                },
+            ) => {
+                self.tool_execution
+                    .start_execution(tool_name.clone(), attempt, request_id);
+                ContextState::ExecutingTool { tool_name, attempt }
+            }
+            (ContextState::AwaitingToolApproval { .. }, ChatEvent::ToolCallsDenied) => {
+                self.tool_execution.reset();
                 ContextState::GeneratingResponse
             }
 
-            (ContextState::ExecutingTools, ChatEvent::ToolExecutionCompleted) => {
+            (ContextState::ExecutingTool { .. }, ChatEvent::ToolExecutionCompleted) => {
+                self.tool_execution.complete_execution();
                 ContextState::ProcessingToolResults
             }
             (
-                ContextState::ExecutingTools,
-                ChatEvent::ToolExecutionFailed { error, retry_count },
+                ContextState::ExecutingTool { .. },
+                ChatEvent::ToolExecutionFailed {
+                    tool_name: _,
+                    error,
+                    retry_count,
+                    request_id: _,
+                },
             ) => ContextState::TransientFailure { error, retry_count },
-            (ContextState::ExecutingTools, ChatEvent::FatalError { error }) => {
+            (ContextState::ExecutingTool { .. }, ChatEvent::FatalError { error }) => {
                 ContextState::Failed { error }
             }
 
@@ -99,6 +214,12 @@ impl ChatContext {
             (ContextState::GeneratingResponse, ChatEvent::LLMRequestInitiated) => {
                 ContextState::AwaitingLLMResponse
             }
+            (
+                ContextState::ProcessingToolResults,
+                ChatEvent::LLMResponseProcessed {
+                    has_tool_calls: false,
+                },
+            ) => ContextState::Idle,
 
             (ContextState::TransientFailure { retry_count, .. }, ChatEvent::Retry)
                 if *retry_count < 3 =>

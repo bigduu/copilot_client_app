@@ -1,6 +1,10 @@
+pub mod agent_loop_runner;
 pub mod agent_service;
 pub mod approval_manager;
 pub mod chat_service;
+pub mod copilot_stream_handler;
+pub mod llm_request_builder;
+pub mod llm_utils;
 pub mod session_manager;
 pub mod system_prompt_enhancer;
 pub mod system_prompt_service;

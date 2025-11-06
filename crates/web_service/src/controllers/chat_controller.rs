@@ -1,14 +1,14 @@
 use crate::{
     middleware::extract_trace_id,
-    models::CreateSessionRequest,
+    models::{CreateSessionRequest, SendMessageRequest, SendMessageRequestBody},
     server::AppState,
     services::chat_service::{ChatService, ServiceResponse},
 };
 use actix_web::{
+    http::header::{HeaderName, HeaderValue},
     web::{self, Data},
-    HttpRequest, HttpResponse, Result,
+    HttpRequest, HttpResponse, Responder, Result,
 };
-use futures_util::StreamExt;
 use log::info;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
@@ -39,7 +39,7 @@ pub async fn create_chat_session(
 
 pub async fn send_message(
     session_id: web::Path<Uuid>,
-    message: web::Json<String>,
+    body: web::Json<SendMessageRequestBody>,
     app_state: Data<AppState>,
 ) -> Result<HttpResponse> {
     let mut chat_service = ChatService::new(
@@ -52,7 +52,8 @@ pub async fn send_message(
         app_state.approval_manager.clone(),
         app_state.workflow_service.clone(),
     );
-    match chat_service.process_message(message.into_inner()).await {
+    let request = SendMessageRequest::from_parts(*session_id, body.into_inner());
+    match chat_service.process_message(request).await {
         Ok(response) => Ok(HttpResponse::Ok().json(response)),
         Err(e) => Ok(HttpResponse::InternalServerError().body(e.to_string())),
     }
@@ -61,7 +62,8 @@ pub async fn send_message(
 /// Streaming endpoint for chat messages using Server-Sent Events
 pub async fn send_message_stream(
     session_id: web::Path<Uuid>,
-    message: web::Json<String>,
+    body: web::Json<SendMessageRequestBody>,
+    http_req: HttpRequest,
     app_state: Data<AppState>,
 ) -> Result<HttpResponse> {
     info!("Streaming message for session: {}", session_id);
@@ -77,25 +79,16 @@ pub async fn send_message_stream(
         app_state.workflow_service.clone(),
     );
 
-    match chat_service
-        .process_message_stream(message.into_inner())
-        .await
-    {
-        Ok(stream) => {
-            // Convert to actix-web streaming response
-            let stream = stream.map(|result| match result {
-                Ok(bytes) => Ok::<_, actix_web::Error>(bytes),
-                Err(e) => {
-                    let error_msg = format!("data: {{\"error\": \"{}\"}}\n\n", e);
-                    Ok(actix_web::web::Bytes::from(error_msg))
-                }
-            });
+    let request = SendMessageRequest::from_parts(*session_id, body.into_inner());
 
-            Ok(HttpResponse::Ok()
-                .content_type("text/event-stream")
-                .append_header(("Cache-Control", "no-cache"))
-                .append_header(("X-Accel-Buffering", "no"))
-                .streaming(stream))
+    match chat_service.process_message_stream(request).await {
+        Ok(sse_response) => {
+            let mut response = sse_response.respond_to(&http_req);
+            response.headers_mut().insert(
+                HeaderName::from_static("x-accel-buffering"),
+                HeaderValue::from_static("no"),
+            );
+            Ok(response)
         }
         Err(e) => Ok(HttpResponse::InternalServerError().body(e.to_string())),
     }

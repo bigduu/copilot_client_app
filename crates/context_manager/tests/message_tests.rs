@@ -64,7 +64,7 @@ fn test_context_retrieve_message_by_id() {
         ..Default::default()
     };
 
-    context.add_message_to_branch("main", message.clone());
+    let _ = context.add_message_to_branch("main", message.clone());
 
     // Get the message ID from the branch
     let message_id = context.branches.get("main").unwrap().message_ids[0];

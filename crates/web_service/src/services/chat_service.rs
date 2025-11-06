@@ -1,34 +1,39 @@
 use crate::{
-    error::AppError, services::workflow_service::WorkflowService, storage::StorageProvider,
+    error::AppError,
+    models::{ClientMessageMetadata, FileRange, MessagePayload, SendMessageRequest},
+    services::workflow_service::WorkflowService,
+    storage::StorageProvider,
 };
+use actix_web_lab::{sse, util::InfallibleStream};
 use bytes::Bytes;
-use context_manager::fsm::ChatEvent;
-use context_manager::structs::{
-    message::{ContentPart, InternalMessage, MessageType, Role},
-    state::ContextState,
-    tool::{ToolCallRequest, ToolCallResult},
+use context_manager::{
+    ChatContext, ChatEvent, ContentPart, ContextState, IncomingMessage, IncomingTextMessage,
+    InternalMessage, MessageMetadata, MessageType, Role, ToolCallRequest, ToolCallResult,
 };
 use copilot_client::api::models::{
-    ChatCompletionRequest, ChatCompletionStreamChunk, ChatMessage, Content, FunctionCall,
-    Role as ClientRole, StreamChoice, StreamDelta,
+    ChatCompletionStreamChunk, Role as ClientRole, StreamChoice, StreamDelta,
 };
 use copilot_client::CopilotClientTrait;
+use futures_util::StreamExt;
 use log::{debug, error, info};
-use serde::{Deserialize, Serialize};
-use serde_json::{json, Value as JsonValue};
+use serde::Serialize;
+use serde_json::json;
 use std::{
     collections::HashMap,
     sync::Arc,
-    time::{SystemTime, UNIX_EPOCH},
+    time::{Duration, SystemTime, UNIX_EPOCH},
 };
 use tokio::sync::mpsc;
-use tokio_stream::wrappers::ReceiverStream;
 use tool_system::{types::ToolArguments, ToolExecutor};
 use tracing;
 use uuid::Uuid;
 
-use super::agent_service::{AgentLoopState, AgentService, ToolCall as AgentToolCall};
+use super::agent_loop_runner::AgentLoopRunner;
+use super::agent_service::AgentService;
 use super::approval_manager::ApprovalManager;
+use super::copilot_stream_handler;
+use super::llm_request_builder::LlmRequestBuilder;
+use super::llm_utils::{detect_message_type, send_context_update};
 use super::session_manager::ChatSessionManager;
 use super::system_prompt_enhancer::SystemPromptEnhancer;
 use super::system_prompt_service::SystemPromptService;
@@ -61,86 +66,6 @@ pub struct ChatService<T: StorageProvider> {
     workflow_service: Arc<WorkflowService>,
 }
 
-#[derive(Debug, Deserialize)]
-struct TextPayload {
-    content: String,
-    #[serde(default)]
-    display_text: Option<String>,
-}
-
-#[derive(Debug, Deserialize, Clone)]
-struct FileRangePayload {
-    #[serde(default)]
-    start_line: Option<usize>,
-    #[serde(default)]
-    end_line: Option<usize>,
-}
-
-#[derive(Debug, Deserialize, Clone)]
-struct FileReferencePayload {
-    path: String,
-    #[serde(default)]
-    range: Option<FileRangePayload>,
-    #[serde(default)]
-    display_text: Option<String>,
-}
-
-#[derive(Debug, Deserialize, Clone, Default)]
-struct WorkflowPayload {
-    workflow: String,
-    #[serde(default)]
-    parameters: HashMap<String, serde_json::Value>,
-    #[serde(default)]
-    display_text: Option<String>,
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(tag = "type", content = "payload")]
-enum StructuredUserMessage {
-    #[serde(rename = "user_text")]
-    Text(TextPayload),
-    #[serde(rename = "user_file_reference")]
-    FileReference(FileReferencePayload),
-    #[serde(rename = "user_workflow")]
-    Workflow(WorkflowPayload),
-}
-
-#[derive(Debug, Clone)]
-enum IncomingMessage {
-    Plain {
-        display_text: String,
-        llm_content: String,
-    },
-    FileReference(FileReferencePayload),
-    Workflow(WorkflowPayload),
-}
-
-fn parse_incoming_message(raw: &str) -> IncomingMessage {
-    if let Ok(structured) = serde_json::from_str::<StructuredUserMessage>(raw) {
-        match structured {
-            StructuredUserMessage::Text(payload) => {
-                let display_text = payload
-                    .display_text
-                    .clone()
-                    .unwrap_or_else(|| payload.content.clone());
-                IncomingMessage::Plain {
-                    display_text,
-                    llm_content: payload.content,
-                }
-            }
-            StructuredUserMessage::FileReference(payload) => {
-                IncomingMessage::FileReference(payload)
-            }
-            StructuredUserMessage::Workflow(payload) => IncomingMessage::Workflow(payload),
-        }
-    } else {
-        IncomingMessage::Plain {
-            display_text: raw.to_string(),
-            llm_content: raw.to_string(),
-        }
-    }
-}
-
 fn stringify_tool_output(value: &serde_json::Value) -> String {
     if let Some(content) = value.get("content").and_then(|v| v.as_str()) {
         return content.to_string();
@@ -154,124 +79,55 @@ fn stringify_tool_output(value: &serde_json::Value) -> String {
 }
 
 // Helper function to convert internal Role to client Role
-fn convert_role(role: &Role) -> ClientRole {
-    match role {
-        Role::User => ClientRole::User,
-        Role::Assistant => ClientRole::Assistant,
-        Role::System => ClientRole::System,
-        Role::Tool => ClientRole::Tool,
+fn describe_payload(payload: &MessagePayload) -> &'static str {
+    match payload {
+        MessagePayload::Text { .. } => "text",
+        MessagePayload::FileReference { .. } => "file_reference",
+        MessagePayload::Workflow { .. } => "workflow",
+        MessagePayload::ToolResult { .. } => "tool_result",
     }
 }
 
-// Helper function to convert internal ContentPart to client Content
-fn convert_content(parts: &[ContentPart]) -> Content {
-    if parts.len() == 1 {
-        if let Some(ContentPart::Text { text }) = parts.first() {
-            return Content::Text(text.clone());
-        }
+fn compute_display_text(request: &SendMessageRequest) -> String {
+    if let Some(display_text) = &request.client_metadata.display_text {
+        return display_text.clone();
     }
 
-    // Multiple parts or complex content
-    let client_parts: Vec<copilot_client::api::models::ContentPart> = parts
-        .iter()
-        .filter_map(|part| match part {
-            ContentPart::Text { text } => {
-                Some(copilot_client::api::models::ContentPart::Text { text: text.clone() })
-            }
-            ContentPart::Image { url, detail } => {
-                Some(copilot_client::api::models::ContentPart::ImageUrl {
-                    image_url: copilot_client::api::models::ImageUrl {
-                        url: url.clone(),
-                        detail: detail.clone(),
-                    },
-                })
-            }
-        })
-        .collect();
-
-    Content::Parts(client_parts)
-}
-
-// Helper function to convert internal message to client ChatMessage
-fn convert_to_chat_message(msg: &InternalMessage) -> ChatMessage {
-    let tool_calls = msg.tool_calls.as_ref().map(|calls| {
-        calls
-            .iter()
-            .map(|call| {
-                let arguments =
-                    serde_json::to_string(&call.arguments).unwrap_or_else(|_| "{}".to_string());
-
-                copilot_client::api::models::ToolCall {
-                    id: call.id.clone(),
-                    tool_type: "function".to_string(),
-                    function: FunctionCall {
-                        name: call.tool_name.clone(),
-                        arguments,
-                    },
-                }
-            })
-            .collect()
-    });
-
-    // For direct tool execution results (Role::Tool + MessageType::ToolResult),
-    // convert to Assistant role to avoid LLM API validation errors.
-    // The LLM API requires Tool messages to follow an Assistant message with tool_calls,
-    // but we bypass the LLM for direct execution, so we convert Tool -> Assistant.
-    let role = if msg.role == Role::Tool && msg.message_type == MessageType::ToolResult {
-        ClientRole::Assistant
-    } else {
-        convert_role(&msg.role)
-    };
-
-    ChatMessage {
-        role,
-        content: convert_content(&msg.content),
-        tool_calls,
-        tool_call_id: msg.tool_result.as_ref().map(|tr| tr.request_id.clone()),
+    match &request.payload {
+        MessagePayload::Text { content, display } => {
+            display.clone().unwrap_or_else(|| content.clone())
+        }
+        MessagePayload::FileReference {
+            path, display_text, ..
+        } => display_text
+            .clone()
+            .unwrap_or_else(|| format!("读取文件 {}", path)),
+        MessagePayload::Workflow {
+            workflow,
+            display_text,
+            ..
+        } => display_text
+            .clone()
+            .unwrap_or_else(|| format!("执行工作流 {}", workflow)),
+        MessagePayload::ToolResult {
+            tool_name,
+            display_text,
+            ..
+        } => display_text
+            .clone()
+            .unwrap_or_else(|| format!("工具 {} 的执行结果", tool_name)),
     }
 }
 
-/// Parse the LLM response text and determine the message type
-fn detect_message_type(text: &str) -> MessageType {
-    // Try to extract JSON from the text
-    if let Some(json_str) = extract_json_from_text(text) {
-        if let Ok(json) = serde_json::from_str::<JsonValue>(&json_str) {
-            // Check if it's a plan
-            if json.get("goal").is_some() && json.get("steps").is_some() {
-                return MessageType::Plan;
-            }
-            // Check if it's a question
-            if json.get("type").and_then(|v| v.as_str()) == Some("question")
-                && json.get("question").is_some()
-            {
-                return MessageType::Question;
-            }
-        }
+fn incoming_message_from_payload(payload: &MessagePayload) -> Option<IncomingMessage> {
+    match payload {
+        MessagePayload::Text {
+            content, display, ..
+        } => Some(IncomingMessage::Text(
+            IncomingTextMessage::with_display_text(content.clone(), display.clone()),
+        )),
+        _ => None,
     }
-
-    // Default to text
-    MessageType::Text
-}
-
-/// Extract JSON from text that might be wrapped in markdown code blocks or mixed with other text
-fn extract_json_from_text(text: &str) -> Option<String> {
-    // Try to find JSON in markdown code blocks
-    if let Some(start) = text.find("```json") {
-        if let Some(end) = text[start + 7..].find("```") {
-            return Some(text[start + 7..start + 7 + end].trim().to_string());
-        }
-    }
-
-    // Try to find raw JSON (look for { followed by })
-    if let Some(start) = text.find('{') {
-        if let Some(end) = text.rfind('}') {
-            if end > start {
-                return Some(text[start..=end].trim().to_string());
-            }
-        }
-    }
-
-    None
 }
 
 impl<T: StorageProvider + 'static> ChatService<T> {
@@ -299,20 +155,61 @@ impl<T: StorageProvider + 'static> ChatService<T> {
         }
     }
 
+    fn llm_request_builder(&self) -> LlmRequestBuilder {
+        LlmRequestBuilder::new(
+            self.system_prompt_enhancer.clone(),
+            self.system_prompt_service.clone(),
+        )
+    }
+
+    fn agent_loop_runner(&self) -> AgentLoopRunner<T> {
+        AgentLoopRunner::new(
+            self.session_manager.clone(),
+            self.conversation_id,
+            self.tool_executor.clone(),
+            self.approval_manager.clone(),
+            self.agent_service.clone(),
+            self.copilot_client.clone(),
+            self.llm_request_builder(),
+        )
+    }
+
     async fn add_user_message(
         &self,
-        context: &Arc<tokio::sync::RwLock<context_manager::structs::context::ChatContext>>,
-        text: String,
+        context: &Arc<tokio::sync::RwLock<ChatContext>>,
+        text: &str,
+        metadata: &ClientMessageMetadata,
     ) -> Result<(), AppError> {
-        let user_message = InternalMessage {
+        let mut user_message = InternalMessage {
             role: Role::User,
-            content: vec![ContentPart::Text { text }],
+            content: vec![ContentPart::Text {
+                text: text.to_string(),
+            }],
             ..Default::default()
         };
 
+        let mut extra = metadata.extra.clone();
+        if let Some(display_text) = &metadata.display_text {
+            extra
+                .entry("display_text".to_string())
+                .or_insert(json!(display_text));
+        }
+        if let Some(trace_id) = &metadata.trace_id {
+            extra
+                .entry("trace_id".to_string())
+                .or_insert(json!(trace_id));
+        }
+
+        if !extra.is_empty() {
+            user_message.metadata = Some(MessageMetadata {
+                extra: Some(extra),
+                ..Default::default()
+            });
+        }
+
         {
             let mut context_lock = context.write().await;
-            context_lock.add_message_to_branch("main", user_message);
+            let _ = context_lock.add_message_to_branch("main", user_message);
             context_lock.handle_event(ChatEvent::UserMessageSent);
         }
 
@@ -322,17 +219,14 @@ impl<T: StorageProvider + 'static> ChatService<T> {
 
     async fn execute_file_reference(
         &self,
-        context: &Arc<tokio::sync::RwLock<context_manager::structs::context::ChatContext>>,
-        payload: FileReferencePayload,
-        fallback_display: &str,
+        context: &Arc<tokio::sync::RwLock<ChatContext>>,
+        path: &str,
+        range: &Option<FileRange>,
+        display_text: &str,
+        metadata: &ClientMessageMetadata,
     ) -> Result<String, AppError> {
-        let FileReferencePayload {
-            path,
-            range,
-            display_text,
-        } = payload;
-
-        let display_text = display_text.unwrap_or_else(|| fallback_display.to_string());
+        self.add_user_message(context, display_text, metadata)
+            .await?;
 
         {
             let mut context_lock = context.write().await;
@@ -341,7 +235,10 @@ impl<T: StorageProvider + 'static> ChatService<T> {
         }
 
         let mut args_map = serde_json::Map::new();
-        args_map.insert("path".to_string(), serde_json::Value::String(path.clone()));
+        args_map.insert(
+            "path".to_string(),
+            serde_json::Value::String(path.to_string()),
+        );
 
         if let Some(range) = range {
             if let Some(start_line) = range.start_line {
@@ -359,7 +256,7 @@ impl<T: StorageProvider + 'static> ChatService<T> {
         }
 
         let request_id = Uuid::new_v4().to_string();
-        let path_for_payload = path.clone();
+        let path_for_payload = path.to_string();
         let tool_result = self
             .tool_executor
             .execute_tool(
@@ -399,21 +296,6 @@ impl<T: StorageProvider + 'static> ChatService<T> {
 
         {
             let mut context_lock = context.write().await;
-
-            // For direct tool execution (bypassing LLM):
-            // 1. Add user's original request
-            let user_message = InternalMessage {
-                role: Role::User,
-                content: vec![ContentPart::Text {
-                    text: display_text.clone(),
-                }],
-                ..Default::default()
-            };
-            context_lock.add_message_to_branch("main", user_message);
-
-            // 2. Add tool result with Role::Tool
-            //    Will be converted to Role::Assistant when sending to LLM
-            //    Frontend will display it as a tool card based on MessageType::ToolResult
             let tool_result_text = if is_error {
                 file_content.clone()
             } else {
@@ -432,7 +314,7 @@ impl<T: StorageProvider + 'static> ChatService<T> {
                 message_type: MessageType::ToolResult,
                 ..Default::default()
             };
-            context_lock.add_message_to_branch("main", tool_result_message);
+            let _ = context_lock.add_message_to_branch("main", tool_result_message);
 
             context_lock.handle_event(ChatEvent::LLMStreamEnded);
             context_lock.handle_event(ChatEvent::LLMResponseProcessed {
@@ -452,18 +334,14 @@ impl<T: StorageProvider + 'static> ChatService<T> {
 
     async fn execute_workflow(
         &self,
-        context: &Arc<tokio::sync::RwLock<context_manager::structs::context::ChatContext>>,
-        payload: WorkflowPayload,
-        fallback_display: &str,
+        context: &Arc<tokio::sync::RwLock<ChatContext>>,
+        workflow: &str,
+        parameters: &HashMap<String, serde_json::Value>,
+        display_text: &str,
+        metadata: &ClientMessageMetadata,
     ) -> Result<String, AppError> {
-        let WorkflowPayload {
-            workflow,
-            parameters,
-            display_text,
-        } = payload;
-
-        let display_text = display_text.unwrap_or_else(|| fallback_display.to_string());
-        self.add_user_message(context, display_text).await?;
+        self.add_user_message(context, display_text, metadata)
+            .await?;
 
         {
             let mut context_lock = context.write().await;
@@ -474,7 +352,7 @@ impl<T: StorageProvider + 'static> ChatService<T> {
         let parameters_clone = parameters.clone();
         let execution_result = self
             .workflow_service
-            .execute_workflow(&workflow, parameters_clone)
+            .execute_workflow(workflow, parameters_clone)
             .await;
 
         let (result_payload, assistant_text) = match execution_result {
@@ -514,14 +392,14 @@ impl<T: StorageProvider + 'static> ChatService<T> {
                 content: vec![ContentPart::Text {
                     text: assistant_text.clone(),
                 }],
-                metadata: Some(context_manager::structs::metadata::MessageMetadata {
+                metadata: Some(MessageMetadata {
                     extra: Some(extra),
                     ..Default::default()
                 }),
                 message_type: MessageType::ToolResult,
                 ..Default::default()
             };
-            context_lock.add_message_to_branch("main", workflow_message);
+            let _ = context_lock.add_message_to_branch("main", workflow_message);
 
             context_lock.handle_event(ChatEvent::LLMStreamEnded);
             context_lock.handle_event(ChatEvent::LLMResponseProcessed {
@@ -534,9 +412,54 @@ impl<T: StorageProvider + 'static> ChatService<T> {
         Ok(assistant_text)
     }
 
-    async fn build_text_stream(
+    async fn record_tool_result_message(
+        &self,
+        context: &Arc<tokio::sync::RwLock<ChatContext>>,
+        tool_name: &str,
+        result: serde_json::Value,
+        display_text: &str,
+        metadata: &ClientMessageMetadata,
+    ) -> Result<String, AppError> {
+        self.add_user_message(context, display_text, metadata)
+            .await?;
+
+        let result_text = stringify_tool_output(&result);
+        let request_id = Uuid::new_v4().to_string();
+
+        {
+            let mut context_lock = context.write().await;
+
+            let tool_message = InternalMessage {
+                role: Role::Tool,
+                content: vec![ContentPart::Text {
+                    text: result_text.clone(),
+                }],
+                tool_result: Some(ToolCallResult {
+                    request_id: request_id.clone(),
+                    result: result.clone(),
+                }),
+                message_type: MessageType::ToolResult,
+                ..Default::default()
+            };
+            let _ = context_lock.add_message_to_branch("main", tool_message);
+
+            context_lock.handle_event(ChatEvent::LLMStreamEnded);
+            context_lock.handle_event(ChatEvent::LLMResponseProcessed {
+                has_tool_calls: false,
+            });
+        }
+
+        self.auto_save_context(context).await?;
+
+        Ok(format!("工具 {} 的执行结果已记录。", tool_name))
+    }
+
+    async fn build_text_sse(
         text: String,
-    ) -> Result<ReceiverStream<Result<Bytes, String>>, AppError> {
+    ) -> Result<
+        sse::Sse<InfallibleStream<tokio_stream::wrappers::ReceiverStream<sse::Event>>>,
+        AppError,
+    > {
         let chunk = ChatCompletionStreamChunk {
             id: Uuid::new_v4().to_string(),
             object: Some("chat.completion.chunk".to_string()),
@@ -556,36 +479,46 @@ impl<T: StorageProvider + 'static> ChatService<T> {
             }],
         };
 
-        let chunk_json = serde_json::to_string(&chunk).map_err(|err| {
-            AppError::InternalError(anyhow::anyhow!(format!(
-                "Failed to serialise structured response chunk: {}",
-                err
-            )))
-        })?;
+        let chunk_event = serde_json::to_string(&chunk)
+            .map(|json| sse::Event::Data(sse::Data::new(json).event("llm_chunk")))
+            .map_err(|err| {
+                AppError::InternalError(anyhow::anyhow!(format!(
+                    "Failed to serialise structured response chunk: {}",
+                    err
+                )))
+            })?;
 
-        let (tx, rx) = mpsc::channel(2);
-        if tx
-            .send(Ok(Bytes::from(format!("data: {}\n\n", chunk_json))))
-            .await
-            .is_err()
-        {
+        let (tx, rx) = mpsc::channel::<sse::Event>(4);
+        if tx.send(chunk_event).await.is_err() {
             return Err(AppError::InternalError(anyhow::anyhow!(
                 "Failed to emit structured response chunk"
             )));
         }
-        let _ = tx.send(Ok(Bytes::from("data: [DONE]\n\n"))).await;
 
-        Ok(ReceiverStream::new(rx))
+        if let Ok(done_event) = sse::Data::new_json(json!({ "done": true })) {
+            let _ = tx.send(sse::Event::Data(done_event.event("done"))).await;
+        }
+        let _ = tx.send(sse::Event::Data(sse::Data::new("[DONE]"))).await;
+
+        drop(tx);
+
+        Ok(sse::Sse::from_infallible_receiver(rx).with_keep_alive(Duration::from_secs(15)))
     }
 
-    pub async fn process_message(&mut self, message: String) -> Result<ServiceResponse, AppError> {
+    pub async fn process_message(
+        &mut self,
+        request: SendMessageRequest,
+    ) -> Result<ServiceResponse, AppError> {
         log::info!("=== ChatService::process_message START ===");
         log::info!("Conversation ID: {}", self.conversation_id);
-        log::info!("User message: {}", message);
+        log::info!("Payload type: {}", describe_payload(&request.payload));
 
         let context = self
             .session_manager
-            .load_context(self.conversation_id, None)
+            .load_context(
+                self.conversation_id,
+                request.client_metadata.trace_id.clone(),
+            )
             .await?
             .ok_or_else(|| {
                 log::error!("Session not found: {}", self.conversation_id);
@@ -594,159 +527,106 @@ impl<T: StorageProvider + 'static> ChatService<T> {
 
         log::info!("Context loaded successfully");
 
-        let incoming_message = parse_incoming_message(&message);
+        let display_text = compute_display_text(&request);
 
-        let context_lock = context.write().await;
-        let trace_id = context_lock.get_trace_id().map(|s| s.to_string());
+        {
+            let context_lock = context.read().await;
+            let trace_id = context_lock.get_trace_id().map(|s| s.to_string());
 
-        tracing::info!(
-            trace_id = ?trace_id,
-            context_id = %context_lock.id,
-            state_before = ?context_lock.current_state,
-            message_pool_size = context_lock.message_pool.len(),
-            "ChatService: process_message starting"
-        );
+            tracing::info!(
+                trace_id = ?trace_id,
+                context_id = %context_lock.id,
+                state_before = ?context_lock.current_state,
+                message_pool_size = context_lock.message_pool.len(),
+                "ChatService: process_message starting"
+            );
+
+            log::info!(
+                "Current context state before adding message: {:?}",
+                context_lock.current_state
+            );
+            log::info!("Message pool size: {}", context_lock.message_pool.len());
+        }
+
+        match &request.payload {
+            MessagePayload::FileReference { path, range, .. } => {
+                let assistant_text = self
+                    .execute_file_reference(
+                        &context,
+                        path,
+                        range,
+                        &display_text,
+                        &request.client_metadata,
+                    )
+                    .await?;
+                log::info!("=== ChatService::process_message END (structured file reference) ===");
+                return Ok(ServiceResponse::FinalMessage(assistant_text));
+            }
+            MessagePayload::Workflow {
+                workflow,
+                parameters,
+                ..
+            } => {
+                let assistant_text = self
+                    .execute_workflow(
+                        &context,
+                        workflow,
+                        parameters,
+                        &display_text,
+                        &request.client_metadata,
+                    )
+                    .await?;
+                log::info!("=== ChatService::process_message END (structured workflow) ===");
+                return Ok(ServiceResponse::FinalMessage(assistant_text));
+            }
+            MessagePayload::ToolResult {
+                tool_name, result, ..
+            } => {
+                let assistant_text = self
+                    .record_tool_result_message(
+                        &context,
+                        tool_name,
+                        result.clone(),
+                        &display_text,
+                        &request.client_metadata,
+                    )
+                    .await?;
+                log::info!("=== ChatService::process_message END (structured tool result) ===");
+                return Ok(ServiceResponse::FinalMessage(assistant_text));
+            }
+            MessagePayload::Text { .. } => {
+                if let Some(incoming) = incoming_message_from_payload(&request.payload) {
+                    let send_result = {
+                        let mut ctx = context.write().await;
+                        ctx.send_message(incoming)
+                    };
+
+                    if let Err(err) = send_result {
+                        return Err(AppError::InternalError(anyhow::anyhow!(err.to_string())));
+                    }
+                }
+            }
+        }
+
+        let llm_request = self.llm_request_builder().build(&context).await?;
 
         log::info!(
-            "Current context state before adding message: {:?}",
-            context_lock.current_state
+            "User message added to branch '{}'",
+            llm_request.prepared.branch_name
         );
-        log::info!("Message pool size: {}", context_lock.message_pool.len());
-        drop(context_lock);
-
-        if let IncomingMessage::FileReference(payload) = incoming_message.clone() {
-            let assistant_text = self
-                .execute_file_reference(&context, payload, &message)
-                .await?;
-            log::info!("=== ChatService::process_message END (structured file reference) ===");
-            return Ok(ServiceResponse::FinalMessage(assistant_text));
-        }
-
-        if let IncomingMessage::Workflow(payload) = incoming_message.clone() {
-            let assistant_text = self.execute_workflow(&context, payload, &message).await?;
-            log::info!("=== ChatService::process_message END (structured workflow) ===");
-            return Ok(ServiceResponse::FinalMessage(assistant_text));
-        }
-
-        let (display_text, _llm_content) = match incoming_message {
-            IncomingMessage::Plain {
-                display_text,
-                llm_content,
-            } => (display_text, llm_content),
-            _ => unreachable!("Structured messages should have returned early"),
-        };
-
-        self.add_user_message(&context, display_text.clone())
-            .await?;
-
-        let context_lock = context.write().await;
-        log::info!("User message added to branch 'main'");
         log::info!(
             "Message pool size after add: {}",
-            context_lock.message_pool.len()
+            llm_request.prepared.total_messages
         );
 
-        // Get messages and model for LLM
-        let messages: Vec<InternalMessage> = context_lock
-            .get_active_branch()
-            .map(|branch| {
-                branch
-                    .message_ids
-                    .iter()
-                    .filter_map(|id| context_lock.message_pool.get(id))
-                    .map(|node| node.message.clone())
-                    .collect()
-            })
-            .unwrap_or_default();
-        let model_id = context_lock.config.model_id.clone();
-        let model_id_for_loop = model_id.clone();
+        let mut request = llm_request.request.clone();
+        request.stream = Some(true);
 
-        // Get system prompt and agent role for enhancement
-        let system_prompt_id = context_lock.config.system_prompt_id.clone();
-        let agent_role = context_lock.config.agent_role.clone();
-        let system_prompt_content =
-            if let Some(system_prompt) = context_lock.get_active_branch_system_prompt() {
-                Some(system_prompt.content.clone())
-            } else {
-                None
-            };
-
-        drop(context_lock);
-
-        // Load system prompt by ID if not in branch
-        let final_system_prompt_content = if let Some(content) = system_prompt_content {
-            Some(content)
-        } else if let Some(prompt_id) = &system_prompt_id {
-            // Try to load system prompt by ID
-            match self.system_prompt_service.get_prompt(prompt_id).await {
-                Some(prompt) => Some(prompt.content),
-                None => {
-                    log::warn!("System prompt {} not found", prompt_id);
-                    None
-                }
-            }
-        } else {
-            None
-        };
-
-        // Call LLM with streaming and handle response
         log::info!(
             "Calling LLM with {} messages, model: {}",
-            messages.len(),
-            model_id
+            request.messages.len(),
+            llm_request.prepared.model_id
         );
-
-        // Enhance system prompt if available
-        let enhanced_system_prompt = if let Some(base_prompt) = &final_system_prompt_content {
-            match self
-                .system_prompt_enhancer
-                .enhance_prompt(base_prompt, &agent_role)
-                .await
-            {
-                Ok(enhanced) => {
-                    log::info!(
-                        "System prompt enhanced successfully for role: {:?}",
-                        agent_role
-                    );
-                    Some(enhanced)
-                }
-                Err(e) => {
-                    log::warn!("Failed to enhance system prompt: {}, using base prompt", e);
-                    Some(base_prompt.clone())
-                }
-            }
-        } else {
-            None
-        };
-
-        // Convert to LLM client format
-        let mut chat_messages: Vec<ChatMessage> =
-            messages.iter().map(convert_to_chat_message).collect();
-
-        // Inject enhanced system prompt if available
-        if let Some(enhanced_prompt) = &enhanced_system_prompt {
-            // Insert enhanced system prompt at the beginning
-            chat_messages.insert(
-                0,
-                ChatMessage {
-                    role: ClientRole::System,
-                    content: Content::Text(enhanced_prompt.clone()),
-                    tool_calls: None,
-                    tool_call_id: None,
-                },
-            );
-            log::info!("Enhanced system prompt injected into messages");
-        }
-
-        // Build request with streaming enabled
-        let request = ChatCompletionRequest {
-            model: model_id,
-            messages: chat_messages,
-            stream: Some(true),
-            tools: None,
-            tool_choice: None,
-            ..Default::default()
-        };
 
         // Transition to AwaitingLLMResponse
         {
@@ -793,7 +673,7 @@ impl<T: StorageProvider + 'static> ChatService<T> {
                             }],
                             ..Default::default()
                         };
-                        context_lock.add_message_to_branch("main", error_message);
+                        let _ = context_lock.add_message_to_branch("main", error_message);
                     }
 
                     self.auto_save_context(&context).await?;
@@ -907,16 +787,8 @@ impl<T: StorageProvider + 'static> ChatService<T> {
                         })?;
 
                     // Execute tool and handle agent loop
-                    return self
-                        .handle_tool_call_and_loop(
-                            context,
-                            tool_call,
-                            &full_text,
-                            &agent_role,
-                            model_id_for_loop,
-                            false, // ✅ First time seeing this tool call, need to check approval
-                        )
-                        .await;
+                    let runner = self.agent_loop_runner();
+                    return runner.start(context, tool_call, &full_text).await;
                 }
 
                 // No tool call - regular text response
@@ -932,7 +804,7 @@ impl<T: StorageProvider + 'static> ChatService<T> {
                     message_type,
                     ..Default::default()
                 };
-                context_lock.add_message_to_branch("main", assistant_message);
+                let _ = context_lock.add_message_to_branch("main", assistant_message);
                 log::info!(
                     "Assistant message added to branch, message pool size: {}",
                     context_lock.message_pool.len()
@@ -965,7 +837,7 @@ impl<T: StorageProvider + 'static> ChatService<T> {
                     }],
                     ..Default::default()
                 };
-                context_lock.add_message_to_branch("main", error_message);
+                let _ = context_lock.add_message_to_branch("main", error_message);
                 drop(context_lock);
 
                 self.auto_save_context(&context).await?;
@@ -989,15 +861,21 @@ impl<T: StorageProvider + 'static> ChatService<T> {
     /// Process a message with streaming response (SSE)
     pub async fn process_message_stream(
         &mut self,
-        message: String,
-    ) -> Result<ReceiverStream<Result<Bytes, String>>, AppError> {
+        request: SendMessageRequest,
+    ) -> Result<
+        sse::Sse<InfallibleStream<tokio_stream::wrappers::ReceiverStream<sse::Event>>>,
+        AppError,
+    > {
         log::info!("=== ChatService::process_message_stream START ===");
         log::info!("Conversation ID: {}", self.conversation_id);
-        log::info!("User message: {}", message);
+        log::info!("Payload type: {}", describe_payload(&request.payload));
 
         let context = self
             .session_manager
-            .load_context(self.conversation_id, None)
+            .load_context(
+                self.conversation_id,
+                request.client_metadata.trace_id.clone(),
+            )
             .await?
             .ok_or_else(|| {
                 log::error!("Session not found: {}", self.conversation_id);
@@ -1006,130 +884,105 @@ impl<T: StorageProvider + 'static> ChatService<T> {
 
         log::info!("Context loaded successfully");
 
-        let incoming_message = parse_incoming_message(&message);
+        let display_text = compute_display_text(&request);
 
-        if let IncomingMessage::FileReference(payload) = incoming_message.clone() {
-            let assistant_text = self
-                .execute_file_reference(&context, payload, &message)
-                .await?;
-            log::info!(
-                "=== ChatService::process_message_stream END (structured file reference) ==="
-            );
-            return Self::build_text_stream(assistant_text).await;
+        match &request.payload {
+            MessagePayload::FileReference { path, range, .. } => {
+                let assistant_text = self
+                    .execute_file_reference(
+                        &context,
+                        path,
+                        range,
+                        &display_text,
+                        &request.client_metadata,
+                    )
+                    .await?;
+                log::info!(
+                    "=== ChatService::process_message_stream END (structured file reference) ==="
+                );
+                return Self::build_text_sse(assistant_text).await;
+            }
+            MessagePayload::Workflow {
+                workflow,
+                parameters,
+                ..
+            } => {
+                let assistant_text = self
+                    .execute_workflow(
+                        &context,
+                        workflow,
+                        parameters,
+                        &display_text,
+                        &request.client_metadata,
+                    )
+                    .await?;
+                log::info!("=== ChatService::process_message_stream END (structured workflow) ===");
+                return Self::build_text_sse(assistant_text).await;
+            }
+            MessagePayload::ToolResult {
+                tool_name, result, ..
+            } => {
+                let assistant_text = self
+                    .record_tool_result_message(
+                        &context,
+                        tool_name,
+                        result.clone(),
+                        &display_text,
+                        &request.client_metadata,
+                    )
+                    .await?;
+                log::info!(
+                    "=== ChatService::process_message_stream END (structured tool result) ==="
+                );
+                return Self::build_text_sse(assistant_text).await;
+            }
+            MessagePayload::Text { .. } => {
+                // Channel setup deferred until after match
+            }
         }
 
-        if let IncomingMessage::Workflow(payload) = incoming_message.clone() {
-            let assistant_text = self.execute_workflow(&context, payload, &message).await?;
-            log::info!("=== ChatService::process_message_stream END (structured workflow) ===");
-            return Self::build_text_stream(assistant_text).await;
-        }
+        let (event_tx, event_rx) = mpsc::channel::<sse::Event>(100);
 
-        let (display_text, _llm_content) = match incoming_message {
-            IncomingMessage::Plain {
-                display_text,
-                llm_content,
-            } => (display_text, llm_content),
-            _ => unreachable!("Structured messages should have returned early"),
-        };
-
-        self.add_user_message(&context, display_text.clone())
-            .await?;
-
-        let context_lock = context.write().await;
-
-        // Get messages and model for LLM
-        let messages: Vec<InternalMessage> = context_lock
-            .get_active_branch()
-            .map(|branch| {
-                branch
-                    .message_ids
-                    .iter()
-                    .filter_map(|id| context_lock.message_pool.get(id))
-                    .map(|node| node.message.clone())
-                    .collect()
-            })
-            .unwrap_or_default();
-        let model_id = context_lock.config.model_id.clone();
-
-        // Get system prompt and agent role for enhancement
-        let system_prompt_id = context_lock.config.system_prompt_id.clone();
-        let agent_role = context_lock.config.agent_role.clone();
-        let system_prompt_content =
-            if let Some(system_prompt) = context_lock.get_active_branch_system_prompt() {
-                Some(system_prompt.content.clone())
-            } else {
-                None
+        if let Some(incoming) = incoming_message_from_payload(&request.payload) {
+            let updates_stream = {
+                let mut ctx = context.write().await;
+                ctx.send_message(incoming)
+                    .map_err(|err| AppError::InternalError(anyhow::anyhow!(err.to_string())))?
             };
 
-        drop(context_lock);
-
-        // Load system prompt by ID if not in branch
-        let final_system_prompt_content = if let Some(content) = system_prompt_content {
-            Some(content)
-        } else if let Some(prompt_id) = &system_prompt_id {
-            // Try to load system prompt by ID
-            match self.system_prompt_service.get_prompt(prompt_id).await {
-                Some(prompt) => Some(prompt.content),
-                None => {
-                    log::warn!("System prompt {} not found", prompt_id);
-                    None
-                }
-            }
-        } else {
-            None
-        };
-
-        // Enhance system prompt if available
-        let enhanced_system_prompt = if let Some(base_prompt) = &final_system_prompt_content {
-            match self
-                .system_prompt_enhancer
-                .enhance_prompt(base_prompt, &agent_role)
-                .await
-            {
-                Ok(enhanced) => {
-                    log::info!(
-                        "System prompt enhanced successfully for role: {:?}",
-                        agent_role
+            let mut updates_stream = updates_stream;
+            while let Some(update) = updates_stream.next().await {
+                if send_context_update(&event_tx, &update).await.is_err() {
+                    log::warn!(
+                        "Failed to forward context update before streaming; assuming client disconnected"
                     );
-                    Some(enhanced)
-                }
-                Err(e) => {
-                    log::warn!("Failed to enhance system prompt: {}, using base prompt", e);
-                    Some(base_prompt.clone())
+                    break;
                 }
             }
-        } else {
-            None
-        };
-
-        // Convert to LLM client format
-        let mut chat_messages: Vec<ChatMessage> =
-            messages.iter().map(convert_to_chat_message).collect();
-
-        // Inject enhanced system prompt if available
-        if let Some(enhanced_prompt) = &enhanced_system_prompt {
-            // Insert enhanced system prompt at the beginning
-            chat_messages.insert(
-                0,
-                ChatMessage {
-                    role: ClientRole::System,
-                    content: Content::Text(enhanced_prompt.clone()),
-                    tool_calls: None,
-                    tool_call_id: None,
-                },
-            );
-            log::info!("Enhanced system prompt injected into messages");
         }
 
-        // Build request with streaming enabled
-        let request = ChatCompletionRequest {
-            model: model_id,
-            messages: chat_messages,
-            stream: Some(true),
-            tools: None,
-            tool_choice: None,
-            ..Default::default()
-        };
+        let sse_response =
+            sse::Sse::from_infallible_receiver(event_rx).with_keep_alive(Duration::from_secs(15));
+
+        let llm_request = self.llm_request_builder().build(&context).await?;
+
+        log::info!(
+            "Preparing streaming request for branch '{}'",
+            llm_request.prepared.branch_name
+        );
+        log::info!(
+            "Message pool size before streaming: {}",
+            llm_request.prepared.total_messages
+        );
+
+        let mut request = llm_request.request.clone();
+        request.stream = Some(true);
+
+        log::info!(
+            "Calling LLM with {} messages, model: {}",
+            request.messages.len(),
+            llm_request.prepared.model_id
+        );
 
         // Transition to AwaitingLLMResponse
         {
@@ -1167,732 +1020,29 @@ impl<T: StorageProvider + 'static> ChatService<T> {
             return Err(AppError::InternalError(anyhow::anyhow!(error_msg)));
         }
 
-        // Create channel for streaming to frontend
-        let (tx, rx) = mpsc::channel::<Result<Bytes, String>>(100);
-
-        // Clone what we need for the spawned task
+        // Channel for streaming updates to the frontend
+        let (chunk_tx, chunk_rx) = mpsc::channel::<anyhow::Result<Bytes>>(100);
         let copilot_client = self.copilot_client.clone();
-        let conversation_id = self.conversation_id;
-        let session_manager = self.session_manager.clone();
-        let agent_service_clone = self.agent_service.clone();
-        let tool_executor_clone = self.tool_executor.clone();
-        let approval_manager_clone = self.approval_manager.clone();
-
-        // Spawn task to process stream
-        tokio::spawn(async move {
-            let mut full_text = String::new();
-            let mut stream_started = false;
-
-            // Create internal channel for copilot client stream processing
-            let (chunk_tx, mut chunk_rx) = mpsc::channel::<anyhow::Result<Bytes>>(100);
-
-            // Spawn the stream processor
-            let processor_handle = tokio::spawn(async move {
-                copilot_client
-                    .process_chat_completion_stream(response, chunk_tx)
-                    .await
-            });
-
-            // Process chunks
-            while let Some(chunk_result) = chunk_rx.recv().await {
-                match chunk_result {
-                    Ok(bytes) => {
-                        // Check for [DONE] signal
-                        if bytes == &b"[DONE]"[..] {
-                            log::info!("Stream completed");
-                            break;
-                        }
-
-                        // Parse chunk
-                        match serde_json::from_slice::<
-                            copilot_client::api::models::ChatCompletionStreamChunk,
-                        >(&bytes)
-                        {
-                            Ok(chunk) => {
-                                // Fire LLMStreamStarted on first chunk
-                                if !stream_started {
-                                    stream_started = true;
-                                    if let Ok(Some(ctx)) =
-                                        session_manager.load_context(conversation_id, None).await
-                                    {
-                                        let mut ctx_lock = ctx.write().await;
-                                        ctx_lock.handle_event(ChatEvent::LLMStreamStarted);
-                                        log::info!(
-                                            "FSM: AwaitingLLMResponse -> StreamingLLMResponse"
-                                        );
-                                        drop(ctx_lock);
-                                    }
-                                }
-
-                                // Extract content from delta
-                                if let Some(choice) = chunk.choices.first() {
-                                    if let Some(content) = &choice.delta.content {
-                                        full_text.push_str(content);
-
-                                        // Fire chunk received event
-                                        if let Ok(Some(ctx)) = session_manager
-                                            .load_context(conversation_id, None)
-                                            .await
-                                        {
-                                            let mut ctx_lock = ctx.write().await;
-                                            ctx_lock
-                                                .handle_event(ChatEvent::LLMStreamChunkReceived);
-                                            drop(ctx_lock);
-                                        }
-
-                                        // Forward the chunk to the client (SSE format)
-                                        let sse_data = format!(
-                                            "data: {}\n\n",
-                                            serde_json::to_string(&serde_json::json!({
-                                                "content": content,
-                                                "done": false
-                                            }))
-                                            .unwrap_or_default()
-                                        );
-
-                                        if tx.send(Ok(Bytes::from(sse_data))).await.is_err() {
-                                            log::warn!("Client disconnected");
-                                            break;
-                                        }
-                                    }
-                                }
-                            }
-                            Err(e) => {
-                                log::error!("Failed to parse chunk: {}", e);
-                            }
-                        }
-                    }
-                    Err(e) => {
-                        log::error!("Error in stream: {}", e);
-                        let _ = tx.send(Err(format!("Stream error: {}", e))).await;
-                        break;
-                    }
-                }
-            }
-
-            // Wait for processor to finish
-            if let Err(e) = processor_handle.await {
-                log::error!("Stream processor task failed: {}", e);
-            }
-
-            // Save the complete message to context and fire FSM completion events
-            if !full_text.is_empty() {
-                if let Ok(Some(context)) = session_manager.load_context(conversation_id, None).await
-                {
-                    let mut context_lock = context.write().await;
-
-                    // Fire stream ended event
-                    context_lock.handle_event(ChatEvent::LLMStreamEnded);
-                    log::info!("FSM: StreamingLLMResponse -> ProcessingLLMResponse");
-
-                    // Check for tool call in response
-                    log::info!("🔍 Checking for tool calls in response...");
-                    let tool_call_opt = agent_service_clone
-                        .parse_tool_call_from_response(&full_text)
-                        .ok()
-                        .flatten();
-
-                    // This will be set based on whether tool requires approval
-                    let mut has_tool_calls = false;
-
-                    if let Some(tool_call) = tool_call_opt {
-                        log::info!("✅ Tool call detected in stream: {:?}", tool_call);
-
-                        // Validate tool call
-                        let validation_result = agent_service_clone.validate_tool_call(&tool_call);
-
-                        match validation_result {
-                            Ok(_) => {
-                                log::info!("✅ Tool call validated successfully");
-
-                                // Check if tool requires approval and get tool definition
-                                let tool_def =
-                                    tool_executor_clone.get_tool_definition(&tool_call.tool);
-                                let (requires_approval, tool_description) = match &tool_def {
-                                    Some(def) => (def.requires_approval, def.description.clone()),
-                                    None => (false, String::new()),
-                                };
-
-                                if requires_approval {
-                                    log::info!("🔒 Tool requires approval, creating approval request and sending signal to frontend");
-
-                                    // Set has_tool_calls to true so FSM transitions to AwaitingToolApproval
-                                    has_tool_calls = true;
-
-                                    // Create approval request (same as non-streaming path)
-                                    match approval_manager_clone
-                                        .create_request(
-                                            conversation_id,
-                                            tool_call.clone(),
-                                            tool_call.tool.clone(),
-                                            tool_description.clone(),
-                                        )
-                                        .await
-                                    {
-                                        Ok(request_id) => {
-                                            log::info!(
-                                                "Created approval request {} for tool '{}'",
-                                                request_id,
-                                                tool_call.tool
-                                            );
-
-                                            // Send signal that approval is required
-                                            let approval_signal = format!(
-                                                "data: {}\n\n",
-                                                serde_json::to_string(&serde_json::json!({
-                                                    "type": "approval_required",
-                                                    "request_id": request_id,
-                                                    "session_id": conversation_id,
-                                                    "tool": tool_call.tool,
-                                                    "tool_description": tool_description,
-                                                    "parameters": tool_call.parameters,
-                                                    "done": true
-                                                }))
-                                                .unwrap_or_default()
-                                            );
-                                            let _ = tx.send(Ok(Bytes::from(approval_signal))).await;
-                                        }
-                                        Err(e) => {
-                                            log::error!("Failed to create approval request: {}", e);
-                                            let error_msg =
-                                                format!("Failed to create approval request: {}", e);
-                                            let _ = tx
-                                                .send(Ok(Bytes::from(format!(
-                                                    "data: {{\"error\": \"{}\"}}\n\n",
-                                                    error_msg
-                                                ))))
-                                                .await;
-                                        }
-                                    }
-                                } else {
-                                    log::info!(
-                                        "🚀 Tool doesn't require approval, executing immediately"
-                                    );
-
-                                    // Execute tool immediately
-                                    use tool_system::types::ToolArguments;
-                                    let tool_name = tool_call.tool.clone();
-                                    let tool_params = tool_call.parameters.clone();
-
-                                    log::info!(
-                                        "Executing tool '{}' with parameters: {:?}",
-                                        tool_name,
-                                        tool_params
-                                    );
-
-                                    match tool_executor_clone
-                                        .execute_tool(&tool_name, ToolArguments::Json(tool_params))
-                                        .await
-                                    {
-                                        Ok(result) => {
-                                            log::info!(
-                                                "✅ Tool '{}' executed successfully",
-                                                tool_name
-                                            );
-
-                                            // Send tool result back to frontend
-                                            let result_message = format!(
-                                                "data: {}\n\n",
-                                                serde_json::to_string(&serde_json::json!({
-                                                    "type": "tool_result",
-                                                    "tool": tool_name,
-                                                    "result": result,
-                                                    "done": false
-                                                }))
-                                                .unwrap_or_default()
-                                            );
-                                            let _ = tx.send(Ok(Bytes::from(result_message))).await;
-                                        }
-                                        Err(e) => {
-                                            log::error!(
-                                                "❌ Tool '{}' execution failed: {}",
-                                                tool_name,
-                                                e
-                                            );
-                                            let error_msg = format!("Tool execution failed: {}", e);
-                                            let _ = tx
-                                                .send(Ok(Bytes::from(format!(
-                                                    "data: {{\"error\": \"{}\"}}\n\n",
-                                                    error_msg
-                                                ))))
-                                                .await;
-                                        }
-                                    }
-                                }
-                            }
-                            Err(e) => {
-                                log::error!("❌ Tool call validation failed: {}", e);
-                            }
-                        }
-                    } else {
-                        log::info!("ℹ️ No tool calls detected in response");
-                    }
-
-                    // Detect message type
-                    let message_type = detect_message_type(&full_text);
-
-                    let assistant_message = InternalMessage {
-                        role: Role::Assistant,
-                        content: vec![ContentPart::Text {
-                            text: full_text.clone(),
-                        }],
-                        message_type,
-                        ..Default::default()
-                    };
-                    context_lock.add_message_to_branch("main", assistant_message);
-
-                    // Fire response processed event
-                    context_lock.handle_event(ChatEvent::LLMResponseProcessed { has_tool_calls });
-                    log::info!("FSM: ProcessingLLMResponse -> Idle");
-
-                    // Auto-save context
-                    if let Err(e) = session_manager.save_context(&mut *context_lock).await {
-                        log::error!("Failed to save context after streaming: {}", e);
-                    }
-                    drop(context_lock);
-                }
-            }
-
-            // Send done signal (only if no approval required)
-            let sse_done = format!(
-                "data: {}\n\n",
-                serde_json::to_string(&serde_json::json!({
-                    "content": "",
-                    "done": true
-                }))
-                .unwrap_or_default()
-            );
-            let _ = tx.send(Ok(Bytes::from(sse_done))).await;
-
-            log::info!("=== Stream processing completed ===");
+        let processor_handle = tokio::spawn(async move {
+            copilot_client
+                .process_chat_completion_stream(response, chunk_tx)
+                .await
         });
 
-        Ok(ReceiverStream::new(rx))
-    }
-
-    /// Handle tool call execution and agent loop
-    async fn handle_tool_call_and_loop(
-        &mut self,
-        context: Arc<tokio::sync::RwLock<context_manager::structs::context::ChatContext>>,
-        tool_call: AgentToolCall,
-        llm_response: &str,
-        agent_role: &context_manager::structs::context::AgentRole,
-        model_id: String,
-        skip_approval_check: bool, // ✅ New parameter: skip approval check if already approved
-    ) -> Result<ServiceResponse, AppError> {
-        log::info!(
-            "=== Agent Loop: Handling tool call (skip_approval_check={}) ===",
-            skip_approval_check
+        copilot_stream_handler::spawn_stream_task(
+            chunk_rx,
+            processor_handle,
+            self.session_manager.clone(),
+            self.agent_service.clone(),
+            self.tool_executor.clone(),
+            self.approval_manager.clone(),
+            self.conversation_id,
+            event_tx.clone(),
         );
 
-        let mut agent_state = AgentLoopState::new();
-        let mut current_tool_call = tool_call;
-        let mut accumulated_response = llm_response.to_string();
+        drop(event_tx);
 
-        loop {
-            agent_state.iteration += 1;
-
-            // Check if loop should continue
-            if !self.agent_service.should_continue(&agent_state)? {
-                log::warn!("Agent loop stopped: iteration limit or timeout reached");
-                break;
-            }
-
-            log::info!(
-                "Agent loop iteration {}: executing tool '{}'",
-                agent_state.iteration,
-                current_tool_call.tool
-            );
-
-            let tool_name = current_tool_call.tool.clone();
-
-            // Check if tool requires approval (skip if already approved)
-            let tool_definition = self.tool_executor.get_tool_definition(&tool_name);
-
-            if !skip_approval_check {
-                // ✅ Only check if not already approved
-                if let Some(def) = &tool_definition {
-                    if def.requires_approval {
-                        // Create approval request
-                        let request_id = self
-                            .approval_manager
-                            .create_request(
-                                self.conversation_id,
-                                current_tool_call.clone(),
-                                tool_name.clone(),
-                                def.description.clone(),
-                            )
-                            .await?;
-
-                        log::info!(
-                            "Tool '{}' requires approval, created request {}",
-                            tool_name,
-                            request_id
-                        );
-
-                        // Return approval request to frontend
-                        return Ok(ServiceResponse::AwaitingAgentApproval {
-                            request_id,
-                            session_id: self.conversation_id,
-                            tool_name: tool_name.clone(),
-                            tool_description: def.description.clone(),
-                            parameters: current_tool_call.parameters.clone(),
-                        });
-                    }
-                }
-            }
-
-            // Execute tool (no approval required or already approved) with timeout handling
-            let tool_result = {
-                use tool_system::types::ToolArguments;
-
-                log::info!(
-                    "Executing tool '{}' with parameters: {:?}",
-                    tool_name,
-                    current_tool_call.parameters
-                );
-
-                // Execute with timeout
-                let execution_future = self.tool_executor.execute_tool(
-                    &tool_name,
-                    ToolArguments::Json(current_tool_call.parameters.clone()),
-                );
-
-                let timeout_duration = self.agent_service.tool_execution_timeout();
-
-                match tokio::time::timeout(timeout_duration, execution_future).await {
-                    Ok(Ok(result)) => {
-                        log::info!("Tool '{}' executed successfully", tool_name);
-                        agent_state.reset_tool_failures();
-                        result
-                    }
-                    Ok(Err(e)) => {
-                        // Tool execution error
-                        let error_msg = e.to_string();
-                        log::error!("Tool '{}' execution failed: {}", tool_name, error_msg);
-
-                        agent_state.record_tool_failure(&tool_name);
-
-                        // Create error feedback for LLM
-                        let error_feedback = self
-                            .agent_service
-                            .create_tool_error_feedback(&tool_name, &error_msg);
-
-                        // Add error message to context for LLM to see
-                        {
-                            let mut context_lock = context.write().await;
-                            let error_message = InternalMessage {
-                                role: Role::Tool,
-                                content: vec![ContentPart::Text {
-                                    text: error_feedback.clone(),
-                                }],
-                                ..Default::default()
-                            };
-                            context_lock.add_message_to_branch("main", error_message);
-                        }
-
-                        // Check if we should continue retrying
-                        if !self.agent_service.should_continue(&agent_state)? {
-                            log::error!("Agent loop stopping after tool execution failures");
-                            return Ok(ServiceResponse::FinalMessage(format!(
-                                "Tool execution failed after {} retries: {}",
-                                agent_state.tool_execution_failures, error_msg
-                            )));
-                        }
-
-                        // Continue loop to let LLM retry
-                        log::info!(
-                            "Continuing agent loop after tool error (retry {}/{})",
-                            agent_state.tool_execution_failures,
-                            self.agent_service.max_tool_execution_retries()
-                        );
-                        continue;
-                    }
-                    Err(_) => {
-                        // Timeout
-                        log::error!(
-                            "Tool '{}' execution timed out after {:?}",
-                            tool_name,
-                            timeout_duration
-                        );
-
-                        agent_state.record_tool_failure(&tool_name);
-
-                        let timeout_msg =
-                            format!("Tool execution timed out after {:?}", timeout_duration);
-                        let error_feedback = self
-                            .agent_service
-                            .create_tool_error_feedback(&tool_name, &timeout_msg);
-
-                        // Add timeout message to context
-                        {
-                            let mut context_lock = context.write().await;
-                            let timeout_message = InternalMessage {
-                                role: Role::Tool,
-                                content: vec![ContentPart::Text {
-                                    text: error_feedback.clone(),
-                                }],
-                                ..Default::default()
-                            };
-                            context_lock.add_message_to_branch("main", timeout_message);
-                        }
-
-                        // Check if we should continue retrying
-                        if !self.agent_service.should_continue(&agent_state)? {
-                            log::error!("Agent loop stopping after tool timeout failures");
-                            return Ok(ServiceResponse::FinalMessage(format!(
-                                "Tool execution timed out after {} retries",
-                                agent_state.tool_execution_failures
-                            )));
-                        }
-
-                        log::info!(
-                            "Continuing agent loop after timeout (retry {}/{})",
-                            agent_state.tool_execution_failures,
-                            self.agent_service.max_tool_execution_retries()
-                        );
-                        continue;
-                    }
-                }
-            };
-
-            let tool_result_str = tool_result.to_string();
-            log::info!(
-                "Tool '{}' completed successfully, result length: {}",
-                tool_name,
-                tool_result_str.len()
-            );
-
-            // Add tool result to context
-            {
-                let mut context_lock = context.write().await;
-                let tool_result_message = InternalMessage {
-                    role: Role::Tool,
-                    content: vec![ContentPart::Text {
-                        text: tool_result_str.clone(),
-                    }],
-                    ..Default::default()
-                };
-                context_lock.add_message_to_branch("main", tool_result_message);
-            }
-
-            // Record tool call in agent state
-            agent_state
-                .tool_call_history
-                .push(super::agent_service::ToolCallRecord {
-                    tool_name: tool_name.clone(),
-                    parameters: current_tool_call.parameters.clone(),
-                    result: Some(serde_json::json!({ "result": tool_result_str })),
-                    terminate: current_tool_call.terminate,
-                });
-
-            // Check terminate flag
-            if current_tool_call.terminate {
-                log::info!("Tool call terminated, returning final result");
-                // Get accumulated response or generate final message
-                let final_message = if accumulated_response.is_empty() {
-                    format!("Tool '{}' completed successfully.", tool_name)
-                } else {
-                    accumulated_response.clone()
-                };
-
-                // Add final assistant message
-                {
-                    let mut context_lock = context.write().await;
-                    let final_assistant_message = InternalMessage {
-                        role: Role::Assistant,
-                        content: vec![ContentPart::Text {
-                            text: final_message.clone(),
-                        }],
-                        ..Default::default()
-                    };
-                    context_lock.add_message_to_branch("main", final_assistant_message);
-                }
-
-                self.auto_save_context(&context).await?;
-                return Ok(ServiceResponse::FinalMessage(final_message));
-            }
-
-            // Continue loop: send updated context back to LLM
-            log::info!("Tool call terminated=false, continuing agent loop");
-
-            // Get updated messages
-            let messages: Vec<InternalMessage> = {
-                let context_lock = context.read().await;
-                context_lock
-                    .get_active_branch()
-                    .map(|branch| {
-                        branch
-                            .message_ids
-                            .iter()
-                            .filter_map(|id| context_lock.message_pool.get(id))
-                            .map(|node| node.message.clone())
-                            .collect()
-                    })
-                    .unwrap_or_default()
-            };
-
-            // Enhance system prompt for next iteration
-            let enhanced_system_prompt = {
-                let (system_prompt_content, system_prompt_id) = {
-                    let context_lock = context.read().await;
-                    let content = if let Some(system_prompt) =
-                        context_lock.get_active_branch_system_prompt()
-                    {
-                        Some(system_prompt.content.clone())
-                    } else {
-                        None
-                    };
-                    let prompt_id = context_lock.config.system_prompt_id.clone();
-                    (content, prompt_id)
-                };
-
-                let system_prompt_content = if let Some(content) = system_prompt_content {
-                    Some(content)
-                } else if let Some(prompt_id) = &system_prompt_id {
-                    // Try to load system prompt by ID
-                    match self.system_prompt_service.get_prompt(prompt_id).await {
-                        Some(prompt) => Some(prompt.content),
-                        None => {
-                            log::warn!("System prompt {} not found", prompt_id);
-                            None
-                        }
-                    }
-                } else {
-                    None
-                };
-
-                if let Some(base_prompt) = system_prompt_content {
-                    match self
-                        .system_prompt_enhancer
-                        .enhance_prompt(&base_prompt, agent_role)
-                        .await
-                    {
-                        Ok(enhanced) => Some(enhanced),
-                        Err(e) => {
-                            log::warn!("Failed to enhance prompt in loop: {}, using base", e);
-                            Some(base_prompt)
-                        }
-                    }
-                } else {
-                    None
-                }
-            };
-
-            // Convert to LLM client format
-            let mut chat_messages: Vec<ChatMessage> =
-                messages.iter().map(convert_to_chat_message).collect();
-
-            // Inject enhanced system prompt
-            if let Some(enhanced_prompt) = &enhanced_system_prompt {
-                chat_messages.insert(
-                    0,
-                    ChatMessage {
-                        role: ClientRole::System,
-                        content: Content::Text(enhanced_prompt.clone()),
-                        tool_calls: None,
-                        tool_call_id: None,
-                    },
-                );
-            }
-
-            // Call LLM again with updated context
-            let request = ChatCompletionRequest {
-                model: model_id.to_string(),
-                messages: chat_messages,
-                stream: Some(false), // Non-streaming for agent loop
-                tools: None,
-                tool_choice: None,
-                ..Default::default()
-            };
-
-            log::info!("Calling LLM for next iteration in agent loop");
-            let response = self
-                .copilot_client
-                .send_chat_completion_request(request)
-                .await
-                .map_err(|e| {
-                    AppError::InternalError(anyhow::anyhow!("LLM call failed in loop: {}", e))
-                })?;
-
-            if !response.status().is_success() {
-                let error_msg = format!("LLM API error in loop. Status: {}", response.status());
-                return Err(AppError::InternalError(anyhow::anyhow!(error_msg)));
-            }
-
-            // Parse non-streaming response
-            let response_text = {
-                let body_bytes = response.bytes().await.map_err(|e| {
-                    AppError::InternalError(anyhow::anyhow!("Failed to read response body: {}", e))
-                })?;
-
-                let response_json: copilot_client::api::models::ChatCompletionResponse =
-                    serde_json::from_slice(&body_bytes).map_err(|e| {
-                        AppError::InternalError(anyhow::anyhow!(
-                            "Failed to parse response JSON: {}",
-                            e
-                        ))
-                    })?;
-
-                response_json
-                    .choices
-                    .first()
-                    .and_then(|choice| match &choice.message.content {
-                        Content::Text(text) => Some(text.clone()),
-                        _ => None,
-                    })
-                    .ok_or_else(|| {
-                        AppError::InternalError(anyhow::anyhow!("No content in LLM response"))
-                    })?
-            };
-
-            accumulated_response = response_text.clone();
-
-            // Parse for next tool call
-            let next_tool_call_opt = self
-                .agent_service
-                .parse_tool_call_from_response(&response_text)
-                .map_err(|e| {
-                    AppError::InternalError(anyhow::anyhow!("Failed to parse tool call: {}", e))
-                })?;
-
-            if let Some(next_tool_call) = next_tool_call_opt {
-                self.agent_service
-                    .validate_tool_call(&next_tool_call)
-                    .map_err(|e| {
-                        AppError::InternalError(anyhow::anyhow!("Invalid tool call: {}", e))
-                    })?;
-
-                current_tool_call = next_tool_call;
-                // Continue loop
-            } else {
-                // No tool call - LLM returned text response
-                log::info!("LLM returned text response (no tool call), ending agent loop");
-
-                // Add final assistant message
-                {
-                    let mut context_lock = context.write().await;
-                    let final_assistant_message = InternalMessage {
-                        role: Role::Assistant,
-                        content: vec![ContentPart::Text {
-                            text: response_text.clone(),
-                        }],
-                        ..Default::default()
-                    };
-                    context_lock.add_message_to_branch("main", final_assistant_message);
-                }
-
-                self.auto_save_context(&context).await?;
-                return Ok(ServiceResponse::FinalMessage(response_text));
-            }
-        }
-
-        // Loop ended without termination
-        let final_message = format!(
-            "Agent loop completed after {} iterations",
-            agent_state.iteration
-        );
-        Ok(ServiceResponse::FinalMessage(final_message))
+        Ok(sse_response)
     }
 
     /// Continue agent loop after approval
@@ -1932,25 +1082,11 @@ impl<T: StorageProvider + 'static> ChatService<T> {
             .await?
             .ok_or_else(|| AppError::InternalError(anyhow::anyhow!("Session not found")))?;
 
-        // Get agent role and model ID from context
-        let (agent_role, model_id) = {
-            let context_lock = context.read().await;
-            let role = context_lock.config.agent_role.clone();
-            let model = context_lock.config.model_id.clone();
-            (role, model)
-        };
-
         // Continue the agent loop with the approved tool call
         let llm_response = format!("Approved tool call: {}", tool_call.tool);
-        self.handle_tool_call_and_loop(
-            context,
-            tool_call,
-            &llm_response,
-            &agent_role,
-            model_id,
-            true, // ✅ Skip approval check - already approved by user
-        )
-        .await
+        self.agent_loop_runner()
+            .resume_after_approval(context, tool_call, &llm_response, request_id)
+            .await
     }
 
     pub async fn approve_tool_calls(
@@ -1988,7 +1124,7 @@ impl<T: StorageProvider + 'static> ChatService<T> {
 
     async fn run_fsm(
         &mut self,
-        context: Arc<tokio::sync::RwLock<context_manager::structs::context::ChatContext>>,
+        context: Arc<tokio::sync::RwLock<ChatContext>>,
     ) -> Result<ServiceResponse, AppError> {
         log::info!("=== FSM Loop Starting ===");
         let mut iteration_count = 0;
@@ -2043,9 +1179,9 @@ impl<T: StorageProvider + 'static> ChatService<T> {
                     // Auto-save after state transition
                     self.auto_save_context(&context).await?;
                 }
-                ContextState::ExecutingTools => {
+                ContextState::ExecutingTool { tool_name, attempt } => {
                     let _context_lock = context.write().await;
-                    debug!("FSM: ExecutingTools");
+                    debug!("FSM: ExecutingTool tool={} attempt={}", tool_name, attempt);
                     // Placeholder for executing tools
                     // context_lock.handle_event(ChatEvent::ToolExecutionCompleted);
                     drop(_context_lock);
@@ -2074,7 +1210,7 @@ impl<T: StorageProvider + 'static> ChatService<T> {
                         }],
                         ..Default::default()
                     };
-                    context_lock.add_message_to_branch("main", assistant_message);
+                    let _ = context_lock.add_message_to_branch("main", assistant_message);
                     // context_lock.handle_event(ChatEvent::LLMFullResponseReceived);
                     drop(context_lock);
 
@@ -2105,8 +1241,14 @@ impl<T: StorageProvider + 'static> ChatService<T> {
                     log::info!("Returning final message: {}", final_content);
                     return Ok(ServiceResponse::FinalMessage(final_content));
                 }
-                ContextState::AwaitingToolApproval => {
-                    debug!("FSM: AwaitingToolApproval");
+                ContextState::AwaitingToolApproval {
+                    pending_requests,
+                    tool_names,
+                } => {
+                    debug!(
+                        "FSM: AwaitingToolApproval pending_requests={:?} tool_names={:?}",
+                        pending_requests, tool_names
+                    );
 
                     // Auto-save before returning tool approval request
                     self.auto_save_context(&context).await?;
@@ -2143,7 +1285,7 @@ impl<T: StorageProvider + 'static> ChatService<T> {
     /// Auto-save helper that saves context if dirty
     async fn auto_save_context(
         &self,
-        context: &Arc<tokio::sync::RwLock<context_manager::structs::context::ChatContext>>,
+        context: &Arc<tokio::sync::RwLock<ChatContext>>,
     ) -> Result<(), AppError> {
         let mut context_lock = context.write().await;
         let trace_id = context_lock.get_trace_id().map(|s| s.to_string());

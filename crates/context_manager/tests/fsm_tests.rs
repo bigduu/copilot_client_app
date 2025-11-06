@@ -62,7 +62,16 @@ fn test_fsm_processing_with_tool_calls() {
         has_tool_calls: true,
     });
 
-    assert_eq!(context.current_state, ContextState::AwaitingToolApproval);
+    match &context.current_state {
+        ContextState::AwaitingToolApproval {
+            pending_requests,
+            tool_names,
+        } => {
+            assert!(pending_requests.is_empty());
+            assert!(tool_names.is_empty());
+        }
+        other => panic!("expected AwaitingToolApproval, got {other:?}"),
+    }
 }
 
 #[test]
@@ -78,20 +87,50 @@ fn test_fsm_processing_without_tool_calls() {
 }
 
 #[test]
-fn test_fsm_tool_approval_approved() {
+fn test_fsm_tool_approval_requested_and_started() {
     let mut context = ChatContext::new(Uuid::new_v4(), "gpt-4".to_string(), "default".to_string());
+    let request_id = Uuid::new_v4();
 
-    context.current_state = ContextState::AwaitingToolApproval;
-    context.handle_event(ChatEvent::ToolCallsApproved);
+    context.current_state = ContextState::ProcessingLLMResponse;
+    context.handle_event(ChatEvent::ToolApprovalRequested {
+        request_id,
+        tool_name: "read_file".to_string(),
+    });
 
-    assert_eq!(context.current_state, ContextState::ExecutingTools);
+    match &context.current_state {
+        ContextState::AwaitingToolApproval {
+            pending_requests,
+            tool_names,
+        } => {
+            assert_eq!(pending_requests, &vec![request_id]);
+            assert_eq!(tool_names, &vec!["read_file".to_string()]);
+        }
+        other => panic!("expected AwaitingToolApproval with request, got {other:?}"),
+    }
+
+    context.handle_event(ChatEvent::ToolExecutionStarted {
+        tool_name: "read_file".to_string(),
+        attempt: 1,
+        request_id: Some(request_id),
+    });
+
+    assert_eq!(
+        context.current_state,
+        ContextState::ExecutingTool {
+            tool_name: "read_file".to_string(),
+            attempt: 1,
+        }
+    );
 }
 
 #[test]
 fn test_fsm_tool_approval_denied() {
     let mut context = ChatContext::new(Uuid::new_v4(), "gpt-4".to_string(), "default".to_string());
 
-    context.current_state = ContextState::AwaitingToolApproval;
+    context.current_state = ContextState::AwaitingToolApproval {
+        pending_requests: vec![Uuid::new_v4()],
+        tool_names: vec!["read_file".to_string()],
+    };
     context.handle_event(ChatEvent::ToolCallsDenied);
 
     assert_eq!(context.current_state, ContextState::GeneratingResponse);
@@ -101,7 +140,10 @@ fn test_fsm_tool_approval_denied() {
 fn test_fsm_executing_tools_to_processing_results() {
     let mut context = ChatContext::new(Uuid::new_v4(), "gpt-4".to_string(), "default".to_string());
 
-    context.current_state = ContextState::ExecutingTools;
+    context.current_state = ContextState::ExecutingTool {
+        tool_name: "read_file".to_string(),
+        attempt: 1,
+    };
     context.handle_event(ChatEvent::ToolExecutionCompleted);
 
     assert_eq!(context.current_state, ContextState::ProcessingToolResults);
@@ -115,6 +157,18 @@ fn test_fsm_processing_results_to_generating_response() {
     context.handle_event(ChatEvent::LLMRequestInitiated);
 
     assert_eq!(context.current_state, ContextState::GeneratingResponse);
+}
+
+#[test]
+fn test_fsm_processing_results_to_idle_after_response() {
+    let mut context = ChatContext::new(Uuid::new_v4(), "gpt-4".to_string(), "default".to_string());
+
+    context.current_state = ContextState::ProcessingToolResults;
+    context.handle_event(ChatEvent::LLMResponseProcessed {
+        has_tool_calls: false,
+    });
+
+    assert_eq!(context.current_state, ContextState::Idle);
 }
 
 #[test]
@@ -146,6 +200,29 @@ fn test_fsm_fatal_error() {
 
 #[test]
 fn test_fsm_transient_failure_retry_success() {
+    let mut context = ChatContext::new(Uuid::new_v4(), "gpt-4".to_string(), "default".to_string());
+
+    context.current_state = ContextState::TransientFailure {
+        error: "Retryable error".to_string(),
+        retry_count: 1,
+    };
+    context.handle_event(ChatEvent::ToolExecutionStarted {
+        tool_name: "read_file".to_string(),
+        attempt: 2,
+        request_id: Some(Uuid::new_v4()),
+    });
+
+    assert_eq!(
+        context.current_state,
+        ContextState::ExecutingTool {
+            tool_name: "read_file".to_string(),
+            attempt: 2,
+        }
+    );
+}
+
+#[test]
+fn test_fsm_transient_failure_retry_event_success() {
     let mut context = ChatContext::new(Uuid::new_v4(), "gpt-4".to_string(), "default".to_string());
 
     context.current_state = ContextState::TransientFailure {
@@ -208,10 +285,15 @@ fn test_fsm_streaming_chunks_same_state() {
 fn test_fsm_tool_execution_failed() {
     let mut context = ChatContext::new(Uuid::new_v4(), "gpt-4".to_string(), "default".to_string());
 
-    context.current_state = ContextState::ExecutingTools;
+    context.current_state = ContextState::ExecutingTool {
+        tool_name: "read_file".to_string(),
+        attempt: 1,
+    };
     context.handle_event(ChatEvent::ToolExecutionFailed {
+        tool_name: "read_file".to_string(),
         error: "Tool error".to_string(),
         retry_count: 0,
+        request_id: Some(Uuid::new_v4()),
     });
 
     assert_eq!(

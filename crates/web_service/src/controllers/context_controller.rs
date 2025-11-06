@@ -1,6 +1,7 @@
 use crate::{
     dto::{get_branch_messages, ChatContextDTO, ContentPartDTO},
     middleware::extract_trace_id,
+    models::{MessagePayload, SendMessageRequest, SendMessageRequestBody},
     server::AppState,
 };
 use actix_web::{
@@ -8,7 +9,7 @@ use actix_web::{
     web::{Data, Json, Path, Query},
     HttpRequest, HttpResponse, Result,
 };
-use context_manager::structs::context::AgentRole;
+use context_manager::AgentRole;
 use copilot_client::api::models::{
     ChatCompletionRequest, ChatCompletionResponse, ChatMessage, Content,
     ContentPart as ClientContentPart, Role as ClientRole,
@@ -888,7 +889,7 @@ pub async fn add_context_message(
             // Add message and save in a single write lock scope
             let result = {
                 let mut ctx_guard = context.write().await;
-                ctx_guard.add_message_to_branch(&branch_name, message);
+                let _ = ctx_guard.add_message_to_branch(&branch_name, message);
                 // Save context (add_message_to_branch already marks as dirty)
                 app_state
                     .session_manager
@@ -1013,9 +1014,10 @@ pub async fn approve_context_tools(
 // ACTION-BASED API ENDPOINTS (Backend-First Architecture)
 // ============================================================================
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Clone)]
 pub struct SendMessageActionRequest {
-    pub content: String,
+    #[serde(flatten)]
+    pub body: SendMessageRequestBody,
 }
 
 #[derive(Serialize, Debug)]
@@ -1036,16 +1038,22 @@ pub async fn send_message_action(
     let context_id = path.into_inner();
     let trace_id = extract_trace_id(&http_req);
 
+    let SendMessageActionRequest { body } = req.into_inner();
+    let message_length = match &body.payload {
+        MessagePayload::Text { content, .. } => content.len(),
+        _ => 0,
+    };
     tracing::info!(
         trace_id = ?trace_id,
         context_id = %context_id,
-        message_length = req.content.len(),
+        message_length = message_length,
+        payload_type = %payload_type(&body.payload),
         "send_message_action called"
     );
     tracing::debug!(
         trace_id = ?trace_id,
         context_id = %context_id,
-        message_preview = %req.content.chars().take(100).collect::<String>(),
+        message_preview = %payload_preview(&body.payload),
         "Message content preview"
     );
 
@@ -1072,7 +1080,9 @@ pub async fn send_message_action(
         "Calling chat_service.process_message()"
     );
     // Process the message (FSM handles everything including auto-save)
-    match chat_service.process_message(req.content.clone()).await {
+    let service_request = SendMessageRequest::from_parts(context_id, body);
+
+    match chat_service.process_message(service_request).await {
         Ok(service_response) => {
             // Load the updated context to return to client
             match app_state
@@ -1348,6 +1358,24 @@ pub async fn update_agent_role(
                 "error": format!("Failed to load context: {}", e)
             })))
         }
+    }
+}
+
+fn payload_type(payload: &MessagePayload) -> &'static str {
+    match payload {
+        MessagePayload::Text { .. } => "text",
+        MessagePayload::FileReference { .. } => "file_reference",
+        MessagePayload::Workflow { .. } => "workflow",
+        MessagePayload::ToolResult { .. } => "tool_result",
+    }
+}
+
+fn payload_preview(payload: &MessagePayload) -> String {
+    match payload {
+        MessagePayload::Text { content, .. } => content.chars().take(120).collect(),
+        MessagePayload::FileReference { path, .. } => format!("file_reference: {}", path),
+        MessagePayload::Workflow { workflow, .. } => format!("workflow: {}", workflow),
+        MessagePayload::ToolResult { tool_name, .. } => format!("tool_result: {}", tool_name),
     }
 }
 

@@ -1,7 +1,6 @@
 //! Tests for serialization
 
-use context_manager::{ChatContext, ContentPart, ContextState, InternalMessage, Role};
-use serde_json;
+use context_manager::{ChatContext, ContextState};
 use uuid::Uuid;
 
 #[test]

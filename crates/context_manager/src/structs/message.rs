@@ -102,3 +102,58 @@ impl ContentPart {
         }
     }
 }
+
+/// Structured representation of an incoming user message.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
+pub struct IncomingTextMessage {
+    pub content: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub display_text: Option<String>,
+}
+
+impl IncomingTextMessage {
+    pub fn new(content: String) -> Self {
+        Self {
+            content,
+            display_text: None,
+        }
+    }
+
+    pub fn with_display_text(content: String, display_text: Option<String>) -> Self {
+        Self {
+            content,
+            display_text,
+        }
+    }
+}
+
+/// Supported incoming message payloads handled by the context manager.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(tag = "type", rename_all = "snake_case")]
+pub enum IncomingMessage {
+    Text(IncomingTextMessage),
+}
+
+impl IncomingMessage {
+    pub fn text<S: Into<String>>(content: S) -> Self {
+        IncomingMessage::Text(IncomingTextMessage::new(content.into()))
+    }
+
+    pub fn kind(&self) -> &'static str {
+        match self {
+            IncomingMessage::Text(_) => "text",
+        }
+    }
+
+    pub fn as_text(&self) -> Option<&IncomingTextMessage> {
+        match self {
+            IncomingMessage::Text(payload) => Some(payload),
+        }
+    }
+}
+
+impl Default for IncomingMessage {
+    fn default() -> Self {
+        IncomingMessage::Text(IncomingTextMessage::default())
+    }
+}

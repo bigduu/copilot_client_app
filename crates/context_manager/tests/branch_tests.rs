@@ -1,7 +1,6 @@
 //! Tests for branch management
 
 use context_manager::{Branch, ChatContext, ContentPart, InternalMessage, Role};
-use std::collections::HashMap;
 use uuid::Uuid;
 
 #[test]
@@ -24,7 +23,7 @@ fn test_context_add_message_to_branch() {
         ..Default::default()
     };
 
-    context.add_message_to_branch("main", message.clone());
+    let _ = context.add_message_to_branch("main", message.clone());
 
     // Verify the branch now has one message
     let branch = context.branches.get("main").unwrap();
@@ -63,8 +62,8 @@ fn test_multiple_branches_independent() {
         ..Default::default()
     };
 
-    context.add_message_to_branch("main", msg1);
-    context.add_message_to_branch("branch2", msg2);
+    let _ = context.add_message_to_branch("main", msg1);
+    let _ = context.add_message_to_branch("branch2", msg2);
 
     // Verify both branches have their own messages
     assert_eq!(context.branches.get("main").unwrap().message_ids.len(), 1);

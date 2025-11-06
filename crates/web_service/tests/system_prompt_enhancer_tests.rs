@@ -1,6 +1,6 @@
 //! Unit tests for SystemPromptEnhancer
 
-use context_manager::structs::context::AgentRole;
+use context_manager::AgentRole;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;

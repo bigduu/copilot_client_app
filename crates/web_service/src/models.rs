@@ -1,5 +1,75 @@
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use tool_system::types::DisplayPreference;
+use uuid::Uuid;
+
+#[derive(Debug, Deserialize, Clone)]
+pub struct SendMessageRequestBody {
+    pub payload: MessagePayload,
+    #[serde(default)]
+    pub client_metadata: ClientMessageMetadata,
+}
+
+#[derive(Debug, Clone)]
+pub struct SendMessageRequest {
+    pub session_id: Uuid,
+    pub payload: MessagePayload,
+    pub client_metadata: ClientMessageMetadata,
+}
+
+impl SendMessageRequest {
+    pub fn from_parts(session_id: Uuid, body: SendMessageRequestBody) -> Self {
+        Self {
+            session_id,
+            payload: body.payload,
+            client_metadata: body.client_metadata,
+        }
+    }
+}
+
+#[derive(Debug, Deserialize, Clone, Default)]
+pub struct ClientMessageMetadata {
+    pub display_text: Option<String>,
+    pub trace_id: Option<String>,
+    #[serde(default)]
+    pub extra: HashMap<String, serde_json::Value>,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+#[serde(tag = "type", rename_all = "snake_case")]
+pub enum MessagePayload {
+    Text {
+        content: String,
+        #[serde(default)]
+        display: Option<String>,
+    },
+    FileReference {
+        path: String,
+        #[serde(default)]
+        range: Option<FileRange>,
+        #[serde(default)]
+        display_text: Option<String>,
+    },
+    Workflow {
+        workflow: String,
+        #[serde(default)]
+        parameters: HashMap<String, serde_json::Value>,
+        #[serde(default)]
+        display_text: Option<String>,
+    },
+    ToolResult {
+        tool_name: String,
+        result: serde_json::Value,
+        #[serde(default)]
+        display_text: Option<String>,
+    },
+}
+
+#[derive(Debug, Deserialize, Clone, Default)]
+pub struct FileRange {
+    pub start_line: Option<usize>,
+    pub end_line: Option<usize>,
+}
 
 #[derive(Debug, Deserialize)]
 pub struct CreateSessionRequest {

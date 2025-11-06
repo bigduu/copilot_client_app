@@ -12,7 +12,7 @@ use std::time::{Duration, Instant};
 use tokio::sync::RwLock;
 
 use crate::services::template_variable_service::TemplateVariableService;
-use context_manager::structs::context::AgentRole;
+use context_manager::{AgentRole, Permission};
 use tool_system::{format_tools_section, ToolPermission, ToolRegistry};
 
 /// Cache entry for enhanced prompts
@@ -253,21 +253,11 @@ When to ask:
             .permissions()
             .iter()
             .map(|p| match p {
-                context_manager::structs::context::Permission::ReadFiles => {
-                    ToolPermission::ReadFiles
-                }
-                context_manager::structs::context::Permission::WriteFiles => {
-                    ToolPermission::WriteFiles
-                }
-                context_manager::structs::context::Permission::CreateFiles => {
-                    ToolPermission::CreateFiles
-                }
-                context_manager::structs::context::Permission::DeleteFiles => {
-                    ToolPermission::DeleteFiles
-                }
-                context_manager::structs::context::Permission::ExecuteCommands => {
-                    ToolPermission::ExecuteCommands
-                }
+                Permission::ReadFiles => ToolPermission::ReadFiles,
+                Permission::WriteFiles => ToolPermission::WriteFiles,
+                Permission::CreateFiles => ToolPermission::CreateFiles,
+                Permission::DeleteFiles => ToolPermission::DeleteFiles,
+                Permission::ExecuteCommands => ToolPermission::ExecuteCommands,
             })
             .collect();
 

@@ -1,5 +1,11 @@
 pub mod branch;
 pub mod context;
+pub mod context_agent;
+pub mod context_branches;
+pub mod context_lifecycle;
+pub mod context_snapshot;
+pub mod events;
+pub mod llm_request;
 pub mod message;
 pub mod metadata;
 pub mod state;

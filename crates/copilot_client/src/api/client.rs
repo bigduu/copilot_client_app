@@ -10,8 +10,8 @@ use crate::api::models::{ChatCompletionRequest, ChatCompletionStreamChunk};
 use crate::auth::auth_handler::CopilotAuthHandler;
 use crate::config::Config;
 use crate::utils::http_utils::execute_request_with_vision;
+use eventsource_stream::Eventsource;
 use futures_util::StreamExt;
-use reqwest_sse::EventSource;
 
 use super::models_handler::CopilotModelsHandler;
 use crate::api::models::{Content, ContentPart};
@@ -124,16 +124,16 @@ impl CopilotClientTrait for CopilotClient {
         response: Response,
         tx: Sender<anyhow::Result<Bytes>>,
     ) -> anyhow::Result<()> {
-        let mut event_stream = response.events().await?;
+        let mut event_stream = response.bytes_stream().eventsource();
         while let Some(event_result) = event_stream.next().await {
             match event_result {
-                Ok(event) => {
-                    if event.data == "[DONE]" {
+                Ok(message) => {
+                    if message.data == "[DONE]" {
                         info!("Received [DONE] signal, closing stream.");
                         let _ = tx.send(Ok(Bytes::from("[DONE]"))).await;
                         break;
                     }
-                    match serde_json::from_str::<ChatCompletionStreamChunk>(&event.data) {
+                    match serde_json::from_str::<ChatCompletionStreamChunk>(&message.data) {
                         Ok(chunk) => {
                             let vec = serde_json::to_vec(&chunk)?;
                             if tx.send(Ok(Bytes::from(vec))).await.is_err() {
@@ -142,7 +142,10 @@ impl CopilotClientTrait for CopilotClient {
                             }
                         }
                         Err(e) => {
-                            error!("Failed to parse stream chunk: {}, data: {}", e, event.data);
+                            error!(
+                                "Failed to parse stream chunk: {}, data: {}",
+                                e, message.data
+                            );
                         }
                     }
                 }

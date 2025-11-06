@@ -242,7 +242,7 @@ sequenceDiagram
     participant C as Internal ChatContext
     participant A as OpenAIAdapter
     participant M as Unified api::models
-    participant S as reqwest_sse
+    participant S as eventsource_stream
     participant API as OpenAI API
 
     C->>A: adapt(chat_context)
