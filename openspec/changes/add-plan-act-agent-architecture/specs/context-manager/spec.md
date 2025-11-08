@@ -67,3 +67,5 @@ The system SHALL maintain chat state aware of agent mode for appropriate transit
 - **WHEN** processing user message in Act mode
 - **THEN** state machine SHALL allow tool execution states
 - **AND** question handling states SHALL be available
+
+

@@ -400,3 +400,5 @@ If issues are found:
 - Review `proposal.md` for high-level overview
 - Check `tasks.md` for detailed task breakdown
 - Run `openspec show refactor-backend-first-persistence` for summary
+
+

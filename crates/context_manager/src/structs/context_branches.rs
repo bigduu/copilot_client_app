@@ -41,6 +41,9 @@ impl ChatContext {
         self.message_pool.insert(message_id, node);
         branch.message_ids.push(message_id);
 
+        // Initialize sequence counter for该消息（0 代表尚未推送任何chunk）。
+        self.stream_sequences.entry(message_id).or_insert(0);
+
         tracing::debug!(
             context_id = %self.id,
             branch = %branch_name,

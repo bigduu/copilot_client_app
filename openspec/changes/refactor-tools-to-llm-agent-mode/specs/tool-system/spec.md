@@ -136,3 +136,5 @@ The system SHALL request user approval for tool calls that require approval, eve
 **Reason**: Tool calls are parsed on backend only.
 
 **Migration**: Remove `ToolService.parseUserCommand()` and `parseAIResponseToToolCall()` from frontend.
+
+

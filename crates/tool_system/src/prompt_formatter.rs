@@ -132,6 +132,7 @@ mod tests {
             custom_prompt: None,
             hide_in_selector: false,
             display_preference: crate::types::DisplayPreference::Default,
+            required_permissions: vec![],
             termination_behavior_doc: Some("Use terminate=false for multi-step tasks".to_string()),
         };
 
@@ -157,6 +158,7 @@ mod tests {
                 hide_in_selector: false,
                 display_preference: crate::types::DisplayPreference::Default,
                 termination_behavior_doc: None,
+                required_permissions: vec![],
             },
             ToolDefinition {
                 name: "tool2".to_string(),
@@ -169,6 +171,7 @@ mod tests {
                 hide_in_selector: false,
                 display_preference: crate::types::DisplayPreference::Default,
                 termination_behavior_doc: None,
+                required_permissions: vec![],
             },
         ];
 
@@ -193,6 +196,7 @@ mod tests {
             hide_in_selector: false,
             display_preference: crate::types::DisplayPreference::Default,
             termination_behavior_doc: None,
+            required_permissions: vec![],
         }];
 
         let formatted = format_tool_list(&tools);
@@ -201,3 +205,5 @@ mod tests {
         assert!(formatted.contains("Read file contents"));
     }
 }
+
+

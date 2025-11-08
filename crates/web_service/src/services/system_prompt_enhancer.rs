@@ -1,9 +1,29 @@
 //! System prompt enhancement service
 //!
+//! ⚠️ **DEPRECATED** - This service is being replaced by the Pipeline architecture
+//! 
+//! **Migration Path**:
+//! - Tool definitions → `ToolEnhancementProcessor` (context_manager/pipeline)
+//! - Contextual instructions → `SystemPromptProcessor` (context_manager/pipeline)
+//! - Role-specific behavior → Integrated into Pipeline processors
+//!
+//! **Remaining functionality to migrate**:
+//! - Mermaid diagram support → New `MermaidProcessor` (TODO: Phase 2.x)
+//! - Template variable replacement → New `TemplateProcessor` (TODO: Phase 2.x)
+//! - Caching → Move to Pipeline configuration (TODO: Phase 2.x)
+//!
+//! **Reason for deprecation**:
+//! This service duplicates functionality that should be handled by the message processing
+//! pipeline. The pipeline provides better:
+//! - Modularity: Each processor has a single responsibility
+//! - Testability: Processors can be tested independently
+//! - Extensibility: Easy to add new processors
+//! - Consistency: All message processing goes through the same flow
+//!
 //! Enhances base system prompts with:
-//! - Tool definitions
-//! - Mermaid diagram support
-//! - Contextual instructions
+//! - Tool definitions (⚠️ DEPRECATED - use ToolEnhancementProcessor)
+//! - Mermaid diagram support (⚠️ TODO: migrate to MermaidProcessor)
+//! - Contextual instructions (⚠️ DEPRECATED - use SystemPromptProcessor)
 
 use anyhow::Result;
 use std::collections::HashMap;
@@ -47,6 +67,12 @@ impl Default for EnhancementConfig {
 }
 
 /// Service for enhancing system prompts
+/// 
+/// ⚠️ **DEPRECATED** - Use `context_manager::pipeline` processors instead
+#[deprecated(
+    since = "0.2.0",
+    note = "Use context_manager::pipeline processors (ToolEnhancementProcessor, SystemPromptProcessor) instead"
+)]
 pub struct SystemPromptEnhancer {
     tool_registry: Arc<ToolRegistry>,
     config: EnhancementConfig,
@@ -76,9 +102,28 @@ impl SystemPromptEnhancer {
 
     /// Enhance a base system prompt with tools and additional features
     ///
+    /// ⚠️ **DEPRECATED** - Use `MessagePipeline` with processors instead
+    ///
     /// # Arguments
     /// * `base_prompt` - The base system prompt to enhance
     /// * `agent_role` - The agent's current role (determines available tools and behavior)
+    ///
+    /// # Migration Example
+    /// ```ignore
+    /// // Old way (deprecated):
+    /// let enhanced = enhancer.enhance_prompt(base, &role).await?;
+    ///
+    /// // New way (recommended):
+    /// let pipeline = MessagePipeline::new()
+    ///     .register(Box::new(ValidationProcessor::new()))
+    ///     .register(Box::new(ToolEnhancementProcessor::new()))
+    ///     .register(Box::new(SystemPromptProcessor::with_base_prompt(base)));
+    /// let output = pipeline.execute(message).await?;
+    /// ```
+    #[deprecated(
+        since = "0.2.0",
+        note = "Use MessagePipeline with ToolEnhancementProcessor and SystemPromptProcessor"
+    )]
     pub async fn enhance_prompt(
         &self,
         base_prompt: &str,

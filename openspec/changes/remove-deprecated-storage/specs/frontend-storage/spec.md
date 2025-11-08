@@ -93,3 +93,5 @@ The StorageService SHALL only manage UI preferences and user settings, not chat 
 - **WHEN** user needs to access chat data
 - **THEN** data SHALL be fetched from backend API
 - **AND** data SHALL NOT be read from LocalStorage
+
+

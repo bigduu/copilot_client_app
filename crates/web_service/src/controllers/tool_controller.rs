@@ -8,6 +8,10 @@ use log::warn;
 /// Tools are now LLM-driven and executed through the agent loop.
 /// Use workflows for user-invoked actions instead.
 /// This endpoint will be removed in a future version.
+#[deprecated(
+    since = "0.2.0",
+    note = "Tools are now LLM-driven. Use workflows for user-invoked actions instead."
+)]
 async fn execute_tool(
     tool_service: web::Data<ToolService>,
     request: web::Json<ToolExecutionRequest>,
@@ -32,6 +36,10 @@ async fn execute_tool(
 /// Categories now apply to workflows, not tools.
 /// Use /v1/workflows/categories instead.
 /// This endpoint will be removed in a future version.
+#[deprecated(
+    since = "0.2.0",
+    note = "Use /v1/workflows/categories instead. Categories now apply to workflows."
+)]
 async fn get_categories(tool_service: web::Data<ToolService>) -> impl Responder {
     warn!("DEPRECATED: /tools/categories called. Use /v1/workflows/categories instead.");
 
@@ -47,6 +55,10 @@ async fn get_categories(tool_service: web::Data<ToolService>) -> impl Responder 
 
 /// DEPRECATED: Category info endpoint for tools
 /// This endpoint will be removed in a future version.
+#[deprecated(
+    since = "0.2.0",
+    note = "Tool categories are deprecated. Use workflow categories instead."
+)]
 async fn get_category_info(
     tool_service: web::Data<ToolService>,
     path: web::Path<String>,

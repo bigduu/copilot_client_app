@@ -72,12 +72,17 @@ pub struct CurrentToolExecution {
 pub struct ToolExecutionContext {
     pending: Vec<PendingToolRequest>,
     current: Option<CurrentToolExecution>,
+    auto_loop_depth: u32,
+    tools_executed: u32,
+    policy: ToolApprovalPolicy,
 }
 
 impl ToolExecutionContext {
     pub fn reset(&mut self) {
         self.pending.clear();
         self.current = None;
+        self.auto_loop_depth = 0;
+        self.tools_executed = 0;
     }
 
     pub fn add_pending(&mut self, request_id: Uuid, tool_name: String) {
@@ -158,5 +163,55 @@ impl ToolExecutionContext {
 
     pub fn complete_execution(&mut self) {
         self.current = None;
+    }
+
+    pub fn begin_auto_loop(&mut self, depth: u32) {
+        self.auto_loop_depth = depth.max(1);
+        self.tools_executed = 0;
+    }
+
+    pub fn increment_tools_executed(&mut self) {
+        self.tools_executed = self.tools_executed.saturating_add(1);
+    }
+
+    pub fn tools_executed(&self) -> u32 {
+        self.tools_executed
+    }
+
+    pub fn auto_loop_depth(&self) -> u32 {
+        self.auto_loop_depth
+    }
+
+    pub fn set_policy(&mut self, policy: ToolApprovalPolicy) {
+        self.policy = policy;
+    }
+
+    pub fn policy(&self) -> ToolApprovalPolicy {
+        self.policy
+    }
+
+    pub fn can_continue(&self) -> bool {
+        match self.policy {
+            ToolApprovalPolicy::Manual => false,
+            ToolApprovalPolicy::AutoLoop {
+                max_depth,
+                max_tools,
+            } => self.auto_loop_depth <= max_depth && self.tools_executed < max_tools,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ToolApprovalPolicy {
+    Manual,
+    AutoLoop { max_depth: u32, max_tools: u32 },
+}
+
+impl Default for ToolApprovalPolicy {
+    fn default() -> Self {
+        ToolApprovalPolicy::AutoLoop {
+            max_depth: 1,
+            max_tools: 10,
+        }
     }
 }

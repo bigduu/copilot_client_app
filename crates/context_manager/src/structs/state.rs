@@ -31,6 +31,13 @@ pub enum ContextState {
     },
     /// The results of tool execution are being processed and added to the context.
     ProcessingToolResults,
+    /// The context is automatically looping through tool execution cycles.
+    ToolAutoLoop {
+        /// Current auto-loop depth (starts at 1 for the first iteration).
+        depth: u32,
+        /// Total number of tools executed during the current auto-loop session.
+        tools_executed: u32,
+    },
     /// The context (with tool results or error feedback) is being sent to the LLM for a subsequent response.
     GeneratingResponse,
     /// A recoverable error occurred. The system will attempt to retry.

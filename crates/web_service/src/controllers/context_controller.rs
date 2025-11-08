@@ -9,6 +9,7 @@ use actix_web::{
     web::{Data, Json, Path, Query},
     HttpRequest, HttpResponse, Result,
 };
+use actix_web_lab::{sse, util::InfallibleStream};
 use context_manager::AgentRole;
 use copilot_client::api::models::{
     ChatCompletionRequest, ChatCompletionResponse, ChatMessage, Content,
@@ -16,7 +17,10 @@ use copilot_client::api::models::{
 };
 use log::{error, info};
 use serde::{Deserialize, Serialize};
+use std::time::Duration;
 use std::{fs, path::Path as FsPath};
+use tokio::sync::mpsc;
+use tokio_stream::wrappers::ReceiverStream;
 use tracing;
 use uuid::Uuid;
 
@@ -88,6 +92,63 @@ pub struct GenerateTitleRequest {
 #[derive(Serialize, Debug)]
 pub struct GenerateTitleResponse {
     pub title: String,
+}
+
+/// Lightweight context metadata response (for Signal-Pull architecture)
+#[derive(Serialize, Debug)]
+pub struct ContextMetadataResponse {
+    pub id: String,
+    pub current_state: String,
+    pub active_branch_name: String,
+    pub message_count: usize,
+    pub model_id: String,
+    pub mode: String,
+    pub system_prompt_id: Option<String>,
+    pub workspace_path: Option<String>,
+}
+
+/// Response for streaming chunks query
+#[derive(Serialize, Debug)]
+pub struct StreamingChunksResponse {
+    pub context_id: String,
+    pub message_id: String,
+    pub chunks: Vec<ChunkDTO>,
+    pub current_sequence: u64,
+    pub has_more: bool,
+}
+
+#[derive(Serialize, Debug)]
+pub struct ChunkDTO {
+    pub sequence: u64,
+    pub delta: String,
+}
+
+/// Signal-Pull SSE Event Types
+#[derive(Serialize, Debug, Clone)]
+#[serde(tag = "type", rename_all = "snake_case")]
+pub enum SignalEvent {
+    /// Context state has changed (e.g., Idle -> ProcessingUserMessage)
+    StateChanged {
+        context_id: String,
+        new_state: String,
+        timestamp: String,
+    },
+    /// Message content has new chunks available (frontend should pull via REST)
+    ContentDelta {
+        context_id: String,
+        message_id: String,
+        current_sequence: u64,
+        timestamp: String,
+    },
+    /// Message streaming/processing completed
+    MessageCompleted {
+        context_id: String,
+        message_id: String,
+        final_sequence: u64,
+        timestamp: String,
+    },
+    /// Keep-alive heartbeat
+    Heartbeat { timestamp: String },
 }
 
 fn extract_message_text(content: &Content) -> String {
@@ -277,6 +338,68 @@ pub async fn get_context(
                 context_id = %context_id,
                 error = %e,
                 "Failed to load context"
+            );
+            Ok(HttpResponse::InternalServerError().json(serde_json::json!({
+                "error": format!("Failed to load context: {}", e)
+            })))
+        }
+    }
+}
+
+/// Get lightweight context metadata (for Signal-Pull architecture)
+#[get("/contexts/{id}/metadata")]
+pub async fn get_context_metadata(
+    path: Path<Uuid>,
+    app_state: Data<AppState>,
+    http_req: HttpRequest,
+) -> Result<HttpResponse> {
+    let context_id = path.into_inner();
+    let trace_id = extract_trace_id(&http_req);
+
+    tracing::debug!(
+        trace_id = ?trace_id,
+        context_id = %context_id,
+        "get_context_metadata endpoint called"
+    );
+
+    match app_state
+        .session_manager
+        .load_context(context_id, trace_id.clone())
+        .await
+    {
+        Ok(Some(context)) => {
+            let metadata = {
+                let ctx = context.read().await;
+                ContextMetadataResponse {
+                    id: ctx.id.to_string(),
+                    current_state: format!("{:?}", ctx.current_state),
+                    active_branch_name: ctx.active_branch_name.clone(),
+                    message_count: ctx.message_pool.len(),
+                    model_id: ctx.config.model_id.clone(),
+                    mode: ctx.config.mode.clone(),
+                    system_prompt_id: ctx.config.system_prompt_id.clone(),
+                    workspace_path: ctx.config.workspace_path.clone(),
+                }
+            };
+
+            Ok(HttpResponse::Ok().json(metadata))
+        }
+        Ok(None) => {
+            tracing::info!(
+                trace_id = ?trace_id,
+                context_id = %context_id,
+                "Context not found"
+            );
+            Ok(HttpResponse::NotFound().json(serde_json::json!({
+                "error": "Context not found"
+            })))
+        }
+        Err(e) => {
+            tracing::error!(
+                trace_id = ?trace_id,
+                context_id = %context_id,
+                error = %e,
+                "Failed to load context metadata"
             );
             Ok(HttpResponse::InternalServerError().json(serde_json::json!({
                 "error": format!("Failed to load context: {}", e)
@@ -778,6 +901,13 @@ pub struct MessageQuery {
     pub branch: Option<String>,
     pub limit: Option<usize>,
     pub offset: Option<usize>,
+    /// Comma-separated list of message IDs for batch query
+    pub ids: Option<String>,
+}
+
+#[derive(Deserialize, Debug, Default)]
+pub struct MessageContentQuery {
+    pub from_sequence: Option<u64>,
 }
 
 #[derive(Deserialize, Debug)]
@@ -787,7 +917,7 @@ pub struct AddMessageRequest {
     pub branch: Option<String>,
 }
 
-/// Get messages for a context with pagination
+/// Get messages for a context with pagination or batch query by IDs
 #[get("/contexts/{id}/messages")]
 pub async fn get_context_messages(
     path: Path<Uuid>,
@@ -796,9 +926,6 @@ pub async fn get_context_messages(
     http_req: HttpRequest,
 ) -> Result<HttpResponse> {
     let context_id = path.into_inner();
-    let branch_name = query.branch.clone().unwrap_or_else(|| "main".to_string());
-    let limit = query.limit.unwrap_or(50);
-    let offset = query.offset.unwrap_or(0);
     let trace_id = extract_trace_id(&http_req);
 
     match app_state
@@ -807,21 +934,55 @@ pub async fn get_context_messages(
         .await
     {
         Ok(Some(context)) => {
-            // Extract messages in a short-lived read lock
-            let (total, messages) = {
-                let ctx = context.read().await;
-                let all_messages = get_branch_messages(&ctx, &branch_name);
-                let total = all_messages.len();
-                let messages: Vec<_> = all_messages.into_iter().skip(offset).take(limit).collect();
-                (total, messages)
-            }; // Lock released here
+            // Check if this is a batch query by IDs
+            if let Some(ids_str) = &query.ids {
+                // Batch query mode: fetch specific messages by ID
+                let requested_ids: Vec<Uuid> = ids_str
+                    .split(',')
+                    .filter_map(|s| Uuid::parse_str(s.trim()).ok())
+                    .collect();
 
-            Ok(HttpResponse::Ok().json(serde_json::json!({
-                "messages": messages,
-                "total": total,
-                "limit": limit,
-                "offset": offset
-            })))
+                let messages = {
+                    let ctx = context.read().await;
+                    use crate::dto::MessageDTO;
+
+                    requested_ids
+                        .iter()
+                        .filter_map(|msg_id| {
+                            ctx.message_pool
+                                .get(msg_id)
+                                .map(|node| MessageDTO::from(node.clone()))
+                        })
+                        .collect::<Vec<_>>()
+                };
+
+                Ok(HttpResponse::Ok().json(serde_json::json!({
+                    "messages": messages,
+                    "requested_count": requested_ids.len(),
+                    "found_count": messages.len(),
+                })))
+            } else {
+                // Pagination mode: fetch messages from branch
+                let branch_name = query.branch.clone().unwrap_or_else(|| "main".to_string());
+                let limit = query.limit.unwrap_or(50);
+                let offset = query.offset.unwrap_or(0);
+
+                let (total, messages) = {
+                    let ctx = context.read().await;
+                    let all_messages = get_branch_messages(&ctx, &branch_name);
+                    let total = all_messages.len();
+                    let messages: Vec<_> =
+                        all_messages.into_iter().skip(offset).take(limit).collect();
+                    (total, messages)
+                };
+
+                Ok(HttpResponse::Ok().json(serde_json::json!({
+                    "messages": messages,
+                    "total": total,
+                    "limit": limit,
+                    "offset": offset
+                })))
+            }
         }
         Ok(None) => Ok(HttpResponse::NotFound().json(serde_json::json!({
             "error": "Context not found"
@@ -835,7 +996,245 @@ pub async fn get_context_messages(
     }
 }
 
-/// Add a message to a context
+/// Retrieve the latest textual content for a specific message.
+#[get("/contexts/{context_id}/messages/{message_id}/content")]
+pub async fn get_message_content(
+    path: Path<(Uuid, Uuid)>,
+    query: Query<MessageContentQuery>,
+    app_state: Data<AppState>,
+    http_req: HttpRequest,
+) -> Result<HttpResponse> {
+    let (context_id, message_id) = path.into_inner();
+    let trace_id = extract_trace_id(&http_req);
+    let from_sequence = query.from_sequence.unwrap_or(0);
+
+    match app_state
+        .session_manager
+        .load_context(context_id, trace_id)
+        .await
+    {
+        Ok(Some(context)) => {
+            let slice_opt = {
+                let ctx = context.read().await;
+                ctx.message_content_slice(message_id, Some(from_sequence))
+            };
+
+            match slice_opt {
+                Some(slice) => Ok(HttpResponse::Ok().json(slice)),
+                None => Ok(HttpResponse::NotFound().json(serde_json::json!({
+                    "error": "Message not found"
+                }))),
+            }
+        }
+        Ok(None) => Ok(HttpResponse::NotFound().json(serde_json::json!({
+            "error": "Context not found"
+        }))),
+        Err(e) => {
+            error!("Failed to load context for message content: {}", e);
+            Ok(HttpResponse::InternalServerError().json(serde_json::json!({
+                "error": format!("Failed to load context: {}", e)
+            })))
+        }
+    }
+}
+
+/// Get streaming chunks for a message (for Signal-Pull incremental content retrieval)
+#[get("/contexts/{context_id}/messages/{message_id}/streaming-chunks")]
+pub async fn get_streaming_chunks(
+    path: Path<(Uuid, Uuid)>,
+    query: Query<MessageContentQuery>,
+    app_state: Data<AppState>,
+    http_req: HttpRequest,
+) -> Result<HttpResponse> {
+    let (context_id, message_id) = path.into_inner();
+    let trace_id = extract_trace_id(&http_req);
+    let from_sequence = query.from_sequence.unwrap_or(0);
+
+    tracing::debug!(
+        trace_id = ?trace_id,
+        context_id = %context_id,
+        message_id = %message_id,
+        from_sequence = from_sequence,
+        "get_streaming_chunks endpoint called"
+    );
+
+    match app_state
+        .session_manager
+        .load_context(context_id, trace_id.clone())
+        .await
+    {
+        Ok(Some(context)) => {
+            let (chunks_opt, current_seq_opt) = {
+                let ctx = context.read().await;
+                let chunks = ctx.get_streaming_chunks_after(message_id, from_sequence);
+                let current_seq = ctx.get_streaming_sequence(message_id);
+                (chunks, current_seq)
+            };
+
+            match (chunks_opt, current_seq_opt) {
+                (Some(chunks), Some(current_sequence)) => {
+                    let chunk_dtos: Vec<ChunkDTO> = chunks
+                        .into_iter()
+                        .map(|(seq, delta)| ChunkDTO {
+                            sequence: seq,
+                            delta,
+                        })
+                        .collect();
+
+                    let has_more = !chunk_dtos.is_empty();
+
+                    let response = StreamingChunksResponse {
+                        context_id: context_id.to_string(),
+                        message_id: message_id.to_string(),
+                        chunks: chunk_dtos,
+                        current_sequence,
+                        has_more,
+                    };
+
+                    Ok(HttpResponse::Ok().json(response))
+                }
+                (None, _) | (_, None) => {
+                    tracing::info!(
+                        trace_id = ?trace_id,
+                        context_id = %context_id,
+                        message_id = %message_id,
+                        "Message not found or not a streaming message"
+                    );
+                    Ok(HttpResponse::NotFound().json(serde_json::json!({
+                        "error": "Message not found or not a streaming message"
+                    })))
+                }
+            }
+        }
+        Ok(None) => {
+            tracing::info!(
+                trace_id = ?trace_id,
+                context_id = %context_id,
+                "Context not found"
+            );
+            Ok(HttpResponse::NotFound().json(serde_json::json!({
+                "error": "Context not found"
+            })))
+        }
+        Err(e) => {
+            tracing::error!(
+                trace_id = ?trace_id,
+                context_id = %context_id,
+                error = %e,
+                "Failed to load context for streaming chunks"
+            );
+            Ok(HttpResponse::InternalServerError().json(serde_json::json!({
+                "error": format!("Failed to load context: {}", e)
+            })))
+        }
+    }
+}
+
+/// Subscribe to Signal-Pull SSE events for a context
+/// This endpoint establishes a Server-Sent Events stream for lightweight signals.
+/// Frontend should use REST APIs to pull actual data upon receiving signals.
+#[get("/contexts/{id}/events")]
+pub async fn subscribe_context_events(
+    path: Path<Uuid>,
+    app_state: Data<AppState>,
+    http_req: HttpRequest,
+) -> Result<sse::Sse<InfallibleStream<ReceiverStream<sse::Event>>>> {
+    let context_id = path.into_inner();
+    let trace_id = extract_trace_id(&http_req);
+
+    tracing::info!(
+        trace_id = ?trace_id,
+        context_id = %context_id,
+        "SSE subscription requested for context events"
+    );
+
+    // Verify context exists
+    match app_state
+        .session_manager
+        .load_context(context_id, trace_id.clone())
+        .await
+    {
+        Ok(Some(_context)) => {
+            let (tx, rx) = mpsc::channel::<sse::Event>(32);
+
+            // Spawn a background task to monitor context changes and send signals
+            let context_id_str = context_id.to_string();
+            let _session_manager = app_state.session_manager.clone(); // Reserved for future context monitoring
+
+            tokio::spawn(async move {
+                let mut heartbeat_interval = tokio::time::interval(Duration::from_secs(30));
+
+                loop {
+                    tokio::select! {
+                        _ = heartbeat_interval.tick() => {
+                            // Send heartbeat
+                            let event = SignalEvent::Heartbeat {
+                                timestamp: chrono::Utc::now().to_rfc3339(),
+                            };
+
+                            if let Ok(data) = sse::Data::new_json(&event) {
+                                if tx.send(sse::Event::Data(data.event("signal"))).await.is_err() {
+                                    tracing::debug!("SSE client disconnected (heartbeat)");
+                                    break;
+                                }
+                            }
+                        }
+                        // TODO: Add context change monitoring here
+                        // For now, this is a basic heartbeat-only implementation
+                        // In a full implementation, you would:
+                        // 1. Subscribe to context state changes
+                        // 2. Monitor streaming message updates
+                        // 3. Detect message completion
+                        // and send corresponding SignalEvent variants
+                    }
+                }
+
+                tracing::info!(
+                    context_id = %context_id_str,
+                    "SSE event stream closed"
+                );
+            });
+
+            let sse_stream =
+                sse::Sse::from_infallible_receiver(rx).with_keep_alive(Duration::from_secs(15));
+
+            Ok(sse_stream)
+        }
+        Ok(None) => {
+            tracing::warn!(
+                trace_id = ?trace_id,
+                context_id = %context_id,
+                "Context not found for SSE subscription"
+            );
+            Err(actix_web::error::ErrorNotFound("Context not found"))
+        }
+        Err(e) => {
+            tracing::error!(
+                trace_id = ?trace_id,
+                context_id = %context_id,
+                error = %e,
+                "Failed to load context for SSE subscription"
+            );
+            Err(actix_web::error::ErrorInternalServerError(
+                "Failed to load context",
+            ))
+        }
+    }
+}
+
+/// Add a message to a context (DEPRECATED - OLD CRUD ENDPOINT)
+///
+/// ⚠️  **DEPRECATED**: This endpoint does NOT trigger the FSM (Finite State Machine).
+/// No assistant response will be generated. This is a legacy endpoint for direct message manipulation.
+///
+/// **Use instead**: `POST /contexts/{id}/actions/send_message` for proper FSM-driven message handling
+/// that triggers LLM responses, tool execution, and full conversation flow.
+///
+/// This endpoint will be removed in a future version.
+#[deprecated(
+    since = "0.2.0",
+    note = "Use POST /contexts/{id}/actions/send_message instead. This endpoint does not trigger FSM."
+)]
 #[post("/contexts/{id}/messages")]
 pub async fn add_context_message(
     path: Path<Uuid>,
@@ -1382,11 +1781,15 @@ fn payload_preview(payload: &MessagePayload) -> String {
 pub fn config(cfg: &mut actix_web::web::ServiceConfig) {
     cfg.service(create_context)
         .service(get_context)
+        .service(get_context_metadata) // Signal-Pull: lightweight metadata
         .service(update_context)
         .service(delete_context)
         .service(list_contexts)
         .service(generate_context_title)
-        .service(get_context_messages)
+        .service(get_context_messages) // Now supports batch query via ?ids=...
+        .service(get_message_content)
+        .service(get_streaming_chunks) // Signal-Pull: incremental streaming chunks
+        .service(subscribe_context_events) // Signal-Pull: SSE event stream
         .service(add_context_message)
         .service(approve_context_tools)
         // New action-based endpoints

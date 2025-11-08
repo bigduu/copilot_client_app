@@ -30,6 +30,10 @@
    - 功能相关的代码group在一起
    - 每个模块都可以独立测试
    - 避免大文件（几千行），提升可维护性和可读性
+   - **新增标准**：所有“上下文/消息”领域模型结构体统一定义在 `context_manager`，web_service 只允许：
+     1. 使用这些领域结构体（或通过 `dto` 做轻量转换）；
+     2. 定义与 HTTP/Transport 强相关的 Request/Query VO（如分页参数）。
+     这样可避免 controller/service 私自扩张领域模型，保持单一来源。如本次新增的 `MessageContentSlice` 和 `message_content_slice` helper 由 `context_manager` 提供，controller 仅复用并序列化输出。
    
 2. **统一的消息处理Pipeline**：
    - 所有消息类型通过统一的pipeline处理
@@ -791,14 +795,75 @@ impl ChatController {
 **How**:
 ```rust
 pub enum MessageType {
-    Text(TextMessage),               // 普通文本消息
-    Image(ImageMessage),             // 图片消息
-    FileReference(FileRefMessage),   // 文件引用
-    ToolRequest(ToolRequestMessage), // 工具调用请求
-    ToolResult(ToolResultMessage),   // 工具执行结果
-    MCPResource(MCPResourceMessage), // MCP资源（NEW）
-    SystemControl(SystemMessage),    // 系统控制消息
-    Processing(ProcessingMessage),   // 处理中消息
+    Text(TextMessage),                    // 普通文本消息
+    Image(ImageMessage),                  // 图片消息
+    FileReference(FileRefMessage),        // 文件引用（单个文件）
+    ProjectStructure(ProjectStructMsg),   // 项目结构信息（NEW）
+    ToolRequest(ToolRequestMessage),      // 普通工具调用请求
+    ToolResult(ToolResultMessage),        // 普通工具执行结果
+    MCPToolRequest(MCPToolRequestMsg),    // MCP工具调用请求（NEW）
+    MCPToolResult(MCPToolResultMsg),      // MCP工具执行结果（NEW）
+    MCPResource(MCPResourceMessage),      // MCP资源
+    WorkflowExecution(WorkflowExecMsg),   // Workflow执行状态（NEW）
+    SystemControl(SystemMessage),         // 系统控制消息
+    Processing(ProcessingMessage),        // 处理中消息
+}
+
+// 项目结构消息（NEW）
+pub struct ProjectStructMsg {
+    pub root_path: PathBuf,
+    pub structure_type: StructureType,
+    pub content: ProjectStructureContent,
+    pub generated_at: DateTime<Utc>,
+    pub excluded_patterns: Vec<String>,  // 排除的文件模式
+}
+
+pub enum StructureType {
+    Tree,        // 树形结构
+    FileList,    // 文件列表
+    Dependencies, // 依赖关系图
+}
+
+pub enum ProjectStructureContent {
+    Tree(DirectoryNode),
+    FileList(Vec<FileInfo>),
+    Dependencies(DependencyGraph),
+}
+
+pub struct DirectoryNode {
+    pub name: String,
+    pub path: PathBuf,
+    pub children: Vec<DirectoryNode>,
+    pub files: Vec<FileInfo>,
+}
+
+pub struct FileInfo {
+    pub path: PathBuf,
+    pub size_bytes: u64,
+    pub mime_type: Option<String>,
+    pub language: Option<String>,
+}
+
+// MCP工具调用请求（NEW）
+pub struct MCPToolRequestMsg {
+    pub server_name: String,
+    pub tool_name: String,
+    pub arguments: HashMap<String, serde_json::Value>,
+    pub request_id: String,
+    pub approval_status: ApprovalStatus,
+    pub requested_at: DateTime<Utc>,
+}
+
+// MCP工具执行结果（NEW）
+pub struct MCPToolResultMsg {
+    pub server_name: String,
+    pub tool_name: String,
+    pub request_id: String,
+    pub result: serde_json::Value,
+    pub status: ExecutionStatus,
+    pub executed_at: DateTime<Utc>,
+    pub duration_ms: u64,
+    pub error: Option<ErrorDetail>,
 }
 
 // MCP资源消息
@@ -808,6 +873,29 @@ pub struct MCPResourceMessage {
     pub content: String,
     pub mime_type: Option<String>,
     pub retrieved_at: DateTime<Utc>,
+}
+
+// Workflow执行状态消息（NEW）
+pub struct WorkflowExecMsg {
+    pub workflow_name: String,
+    pub execution_id: String,
+    pub status: WorkflowStatus,
+    pub current_step: Option<String>,
+    pub total_steps: usize,
+    pub completed_steps: usize,
+    pub started_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+    pub result: Option<serde_json::Value>,
+    pub error: Option<ErrorDetail>,
+}
+
+pub enum WorkflowStatus {
+    Pending,      // 等待执行
+    Running,      // 执行中
+    Paused,       // 已暂停
+    Completed,    // 成功完成
+    Failed,       // 执行失败
+    Cancelled,    // 已取消
 }
 
 // 图片消息结构
@@ -982,38 +1070,114 @@ let pipeline = MessagePipeline::new()
 
 ### Decision 3: Storage Separation
 
-**What**: 分离消息内容存储和上下文元数据存储
+**Status**: ⚠️ **SUPERSEDED** by Decision 3.1 (Context-Local Message Pool)
+
+~~**What**: 分离消息内容存储和上下文元数据存储~~
+
+原设计存在以下问题：
+- 分支合并时需要复制文件
+- 删除 Context 时需要复杂的 GC 逻辑
+- 按分支组织导致跨分支查询困难
+
+**请参考 Decision 3.1 了解最终确定的存储架构。**
+
+---
+
+### Decision 3.1: Context-Local Message Pool（上下文本地消息池）
+
+**Status**: ✅ **APPROVED** - 最终存储架构
+
+**What**: 每个 Context 是一个完全自包含的文件夹，所有消息（无论属于哪个分支）都存储在内部的 `messages_pool` 文件夹中。
 
 **Why**:
-- 当前整个ChatContext作为单一JSON序列化，包含所有历史消息
-- 对于长对话，这导致很大的I/O开销
-- 加载上下文时必须加载所有消息，无法按需加载
+- **高封装性**: 备份、迁移或删除一个对话，只需操作一个文件夹，无任何副作用
+- **无垃圾回收**: 彻底避免了"全局消息池"方案在删除 Context 时所需的复杂引用计数和 GC 逻辑
+- **分支效率**: 完美支持 Decision 7（分支合并）。合并/创建分支只是在 `metadata.json` 中操纵 `message_ids` 列表，**不涉及任何文件 I/O**
+- **性能**: 同一 Context 下的所有消息在同一目录，文件系统缓存效率高
 
 **How**:
+
 ```
 Storage Structure:
 contexts/
-  {context_id}/
-    metadata.json          # 上下文元数据（config, branches, state）
-    messages/
-      branch-{name}/
-        {message_id}.json  # 单个消息内容
-    index.json            # 消息索引（快速查找）
+  └── {context_id}/
+      ├── metadata.json       # Context 元数据、分支定义、状态
+      └── messages_pool/      # 本地消息池（所有分支共享）
+          ├── {msg_id_A}.json
+          ├── {msg_id_B}.json
+          └── {msg_id_C}.json
+```
+
+**`metadata.json` 结构**:
+
+```json
+{
+  "context_id": "ctx-uuid",
+  "current_state": "Idle",
+  "active_branch": "main",
+  "branches": {
+    "main": {
+      "name": "main",
+      "message_ids": ["msg-A", "msg-C"],
+      "parent_branch": null,
+      "created_at": "2025-11-08T10:00:00Z"
+    },
+    "feature-x": {
+      "name": "feature-x",
+      "message_ids": ["msg-A", "msg-B"],
+      "parent_branch": "main",
+      "created_at": "2025-11-08T11:00:00Z"
+    }
+  },
+  "config": {
+    "system_prompt_id": "...",
+    "model": "gpt-4",
+    "temperature": 0.7
+  }
+}
+```
+
+**分支操作示例**:
+
+```rust
+// 创建分支 - 只需在 metadata.json 中复制 message_ids
+impl ChatContext {
+    pub fn create_branch(&mut self, new_name: &str, from: &str) -> Result<()> {
+        let source_branch = self.branches.get(from)?;
+        let new_branch = Branch {
+            name: new_name.to_string(),
+            message_ids: source_branch.message_ids.clone(), // ✅ 只复制引用
+            parent_branch: Some(from.to_string()),
+            created_at: Utc::now(),
+        };
+        self.branches.insert(new_name.to_string(), new_branch);
+        self.mark_dirty(); // ✅ 只需保存 metadata.json
+        Ok(())
+    }
+}
+
+// 删除 Context - 只需删除文件夹
+fn delete_context(context_id: Uuid) -> Result<()> {
+    let context_dir = format!("contexts/{}", context_id);
+    std::fs::remove_dir_all(context_dir)?; // ✅ 一步完成，无需 GC
+    Ok(())
+}
 ```
 
 **Benefits**:
-- 增量加载：只加载需要的消息
-- 并发写入：不同消息可以并行写入
-- 更小的序列化单元：减少内存占用
+- ✅ **封装性**: 一个 Context = 一个文件夹
+- ✅ **简单性**: 无需索引、无需 GC
+- ✅ **分支高效**: 分支操作不涉及文件 I/O
+- ✅ **并发友好**: 不同 Context 的消息完全隔离
 
 **Trade-offs**:
-- 文件数量增加
-- 需要额外的索引维护
-- 略微增加实现复杂度
+- ⚠️ 消息不能在 Context 之间共享（实际上这是合理的，每个对话应该独立）
+- ⚠️ 文件数量相对较多（但现代文件系统处理这个没问题）
 
 **Alternatives Considered**:
-- **使用SQLite**: 引入数据库依赖，增加部署复杂度
-- **继续单文件存储**: 无法解决性能问题
+- ❌ **全局消息池**: 需要复杂的 GC，删除 Context 时需要检查引用计数
+- ❌ **按分支存储**: 分支合并需要复制文件，效率低
+- ❌ **SQLite**: 引入数据库依赖，增加部署复杂度
 
 ### Decision 4: Tool Auto-Loop Strategy
 
@@ -1050,114 +1214,40 @@ pub struct ToolExecutionContext {
 - **完全自动**: 安全风险太大
 - **完全手动**: 无法实现自动化目标
 
-### Decision 4.5: Streaming Context Updates to Frontend
+### Decision 4.5: Streaming Context Updates to Frontend (Delta-as-signal)
 
-**What**: 流式输出时传递完整的ContextUpdate而非仅文本增量
+**What**: 再次收紧 SSE 的职责。`context_update` 继续广播结构化状态；`content_delta` / `content_final` 事件只携带 `context_id`、`message_id`、`sequence`、`is_final` 等元信息，不再包含任何文本。真实内容通过新的 `GET /contexts/{id}/messages/{message_id}/content` API 获取，支持 `from_sequence` 增量读取。
 
 **Why**:
-- 前端需要知道当前的Context状态来做智能渲染
-- 仅传递文本不足以支持复杂的UI交互（工具调用状态、processing指示器等）
-- 后端状态机的状态应该驱动前端UI状态
+- 彻底剥离大 payload，SSE 高频也不会挤爆网络缓冲。
+- 消息正文只保存在 `context_manager`，REST API 是单一真源，避免 SSE 与存储状态不一致。
+- 工具 / workflow / agent loop 等所有消息统一走“事件通知 + 内容拉取”路径，体验一致。
+- 前端仍是事件驱动：收到信号后立即拉取内容，延迟只取决于一次 HTTP 往返。
 
 **How**:
-```rust
-// Context Manager返回结构化的更新
-pub struct ContextUpdate {
-    // 状态信息
-    pub context_id: Uuid,
-    pub current_state: ContextState,
-    pub previous_state: Option<ContextState>,
-    
-    // 消息更新
-    pub message_update: Option<MessageUpdate>,
-    
-    // 元数据
-    pub timestamp: DateTime<Utc>,
-    pub metadata: HashMap<String, Value>,
-}
+- `context_update` 事件 payload 仍是 `ContextUpdate`，但默认在发送前剥离 `message_update`，只保留状态与元数据。
+- `content_delta` 事件 payload（仅示意）：
+  ```json
+  {
+    "context_id": "<uuid>",
+    "message_id": "<uuid>",
+    "sequence": 7,
+    "is_final": false
+  }
+  ```
+- `content_final` 事件 payload：
+  ```json
+  {
+    "context_id": "<uuid>",
+    "message_id": "<uuid>",
+    "sequence": 19,
+    "is_final": true
+  }
+  ```
+- 新增 `GET /contexts/{ctx}/messages/{msg}/content?from_sequence=...` 接口：返回 `{"context_id","message_id","sequence","content"}`，实现增量合并或全量重放。
+- 工具/Workflow/审批等非流式场景不再直接把文本塞进 SSE，统一发送 `content_final` 元事件，再由前端调用内容 API。
 
-pub enum MessageUpdate {
-    // 新消息创建
-    Created {
-        message_id: Uuid,
-        role: Role,
-        message_type: MessageType,
-    },
-    // 消息内容增量（流式）
-    ContentDelta {
-        message_id: Uuid,
-        delta: String,
-        accumulated: String, // 当前累积的完整内容
-    },
-    // 消息完成
-    Completed {
-        message_id: Uuid,
-        final_message: InternalMessage,
-    },
-    // 消息状态变更（如工具调用从Pending到Approved）
-    StatusChanged {
-        message_id: Uuid,
-        old_status: String,
-        new_status: String,
-    },
-}
-
-// 流式端点返回ContextUpdate
-impl ChatContext {
-    pub async fn send_message(&mut self, content: String) 
-        -> Result<impl Stream<Item = ContextUpdate>, Error> {
-        let update_stream = stream! {
-            // 状态转换更新
-            yield ContextUpdate {
-                context_id: self.id,
-                current_state: ContextState::ProcessingMessage,
-                previous_state: Some(ContextState::Idle),
-                message_update: None,
-                timestamp: Utc::now(),
-                metadata: HashMap::new(),
-            };
-            
-            // 消息创建更新
-            let msg_id = Uuid::new_v4();
-            yield ContextUpdate {
-                message_update: Some(MessageUpdate::Created {
-                    message_id: msg_id,
-                    role: Role::User,
-                    message_type: MessageType::Text(...),
-                }),
-                ...
-            };
-            
-            // LLM响应流式更新
-            let mut accumulated = String::new();
-            for chunk in llm_stream {
-                accumulated.push_str(&chunk.delta);
-                yield ContextUpdate {
-                    message_update: Some(MessageUpdate::ContentDelta {
-                        message_id: assistant_msg_id,
-                        delta: chunk.delta,
-                        accumulated: accumulated.clone(),
-                    }),
-                    current_state: ContextState::StreamingLLMResponse,
-                    ...
-                };
-            }
-            
-            // 完成更新
-            yield ContextUpdate {
-                message_update: Some(MessageUpdate::Completed {
-                    message_id: assistant_msg_id,
-                    final_message: assistant_message,
-                }),
-                current_state: ContextState::Idle,
-                ...
-            };
-        };
-        
-        Ok(update_stream)
-    }
-}
-```
+> 这意味着 `MessageUpdate::ContentDelta` 仍用于内部状态与持久化，但在对外事件中被完全剥离；SSE 只做“通知”，内容交付交给 REST。
 
 **Frontend处理**:
 ```typescript
@@ -1200,6 +1290,220 @@ function handleContextUpdate(update: ContextUpdate) {
 - **仅传递文本**: 无法支持复杂交互
 - **前端自己维护状态**: 容易出现不一致
 - **WebSocket双向通信**: 增加复杂度，SSE足够
+
+---
+
+### Decision 4.5.1: Signal-Pull Synchronization Model（信令-拉取同步模型）
+
+**Status**: ✅ **APPROVED** - 最终前后端同步架构
+
+**What**: 前后端状态同步**严格分离"信令"和"数据"**。后端通过 **SSE** 高频发送轻量级**通知**（信令），前端收到信令后**主动通过 REST API 拉取**所需数据。
+
+**Why**:
+- **健壮性（自愈）**: 前端可轻易处理 SSE 信令丢失。如果本地序列号是 3，但收到序列号为 7 的信令，前端只需调用一次 API 拉取 3→7 的所有数据，状态自动恢复
+- **性能（负载分离）**: SSE 通道保持轻量，只传信令。工具返回的 1MB JSON 等"重数据"通过 REST 传输，二者互不阻塞
+- **单一真相来源（SSOT）**: REST API 是唯一的"真相来源"，SSE 只是"缓存失效"通知，极大简化了状态一致性问题
+- **可扩展性**: 新增数据类型不影响 SSE 协议，只需扩展 REST API
+
+**How**:
+
+#### 1. SSE 信令通道（仅推送通知）
+
+**Endpoint**: `GET /contexts/{context_id}/stream`
+
+**事件类型**:
+
+| Event              | Payload                                           | 描述                        |
+|--------------------|---------------------------------------------------|---------------------------|
+| `StateChanged`     | `{ "state": ContextState }`                       | Context 状态变更（包含完整状态） |
+| `MessageCreated`   | `{ "message_id": "...", "role": "user\|assistant" }` | 新消息创建（空消息气泡）        |
+| `ContentDelta`     | `{ "message_id": "...", "sequence": N }`          | **核心信令**：内容有更新（不含文本） |
+| `MessageCompleted` | `{ "message_id": "...", "final_sequence": N }`    | 消息流式传输结束            |
+| `Error`            | `{ "error_message": "..." }`                      | 错误通知                    |
+
+**关键设计**:
+- ✅ `ContentDelta` **只包含 message_id 和 sequence**，不包含文本
+- ✅ `StateChanged` 可以包含完整的 `ContextState` 枚举（因为状态本身就是数据）
+- ✅ 所有事件 payload < 1KB，保证 SSE 通道高速
+
+#### 2. REST 拉取 API（按需获取数据）
+
+##### 2.1 获取 Context 元数据
+
+```
+GET /contexts/{context_id}
+```
+
+**响应**:
+```json
+{
+  "context_id": "ctx-uuid",
+  "current_state": "Idle",
+  "active_branch": "main",
+  "branches": {
+    "main": {
+      "name": "main",
+      "message_ids": ["msg-A", "msg-C"],
+      "parent_branch": null
+    }
+  },
+  "config": { ... }
+}
+```
+
+**用途**: 初始化、切换分支、获取消息列表
+
+##### 2.2 批量获取消息完整内容
+
+```
+GET /contexts/{context_id}/messages?ids={id1},{id2},...
+```
+
+**响应**:
+```json
+[
+  {
+    "message_id": "msg-A",
+    "role": "user",
+    "content": "...",
+    "metadata": { ... }
+  },
+  {
+    "message_id": "msg-C",
+    "role": "assistant",
+    "message_type": "streaming_response",
+    "streaming_response": {
+      "content": "完整内容",
+      "chunks": [ ... ],
+      "model": "gpt-4"
+    }
+  }
+]
+```
+
+**用途**: 加载历史记录
+
+##### 2.3 增量拉取消息内容（核心）
+
+```
+GET /contexts/{context_id}/messages/{message_id}/content?from_sequence={N}
+```
+
+**查询参数**:
+- `from_sequence`: 起始序列号（不含），返回所有 > N 的内容块
+
+**响应**:
+```json
+[
+  { "sequence": 5, "delta": "Hello" },
+  { "sequence": 6, "delta": " world" },
+  { "sequence": 7, "delta": "!" }
+]
+```
+
+**用途**: 响应 `ContentDelta` 信令，实现增量内容同步
+
+#### 3. 前端处理逻辑（Rust 客户端示例）
+
+```rust
+// 前端状态管理
+struct FrontendContextStore {
+    context_id: Uuid,
+    current_state: ContextState,
+    message_pool: HashMap<Uuid, Message>,
+    // 关键：跟踪每个消息的本地序列号
+    message_sequence: HashMap<Uuid, u64>,
+    event_source: Option<EventSource>,
+}
+
+impl FrontendContextStore {
+    // 处理 ContentDelta 信令
+    async fn handle_content_delta(&mut self, message_id: Uuid, server_sequence: u64) {
+        let local_sequence = self.message_sequence.get(&message_id).copied().unwrap_or(0);
+        
+        // 关键逻辑：只有当服务器序列号 > 本地序列号时才拉取
+        if server_sequence > local_sequence {
+            // 拉取增量内容
+            match self.pull_content(message_id, local_sequence).await {
+                Ok(chunks) => {
+                    // 应用所有增量块
+                    if let Some(message) = self.message_pool.get_mut(&message_id) {
+                        for chunk in chunks {
+                            message.content.push_str(&chunk.delta);
+                        }
+                    }
+                    // 更新本地序列号
+                    self.message_sequence.insert(message_id, server_sequence);
+                }
+                Err(e) => {
+                    error!("Pull content failed: {}, will retry on next signal", e);
+                    // ✅ 失败不更新 message_sequence
+                    // 下一个 ContentDelta 信令会自动触发重试
+                }
+            }
+        }
+    }
+    
+    async fn pull_content(&self, message_id: Uuid, from_sequence: u64) 
+        -> Result<Vec<ContentChunk>> 
+    {
+        let url = format!(
+            "/contexts/{}/messages/{}/content?from_sequence={}",
+            self.context_id, message_id, from_sequence
+        );
+        let response = reqwest::get(&url).await?;
+        let chunks: Vec<ContentChunk> = response.json().await?;
+        Ok(chunks)
+    }
+}
+
+struct ContentChunk {
+    sequence: u64,
+    delta: String,
+}
+```
+
+#### 4. 自愈机制示例
+
+```
+时刻 T0: LLM 返回 chunk (seq: 1, delta: "你")
+         后端发送 SSE: ContentDelta { msg_id, seq: 1 }
+         前端收到 → 拉取 from_sequence=0 → 获取 [seq:1] → 显示"你"
+         local_seq[msg_id] = 1
+
+时刻 T1: LLM 返回 chunk (seq: 2, delta: "好")
+         后端发送 SSE: ContentDelta { msg_id, seq: 2 }
+         🔴 网络抖动，前端未收到信令
+
+时刻 T2: LLM 返回 chunk (seq: 3, delta: "！")
+         后端发送 SSE: ContentDelta { msg_id, seq: 3 }
+         ✅ 前端收到 seq: 3
+         
+         前端检查：server_seq (3) > local_seq (1)
+         前端拉取：GET .../content?from_sequence=1
+         后端返回：[{seq:2, "好"}, {seq:3, "！"}]
+         前端应用：追加"好"和"！"
+         更新：local_seq[msg_id] = 3
+         
+         ✅ 状态自动恢复！
+```
+
+**Benefits**:
+- ✅ **自愈性**: 信令丢失不影响最终一致性
+- ✅ **性能**: SSE 轻量，重数据走 REST
+- ✅ **简单性**: 前端逻辑清晰，后端无状态
+- ✅ **可调试**: REST API 可以独立测试和调试
+
+**Trade-offs**:
+- ⚠️ 每个 `ContentDelta` 信令触发一次 HTTP 请求（实际影响很小，因为批量拉取）
+- ⚠️ 前端需要维护 `message_sequence` 映射（内存开销可忽略）
+
+**Alternatives Considered**:
+- ❌ **SSE 包含完整数据**: 无法处理大 payload，SSE 通道容易阻塞
+- ❌ **WebSocket 双向通信**: 增加复杂度，需要处理重连、心跳等
+- ❌ **轮询**: 浪费资源，实时性差
+
+---
 
 ### Decision 4.6: Context Optimization for LLM
 

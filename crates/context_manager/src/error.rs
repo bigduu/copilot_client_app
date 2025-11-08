@@ -13,6 +13,10 @@ pub enum ContextError {
     ApprovalRequired(Uuid),
     /// Tool execution must occur before completing processing.
     ToolExecutionRequired,
+    /// Errors that occur while processing streaming responses.
+    StreamingError(String),
+    /// Errors that occur during message pipeline processing (Phase 2.0)
+    PipelineError(String),
 }
 
 impl Display for ContextError {
@@ -27,6 +31,12 @@ impl Display for ContextError {
             }
             ContextError::ToolExecutionRequired => {
                 write!(f, "pending tool execution required to continue")
+            }
+            ContextError::StreamingError(err) => {
+                write!(f, "streaming error: {err}")
+            }
+            ContextError::PipelineError(err) => {
+                write!(f, "pipeline processing error: {err}")
             }
         }
     }

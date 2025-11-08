@@ -185,13 +185,10 @@ The Context Manager SHALL emit structured ContextUpdate events during streaming 
 
 #### Scenario: Streaming text delta updates
 
-- **GIVEN** an LLM is streaming text response
-- **WHEN** each chunk is received
-- **THEN** a ContextUpdate SHALL be emitted
-- **AND** the update SHALL contain a ContentDelta message update
-- **AND** the delta (incremental text) SHALL be provided
-- **AND** the accumulated text SHALL be provided
-- **AND** the message ID SHALL be provided
+- **GIVEN** the LLM is streaming a text response
+- **WHEN** each chunk arrives
+- **THEN** the backend SHALL emit a `content_delta` SSE event whose payload includes at least `context_id`, `message_id`, `sequence`, and a boolean `is_final` flag (set to `false` for intermediate chunks)
+- **AND** the accompanying `context_update` SHALL carry only state changes and lightweight metadata (no large text blobs)
 
 #### Scenario: State transition updates
 
@@ -207,9 +204,16 @@ The Context Manager SHALL emit structured ContextUpdate events during streaming 
 - **GIVEN** a new message is being processed
 - **WHEN** the message goes through its lifecycle
 - **THEN** a Created update SHALL be emitted when the message is created
-- **AND** ContentDelta updates SHALL be emitted during streaming
+- **AND** streaming progress SHALL be communicated via `content_delta` events (metadata-only)
 - **AND** StatusChanged updates SHALL be emitted on status changes
 - **AND** a Completed update SHALL be emitted when finalized
+
+#### Scenario: Streaming completion events
+
+- **GIVEN** 流式响应结束
+- **WHEN** LLM 发送终止信号或后端完成聚合
+- **THEN** 后端 SHALL 发送 `content_final`（或 `content_end`）事件，payload 至少包含 `context_id`、`message_id`、最终 `sequence`、`is_final: true`
+- **AND** 对应的 `context_update` SHALL 将状态切回 Idle（或下一状态）并不再附带文本
 
 #### Scenario: Frontend state-driven rendering
 

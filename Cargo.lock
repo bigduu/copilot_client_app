@@ -1194,12 +1194,18 @@ dependencies = [
 name = "context_manager"
 version = "0.1.0"
 dependencies = [
+ "async-trait",
  "chrono",
+ "eventsource-stream",
  "futures",
+ "log",
  "mockall",
+ "regex",
  "serde",
  "serde_json",
  "tempfile",
+ "thiserror 1.0.69",
+ "tokio",
  "tokio-test",
  "tool_system",
  "tracing",
@@ -7167,6 +7173,7 @@ dependencies = [
  "async-trait",
  "axum",
  "bytes",
+ "chrono",
  "context_manager",
  "copilot_client",
  "env_logger 0.9.3",

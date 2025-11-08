@@ -7,6 +7,9 @@ pub mod context_snapshot;
 pub mod events;
 pub mod llm_request;
 pub mod message;
+pub mod message_compat; // New: Backward compatibility layer
+pub mod message_helpers; // New: Helper functions for message construction
+pub mod message_types; // New: Rich internal message types
 pub mod metadata;
 pub mod state;
 pub mod tool;

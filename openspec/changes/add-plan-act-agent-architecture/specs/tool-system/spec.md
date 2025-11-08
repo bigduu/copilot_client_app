@@ -45,3 +45,5 @@ The system SHALL define tools with metadata including read-only flag for access 
 - **AND** write tools SHALL be excluded from prompt
 - **WHEN** chat is in Act mode
 - **THEN** system SHALL include all tools regardless of read_only flag
+
+
