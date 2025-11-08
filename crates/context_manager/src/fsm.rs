@@ -68,7 +68,10 @@ impl ChatContext {
                 ContextState::ProcessingLLMResponse
             }
             (ContextState::AwaitingLLMResponse, ChatEvent::FatalError { error }) => {
-                ContextState::Failed { error }
+                ContextState::Failed {
+                    error_message: error,
+                    failed_at: chrono::Utc::now().to_rfc3339(),
+                }
             }
             (
                 ContextState::AwaitingLLMResponse,
@@ -78,7 +81,11 @@ impl ChatContext {
                     retry_count,
                     request_id: _,
                 },
-            ) => ContextState::TransientFailure { error, retry_count },
+            ) => ContextState::TransientFailure {
+                error_type: error,
+                retry_count: retry_count as usize,
+                max_retries: 3,
+            },
 
             (ContextState::StreamingLLMResponse, ChatEvent::LLMStreamChunkReceived) => {
                 ContextState::StreamingLLMResponse
@@ -87,7 +94,10 @@ impl ChatContext {
                 ContextState::ProcessingLLMResponse
             }
             (ContextState::StreamingLLMResponse, ChatEvent::FatalError { error }) => {
-                ContextState::Failed { error }
+                ContextState::Failed {
+                    error_message: error,
+                    failed_at: chrono::Utc::now().to_rfc3339(),
+                }
             }
             (
                 ContextState::StreamingLLMResponse,
@@ -97,7 +107,11 @@ impl ChatContext {
                     retry_count,
                     request_id: _,
                 },
-            ) => ContextState::TransientFailure { error, retry_count },
+            ) => ContextState::TransientFailure {
+                error_type: error,
+                retry_count: retry_count as usize,
+                max_retries: 3,
+            },
 
             (
                 ContextState::ProcessingLLMResponse,
@@ -197,6 +211,7 @@ impl ChatContext {
             }
             (ContextState::AwaitingToolApproval { .. }, ChatEvent::ToolCallsDenied) => {
                 self.tool_execution.reset();
+                #[allow(deprecated)]
                 ContextState::GeneratingResponse
             }
 
@@ -212,14 +227,24 @@ impl ChatContext {
                     retry_count,
                     request_id: _,
                 },
-            ) => ContextState::TransientFailure { error, retry_count },
+            ) => ContextState::TransientFailure {
+                error_type: error,
+                retry_count: retry_count as usize,
+                max_retries: 3,
+            },
             (ContextState::ExecutingTool { .. }, ChatEvent::FatalError { error }) => {
-                ContextState::Failed { error }
+                ContextState::Failed {
+                    error_message: error,
+                    failed_at: chrono::Utc::now().to_rfc3339(),
+                }
             }
 
-            (ContextState::ProcessingToolResults, ChatEvent::LLMRequestInitiated) => {
+            (ContextState::ProcessingToolResults, ChatEvent::LLMRequestInitiated) =>
+            {
+                #[allow(deprecated)]
                 ContextState::GeneratingResponse
             }
+            #[allow(deprecated)]
             (ContextState::GeneratingResponse, ChatEvent::LLMRequestInitiated) => {
                 ContextState::AwaitingLLMResponse
             }
@@ -250,21 +275,27 @@ impl ChatContext {
                 depth,
                 tools_executed,
             },
-            (ContextState::ToolAutoLoop { .. }, ChatEvent::ToolAutoLoopFinished) => {
+            (ContextState::ToolAutoLoop { .. }, ChatEvent::ToolAutoLoopFinished) =>
+            {
+                #[allow(deprecated)]
                 ContextState::GeneratingResponse
             }
             (ContextState::ToolAutoLoop { .. }, ChatEvent::LLMRequestInitiated) => {
                 ContextState::AwaitingLLMResponse
             }
 
-            (ContextState::TransientFailure { retry_count, .. }, ChatEvent::Retry)
-                if *retry_count < 3 =>
-            {
-                ContextState::AwaitingLLMResponse
-            }
-            (ContextState::TransientFailure { error, .. }, ChatEvent::Retry) => {
+            (
+                ContextState::TransientFailure {
+                    retry_count,
+                    max_retries,
+                    ..
+                },
+                ChatEvent::Retry,
+            ) if retry_count < max_retries => ContextState::AwaitingLLMResponse,
+            (ContextState::TransientFailure { error_type, .. }, ChatEvent::Retry) => {
                 ContextState::Failed {
-                    error: format!("Max retries exceeded. Last error: {}", error),
+                    error_message: format!("Max retries exceeded. Last error: {}", error_type),
+                    failed_at: chrono::Utc::now().to_rfc3339(),
                 }
             }
 

@@ -53,11 +53,13 @@ fn test_state_serialization() {
         ContextState::ProcessingUserMessage,
         ContextState::AwaitingLLMResponse,
         ContextState::Failed {
-            error: "Test".to_string(),
+            error_message: "Test".to_string(),
+            failed_at: "2025-11-08T10:00:00Z".to_string(),
         },
         ContextState::TransientFailure {
-            error: "Retry".to_string(),
+            error_type: "Retry".to_string(),
             retry_count: 1,
+            max_retries: 3,
         },
     ];
 

@@ -129,12 +129,12 @@ fn test_handle_llm_error_from_awaiting_llm_response() {
     assert_eq!(updates.len(), 1);
 
     let update = &updates[0];
-    assert_eq!(
-        update.current_state,
-        ContextState::Failed {
-            error: error_msg.clone()
-        }
-    );
+    // Check the update contains Failed state
+    if let ContextState::Failed { error_message, .. } = &update.current_state {
+        assert_eq!(error_message, &error_msg);
+    } else {
+        panic!("Expected Failed state in update");
+    }
     assert_eq!(
         update.previous_state,
         Some(ContextState::AwaitingLLMResponse)
@@ -142,10 +142,11 @@ fn test_handle_llm_error_from_awaiting_llm_response() {
     assert!(update.message_update.is_none());
 
     // Context should be in Failed state
-    assert_eq!(
-        context.current_state,
-        ContextState::Failed { error: error_msg }
-    );
+    if let ContextState::Failed { error_message, .. } = &context.current_state {
+        assert_eq!(error_message, &error_msg);
+    } else {
+        panic!("Expected Failed state");
+    }
 }
 
 #[test]
@@ -158,12 +159,12 @@ fn test_handle_llm_error_from_streaming() {
     let updates = context.handle_llm_error(error_msg.clone());
 
     assert_eq!(updates.len(), 1);
-    assert_eq!(
-        context.current_state,
-        ContextState::Failed {
-            error: error_msg.clone()
-        }
-    );
+    // Check state is Failed with correct error message
+    if let ContextState::Failed { error_message, .. } = &context.current_state {
+        assert_eq!(error_message, &error_msg);
+    } else {
+        panic!("Expected Failed state");
+    }
     assert_eq!(
         updates[0].previous_state,
         Some(ContextState::StreamingLLMResponse)
@@ -180,14 +181,16 @@ fn test_handle_llm_error_preserves_error_message() {
     let updates = context.handle_llm_error(detailed_error.clone());
 
     match &context.current_state {
-        ContextState::Failed { error } => {
+        ContextState::Failed { error_message, .. } => {
+            let error = error_message;
             assert_eq!(error, &detailed_error);
         }
         other => panic!("Expected Failed state, got {:?}", other),
     }
 
     match &updates[0].current_state {
-        ContextState::Failed { error } => {
+        ContextState::Failed { error_message, .. } => {
+            let error = error_message;
             assert_eq!(error, &detailed_error);
         }
         other => panic!("Update should contain Failed state, got {:?}", other),

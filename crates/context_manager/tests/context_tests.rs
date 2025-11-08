@@ -326,8 +326,9 @@ fn test_record_tool_execution_failure_updates_state() {
     assert_eq!(
         context.current_state,
         ContextState::TransientFailure {
-            error: "timeout".to_string(),
+            error_type: "timeout".to_string(),
             retry_count: 0,
+            max_retries: 3,
         }
     );
     assert_eq!(
@@ -357,12 +358,11 @@ fn test_abort_streaming_response_transitions_to_failed() {
     let (message_id, _initial) = context.begin_streaming_response();
 
     let updates = context.abort_streaming_response(message_id, "network error");
-    assert_eq!(
-        context.current_state,
-        ContextState::Failed {
-            error: "network error".to_string()
-        }
-    );
+    if let ContextState::Failed { error_message, .. } = &context.current_state {
+        assert_eq!(error_message, "network error");
+    } else {
+        panic!("Expected Failed state");
+    }
     assert_eq!(updates.len(), 1);
 
     if let Some(MessageUpdate::StatusChanged {

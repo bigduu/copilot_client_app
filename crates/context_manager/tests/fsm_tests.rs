@@ -190,12 +190,12 @@ fn test_fsm_fatal_error() {
         error: "Test error".to_string(),
     });
 
-    assert_eq!(
-        context.current_state,
-        ContextState::Failed {
-            error: "Test error".to_string()
-        }
-    );
+    // Check state is Failed with correct error message
+    if let ContextState::Failed { error_message, .. } = &context.current_state {
+        assert_eq!(error_message, "Test error");
+    } else {
+        panic!("Expected Failed state");
+    }
 }
 
 #[test]
@@ -203,8 +203,9 @@ fn test_fsm_transient_failure_retry_success() {
     let mut context = ChatContext::new(Uuid::new_v4(), "gpt-4".to_string(), "default".to_string());
 
     context.current_state = ContextState::TransientFailure {
-        error: "Retryable error".to_string(),
+        error_type: "Retryable error".to_string(),
         retry_count: 1,
+        max_retries: 3,
     };
     context.handle_event(ChatEvent::ToolExecutionStarted {
         tool_name: "read_file".to_string(),
@@ -226,8 +227,9 @@ fn test_fsm_transient_failure_retry_event_success() {
     let mut context = ChatContext::new(Uuid::new_v4(), "gpt-4".to_string(), "default".to_string());
 
     context.current_state = ContextState::TransientFailure {
-        error: "Retryable error".to_string(),
+        error_type: "Retryable error".to_string(),
         retry_count: 1,
+        max_retries: 3,
     };
     context.handle_event(ChatEvent::Retry);
 
@@ -239,19 +241,19 @@ fn test_fsm_transient_failure_retry_exceeded() {
     let mut context = ChatContext::new(Uuid::new_v4(), "gpt-4".to_string(), "default".to_string());
 
     context.current_state = ContextState::TransientFailure {
-        error: "Retryable error".to_string(),
+        error_type: "Retryable error".to_string(),
         retry_count: 3,
+        max_retries: 3,
     };
     context.handle_event(ChatEvent::Retry);
 
     // Should fail after max retries
-    let expected_error = format!("Max retries exceeded. Last error: {}", "Retryable error");
-    assert_eq!(
-        context.current_state,
-        ContextState::Failed {
-            error: expected_error
-        }
-    );
+    if let ContextState::Failed { error_message, .. } = &context.current_state {
+        assert!(error_message.contains("Max retries exceeded"));
+        assert!(error_message.contains("Retryable error"));
+    } else {
+        panic!("Expected Failed state");
+    }
 }
 
 #[test]
@@ -299,8 +301,9 @@ fn test_fsm_tool_execution_failed() {
     assert_eq!(
         context.current_state,
         ContextState::TransientFailure {
-            error: "Tool error".to_string(),
+            error_type: "Tool error".to_string(),
             retry_count: 0,
+            max_retries: 3,
         }
     );
 }

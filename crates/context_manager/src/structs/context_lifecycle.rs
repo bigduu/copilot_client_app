@@ -116,6 +116,7 @@ impl ChatContext {
         let mut updates = Vec::new();
 
         // Only transition if we're in a valid state to make an LLM request
+        #[allow(deprecated)]
         if matches!(
             self.current_state,
             ContextState::ProcessingUserMessage
@@ -145,7 +146,8 @@ impl ChatContext {
 
         let previous_state = Some(self.current_state.clone());
         self.current_state = ContextState::Failed {
-            error: error_message,
+            error_message,
+            failed_at: chrono::Utc::now().to_rfc3339(),
         };
         updates.push(ContextUpdate {
             context_id: self.id,
@@ -357,7 +359,8 @@ impl ChatContext {
 
         let previous_state = self.current_state.clone();
         self.current_state = ContextState::Failed {
-            error: error_message.clone(),
+            error_message: error_message.clone(),
+            failed_at: chrono::Utc::now().to_rfc3339(),
         };
 
         let mut metadata = HashMap::new();
