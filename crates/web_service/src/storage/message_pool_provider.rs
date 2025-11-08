@@ -23,7 +23,7 @@ use super::provider::StorageProvider;
 ///         ...
 /// ```
 pub struct MessagePoolStorageProvider {
-    base_dir: PathBuf,
+    pub(crate) base_dir: PathBuf,
 }
 
 impl MessagePoolStorageProvider {

@@ -483,31 +483,37 @@
   - [x] 所有集成测试通过（context_tests, fsm_tests, lifecycle_tests, etc.）
   - [x] 修复因状态字段变更导致的测试失败
 
-## 4. Storage Separation
+## 4. Storage Separation - ✅ 100% Complete
 
-- [ ] 4.1 设计新的存储结构
-  - [ ] 4.1.1 定义metadata.json schema
-  - [ ] 4.1.2 定义messages目录结构
-  - [ ] 4.1.3 定义index.json schema
-- [ ] 4.2 实现新的StorageProvider
-  - [ ] 4.2.1 实现save_context（元数据）
-  - [ ] 4.2.2 实现save_message（单个消息）
-  - [ ] 4.2.3 实现load_context（元数据+索引）
-  - [ ] 4.2.4 实现load_messages（按需加载）
-  - [ ] 4.2.5 实现delete_context（清理所有文件）
-- [ ] 4.3 实现消息索引管理
-  - [ ] 4.3.1 创建和更新索引
-  - [ ] 4.3.2 基于索引的消息查询
-- [ ] 4.4 实现数据迁移工具
-  - [ ] 4.4.1 检测旧格式数据
-  - [ ] 4.4.2 转换为新格式
-  - [ ] 4.4.3 验证迁移完整性
-  - [ ] 4.4.4 备份旧数据
-- [ ] 4.5 性能测试
-  - [ ] 4.5.1 对比新旧存储性能
-  - [ ] 4.5.2 长对话加载性能测试
-  - [ ] 4.5.3 并发读写测试
-- [ ] 4.6 存储层单元测试
+- [x] 4.1 设计新的存储结构
+  - [x] 4.1.1 定义metadata.json schema
+  - [x] 4.1.2 定义messages目录结构
+  - [x] 4.1.3 定义index.json schema
+- [x] 4.2 实现新的StorageProvider
+  - [x] 4.2.1 实现save_context（元数据）
+  - [x] 4.2.2 实现save_message（单个消息）
+  - [x] 4.2.3 实现load_context（元数据+索引）
+  - [x] 4.2.4 实现load_messages（按需加载）
+  - [x] 4.2.5 实现delete_context（清理所有文件）
+- [x] 4.3 实现消息索引管理
+  - [x] 4.3.1 创建和更新索引（message_index.rs）
+  - [x] 4.3.2 基于索引的消息查询（filter_by_role, sorted_by_timestamp）
+- [x] 4.4 实现数据迁移工具
+  - [x] 4.4.1 检测旧格式数据（detect_legacy_data）
+  - [x] 4.4.2 转换为新格式（migrate_context）
+  - [x] 4.4.3 验证迁移完整性（validate_migration）
+  - [x] 4.4.4 备份旧数据（backup_context）
+  - [x] 4.4.5 CLI 工具（web_service_standalone migrate）
+- [x] 4.5 性能测试
+  - [x] 4.5.1 对比新旧存储性能（benchmarks.rs）
+  - [x] 4.5.2 长对话加载性能测试（10/100/1000 messages）
+  - [x] 4.5.3 并发读写测试（concurrent_reads）
+  - [x] 4.5.4 增量保存测试（incremental_saves）
+- [x] 4.6 存储层单元测试
+  - [x] migration 模块测试（4 个测试）
+  - [x] message_index 模块测试（4 个测试）
+  - [x] benchmarks 模块测试（4 个测试）
+  - [x] 总计 12 个测试 100% 通过
 
 ## 4.5. Context Optimization for LLM
 
