@@ -31,6 +31,7 @@ pub enum ChatEvent {
         tools_executed: u32,
     },
     ToolAutoLoopFinished,
+    ToolAutoLoopCancelled,
     ToolCallsDenied,
     ToolExecutionCompleted,
     ToolExecutionFailed {
@@ -279,6 +280,9 @@ impl ChatContext {
             {
                 #[allow(deprecated)]
                 ContextState::GeneratingResponse
+            }
+            (ContextState::ToolAutoLoop { .. }, ChatEvent::ToolAutoLoopCancelled) => {
+                ContextState::Idle
             }
             (ContextState::ToolAutoLoop { .. }, ChatEvent::LLMRequestInitiated) => {
                 ContextState::AwaitingLLMResponse

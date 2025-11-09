@@ -118,11 +118,39 @@ impl ChatContext {
         self.config.workspace_path()
     }
 
+    // Tool approval policy configuration
     pub fn set_tool_approval_policy(&mut self, policy: ToolApprovalPolicy) {
         self.tool_execution.set_policy(policy);
     }
 
-    pub fn tool_approval_policy(&self) -> ToolApprovalPolicy {
+    pub fn tool_approval_policy(&self) -> &ToolApprovalPolicy {
         self.tool_execution.policy()
+    }
+    
+    // Tool timeout configuration
+    pub fn set_tool_timeout_config(&mut self, config: crate::ToolTimeoutConfig) {
+        self.tool_execution.set_timeout_config(config);
+    }
+    
+    pub fn tool_timeout_config(&self) -> &crate::ToolTimeoutConfig {
+        self.tool_execution.timeout_config()
+    }
+    
+    // Tool safety configuration
+    pub fn set_tool_safety_config(&mut self, config: crate::ToolSafetyConfig) {
+        self.tool_execution.set_safety_config(config);
+    }
+    
+    pub fn tool_safety_config(&self) -> &crate::ToolSafetyConfig {
+        self.tool_execution.safety_config()
+    }
+    
+    // Tool execution context accessors
+    pub fn tool_execution_context(&self) -> &crate::ToolExecutionContext {
+        &self.tool_execution
+    }
+    
+    pub fn tool_execution_context_mut(&mut self) -> &mut crate::ToolExecutionContext {
+        &mut self.tool_execution
     }
 }

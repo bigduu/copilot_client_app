@@ -31,6 +31,7 @@ pub use structs::metadata::{
 pub use structs::state::ContextState;
 pub use structs::tool::{
     ApprovalStatus, CurrentToolExecution, DisplayPreference, PendingToolRequest,
-    ToolApprovalPolicy, ToolCallRequest, ToolCallResult, ToolExecutionContext,
+    ToolApprovalPolicy, ToolCallRequest, ToolCallResult, ToolExecutionContext, ToolSafetyConfig,
+    ToolTimeoutConfig,
 };
 pub use traits::{Adapter, ApprovalRequestInfo, Enhancer, ToolRuntime, ToolRuntimeAction};

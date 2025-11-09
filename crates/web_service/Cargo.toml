@@ -31,6 +31,7 @@ bytes = "1"
 async-trait = "0.1.1"
 
 context_manager = { path = "../context_manager" }
+session_manager = { path = "../session_manager" }
 tool_system = { path = "../tool_system" }
 workflow_system = { path = "../workflow_system" }
 mcp_client = { path = "../mcp_client" }

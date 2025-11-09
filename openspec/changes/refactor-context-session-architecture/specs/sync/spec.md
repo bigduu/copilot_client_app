@@ -30,12 +30,12 @@ GET /contexts/{context_id}/events
 
 ### 1.2 事件类型
 
-| Event              | Payload 字段                                      | 描述                                     |
-|--------------------|---------------------------------------------------|----------------------------------------|
-| `StateChanged`     | `context_id`, `new_state`, `timestamp`            | Context 状态变更（如 Idle → StreamingLLMResponse） |
-| `ContentDelta`     | `context_id`, `message_id`, `current_sequence`, `timestamp` | **核心信令**：消息内容有新 chunks 可用（不含文本）      |
-| `MessageCompleted` | `context_id`, `message_id`, `final_sequence`, `timestamp`    | 消息流式传输/处理完成                          |
-| `Heartbeat`        | `timestamp`                                       | 保持连接的心跳信号                            |
+| Event              | Payload 字段                                                | 描述                                               |
+| ------------------ | ----------------------------------------------------------- | -------------------------------------------------- |
+| `StateChanged`     | `context_id`, `new_state`, `timestamp`                      | Context 状态变更（如 Idle → StreamingLLMResponse） |
+| `ContentDelta`     | `context_id`, `message_id`, `current_sequence`, `timestamp` | **核心信令**：消息内容有新 chunks 可用（不含文本） |
+| `MessageCompleted` | `context_id`, `message_id`, `final_sequence`, `timestamp`   | 消息流式传输/处理完成                              |
+| `Heartbeat`        | `timestamp`                                                 | 保持连接的心跳信号                                 |
 
 ### 1.3 事件格式
 
@@ -535,7 +535,7 @@ GET /events?contexts={ctx1},{ctx2},{ctx3}
 
 ## 变更历史
 
-| 日期       | 版本  | 说明                      | 作者 |
-|----------|-----|-------------------------|-----|
-| 2025-11-08 | 1.0 | 初始版本：Signal-Pull 架构规范 | AI  |
+| 日期       | 版本 | 说明                           | 作者 |
+| ---------- | ---- | ------------------------------ | ---- |
+| 2025-11-08 | 1.0  | 初始版本：Signal-Pull 架构规范 | AI   |
 

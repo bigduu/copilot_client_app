@@ -8,8 +8,8 @@ use std::{
 use tokio::sync::oneshot;
 
 use crate::controllers::{
-    chat_controller, context_controller, openai_controller, system_controller,
-    system_prompt_controller, template_variable_controller, tool_controller,
+    chat_controller, context_controller, openai_controller, session_controller,
+    system_controller, system_prompt_controller, template_variable_controller, tool_controller,
     user_preference_controller, workflow_controller,
 };
 use crate::services::{
@@ -20,6 +20,7 @@ use crate::services::{
 };
 use crate::storage::file_provider::FileStorageProvider;
 use copilot_client::{config::Config, CopilotClient, CopilotClientTrait};
+use session_manager::{MultiUserSessionManager, FileSessionStorage};
 use tool_system::{registry::ToolRegistry, ToolExecutor};
 use workflow_system::WorkflowRegistry;
 
@@ -43,6 +44,7 @@ pub fn app_config(cfg: &mut web::ServiceConfig) {
             .configure(openai_controller::config)
             .configure(chat_controller::config)
             .configure(context_controller::config)
+            .configure(session_controller::config)
             .configure(system_controller::config)
             .configure(system_prompt_controller::config)
             .configure(template_variable_controller::config)
@@ -99,6 +101,11 @@ pub async fn run(app_data_dir: PathBuf, port: u16) -> Result<(), String> {
 
     let approval_manager = Arc::new(ApprovalManager::new());
 
+    // Initialize user session manager (new backend session manager)
+    let session_storage = FileSessionStorage::new(app_data_dir.join("sessions"));
+    let user_session_manager = MultiUserSessionManager::new(session_storage);
+    let user_session_manager_data = web::Data::new(user_session_manager);
+
     let system_prompt_data = web::Data::from(system_prompt_service.clone());
     let enhancer_data = web::Data::from(system_prompt_enhancer.clone());
     let template_variable_data = web::Data::from(template_variable_service.clone());
@@ -123,6 +130,7 @@ pub async fn run(app_data_dir: PathBuf, port: u16) -> Result<(), String> {
             .app_data(enhancer_data.clone())
             .app_data(template_variable_data.clone())
             .app_data(workflow_service_data.clone())
+            .app_data(user_session_manager_data.clone())
             // CORS only - no middleware for testing
             .wrap(Cors::permissive())
             .configure(app_config)

@@ -5579,6 +5579,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "session_manager"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "chrono",
+ "context_manager",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "thiserror 1.0.69",
+ "tokio",
+ "tracing",
+ "uuid",
+]
+
+[[package]]
 name = "sha1"
 version = "0.10.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -7227,6 +7243,7 @@ dependencies = [
  "reqwest",
  "serde",
  "serde_json",
+ "session_manager",
  "tempfile",
  "thiserror 1.0.69",
  "tokio",

@@ -134,3 +134,7 @@ The system SHALL allow adding new message types in the future without breaking c
 - **AND** old clients SHALL gracefully handle unknown type
 
 
+
+
+
+
