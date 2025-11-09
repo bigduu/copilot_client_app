@@ -2,7 +2,7 @@ use crate::structs::branch::Branch;
 use crate::structs::context_agent::AgentRole;
 use crate::structs::message::MessageNode;
 use crate::structs::state::ContextState;
-use crate::structs::tool::ToolExecutionContext;
+use crate::structs::tool::{ToolApprovalPolicy, ToolExecutionContext};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use uuid::Uuid;
@@ -39,6 +39,10 @@ pub struct ChatContext {
     /// Runtime data for tool approval and execution lifecycle.
     #[serde(skip)]
     pub tool_execution: ToolExecutionContext,
+
+    /// Runtime sequence counters for streaming / 非流式 SSE 通知。
+    #[serde(skip)]
+    pub stream_sequences: HashMap<Uuid, u64>,
 }
 
 impl ChatContext {
@@ -72,6 +76,7 @@ impl ChatContext {
             dirty: false,
             trace_id: None,
             tool_execution: ToolExecutionContext::default(),
+            stream_sequences: HashMap::new(),
         }
     }
 }
@@ -111,5 +116,13 @@ impl ChatContext {
 
     pub fn workspace_path(&self) -> Option<&str> {
         self.config.workspace_path()
+    }
+
+    pub fn set_tool_approval_policy(&mut self, policy: ToolApprovalPolicy) {
+        self.tool_execution.set_policy(policy);
+    }
+
+    pub fn tool_approval_policy(&self) -> ToolApprovalPolicy {
+        self.tool_execution.policy()
     }
 }

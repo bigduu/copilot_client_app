@@ -201,3 +201,4 @@ mod tests {
         assert!(formatted.contains("Read file contents"));
     }
 }
+

@@ -30,6 +30,10 @@
    - 功能相关的代码group在一起
    - 每个模块都可以独立测试
    - 避免大文件（几千行），提升可维护性和可读性
+   - **新增标准**：所有“上下文/消息”领域模型结构体统一定义在 `context_manager`，web_service 只允许：
+     1. 使用这些领域结构体（或通过 `dto` 做轻量转换）；
+     2. 定义与 HTTP/Transport 强相关的 Request/Query VO（如分页参数）。
+     这样可避免 controller/service 私自扩张领域模型，保持单一来源。如本次新增的 `MessageContentSlice` 和 `message_content_slice` helper 由 `context_manager` 提供，controller 仅复用并序列化输出。
    
 2. **统一的消息处理Pipeline**：
    - 所有消息类型通过统一的pipeline处理
@@ -1050,114 +1054,40 @@ pub struct ToolExecutionContext {
 - **完全自动**: 安全风险太大
 - **完全手动**: 无法实现自动化目标
 
-### Decision 4.5: Streaming Context Updates to Frontend
+### Decision 4.5: Streaming Context Updates to Frontend (Delta-as-signal)
 
-**What**: 流式输出时传递完整的ContextUpdate而非仅文本增量
+**What**: 再次收紧 SSE 的职责。`context_update` 继续广播结构化状态；`content_delta` / `content_final` 事件只携带 `context_id`、`message_id`、`sequence`、`is_final` 等元信息，不再包含任何文本。真实内容通过新的 `GET /contexts/{id}/messages/{message_id}/content` API 获取，支持 `from_sequence` 增量读取。
 
 **Why**:
-- 前端需要知道当前的Context状态来做智能渲染
-- 仅传递文本不足以支持复杂的UI交互（工具调用状态、processing指示器等）
-- 后端状态机的状态应该驱动前端UI状态
+- 彻底剥离大 payload，SSE 高频也不会挤爆网络缓冲。
+- 消息正文只保存在 `context_manager`，REST API 是单一真源，避免 SSE 与存储状态不一致。
+- 工具 / workflow / agent loop 等所有消息统一走“事件通知 + 内容拉取”路径，体验一致。
+- 前端仍是事件驱动：收到信号后立即拉取内容，延迟只取决于一次 HTTP 往返。
 
 **How**:
-```rust
-// Context Manager返回结构化的更新
-pub struct ContextUpdate {
-    // 状态信息
-    pub context_id: Uuid,
-    pub current_state: ContextState,
-    pub previous_state: Option<ContextState>,
-    
-    // 消息更新
-    pub message_update: Option<MessageUpdate>,
-    
-    // 元数据
-    pub timestamp: DateTime<Utc>,
-    pub metadata: HashMap<String, Value>,
-}
+- `context_update` 事件 payload 仍是 `ContextUpdate`，但默认在发送前剥离 `message_update`，只保留状态与元数据。
+- `content_delta` 事件 payload（仅示意）：
+  ```json
+  {
+    "context_id": "<uuid>",
+    "message_id": "<uuid>",
+    "sequence": 7,
+    "is_final": false
+  }
+  ```
+- `content_final` 事件 payload：
+  ```json
+  {
+    "context_id": "<uuid>",
+    "message_id": "<uuid>",
+    "sequence": 19,
+    "is_final": true
+  }
+  ```
+- 新增 `GET /contexts/{ctx}/messages/{msg}/content?from_sequence=...` 接口：返回 `{"context_id","message_id","sequence","content"}`，实现增量合并或全量重放。
+- 工具/Workflow/审批等非流式场景不再直接把文本塞进 SSE，统一发送 `content_final` 元事件，再由前端调用内容 API。
 
-pub enum MessageUpdate {
-    // 新消息创建
-    Created {
-        message_id: Uuid,
-        role: Role,
-        message_type: MessageType,
-    },
-    // 消息内容增量（流式）
-    ContentDelta {
-        message_id: Uuid,
-        delta: String,
-        accumulated: String, // 当前累积的完整内容
-    },
-    // 消息完成
-    Completed {
-        message_id: Uuid,
-        final_message: InternalMessage,
-    },
-    // 消息状态变更（如工具调用从Pending到Approved）
-    StatusChanged {
-        message_id: Uuid,
-        old_status: String,
-        new_status: String,
-    },
-}
-
-// 流式端点返回ContextUpdate
-impl ChatContext {
-    pub async fn send_message(&mut self, content: String) 
-        -> Result<impl Stream<Item = ContextUpdate>, Error> {
-        let update_stream = stream! {
-            // 状态转换更新
-            yield ContextUpdate {
-                context_id: self.id,
-                current_state: ContextState::ProcessingMessage,
-                previous_state: Some(ContextState::Idle),
-                message_update: None,
-                timestamp: Utc::now(),
-                metadata: HashMap::new(),
-            };
-            
-            // 消息创建更新
-            let msg_id = Uuid::new_v4();
-            yield ContextUpdate {
-                message_update: Some(MessageUpdate::Created {
-                    message_id: msg_id,
-                    role: Role::User,
-                    message_type: MessageType::Text(...),
-                }),
-                ...
-            };
-            
-            // LLM响应流式更新
-            let mut accumulated = String::new();
-            for chunk in llm_stream {
-                accumulated.push_str(&chunk.delta);
-                yield ContextUpdate {
-                    message_update: Some(MessageUpdate::ContentDelta {
-                        message_id: assistant_msg_id,
-                        delta: chunk.delta,
-                        accumulated: accumulated.clone(),
-                    }),
-                    current_state: ContextState::StreamingLLMResponse,
-                    ...
-                };
-            }
-            
-            // 完成更新
-            yield ContextUpdate {
-                message_update: Some(MessageUpdate::Completed {
-                    message_id: assistant_msg_id,
-                    final_message: assistant_message,
-                }),
-                current_state: ContextState::Idle,
-                ...
-            };
-        };
-        
-        Ok(update_stream)
-    }
-}
-```
+> 这意味着 `MessageUpdate::ContentDelta` 仍用于内部状态与持久化，但在对外事件中被完全剥离；SSE 只做“通知”，内容交付交给 REST。
 
 **Frontend处理**:
 ```typescript

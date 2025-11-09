@@ -1194,7 +1194,9 @@ dependencies = [
 name = "context_manager"
 version = "0.1.0"
 dependencies = [
+ "async-trait",
  "chrono",
+ "eventsource-stream",
  "futures",
  "mockall",
  "serde",

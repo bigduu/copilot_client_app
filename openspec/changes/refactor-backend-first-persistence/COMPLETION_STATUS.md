@@ -97,3 +97,4 @@ openspec/changes/refactor-backend-first-persistence/
 ✅ **Performance**: Dirty flags prevent redundant saves  
 ✅ **Polling Overhead**: Exponential backoff + inactive window detection  
 ✅ **Migration Complexity**: Gradual migration with feature flags
+

@@ -1,11 +1,13 @@
 //! Tests for ChatContext operations
 
 use context_manager::{
-    ChatContext, ContextError, ContextState, IncomingMessage, MessageType, MessageUpdate,
-    PreparedLlmRequest, Role, SystemPrompt,
+    ChatContext, ContentPart, ContextError, ContextState, IncomingMessage, InternalMessage,
+    MessageType, MessageUpdate, PreparedLlmRequest, Role, SystemPrompt,
 };
+use eventsource_stream::{Event, EventStreamError};
 use futures::{StreamExt, executor::block_on};
 use serde_json::json;
+use std::convert::Infallible;
 use uuid::Uuid;
 
 #[test]
@@ -123,6 +125,147 @@ fn test_stream_llm_response_produces_deltas() {
     assert_eq!(final_text, "Hello World");
 
     assert_eq!(context.current_state, ContextState::Idle);
+}
+
+#[test]
+fn test_stream_llm_response_from_events() {
+    let mut context = ChatContext::new(Uuid::new_v4(), "gpt-4".to_string(), "default".to_string());
+
+    let events: Vec<Result<Event, EventStreamError<Infallible>>> = vec![
+        Ok(Event {
+            data: "Partial".to_string(),
+            ..Default::default()
+        }),
+        Ok(Event {
+            data: " Response".to_string(),
+            ..Default::default()
+        }),
+        Ok(Event {
+            data: "[DONE]".to_string(),
+            ..Default::default()
+        }),
+    ];
+
+    let stream = block_on(context.stream_llm_response_from_events(futures::stream::iter(events)))
+        .expect("streamed updates");
+    let updates: Vec<_> = block_on(stream.collect());
+
+    let delta_count = updates
+        .iter()
+        .filter(|update| {
+            matches!(
+                update.message_update,
+                Some(MessageUpdate::ContentDelta { .. })
+            )
+        })
+        .count();
+    assert_eq!(delta_count, 2);
+
+    let completion = updates
+        .iter()
+        .find_map(|update| match &update.message_update {
+            Some(MessageUpdate::Completed { final_message, .. }) => Some(final_message.clone()),
+            _ => None,
+        })
+        .expect("completion update");
+
+    let content = completion
+        .content
+        .first()
+        .and_then(|part| part.text_content())
+        .expect("assistant content");
+    assert_eq!(content, "Partial Response");
+}
+
+#[test]
+fn test_streaming_sequence_tracking() {
+    let mut context = ChatContext::new(Uuid::new_v4(), "gpt-4".to_string(), "default".to_string());
+
+    let (message_id, _) = context.begin_streaming_response();
+    assert_eq!(context.message_sequence(message_id), Some(0));
+
+    context
+        .apply_streaming_delta(message_id, "hello")
+        .expect("delta update returned");
+    assert_eq!(context.message_sequence(message_id), Some(1));
+
+    let snapshot = context
+        .message_text_snapshot(message_id)
+        .expect("snapshot present");
+    assert_eq!(snapshot.sequence, 1);
+    assert_eq!(snapshot.content, "hello");
+
+    let slice = context
+        .message_content_slice(message_id, Some(0))
+        .expect("slice present");
+    assert!(slice.has_updates);
+    assert_eq!(slice.content, "hello");
+}
+
+#[test]
+fn test_tool_auto_loop_state_transitions() {
+    let mut context = ChatContext::new(Uuid::new_v4(), "gpt-4".to_string(), "default".to_string());
+
+    context.current_state = ContextState::ProcessingToolResults;
+    context.handle_event(context_manager::ChatEvent::ToolAutoLoopStarted {
+        depth: 1,
+        tools_executed: 0,
+    });
+
+    assert_eq!(
+        context.current_state,
+        ContextState::ToolAutoLoop {
+            depth: 1,
+            tools_executed: 0,
+        }
+    );
+
+    context.handle_event(context_manager::ChatEvent::ToolAutoLoopProgress {
+        depth: 1,
+        tools_executed: 2,
+    });
+
+    assert_eq!(
+        context.current_state,
+        ContextState::ToolAutoLoop {
+            depth: 1,
+            tools_executed: 2,
+        }
+    );
+
+    context.handle_event(context_manager::ChatEvent::ToolAutoLoopFinished);
+
+    assert_eq!(context.current_state, ContextState::GeneratingResponse);
+}
+
+#[test]
+fn test_non_streaming_sequence_initialised() {
+    let mut context = ChatContext::new(Uuid::new_v4(), "gpt-4".to_string(), "default".to_string());
+
+    let message = InternalMessage {
+        role: Role::Assistant,
+        content: vec![ContentPart::text("result")],
+        ..Default::default()
+    };
+
+    let message_id = context.add_message_to_branch("main", message);
+    assert_eq!(context.message_sequence(message_id), Some(0));
+
+    let sequence = context.ensure_sequence_at_least(message_id, 1);
+    assert_eq!(sequence, 1);
+
+    let snapshot = context
+        .message_text_snapshot(message_id)
+        .expect("snapshot present");
+    assert_eq!(snapshot.sequence, 1);
+    assert_eq!(snapshot.content, "result");
+
+    let slice = context
+        .message_content_slice(message_id, Some(0))
+        .expect("slice present");
+    assert!(slice.has_updates);
+    assert_eq!(slice.sequence, 1);
+    assert_eq!(slice.content, "result");
 }
 
 #[test]

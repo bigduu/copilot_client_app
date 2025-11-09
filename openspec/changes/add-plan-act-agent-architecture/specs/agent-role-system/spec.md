@@ -260,3 +260,4 @@ The system SHALL maintain compatibility with existing chats that don't have role
 - `can_execute_commands: true` (for running tests)
 - `can_write_files: false`
   **Behavior**: Executes tests, reports results, cannot modify source
+

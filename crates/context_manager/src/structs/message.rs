@@ -104,11 +104,13 @@ impl ContentPart {
 }
 
 /// Structured representation of an incoming user message.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
 pub struct IncomingTextMessage {
     pub content: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub display_text: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub metadata: Option<MessageMetadata>,
 }
 
 impl IncomingTextMessage {
@@ -116,6 +118,7 @@ impl IncomingTextMessage {
         Self {
             content,
             display_text: None,
+            metadata: None,
         }
     }
 
@@ -123,12 +126,13 @@ impl IncomingTextMessage {
         Self {
             content,
             display_text,
+            metadata: None,
         }
     }
 }
 
 /// Supported incoming message payloads handled by the context manager.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum IncomingMessage {
     Text(IncomingTextMessage),
@@ -156,4 +160,22 @@ impl Default for IncomingMessage {
     fn default() -> Self {
         IncomingMessage::Text(IncomingTextMessage::default())
     }
+}
+
+/// Lightweight snapshot for exposing message内容给 API/query 层。
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct MessageTextSnapshot {
+    pub message_id: Uuid,
+    pub content: String,
+    pub sequence: u64,
+}
+
+/// Domain-level view for message content slices exposed via API。
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+pub struct MessageContentSlice {
+    pub context_id: Uuid,
+    pub message_id: Uuid,
+    pub sequence: u64,
+    pub content: String,
+    pub has_updates: bool,
 }

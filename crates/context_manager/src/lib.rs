@@ -20,13 +20,13 @@ pub use structs::context_snapshot::{BranchSnapshot, LlmContextSnapshot};
 pub use structs::events::{ContextUpdate, MessageUpdate};
 pub use structs::llm_request::PreparedLlmRequest;
 pub use structs::message::{
-    ContentPart, IncomingMessage, IncomingTextMessage, InternalMessage, MessageNode, MessageType,
-    Role,
+    ContentPart, IncomingMessage, IncomingTextMessage, InternalMessage, MessageContentSlice,
+    MessageNode, MessageTextSnapshot, MessageType, Role,
 };
 pub use structs::metadata::{MessageMetadata, TokenUsage};
 pub use structs::state::ContextState;
 pub use structs::tool::{
-    ApprovalStatus, CurrentToolExecution, DisplayPreference, PendingToolRequest, ToolCallRequest,
-    ToolCallResult, ToolExecutionContext,
+    ApprovalStatus, CurrentToolExecution, DisplayPreference, PendingToolRequest,
+    ToolApprovalPolicy, ToolCallRequest, ToolCallResult, ToolExecutionContext,
 };
-pub use traits::{Adapter, Enhancer};
+pub use traits::{Adapter, ApprovalRequestInfo, Enhancer, ToolRuntime, ToolRuntimeAction};

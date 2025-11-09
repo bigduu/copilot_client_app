@@ -34,27 +34,43 @@
   - [x] 0.3.2 实现消息创建和验证
   - [x] 0.3.3 集成MessagePipeline调用
   - [x] 0.3.4 返回ContextUpdate流
-- [ ] 0.4 在ChatContext中实现stream_llm_response
-  - [ ] 0.4.1 集成reqwest-sse进行SSE解析
+- [x] 0.4 在ChatContext中实现stream_llm_response
+  - [x] 0.4.1 集成 eventsource-stream 进行SSE解析
   - [x] 0.4.2 实现chunk累积逻辑
   - [x] 0.4.3 发出ContentDelta ContextUpdate事件
   - [x] 0.4.4 处理流结束和错误
 - [ ] 0.5 简化web_service层
   - [ ] 0.5.1 移除chat_service.rs中的业务逻辑
     - [x] 0.5.1.1 抽离AgentLoopRunner作为过渡适配层
-    - [ ] 0.5.1.2 将AgentLoopRunner职责迁移到context_manager FSM
+    - [x] 0.5.1.2 将AgentLoopRunner职责迁移到context_manager FSM
       - [x] 0.5.1.2.1 在ChatContext中提供工具审批/执行的生命周期API
       - [x] 0.5.1.2.2 在web_service中调用生命周期API并回推ContextUpdate
-      - [ ] 0.5.1.2.3 将自动工具执行循环完全迁移至context_manager
-    - [ ] 0.5.1.3 拆分SSE消息流与ContextUpdate流
-      - [ ] 0.5.1.3.1 设计content_delta / final_message等事件格式
-      - [ ] 0.5.1.3.2 在web_service中分离context事件与内容事件
-      - [ ] 0.5.1.3.3 前端订阅逻辑更新：先获取Context再监听事件
+      - [x] 0.5.1.2.3 将自动工具执行循环完全迁移至context_manager
+    - [ ] 0.5.1.3 SSE消息流改造（Delta事件仅做通知）
+      - [x] 0.5.1.3.1 更新 design/spec，定义 metadata-only 的 content_delta/content_final 事件
+      - [x] 0.5.1.3.2 context_manager 记录 sequence 并提供内容读取接口
+      - [x] 0.5.1.3.3 web_service 调整 SSE 推送逻辑（只发 metadata），剥离旧文本 payload
+      - [x] 0.5.1.3.4 新增 `GET /contexts/{ctx}/messages/{msg}/content` API（支持 from_sequence）
+      - [ ] 0.5.1.3.5 前端订阅逻辑更新：先获取Context再监听事件
   - [ ] 0.5.2 重构为简单的API转发层
+    - [x] 0.5.2.1 实现 `apply_incoming_message` 辅助函数统一消息处理
+    - [x] 0.5.2.2 重构 `execute_file_reference` 使用 `apply_incoming_message` 和 `process_auto_tool_step`
+    - [x] 0.5.2.3 重构 `execute_workflow` 使用 `apply_incoming_message` 和 `append_text_message_with_metadata`
+    - [x] 0.5.2.4 重构 `record_tool_result_message` 使用 `apply_incoming_message` 和 `append_text_message_with_metadata`
+    - [x] 0.5.2.5 重构 `process_message` 的 LLM 流式处理使用 `begin_streaming_response` / `apply_streaming_delta` / `finish_streaming_response`
+    - [x] 0.5.2.8 简化 `approve_tool_calls` 仅负责加载上下文和返回消息内容
+    - [ ] 0.5.2.6 重构 `process_message_stream` 完全委托给 context_manager 和 stream handler
+      - 当前状态：已使用 `apply_incoming_message` 处理用户消息，使用 `copilot_stream_handler::spawn_stream_task` 处理流式响应
+      - 待完成：移除手动 `handle_event(ChatEvent::LLMRequestInitiated)` 等状态转换代码，这些应该由 context_manager 内部处理
+    - [ ] 0.5.2.7 移除所有直接操作 `InternalMessage` 和手动状态转换的代码
+      - 当前状态：`process_message` 和 `process_message_stream` 中仍有手动 `handle_event` 调用（LLMRequestInitiated、FatalError 等）
+      - 待完成：将这些状态转换完全委托给 context_manager 的流式处理方法
   - [x] 0.5.3 实现ContextUpdate到SSE的格式转换
   - [ ] 0.5.4 更新API endpoint
 - [ ] 0.6 迁移测试
-  - [ ] 0.6.1 将chat_service的测试迁移到context_manager
+  - [x] 0.6.1 将chat_service的测试迁移到context_manager
+    - [x] 0.6.1.1 添加 `record_tool_result_message` 测试（验证 metadata 和 tool_result 正确附加）
+    - [x] 0.6.1.2 添加 workflow 消息处理测试（成功和失败场景）
   - [ ] 0.6.2 添加ContextUpdate流的测试
   - [ ] 0.6.3 添加状态转换测试
   - [ ] 0.6.4 集成测试
@@ -95,7 +111,7 @@
   - [ ] 3.1.3 添加mode状态追踪（Plan/Act）
 - [ ] 3.2 增强FSM状态机
   - [ ] 3.2.1 添加ProcessingMessage状态
-  - [ ] 3.2.2 添加ToolAutoLoop状态
+  - [x] 3.2.2 添加ToolAutoLoop状态
   - [ ] 3.2.3 增加AwaitingToolApproval/ExecutingTool/ToolExecutionRetry等细化状态
   - [ ] 3.2.4 更新状态转换逻辑并移除web_service中的临时审批策略
 - [ ] 3.3 实现add_message新流程

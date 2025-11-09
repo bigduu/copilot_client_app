@@ -116,3 +116,4 @@ impl Default for CategoryRegistry {
         Self::new()
     }
 }
+

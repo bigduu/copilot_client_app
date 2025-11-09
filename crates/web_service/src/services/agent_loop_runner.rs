@@ -2,7 +2,6 @@ use std::sync::Arc;
 
 use context_manager::{ChatContext, ChatEvent, ContentPart, InternalMessage, Role};
 use tokio::sync::RwLock;
-use tokio::time;
 use uuid::Uuid;
 
 use crate::error::AppError;
@@ -13,18 +12,13 @@ use crate::services::llm_utils::detect_message_type;
 use crate::services::session_manager::ChatSessionManager;
 use crate::storage::StorageProvider;
 
-use tool_system::{types::ToolArguments, ToolExecutor};
+use tool_system::ToolExecutor;
 
 use copilot_client::api::models::{ChatCompletionResponse, Content as ClientContent};
 use copilot_client::CopilotClientTrait;
 
 use super::chat_service::ServiceResponse;
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum ApprovalPolicy {
-    RequireCheckForEachTool,
-    SkipChecks,
-}
+use super::context_tool_runtime::ContextToolRuntime;
 
 enum AgentLoopOrigin {
     StreamingResponse { llm_response: String },
@@ -36,13 +30,6 @@ impl AgentLoopOrigin {
         match self {
             AgentLoopOrigin::StreamingResponse { llm_response }
             | AgentLoopOrigin::ApprovedContinuation { llm_response } => llm_response,
-        }
-    }
-
-    fn approval_policy(&self) -> ApprovalPolicy {
-        match self {
-            AgentLoopOrigin::StreamingResponse { .. } => ApprovalPolicy::RequireCheckForEachTool,
-            AgentLoopOrigin::ApprovedContinuation { .. } => ApprovalPolicy::SkipChecks,
         }
     }
 }
@@ -127,12 +114,14 @@ impl<T: StorageProvider> AgentLoopRunner<T> {
             origin,
             approval_request_id,
         } = invocation;
-        let approval_policy = origin.approval_policy();
         let mut accumulated_response = origin.response_text().to_string();
         let mut approval_request_id = approval_request_id;
 
         let mut agent_state = AgentLoopState::new();
         let mut current_tool_call = tool_call;
+
+        let runtime =
+            ContextToolRuntime::new(self.tool_executor.clone(), self.approval_manager.clone());
 
         loop {
             agent_state.iteration += 1;
@@ -143,102 +132,96 @@ impl<T: StorageProvider> AgentLoopRunner<T> {
             }
 
             let tool_name = current_tool_call.tool.clone();
-            let tool_definition = self.tool_executor.get_tool_definition(&tool_name);
+            let approved_request = approval_request_id.take();
 
-            if let Some(def) = &tool_definition {
-                if def.requires_approval {
-                    match approval_policy {
-                        ApprovalPolicy::RequireCheckForEachTool => {
-                            let request_id = self
-                                .approval_manager
-                                .create_request(
-                                    self.conversation_id,
-                                    current_tool_call.clone(),
+            let execution_updates = {
+                let mut context_lock = context.write().await;
+                let result = context_lock
+                    .process_auto_tool_step(
+                        &runtime,
                                     tool_name.clone(),
-                                    def.description.clone(),
-                                )
-                                .await?;
+                        current_tool_call.parameters.clone(),
+                        current_tool_call.terminate,
+                        approved_request,
+                    )
+                    .await
+                    .map_err(|err| AppError::InternalError(anyhow::anyhow!(err.to_string())))?;
 
+                if context_lock.is_dirty() {
+                    self.session_manager
+                        .save_context(&mut context_lock)
+                        .await
+                        .map_err(|e| AppError::InternalError(anyhow::anyhow!(e.to_string())))?;
+                    context_lock.clear_dirty();
+                }
+
+                result
+            };
+
+            let mut approval_info: Option<(Uuid, String, serde_json::Value)> = None;
+            let mut failure_error: Option<String> = None;
+            let mut success_payload: Option<serde_json::Value> = None;
+
+            for update in &execution_updates {
+                if let Some(event) = update
+                    .metadata
+                    .get("tool_event")
+                    .and_then(|value| value.as_str())
+                {
+                    match event {
+                        "approval_requested" => {
+                            if let Some(request_id) = update
+                                .metadata
+                                .get("request_id")
+                                .and_then(|value| value.as_str())
+                                .and_then(|value| Uuid::parse_str(value).ok())
                             {
-                                let mut context_lock = context.write().await;
-                                let _ = context_lock
-                                    .record_tool_approval_request(request_id, &tool_name);
-                            }
+                                let description = update
+                                    .metadata
+                                    .get("tool_description")
+                                    .and_then(|value| value.as_str())
+                                    .map(|s| s.to_string())
+                                    .unwrap_or_default();
 
-                            return Ok(ServiceResponse::AwaitingAgentApproval {
-                                request_id,
-                                session_id: self.conversation_id,
-                                tool_name: tool_name.clone(),
-                                tool_description: def.description.clone(),
-                                parameters: current_tool_call.parameters.clone(),
-                            });
+                                let parameters = update
+                                    .metadata
+                                    .get("parameters")
+                                    .cloned()
+                                    .unwrap_or_else(|| current_tool_call.parameters.clone());
+
+                                approval_info = Some((request_id, description, parameters));
+                            }
                         }
-                        ApprovalPolicy::SkipChecks => {
-                            log::debug!(
-                                "Approval already granted for tool '{}', skipping approval check",
-                                tool_name
-                            );
+                        "execution_failed" => {
+                            failure_error = update
+                                .metadata
+                                .get("error")
+                                .and_then(|value| value.as_str())
+                                .map(|s| s.to_string());
                         }
+                        "execution_completed" => {
+                            success_payload = update.metadata.get("result").cloned();
+                        }
+                        _ => {}
                     }
                 }
             }
 
-            let attempt_usize = agent_state.tool_execution_failures.saturating_add(1);
-            let attempt = attempt_usize.min(u8::MAX as usize) as u8;
-            let exec_request_id = approval_request_id.take();
-            {
-                let mut context_lock = context.write().await;
-                let _ = context_lock.begin_tool_execution(&tool_name, attempt, exec_request_id);
+            if let Some((request_id, description, parameters)) = approval_info {
+                return Ok(ServiceResponse::AwaitingAgentApproval {
+                    request_id,
+                    session_id: self.conversation_id,
+                    tool_name: tool_name.clone(),
+                    tool_description: description,
+                    parameters,
+                });
             }
 
-            let tool_result = {
-                log::info!(
-                    "Executing tool '{}' with parameters: {:?}",
-                    tool_name,
-                    current_tool_call.parameters
-                );
-
-                let execution_future = self.tool_executor.execute_tool(
-                    &tool_name,
-                    ToolArguments::Json(current_tool_call.parameters.clone()),
-                );
-
-                let timeout_duration = self.agent_service.tool_execution_timeout();
-
-                match time::timeout(timeout_duration, execution_future).await {
-                    Ok(Ok(result)) => {
-                        log::info!("Tool '{}' executed successfully", tool_name);
-                        agent_state.reset_tool_failures();
-                        result
-                    }
-                    Ok(Err(e)) => {
-                        let error_msg = e.to_string();
-                        log::error!("Tool '{}' execution failed: {}", tool_name, error_msg);
-
+            if let Some(error_msg) = failure_error {
                         agent_state.record_tool_failure(&tool_name);
-                        let retry_count =
-                            attempt_usize.saturating_sub(1).min(u8::MAX as usize) as u8;
 
-                        let error_feedback = self
-                            .agent_service
-                            .create_tool_error_feedback(&tool_name, &error_msg);
-
-                        {
-                            let mut context_lock = context.write().await;
-                            let error_message = InternalMessage {
-                                role: Role::Tool,
-                                content: vec![ContentPart::Text {
-                                    text: error_feedback.clone(),
-                                }],
-                                ..Default::default()
-                            };
-                            let _ = context_lock.add_message_to_branch("main", error_message);
-                            let _ = context_lock.record_tool_execution_failure(
-                                &tool_name,
-                                retry_count,
-                                &error_msg,
-                                exec_request_id,
-                            );
+                if let Some(pending_request) = approved_request {
+                    approval_request_id = Some(pending_request);
                         }
 
                         if !self.agent_service.should_continue(&agent_state)? {
@@ -251,75 +234,17 @@ impl<T: StorageProvider> AgentLoopRunner<T> {
 
                         continue;
                     }
-                    Err(_) => {
-                        log::error!(
-                            "Tool '{}' execution timed out after {:?}",
-                            tool_name,
-                            timeout_duration
-                        );
 
-                        agent_state.record_tool_failure(&tool_name);
-                        let retry_count =
-                            attempt_usize.saturating_sub(1).min(u8::MAX as usize) as u8;
+            agent_state.reset_tool_failures();
 
-                        let timeout_msg =
-                            format!("Tool execution timed out after {:?}", timeout_duration);
-                        let error_feedback = self
-                            .agent_service
-                            .create_tool_error_feedback(&tool_name, &timeout_msg);
-
-                        {
-                            let mut context_lock = context.write().await;
-                            let timeout_message = InternalMessage {
-                                role: Role::Tool,
-                                content: vec![ContentPart::Text {
-                                    text: error_feedback.clone(),
-                                }],
-                                ..Default::default()
-                            };
-                            let _ = context_lock.add_message_to_branch("main", timeout_message);
-                            let _ = context_lock.record_tool_execution_failure(
-                                &tool_name,
-                                retry_count,
-                                &timeout_msg,
-                                exec_request_id,
-                            );
-                        }
-
-                        if !self.agent_service.should_continue(&agent_state)? {
-                            log::error!("Agent loop stopping after tool timeout failures");
-                            return Ok(ServiceResponse::FinalMessage(format!(
-                                "Tool execution timed out after {} retries",
-                                agent_state.tool_execution_failures
-                            )));
-                        }
-
-                        continue;
-                    }
-                }
-            };
-
-            let tool_result_str = tool_result.to_string();
-
-            {
-                let mut context_lock = context.write().await;
-                let tool_result_message = InternalMessage {
-                    role: Role::Tool,
-                    content: vec![ContentPart::Text {
-                        text: tool_result_str.clone(),
-                    }],
-                    ..Default::default()
-                };
-                let _ = context_lock.add_message_to_branch("main", tool_result_message);
-                let _ = context_lock.complete_tool_execution();
-            }
+            let tool_result_value = success_payload.unwrap_or(serde_json::Value::Null);
 
             agent_state
                 .tool_call_history
                 .push(super::agent_service::ToolCallRecord {
                     tool_name: tool_name.clone(),
                     parameters: current_tool_call.parameters.clone(),
-                    result: Some(serde_json::json!({ "result": tool_result_str })),
+                    result: Some(tool_result_value.clone()),
                     terminate: current_tool_call.terminate,
                 });
 

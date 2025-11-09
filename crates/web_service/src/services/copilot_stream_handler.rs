@@ -11,8 +11,9 @@ use uuid::Uuid;
 
 use crate::services::agent_service::AgentService;
 use crate::services::approval_manager::ApprovalManager;
-use crate::services::llm_utils::{detect_message_type, send_context_update};
+use crate::services::llm_utils::send_context_update;
 use crate::services::session_manager::ChatSessionManager;
+use crate::services::tool_auto_loop_handler::{send_content_signal, ToolAutoLoopHandler};
 use crate::storage::StorageProvider;
 
 pub fn spawn_stream_task<T: StorageProvider + 'static>(
@@ -33,6 +34,7 @@ pub fn spawn_stream_task<T: StorageProvider + 'static>(
         let mut assistant_message_id: Option<Uuid> = None;
         let mut client_disconnected = false;
         let mut stream_failed = false;
+        let mut last_sequence: u64 = 0;
 
         while let Some(chunk_result) = chunk_rx.recv().await {
             match chunk_result {
@@ -66,10 +68,14 @@ pub fn spawn_stream_task<T: StorageProvider + 'static>(
                                             };
                                             assistant_message_id = Some(message_id);
                                             for update in initial_updates {
-                                                if send_context_update(&tx, &update).await.is_err()
+                                                let mut sanitized = update.clone();
+                                                sanitized.message_update = None;
+                                                if send_context_update(&tx, &sanitized)
+                                                    .await
+                                                    .is_err()
                                                 {
                                                     log::warn!(
-                                                        "Client disconnected while sending initial streaming update"
+                                                        "Client disconnected while streaming context update"
                                                     );
                                                     client_disconnected = true;
                                                     break;
@@ -97,11 +103,35 @@ pub fn spawn_stream_task<T: StorageProvider + 'static>(
                                                 );
                                                 update
                                             };
-                                            if let Some(update) = update_opt {
-                                                if send_context_update(&tx, &update).await.is_err()
+                                            if let Some((update, sequence)) = update_opt {
+                                                last_sequence = sequence;
+
+                                                if send_content_signal(
+                                                    &tx,
+                                                    "content_delta",
+                                                    conversation_id,
+                                                    message_id,
+                                                    sequence,
+                                                    false,
+                                                )
+                                                .await
+                                                .is_err()
                                                 {
                                                     log::warn!(
-                                                        "Client disconnected while streaming delta"
+                                                        "Client disconnected while streaming content metadata"
+                                                    );
+                                                    client_disconnected = true;
+                                                    break;
+                                                }
+
+                                                let mut sanitized = update;
+                                                sanitized.message_update = None;
+                                                if send_context_update(&tx, &sanitized)
+                                                    .await
+                                                    .is_err()
+                                                {
+                                                    log::warn!(
+                                                        "Client disconnected while streaming context update"
                                                     );
                                                     client_disconnected = true;
                                                     break;
@@ -262,204 +292,63 @@ pub fn spawn_stream_task<T: StorageProvider + 'static>(
 
         if let Some(message_id) = assistant_message_id {
             if let Ok(Some(ctx)) = session_manager.load_context(conversation_id, None).await {
-                let final_updates = {
+                let (final_updates, final_sequence) = {
                     let mut ctx_lock = ctx.write().await;
                     ctx_lock.handle_event(ChatEvent::LLMStreamEnded);
-                    ctx_lock.finish_streaming_response(message_id)
+                    let updates = ctx_lock.finish_streaming_response(message_id);
+                    let sequence = ctx_lock
+                        .message_sequence(message_id)
+                        .unwrap_or(last_sequence);
+                    (updates, sequence)
                 };
 
                 for update in final_updates {
-                    if send_context_update(&tx, &update).await.is_err() {
+                    let mut sanitized = update.clone();
+                    sanitized.message_update = None;
+
+                    if send_context_update(&tx, &sanitized).await.is_err() {
                         log::warn!("Client disconnected while sending final streaming update");
                         return;
                     }
+                }
+
+                let final_seq = if final_sequence == 0 {
+                    last_sequence
+                } else {
+                    final_sequence
+                };
+
+                if let Err(_) = send_content_signal(
+                    &tx,
+                    "content_final",
+                    conversation_id,
+                    message_id,
+                    final_seq,
+                    true,
+                )
+                .await
+                {
+                    return;
                 }
             }
         }
 
         if !full_text.is_empty() {
-            let tool_call_opt = agent_service
-                .parse_tool_call_from_response(&full_text)
-                .ok()
-                .flatten();
-
-            let mut has_tool_calls = false;
-
-            if let Some(tool_call) = tool_call_opt.clone() {
-                let validation_result = agent_service.validate_tool_call(&tool_call);
-
-                match validation_result {
-                    Ok(_) => {
-                        let tool_def = tool_executor.get_tool_definition(&tool_call.tool);
-                        let (requires_approval, tool_description) = match &tool_def {
-                            Some(def) => (def.requires_approval, def.description.clone()),
-                            None => (false, String::new()),
-                        };
-
-                        if requires_approval {
-                            has_tool_calls = true;
-
-                            match approval_manager
-                                .create_request(
+            let handler = ToolAutoLoopHandler::new(
+                session_manager.clone(),
+                agent_service.clone(),
+                tool_executor.clone(),
+                approval_manager.clone(),
                                     conversation_id,
-                                    tool_call.clone(),
-                                    tool_call.tool.clone(),
-                                    tool_description.clone(),
-                                )
-                                .await
-                            {
-                                Ok(request_id) => {
-                                    if let Ok(Some(ctx)) =
-                                        session_manager.load_context(conversation_id, None).await
-                                    {
-                                        let update = {
-                                            let mut ctx_lock = ctx.write().await;
-                                            ctx_lock.record_tool_approval_request(
-                                                request_id,
-                                                &tool_call.tool,
-                                            )
-                                        };
+                tx.clone(),
+            );
 
-                                        if send_context_update(&tx, &update).await.is_err() {
-                                            log::warn!(
-                                                "Client disconnected while sending approval update"
-                                            );
-                                        }
-                                    }
-
-                                    if let Ok(data) = sse::Data::new_json(json!({
-                                        "type": "approval_required",
-                                        "request_id": request_id,
-                                        "session_id": conversation_id,
-                                        "tool": tool_call.tool,
-                                        "tool_description": tool_description,
-                                        "parameters": tool_call.parameters,
-                                        "done": true
-                                    })) {
-                                        let _ = tx
-                                            .send(sse::Event::Data(data.event("approval_required")))
+            handler
+                .handle_full_text(&full_text, assistant_message_id, last_sequence)
                                             .await;
-                                    }
-                                }
-                                Err(e) => {
-                                    let error_msg =
-                                        format!("Failed to create approval request: {}", e);
-                                    if let Ok(data) = sse::Data::new_json(
-                                        json!({"error": error_msg, "done": true}),
-                                    ) {
-                                        let _ =
-                                            tx.send(sse::Event::Data(data.event("error"))).await;
-                                    }
-                                }
-                            }
-                        } else {
-                            use tool_system::types::ToolArguments;
-                            let tool_name = tool_call.tool.clone();
-                            let tool_params = tool_call.parameters.clone();
-
-                            if let Ok(Some(ctx)) =
-                                session_manager.load_context(conversation_id, None).await
-                            {
-                                let update = {
-                                    let mut ctx_lock = ctx.write().await;
-                                    ctx_lock.begin_tool_execution(&tool_name, 1, None)
-                                };
-                                if send_context_update(&tx, &update).await.is_err() {
-                                    log::warn!(
-                                        "Client disconnected while sending execution start update"
-                                    );
-                                }
-                            }
-
-                            match tool_executor
-                                .execute_tool(&tool_name, ToolArguments::Json(tool_params))
-                                .await
-                            {
-                                Ok(result) => {
-                                    if let Ok(Some(ctx)) =
-                                        session_manager.load_context(conversation_id, None).await
-                                    {
-                                        let update = {
-                                            let mut ctx_lock = ctx.write().await;
-                                            ctx_lock.complete_tool_execution()
-                                        };
-                                        if send_context_update(&tx, &update).await.is_err() {
-                                            log::warn!(
-                                                "Client disconnected while sending execution completion update"
-                                            );
-                                        }
-                                    }
-
-                                    if let Ok(data) = sse::Data::new_json(json!({
-                                        "type": "tool_result",
-                                        "tool": tool_name,
-                                        "result": result,
-                                        "done": false
-                                    })) {
-                                        let _ = tx
-                                            .send(sse::Event::Data(data.event("tool_result")))
-                                            .await;
-                                    }
-                                }
-                                Err(e) => {
-                                    if let Ok(Some(ctx)) =
-                                        session_manager.load_context(conversation_id, None).await
-                                    {
-                                        let update = {
-                                            let mut ctx_lock = ctx.write().await;
-                                            ctx_lock.record_tool_execution_failure(
-                                                &tool_name,
-                                                0,
-                                                &e.to_string(),
-                                                None,
-                                            )
-                                        };
-                                        if send_context_update(&tx, &update).await.is_err() {
-                                            log::warn!(
-                                                "Client disconnected while sending execution failure update"
-                                            );
-                                        }
-                                    }
-
-                                    let error_msg = format!("Tool execution failed: {}", e);
-                                    if let Ok(data) = sse::Data::new_json(json!({
-                                        "error": error_msg,
-                                        "done": false
-                                    })) {
-                                        let _ =
-                                            tx.send(sse::Event::Data(data.event("error"))).await;
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    Err(e) => {
-                        log::error!("Tool call validation failed: {}", e);
-                    }
-                }
-            }
-
-            let message_type = detect_message_type(&full_text);
-
-            if let Ok(Some(context)) = session_manager.load_context(conversation_id, None).await {
-                let mut context_lock = context.write().await;
-
-                if let Some(message_id) = assistant_message_id {
-                    if let Some(node) = context_lock.message_pool.get_mut(&message_id) {
-                        node.message.message_type = message_type;
-                    }
-                }
-
-                context_lock.handle_event(ChatEvent::LLMResponseProcessed { has_tool_calls });
-
-                if let Err(e) = session_manager.save_context(&mut *context_lock).await {
-                    log::error!("Failed to save context after streaming: {}", e);
-                }
-            }
         }
 
         if let Ok(data) = sse::Data::new_json(json!({
-            "content": "",
             "done": true
         })) {
             let _ = tx.send(sse::Event::Data(data.event("done"))).await;

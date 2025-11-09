@@ -22,6 +22,15 @@ pub enum ChatEvent {
         attempt: u8,
         request_id: Option<Uuid>,
     },
+    ToolAutoLoopStarted {
+        depth: u32,
+        tools_executed: u32,
+    },
+    ToolAutoLoopProgress {
+        depth: u32,
+        tools_executed: u32,
+    },
+    ToolAutoLoopFinished,
     ToolCallsDenied,
     ToolExecutionCompleted,
     ToolExecutionFailed {
@@ -220,6 +229,33 @@ impl ChatContext {
                     has_tool_calls: false,
                 },
             ) => ContextState::Idle,
+            (
+                ContextState::ProcessingToolResults,
+                ChatEvent::ToolAutoLoopStarted {
+                    depth,
+                    tools_executed,
+                },
+            ) => ContextState::ToolAutoLoop {
+                depth,
+                tools_executed,
+            },
+
+            (
+                ContextState::ToolAutoLoop { .. },
+                ChatEvent::ToolAutoLoopProgress {
+                    depth,
+                    tools_executed,
+                },
+            ) => ContextState::ToolAutoLoop {
+                depth,
+                tools_executed,
+            },
+            (ContextState::ToolAutoLoop { .. }, ChatEvent::ToolAutoLoopFinished) => {
+                ContextState::GeneratingResponse
+            }
+            (ContextState::ToolAutoLoop { .. }, ChatEvent::LLMRequestInitiated) => {
+                ContextState::AwaitingLLMResponse
+            }
 
             (ContextState::TransientFailure { retry_count, .. }, ChatEvent::Retry)
                 if *retry_count < 3 =>

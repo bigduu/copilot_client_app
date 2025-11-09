@@ -4,13 +4,16 @@ use crate::message_pipeline::MessagePipeline;
 use crate::structs::context::ChatContext;
 use crate::structs::events::{ContextUpdate, MessageUpdate};
 use crate::structs::message::{
-    ContentPart, IncomingMessage, IncomingTextMessage, InternalMessage, MessageType, Role,
+    ContentPart, IncomingMessage, IncomingTextMessage, InternalMessage, MessageContentSlice,
+    MessageTextSnapshot, MessageType, Role,
 };
 use crate::structs::metadata::MessageMetadata;
 use crate::structs::state::ContextState;
+use crate::structs::tool::ToolCallResult;
 use chrono::Utc;
-use futures::StreamExt;
+use eventsource_stream::{Event as SseEvent, EventStreamError};
 use futures::stream::{self, BoxStream};
+use futures::{Stream, StreamExt};
 use serde_json::json;
 use std::collections::HashMap;
 use uuid::Uuid;
@@ -69,7 +72,8 @@ impl ChatContext {
         let (message_id, mut updates) = self.begin_streaming_response();
 
         for chunk in chunks.into_iter() {
-            if let Some(update) = self.apply_streaming_delta(message_id, chunk.into()) {
+            if let Some((update, _sequence)) = self.apply_streaming_delta(message_id, chunk.into())
+            {
                 updates.push(update);
             }
         }
@@ -77,6 +81,32 @@ impl ChatContext {
         updates.extend(self.finish_streaming_response(message_id));
 
         stream::iter(updates).boxed()
+    }
+
+    pub async fn stream_llm_response_from_events<S, E>(
+        &mut self,
+        mut events: S,
+    ) -> Result<BoxStream<'static, ContextUpdate>, ContextError>
+    where
+        S: Stream<Item = Result<SseEvent, EventStreamError<E>>> + Unpin,
+        E: std::fmt::Display,
+    {
+        let mut chunks = Vec::new();
+
+        while let Some(event_result) = events.next().await {
+            let event =
+                event_result.map_err(|err| ContextError::StreamingError(err.to_string()))?;
+
+            if event.data == "[DONE]" {
+                break;
+            }
+
+            if !event.data.is_empty() {
+                chunks.push(event.data.clone());
+            }
+        }
+
+        Ok(self.stream_llm_response(chunks))
     }
 
     pub fn begin_streaming_response(&mut self) -> (Uuid, Vec<ContextUpdate>) {
@@ -102,6 +132,8 @@ impl ChatContext {
         };
         let assistant_id = self.add_message_to_branch(&branch_name, assistant_message);
 
+        self.stream_sequences.insert(assistant_id, 0);
+
         updates.push(ContextUpdate {
             context_id: self.id,
             current_state: self.current_state.clone(),
@@ -118,7 +150,11 @@ impl ChatContext {
         (assistant_id, updates)
     }
 
-    pub fn apply_streaming_delta<S>(&mut self, message_id: Uuid, delta: S) -> Option<ContextUpdate>
+    pub fn apply_streaming_delta<S>(
+        &mut self,
+        message_id: Uuid,
+        delta: S,
+    ) -> Option<(ContextUpdate, u64)>
     where
         S: Into<String>,
     {
@@ -143,18 +179,23 @@ impl ChatContext {
                 .unwrap_or_default()
                 .to_string();
 
-            Some(ContextUpdate {
-                context_id: self.id,
-                current_state: self.current_state.clone(),
-                previous_state: None,
-                message_update: Some(MessageUpdate::ContentDelta {
-                    message_id,
-                    delta,
-                    accumulated,
-                }),
-                timestamp: Utc::now(),
-                metadata: HashMap::new(),
-            })
+            let sequence = self.next_sequence(message_id);
+
+            Some((
+                ContextUpdate {
+                    context_id: self.id,
+                    current_state: self.current_state.clone(),
+                    previous_state: None,
+                    message_update: Some(MessageUpdate::ContentDelta {
+                        message_id,
+                        delta,
+                        accumulated,
+                    }),
+                    timestamp: Utc::now(),
+                    metadata: HashMap::new(),
+                },
+                sequence,
+            ))
         } else {
             None
         }
@@ -196,6 +237,65 @@ impl ChatContext {
         });
 
         updates
+    }
+
+    fn next_sequence(&mut self, message_id: Uuid) -> u64 {
+        let seq_entry = self.stream_sequences.entry(message_id).or_insert(0);
+        *seq_entry += 1;
+        *seq_entry
+    }
+
+    pub fn ensure_sequence_at_least(&mut self, message_id: Uuid, minimum: u64) -> u64 {
+        let seq_entry = self.stream_sequences.entry(message_id).or_insert(0);
+        if *seq_entry < minimum {
+            *seq_entry = minimum;
+        }
+        *seq_entry
+    }
+
+    pub fn message_sequence(&self, message_id: Uuid) -> Option<u64> {
+        self.stream_sequences.get(&message_id).copied()
+    }
+
+    pub fn message_text_snapshot(&self, message_id: Uuid) -> Option<MessageTextSnapshot> {
+        let node = self.message_pool.get(&message_id)?;
+        let content = node
+            .message
+            .content
+            .iter()
+            .filter_map(|part| part.text_content())
+            .collect::<Vec<_>>()
+            .join("");
+        let sequence = self.stream_sequences.get(&message_id).copied().unwrap_or(0);
+
+        Some(MessageTextSnapshot {
+            message_id,
+            content,
+            sequence,
+        })
+    }
+
+    pub fn message_content_slice(
+        &self,
+        message_id: Uuid,
+        from_sequence: Option<u64>,
+    ) -> Option<MessageContentSlice> {
+        let snapshot = self.message_text_snapshot(message_id)?;
+        let from_seq = from_sequence.unwrap_or(0);
+        let has_updates = snapshot.sequence > from_seq;
+        let content = if has_updates {
+            snapshot.content
+        } else {
+            String::new()
+        };
+
+        Some(MessageContentSlice {
+            context_id: self.id,
+            message_id,
+            sequence: snapshot.sequence,
+            content,
+            has_updates,
+        })
     }
 
     pub fn abort_streaming_response<S>(&mut self, message_id: Uuid, error: S) -> Vec<ContextUpdate>
@@ -260,13 +360,21 @@ impl ChatContext {
             ..Default::default()
         };
 
+        if let Some(metadata) = &payload.metadata {
+            user_message.metadata = Some(metadata.clone());
+        }
+
         if let Some(display_text) = &payload.display_text {
-            let mut extra = HashMap::new();
+            let mut extra = user_message
+                .metadata
+                .as_ref()
+                .and_then(|meta| meta.extra.clone())
+                .unwrap_or_default();
             extra.insert("display_text".to_string(), json!(display_text));
-            user_message.metadata = Some(MessageMetadata {
-                extra: Some(extra),
-                ..Default::default()
-            });
+            user_message
+                .metadata
+                .get_or_insert_with(MessageMetadata::default)
+                .extra = Some(extra);
         }
 
         let branch_name = self.active_branch_name.clone();
@@ -346,12 +454,108 @@ impl ChatContext {
         }
     }
 
+    pub fn append_text_message_with_metadata(
+        &mut self,
+        role: Role,
+        message_type: MessageType,
+        text: String,
+        metadata: Option<MessageMetadata>,
+        tool_result: Option<ToolCallResult>,
+    ) -> (Uuid, u64) {
+        let message = InternalMessage {
+            role,
+            content: vec![ContentPart::text_owned(text)],
+            tool_result,
+            metadata,
+            message_type,
+            ..Default::default()
+        };
+
+        let message_id = self.add_message_to_branch("main", message);
+        let sequence = self.ensure_sequence_at_least(message_id, 1);
+
+        self.handle_event(ChatEvent::LLMStreamEnded);
+        self.handle_event(ChatEvent::LLMResponseProcessed {
+            has_tool_calls: false,
+        });
+
+        (message_id, sequence)
+    }
+
     pub fn record_tool_calls_denied(&mut self) -> ContextUpdate {
         let previous_state = Some(self.current_state.clone());
         self.handle_event(ChatEvent::ToolCallsDenied);
 
         let mut metadata = HashMap::new();
         metadata.insert("tool_event".to_string(), json!("approval_denied"));
+
+        ContextUpdate {
+            context_id: self.id,
+            current_state: self.current_state.clone(),
+            previous_state,
+            message_update: None,
+            timestamp: Utc::now(),
+            metadata,
+        }
+    }
+
+    pub fn begin_auto_loop(&mut self, depth: u32) -> ContextUpdate {
+        self.tool_execution.begin_auto_loop(depth);
+        let previous_state = Some(self.current_state.clone());
+        self.handle_event(ChatEvent::ToolAutoLoopStarted {
+            depth,
+            tools_executed: self.tool_execution.tools_executed(),
+        });
+
+        let mut metadata = HashMap::new();
+        metadata.insert("tool_event".to_string(), json!("auto_loop_started"));
+        metadata.insert("depth".to_string(), json!(depth));
+
+        ContextUpdate {
+            context_id: self.id,
+            current_state: self.current_state.clone(),
+            previous_state,
+            message_update: None,
+            timestamp: Utc::now(),
+            metadata,
+        }
+    }
+
+    pub fn record_auto_loop_progress(&mut self) -> ContextUpdate {
+        self.tool_execution.increment_tools_executed();
+        let depth = self.tool_execution.auto_loop_depth();
+        let executed = self.tool_execution.tools_executed();
+        let previous_state = Some(self.current_state.clone());
+        self.handle_event(ChatEvent::ToolAutoLoopProgress {
+            depth,
+            tools_executed: executed,
+        });
+
+        let mut metadata = HashMap::new();
+        metadata.insert("tool_event".to_string(), json!("auto_loop_progress"));
+        metadata.insert("depth".to_string(), json!(depth));
+        metadata.insert("tools_executed".to_string(), json!(executed));
+
+        ContextUpdate {
+            context_id: self.id,
+            current_state: self.current_state.clone(),
+            previous_state,
+            message_update: None,
+            timestamp: Utc::now(),
+            metadata,
+        }
+    }
+
+    pub fn complete_auto_loop(&mut self) -> ContextUpdate {
+        let previous_state = Some(self.current_state.clone());
+        self.handle_event(ChatEvent::ToolAutoLoopFinished);
+
+        let mut metadata = HashMap::new();
+        metadata.insert("tool_event".to_string(), json!("auto_loop_finished"));
+        metadata.insert(
+            "tools_executed".to_string(),
+            json!(self.tool_execution.tools_executed()),
+        );
 
         ContextUpdate {
             context_id: self.id,
@@ -444,6 +648,190 @@ impl ChatContext {
             metadata,
         }
     }
+
+    pub async fn process_auto_tool_step<R: crate::traits::ToolRuntime + ?Sized>(
+        &mut self,
+        runtime: &R,
+        tool_name: String,
+        arguments: serde_json::Value,
+        terminate: bool,
+        request_id: Option<Uuid>,
+    ) -> Result<Vec<ContextUpdate>, crate::error::ContextError> {
+        use crate::traits::ToolRuntimeAction;
+
+        let mut updates = Vec::new();
+
+        updates.push(self.begin_auto_loop(self.tool_execution.auto_loop_depth() + 1));
+        updates.push(self.begin_tool_execution(&tool_name, 1, request_id));
+
+        match runtime
+            .execute_tool(self.id, &tool_name, arguments.clone(), request_id)
+            .await
+        {
+            Ok(result) => {
+                updates.push(self.record_auto_loop_progress());
+
+                let mut execution_update = self.complete_tool_execution();
+                execution_update
+                    .metadata
+                    .insert("result".to_string(), result.clone());
+                execution_update
+                    .metadata
+                    .insert("tool_name".to_string(), json!(tool_name));
+                if let Some(req_id) = request_id {
+                    execution_update
+                        .metadata
+                        .insert("request_id".to_string(), json!(req_id));
+                }
+                updates.push(execution_update);
+
+                updates.push(self.complete_auto_loop());
+
+                let message_text = format_tool_output(&result);
+                let final_message = InternalMessage {
+                    role: Role::Tool,
+                    content: vec![ContentPart::text_owned(message_text.clone())],
+                    tool_result: Some(ToolCallResult {
+                        request_id: tool_name.clone(),
+                        result,
+                    }),
+                    message_type: MessageType::ToolResult,
+                    ..Default::default()
+                };
+                let message_id = self.add_message_to_branch("main", final_message.clone());
+                let sequence = self.ensure_sequence_at_least(message_id, 1);
+
+                let mut created_metadata = HashMap::new();
+                created_metadata.insert("sequence".to_string(), json!(sequence));
+                if let Some(req_id) = request_id {
+                    created_metadata.insert("request_id".to_string(), json!(req_id));
+                }
+
+                updates.push(ContextUpdate {
+                    context_id: self.id,
+                    current_state: self.current_state.clone(),
+                    previous_state: Some(self.current_state.clone()),
+                    message_update: Some(MessageUpdate::Created {
+                        message_id,
+                        role: Role::Tool,
+                        message_type: MessageType::ToolResult,
+                    }),
+                    timestamp: Utc::now(),
+                    metadata: created_metadata,
+                });
+                let mut completed_metadata = HashMap::new();
+                completed_metadata.insert("sequence".to_string(), json!(sequence));
+                if let Some(req_id) = request_id {
+                    completed_metadata.insert("request_id".to_string(), json!(req_id));
+                }
+
+                updates.push(ContextUpdate {
+                    context_id: self.id,
+                    current_state: self.current_state.clone(),
+                    previous_state: Some(self.current_state.clone()),
+                    message_update: Some(MessageUpdate::Completed {
+                        message_id,
+                        final_message,
+                    }),
+                    timestamp: Utc::now(),
+                    metadata: completed_metadata,
+                });
+
+                let _ = runtime.notify_completion(self.id, &tool_name, true).await;
+            }
+            Err(ToolRuntimeAction::NeedsApproval) => {
+                let info = runtime
+                    .request_approval(self.id, &tool_name, arguments.clone(), terminate)
+                    .await
+                    .map_err(|err| match err {
+                        ToolRuntimeAction::BackendError(_msg) => {
+                            crate::error::ContextError::ToolExecutionRequired
+                        }
+                        _ => crate::error::ContextError::ToolExecutionRequired,
+                    })?;
+
+                let mut update = self.record_tool_approval_request(info.request_id, &tool_name);
+                update
+                    .metadata
+                    .insert("tool_description".to_string(), json!(info.description));
+                update
+                    .metadata
+                    .insert("parameters".to_string(), info.payload);
+                updates.push(update);
+            }
+            Err(ToolRuntimeAction::ExecutionFailed(reason)) => {
+                let mut failure_update =
+                    self.record_tool_execution_failure(&tool_name, 0, &reason, request_id);
+                failure_update
+                    .metadata
+                    .insert("tool_name".to_string(), json!(tool_name));
+                updates.push(failure_update);
+                updates.push(self.complete_auto_loop());
+
+                let error_payload = json!({
+                    "error": reason,
+                    "tool": tool_name,
+                });
+
+                let error_text = format_tool_output(&error_payload);
+                let final_message = InternalMessage {
+                    role: Role::Tool,
+                    content: vec![ContentPart::text_owned(error_text)],
+                    tool_result: Some(ToolCallResult {
+                        request_id: tool_name.clone(),
+                        result: error_payload.clone(),
+                    }),
+                    message_type: MessageType::ToolResult,
+                    ..Default::default()
+                };
+                let message_id = self.add_message_to_branch("main", final_message.clone());
+                let sequence = self.ensure_sequence_at_least(message_id, 1);
+
+                let mut created_metadata = HashMap::new();
+                created_metadata.insert("sequence".to_string(), json!(sequence));
+                if let Some(req_id) = request_id {
+                    created_metadata.insert("request_id".to_string(), json!(req_id));
+                }
+
+                updates.push(ContextUpdate {
+                    context_id: self.id,
+                    current_state: self.current_state.clone(),
+                    previous_state: Some(self.current_state.clone()),
+                    message_update: Some(MessageUpdate::Created {
+                        message_id,
+                        role: Role::Tool,
+                        message_type: MessageType::ToolResult,
+                    }),
+                    timestamp: Utc::now(),
+                    metadata: created_metadata,
+                });
+                let mut completed_metadata = HashMap::new();
+                completed_metadata.insert("sequence".to_string(), json!(sequence));
+                if let Some(req_id) = request_id {
+                    completed_metadata.insert("request_id".to_string(), json!(req_id));
+                }
+
+                updates.push(ContextUpdate {
+                    context_id: self.id,
+                    current_state: self.current_state.clone(),
+                    previous_state: Some(self.current_state.clone()),
+                    message_update: Some(MessageUpdate::Completed {
+                        message_id,
+                        final_message,
+                    }),
+                    timestamp: Utc::now(),
+                    metadata: completed_metadata,
+                });
+
+                let _ = runtime.notify_completion(self.id, &tool_name, false).await;
+            }
+            Err(ToolRuntimeAction::BackendError(_reason)) => {
+                return Err(crate::error::ContextError::ToolExecutionRequired);
+            }
+        }
+
+        Ok(updates)
+    }
 }
 
 pub struct StreamingResponseBuilder<'a> {
@@ -462,4 +850,16 @@ impl<'a> StreamingResponseBuilder<'a> {
     {
         self.context.stream_llm_response(chunks)
     }
+}
+
+fn format_tool_output(value: &serde_json::Value) -> String {
+    if let Some(content) = value.get("content").and_then(|v| v.as_str()) {
+        return content.to_string();
+    }
+
+    if let Some(message) = value.get("message").and_then(|v| v.as_str()) {
+        return message.to_string();
+    }
+
+    serde_json::to_string_pretty(value).unwrap_or_else(|_| value.to_string())
 }

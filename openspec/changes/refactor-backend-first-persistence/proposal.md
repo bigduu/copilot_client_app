@@ -48,3 +48,4 @@ The current hybrid persistence model creates unnecessary complexity and potentia
 - Backend FSM logs show automatic saves after state transitions
 - Chat history persists correctly after page refresh
 - Performance remains equivalent or improves (fewer roundtrips)
+

@@ -235,3 +235,4 @@ The system SHALL inject different instructions based on current agent mode.
   - Severity level guidelines
 - **AND** emphasize executing approved plan
 - **AND** explain when to ask for approval
+

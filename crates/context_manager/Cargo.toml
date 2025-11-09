@@ -11,6 +11,8 @@ tool_system = { path = "../tool_system" }
 uuid = { version = "1.8.0", features = ["v4", "serde"] }
 tracing = "0.1"
 futures = "0.3"
+async-trait = "0.1"
+eventsource-stream = "0.2"
 
 [dev-dependencies]
 mockall = "0.13"
