@@ -1,6 +1,24 @@
 import OpenAI from "openai";
 import { Message } from "../types/chat";
 
+/**
+ * @deprecated This service is deprecated and will be removed in a future version.
+ *
+ * **Migration Path**:
+ * - Use `BackendContextService.sendMessage()` + `subscribeToContextEvents()` instead
+ * - The new Signal-Pull SSE architecture provides better reliability and performance
+ *
+ * **Why deprecated**:
+ * - Direct OpenAI streaming bypasses backend FSM and state management
+ * - Cannot support tool auto-loop, approval system, and other backend features
+ * - Replaced by backend-driven Signal-Pull architecture (Phase 10)
+ *
+ * **Removal timeline**: After Phase 10 migration is complete and tested
+ *
+ * @see BackendContextService.sendMessage
+ * @see BackendContextService.subscribeToContextEvents
+ * @see docs/FRONTEND_MIGRATION_PLAN.md
+ */
 export class AIService {
   private client: OpenAI;
 
@@ -8,6 +26,10 @@ export class AIService {
     baseURL: string = "http://localhost:8080/v1",
     apiKey: string = "dummy-key",
   ) {
+    console.warn(
+      "[AIService] ⚠️ DEPRECATED: AIService is deprecated. Use BackendContextService with Signal-Pull SSE instead. See FRONTEND_MIGRATION_PLAN.md"
+    );
+
     this.client = new OpenAI({
       baseURL,
       apiKey,
@@ -15,12 +37,19 @@ export class AIService {
     });
   }
 
+  /**
+   * @deprecated Use BackendContextService.sendMessage() + subscribeToContextEvents() instead
+   */
   async executePrompt(
     messages: Message[],
     model?: string,
     onChunk?: (chunk: string) => void,
     abortSignal?: AbortSignal,
   ): Promise<void> {
+    console.warn(
+      "[AIService] ⚠️ DEPRECATED: executePrompt() is deprecated. Use BackendContextService.sendMessage() + subscribeToContextEvents() instead."
+    );
+
     try {
       // Convert our message format to OpenAI format
       const openaiMessages = messages

@@ -25,6 +25,7 @@ const toolService = ToolService.getInstance();
 // 这里存放所有状态需要共享的数据
 export interface ChatMachineContext {
   messages: Message[];
+  currentContextId: string | null; // NEW: Context ID for Signal-Pull SSE
   streamingContent: string;
   finalContent: string;
   // Holds the full request while the tool call is being processed
@@ -111,8 +112,28 @@ export const chatMachine = setup({
       );
       return enhancedPrompt;
     }),
+    /**
+     * @deprecated This actor is deprecated and will be removed in a future version.
+     *
+     * **Migration Path**:
+     * - Use `contextStream` actor instead
+     * - The new Signal-Pull SSE architecture provides better reliability
+     *
+     * **Why deprecated**:
+     * - Direct AIService streaming bypasses backend FSM
+     * - Cannot support tool auto-loop and approval system
+     * - Replaced by backend-driven Signal-Pull architecture (Phase 10)
+     *
+     * **Removal timeline**: After Phase 10 migration is complete
+     *
+     * @see contextStream
+     */
     aiStream: fromCallback<ChatMachineEvent, { messages: Message[] }>(
       ({ sendBack, input }) => {
+        console.warn(
+          "[ChatMachine] ⚠️ DEPRECATED: aiStream actor is deprecated. Use contextStream instead."
+        );
+
         const controller = new AbortController();
         let fullContent = "";
 
@@ -151,6 +172,103 @@ export const chatMachine = setup({
 
         return () => {
           controller.abort();
+        };
+      },
+    ),
+    /**
+     * NEW: contextStream actor for Signal-Pull SSE architecture
+     * This replaces aiStream for the new backend-driven streaming model.
+     *
+     * Flow:
+     * 1. Subscribe to SSE events from backend
+     * 2. On content_delta event, pull content from REST API
+     * 3. Forward chunks to UI via CHUNK_RECEIVED event
+     * 4. On message_completed event, finalize message
+     */
+    contextStream: fromCallback<ChatMachineEvent, { contextId: string }>(
+      ({ input, sendBack }) => {
+        const { contextId } = input;
+        let currentSequence = 0;
+        let currentMessageId: string | null = null;
+
+        console.log("[ChatMachine] contextStream: Starting SSE subscription for context:", contextId);
+
+        // Import backendContextService dynamically to avoid circular dependency
+        const { backendContextService } = require("../services/BackendContextService");
+
+        // Subscribe to SSE events
+        const unsubscribe = backendContextService.subscribeToContextEvents(
+          contextId,
+          async (event: import("../types/sse").SignalEvent) => {
+            console.log("[ChatMachine] contextStream: SSE event received:", event.type);
+
+            switch (event.type) {
+              case "content_delta":
+                // Pull content from REST API
+                try {
+                  console.log(`[ChatMachine] contextStream: Pulling content from sequence ${currentSequence}`);
+
+                  const content = await backendContextService.getMessageContent(
+                    event.context_id,
+                    event.message_id,
+                    currentSequence,
+                  );
+
+                  // Update tracking
+                  currentSequence = content.sequence;
+                  currentMessageId = event.message_id;
+
+                  // Forward chunk to UI
+                  if (content.content) {
+                    console.log(`[ChatMachine] contextStream: Forwarding chunk (${content.content.length} chars)`);
+                    sendBack({
+                      type: "CHUNK_RECEIVED",
+                      payload: { chunk: content.content },
+                    });
+                  }
+                } catch (error) {
+                  console.error("[ChatMachine] contextStream: Failed to pull content:", error);
+                  sendBack({
+                    type: "STREAM_ERROR",
+                    payload: { error: error as Error },
+                  });
+                }
+                break;
+
+              case "message_completed":
+                console.log("[ChatMachine] contextStream: Message completed, finalizing...");
+                sendBack({
+                  type: "STREAM_COMPLETE_TEXT",
+                  payload: { finalContent: "" }, // Content already accumulated
+                });
+                break;
+
+              case "state_changed":
+                console.log(`[ChatMachine] contextStream: Backend state changed to ${event.new_state}`);
+                // Could update UI state indicator here if needed
+                break;
+
+              case "heartbeat":
+                // Keep-alive, no action needed
+                break;
+
+              default:
+                console.warn("[ChatMachine] contextStream: Unknown event type:", (event as any).type);
+            }
+          },
+          (error) => {
+            console.error("[ChatMachine] contextStream: SSE error:", error);
+            sendBack({
+              type: "STREAM_ERROR",
+              payload: { error },
+            });
+          },
+        );
+
+        // Return cleanup function
+        return () => {
+          console.log("[ChatMachine] contextStream: Cleaning up SSE subscription");
+          unsubscribe();
         };
       },
     ),
@@ -224,6 +342,7 @@ export const chatMachine = setup({
   initial: "IDLE",
   context: {
     messages: [],
+    currentContextId: null, // NEW: Will be set when entering THINKING state
     streamingContent: "",
     finalContent: "",
     toolCallRequest: undefined,
@@ -342,6 +461,11 @@ export const chatMachine = setup({
         id: "aiStream",
         src: "aiStream",
         input: ({ context }) => ({ messages: context.messages }),
+        // TODO: Switch to contextStream for Signal-Pull SSE architecture
+        // Uncomment the following when ready to migrate:
+        // id: "contextStream",
+        // src: "contextStream",
+        // input: ({ context }) => ({ contextId: context.currentContextId || "" }),
       },
       on: {
         CHUNK_RECEIVED: {

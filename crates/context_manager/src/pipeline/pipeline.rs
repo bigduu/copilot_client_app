@@ -83,7 +83,7 @@ impl MessagePipeline {
     ///
     /// let pipeline = MessagePipeline::new()
     ///     .register(Box::new(ValidationProcessor::new()))
-    ///     .register(Box::new(FileReferenceProcessor::new()));
+    ///     .register(Box::new(FileReferenceProcessor::new("/workspace")));
     /// ```
     pub fn register(mut self, processor: Box<dyn MessageProcessor>) -> Self {
         self.processors.push(processor);
@@ -106,9 +106,11 @@ impl MessagePipeline {
     /// ```no_run
     /// use context_manager::pipeline::{MessagePipeline, PipelineOutput};
     /// use context_manager::structs::message::InternalMessage;
+    /// use context_manager::ChatContext;
+    /// use uuid::Uuid;
     ///
-    /// async fn process_message(pipeline: &MessagePipeline, message: InternalMessage) {
-    ///     match pipeline.execute(message).await {
+    /// async fn process_message(pipeline: &MessagePipeline, message: InternalMessage, context: &mut ChatContext) {
+    ///     match pipeline.execute(message, context).await {
     ///         Ok(PipelineOutput::Completed { message, metadata, stats }) => {
     ///             println!("Processed: {} processors in {}ms",
     ///                      stats.processors_run,
@@ -154,17 +156,19 @@ impl MessagePipeline {
             }
 
             // Execute processor
-            let result = processor.process(&mut ctx).map_err(|error| {
-                PipelineError::ProcessorFailed {
-                    processor: processor.name().to_string(),
-                    error,
-                }
-            })?;
+            let result =
+                processor
+                    .process(&mut ctx)
+                    .map_err(|error| PipelineError::ProcessorFailed {
+                        processor: processor.name().to_string(),
+                        error,
+                    })?;
 
             // Record timing
             if self.config.enable_timing {
                 let duration_ms = start.elapsed().as_millis() as u64;
-                ctx.stats.record_processor(processor.name().to_string(), duration_ms);
+                ctx.stats
+                    .record_processor(processor.name().to_string(), duration_ms);
 
                 // Check timeout
                 if self.config.max_processing_time_ms > 0 {
@@ -276,16 +280,18 @@ impl MessagePipeline {
 
             let start = Instant::now();
 
-            let result = processor.process(&mut ctx).map_err(|error| {
-                PipelineError::ProcessorFailed {
-                    processor: processor.name().to_string(),
-                    error,
-                }
-            })?;
+            let result =
+                processor
+                    .process(&mut ctx)
+                    .map_err(|error| PipelineError::ProcessorFailed {
+                        processor: processor.name().to_string(),
+                        error,
+                    })?;
 
             if self.config.enable_timing {
                 let duration_ms = start.elapsed().as_millis() as u64;
-                ctx.stats.record_processor(processor.name().to_string(), duration_ms);
+                ctx.stats
+                    .record_processor(processor.name().to_string(), duration_ms);
 
                 if self.config.max_processing_time_ms > 0 {
                     let total_elapsed = pipeline_start.elapsed().as_millis() as u64;
@@ -362,7 +368,11 @@ mod tests {
     use uuid::Uuid;
 
     fn create_test_context() -> ChatContext {
-        ChatContext::new(Uuid::new_v4(), "test-model".to_string(), "test-mode".to_string())
+        ChatContext::new(
+            Uuid::new_v4(),
+            "test-model".to_string(),
+            "test-mode".to_string(),
+        )
     }
 
     // Mock processor for testing
@@ -385,7 +395,10 @@ mod tests {
             &self.name
         }
 
-        fn process<'a>(&self, _ctx: &mut ProcessingContext<'a>) -> Result<ProcessResult, ProcessError> {
+        fn process<'a>(
+            &self,
+            _ctx: &mut ProcessingContext<'a>,
+        ) -> Result<ProcessResult, ProcessError> {
             Ok(match &self.result {
                 ProcessResult::Continue => ProcessResult::Continue,
                 ProcessResult::Abort { reason } => ProcessResult::Abort {
@@ -467,16 +480,9 @@ mod tests {
     #[tokio::test]
     async fn test_processor_count() {
         let pipeline = MessagePipeline::new()
-            .register(Box::new(TestProcessor::new(
-                "p1",
-                ProcessResult::Continue,
-            )))
-            .register(Box::new(TestProcessor::new(
-                "p2",
-                ProcessResult::Continue,
-            )));
+            .register(Box::new(TestProcessor::new("p1", ProcessResult::Continue)))
+            .register(Box::new(TestProcessor::new("p2", ProcessResult::Continue)));
 
         assert_eq!(pipeline.processor_count(), 2);
     }
 }
-

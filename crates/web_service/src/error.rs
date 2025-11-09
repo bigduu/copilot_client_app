@@ -12,6 +12,9 @@ pub enum AppError {
     #[error("Tool execution failed: {0}")]
     ToolExecutionError(String),
 
+    #[error("{0} not found")]
+    NotFound(String),
+
     #[error("Internal server error: {0}")]
     InternalError(#[from] anyhow::Error),
 
@@ -38,6 +41,7 @@ impl ResponseError for AppError {
         match self {
             AppError::ToolNotFound(_) => StatusCode::NOT_FOUND,
             AppError::ToolExecutionError(_) => StatusCode::BAD_REQUEST,
+            AppError::NotFound(_) => StatusCode::NOT_FOUND,
             AppError::InternalError(_) => StatusCode::INTERNAL_SERVER_ERROR,
             AppError::StorageError(_) => StatusCode::INTERNAL_SERVER_ERROR,
             AppError::SerializationError(_) => StatusCode::INTERNAL_SERVER_ERROR,

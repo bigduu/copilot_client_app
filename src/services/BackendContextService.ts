@@ -270,12 +270,30 @@ export class BackendContextService {
   /**
    * Send a message with streaming response using SSE.
    * This uses the /chat/{session_id}/stream endpoint for real-time token streaming.
+   *
+   * @deprecated This method is deprecated and will be removed in a future version.
+   *
+   * **Migration Path**:
+   * - Use `sendMessage()` (non-streaming) + `subscribeToContextEvents()` instead
+   * - The new Signal-Pull SSE architecture provides better reliability
+   *
+   * **Why deprecated**:
+   * - Old SSE implementation with full content streaming
+   * - Replaced by Signal-Pull architecture (metadata signals + REST content pull)
+   * - Cannot support incremental content pulling and sequence tracking
+   *
+   * **Removal timeline**: After Phase 10 migration is complete
+   *
    * @param contextId - The context/session ID
    * @param content - The message content
    * @param onChunk - Callback for each content chunk
    * @param onDone - Callback when stream is complete
    * @param onError - Callback for errors
    * @param onApprovalRequired - Callback when agent-initiated tool requires approval
+   *
+   * @see sendMessage
+   * @see subscribeToContextEvents
+   * @see getMessageContent
    */
   async sendMessageStream(
     contextId: string,
@@ -291,6 +309,10 @@ export class BackendContextService {
       parameters: Record<string, any>;
     }) => void,
   ): Promise<void> {
+    console.warn(
+      "[BackendContextService] ⚠️ DEPRECATED: sendMessageStream() is deprecated. Use sendMessage() + subscribeToContextEvents() instead."
+    );
+
     try {
       // Use API_BASE_URL which already includes /v1, then add /chat path
       const baseUrl = API_BASE_URL.replace("/v1", ""); // http://127.0.0.1:8080
@@ -510,6 +532,136 @@ export class BackendContextService {
     return this.request<{ reloaded: number }>("/system-prompts/reload", {
       method: "POST",
     });
+  }
+
+  // ============================================================================
+  // Signal-Pull SSE Architecture (New)
+  // ============================================================================
+
+  /**
+   * Subscribe to context events using EventSource (SSE).
+   * This is the new Signal-Pull architecture where the backend sends
+   * lightweight metadata events, and the frontend pulls content via REST API.
+   *
+   * @param contextId - The context ID to subscribe to
+   * @param onEvent - Callback for each SSE event
+   * @param onError - Callback for errors
+   * @returns Cleanup function to close the EventSource
+   */
+  subscribeToContextEvents(
+    contextId: string,
+    onEvent: (event: import("../types/sse").SignalEvent) => void,
+    onError?: (error: Error) => void,
+  ): () => void {
+    const eventSource = new EventSource(
+      `${API_BASE_URL}/contexts/${contextId}/events`,
+    );
+
+    // Listen for "signal" events (backend sends named events)
+    eventSource.addEventListener("signal", (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        console.log("[SSE] Signal event received:", data);
+        onEvent(data);
+      } catch (error) {
+        console.error("[SSE] Failed to parse signal event:", error);
+        onError?.(error as Error);
+      }
+    });
+
+    // Also listen for default "message" events (fallback)
+    eventSource.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        console.log("[SSE] Message event received:", data);
+        onEvent(data);
+      } catch (error) {
+        console.error("[SSE] Failed to parse message event:", error);
+        onError?.(error as Error);
+      }
+    };
+
+    eventSource.onerror = (error) => {
+      console.error("[SSE] EventSource error:", error);
+      console.log("[SSE] ReadyState:", eventSource.readyState);
+      // ReadyState: 0 = CONNECTING, 1 = OPEN, 2 = CLOSED
+
+      if (eventSource.readyState === EventSource.CLOSED) {
+        console.log("[SSE] Connection closed, attempting to reconnect...");
+      }
+
+      onError?.(new Error("EventSource connection error"));
+    };
+
+    eventSource.addEventListener("open", () => {
+      console.log("[SSE] ✅ EventSource connected to context:", contextId);
+    });
+
+    // Return cleanup function
+    return () => {
+      console.log("[SSE] Closing EventSource for context:", contextId);
+      eventSource.close();
+    };
+  }
+
+  /**
+   * Get message content (full or incremental).
+   * This is used in the Signal-Pull architecture to fetch actual content
+   * after receiving a content_delta event.
+   *
+   * @param contextId - The context ID
+   * @param messageId - The message ID
+   * @param fromSequence - Optional: get content from this sequence onwards
+   * @returns Message content with sequence number
+   */
+  async getMessageContent(
+    contextId: string,
+    messageId: string,
+    fromSequence?: number,
+  ): Promise<import("../types/sse").MessageContentResponse> {
+    const url = fromSequence !== undefined
+      ? `/contexts/${contextId}/messages/${messageId}/streaming-chunks?from_sequence=${fromSequence}`
+      : `/contexts/${contextId}/messages/${messageId}/streaming-chunks`;
+
+    console.log(`[SSE] Pulling content from sequence ${fromSequence ?? 0}`);
+
+    const response = await this.request<import("../types/sse").MessageContentResponse>(url);
+
+    console.log(`[SSE] Content received: current_sequence=${response.current_sequence}, chunks=${response.chunks.length}, has_more=${response.has_more}`);
+
+    return response;
+  }
+
+  /**
+   * Send a message to the context (triggers backend processing).
+   * This is the new non-streaming API that works with the Signal-Pull architecture.
+   * After calling this, subscribe to SSE events to receive updates.
+   *
+   * @param contextId - The context ID
+   * @param content - The message content
+   */
+  async sendMessage(
+    contextId: string,
+    content: string,
+  ): Promise<void> {
+    console.log(`[SSE] Sending message to context ${contextId}`);
+
+    await this.request<void>(`/contexts/${contextId}/actions/send_message`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        payload: {
+          type: "text",
+          content,
+          display: null,
+        },
+        client_metadata: {},
+      }),
+    });
+
+    console.log(`[SSE] Message sent successfully`);
   }
 }
 

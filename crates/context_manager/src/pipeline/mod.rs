@@ -20,7 +20,7 @@
 //!
 //! let pipeline = MessagePipeline::new()
 //!     .register(Box::new(ValidationProcessor::new()))
-//!     .register(Box::new(FileReferenceProcessor::new()));
+//!     .register(Box::new(FileReferenceProcessor::new("/workspace")));
 //!
 //! // Execute pipeline on a message
 //! // let output = pipeline.execute(message, &mut context).await?;
@@ -37,6 +37,5 @@ pub mod traits;
 pub use context::ProcessingContext;
 pub use error::{PipelineError, ProcessError};
 pub use pipeline::MessagePipeline;
-pub use result::{ProcessResult, PipelineOutput};
+pub use result::{PipelineOutput, ProcessResult};
 pub use traits::MessageProcessor;
-

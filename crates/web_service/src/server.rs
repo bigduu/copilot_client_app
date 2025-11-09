@@ -8,19 +8,20 @@ use std::{
 use tokio::sync::oneshot;
 
 use crate::controllers::{
-    chat_controller, context_controller, openai_controller, session_controller,
-    system_controller, system_prompt_controller, template_variable_controller, tool_controller,
+    chat_controller, context_controller, openai_controller, session_controller, system_controller,
+    system_prompt_controller, template_variable_controller, tool_controller,
     user_preference_controller, workflow_controller,
 };
 use crate::services::{
-    approval_manager::ApprovalManager, session_manager::ChatSessionManager,
-    system_prompt_enhancer::SystemPromptEnhancer, system_prompt_service::SystemPromptService,
-    template_variable_service::TemplateVariableService, tool_service::ToolService,
-    user_preference_service::UserPreferenceService, workflow_service::WorkflowService,
+    approval_manager::ApprovalManager, event_broadcaster::EventBroadcaster,
+    session_manager::ChatSessionManager, system_prompt_enhancer::SystemPromptEnhancer,
+    system_prompt_service::SystemPromptService, template_variable_service::TemplateVariableService,
+    tool_service::ToolService, user_preference_service::UserPreferenceService,
+    workflow_service::WorkflowService,
 };
 use crate::storage::file_provider::FileStorageProvider;
 use copilot_client::{config::Config, CopilotClient, CopilotClientTrait};
-use session_manager::{MultiUserSessionManager, FileSessionStorage};
+use session_manager::{FileSessionStorage, MultiUserSessionManager};
 use tool_system::{registry::ToolRegistry, ToolExecutor};
 use workflow_system::WorkflowRegistry;
 
@@ -34,6 +35,7 @@ pub struct AppState {
     pub approval_manager: Arc<ApprovalManager>,
     pub user_preference_service: Arc<UserPreferenceService>,
     pub workflow_service: Arc<WorkflowService>,
+    pub event_broadcaster: Arc<EventBroadcaster>,
 }
 
 const DEFAULT_WORKER_COUNT: usize = 10;
@@ -110,6 +112,9 @@ pub async fn run(app_data_dir: PathBuf, port: u16) -> Result<(), String> {
     let enhancer_data = web::Data::from(system_prompt_enhancer.clone());
     let template_variable_data = web::Data::from(template_variable_service.clone());
 
+    // Create event broadcaster for Signal-Pull SSE
+    let event_broadcaster = Arc::new(EventBroadcaster::new());
+
     let app_state = web::Data::new(AppState {
         session_manager,
         tool_executor,
@@ -120,6 +125,7 @@ pub async fn run(app_data_dir: PathBuf, port: u16) -> Result<(), String> {
         approval_manager: approval_manager.clone(),
         user_preference_service: user_preference_service.clone(),
         workflow_service: workflow_service.clone(),
+        event_broadcaster,
     });
 
     let server = HttpServer::new(move || {
@@ -225,6 +231,9 @@ impl WebService {
         let enhancer_data_for_start = web::Data::from(system_prompt_enhancer.clone());
         let template_variable_data_for_start = web::Data::from(template_variable_service.clone());
 
+        // Create event broadcaster for Signal-Pull SSE
+        let event_broadcaster = Arc::new(EventBroadcaster::new());
+
         let app_state = web::Data::new(AppState {
             session_manager,
             tool_executor,
@@ -235,6 +244,7 @@ impl WebService {
             approval_manager: approval_manager.clone(),
             user_preference_service: user_preference_service.clone(),
             workflow_service: workflow_service.clone(),
+            event_broadcaster,
         });
 
         let server = HttpServer::new(move || {

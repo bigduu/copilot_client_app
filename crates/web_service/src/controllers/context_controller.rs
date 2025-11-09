@@ -1,5 +1,6 @@
 use crate::{
     dto::{get_branch_messages, ChatContextDTO, ContentPartDTO},
+    error::AppError,
     middleware::extract_trace_id,
     models::{MessagePayload, SendMessageRequest, SendMessageRequestBody},
     server::AppState,
@@ -7,7 +8,7 @@ use crate::{
 use actix_web::{
     delete, get, post, put,
     web::{Data, Json, Path, Query},
-    HttpRequest, HttpResponse, Result,
+    HttpRequest, HttpResponse, ResponseError, Result,
 };
 use actix_web_lab::{sse, util::InfallibleStream};
 use context_manager::AgentRole;
@@ -133,6 +134,8 @@ pub enum SignalEvent {
         new_state: String,
         timestamp: String,
     },
+    /// New message created (signal only, frontend should pull message details via REST)
+    MessageCreated { message_id: String, role: String },
     /// Message content has new chunks available (frontend should pull via REST)
     ContentDelta {
         context_id: String,
@@ -1155,37 +1158,45 @@ pub async fn subscribe_context_events(
         .await
     {
         Ok(Some(_context)) => {
+            // Subscribe to the event broadcaster for this context
+            let mut event_rx = app_state.event_broadcaster.subscribe(context_id).await;
+
             let (tx, rx) = mpsc::channel::<sse::Event>(32);
 
-            // Spawn a background task to monitor context changes and send signals
+            // Spawn a background task to forward events from broadcaster to SSE
             let context_id_str = context_id.to_string();
-            let _session_manager = app_state.session_manager.clone(); // Reserved for future context monitoring
 
             tokio::spawn(async move {
                 let mut heartbeat_interval = tokio::time::interval(Duration::from_secs(30));
 
                 loop {
                     tokio::select! {
+                        // Forward events from broadcaster
+                        Some(event) = event_rx.recv() => {
+                            if tx.send(event).await.is_err() {
+                                tracing::debug!(
+                                    context_id = %context_id_str,
+                                    "SSE client disconnected while sending event"
+                                );
+                                break;
+                            }
+                        }
+                        // Send periodic heartbeat
                         _ = heartbeat_interval.tick() => {
-                            // Send heartbeat
                             let event = SignalEvent::Heartbeat {
                                 timestamp: chrono::Utc::now().to_rfc3339(),
                             };
 
                             if let Ok(data) = sse::Data::new_json(&event) {
                                 if tx.send(sse::Event::Data(data.event("signal"))).await.is_err() {
-                                    tracing::debug!("SSE client disconnected (heartbeat)");
+                                    tracing::debug!(
+                                        context_id = %context_id_str,
+                                        "SSE client disconnected (heartbeat)"
+                                    );
                                     break;
                                 }
                             }
                         }
-                        // TODO: Add context change monitoring here
-                        // For now, this is a basic heartbeat-only implementation
-                        // In a full implementation, you would:
-                        // 1. Subscribe to context state changes
-                        // 2. Monitor streaming message updates
-                        // 3. Detect message completion
-                        // and send corresponding SignalEvent variants
                     }
                 }
 
@@ -1471,7 +1482,8 @@ pub async fn send_message_action(
         app_state.system_prompt_service.clone(),
         app_state.approval_manager.clone(),
         app_state.workflow_service.clone(),
-    );
+    )
+    .with_event_broadcaster(app_state.event_broadcaster.clone());
 
     tracing::debug!(
         trace_id = ?trace_id,
@@ -1524,9 +1536,8 @@ pub async fn send_message_action(
         }
         Err(e) => {
             error!("Failed to process message: {}", e);
-            Ok(HttpResponse::InternalServerError().json(serde_json::json!({
-                "error": format!("Failed to process message: {}", e)
-            })))
+            // Use AppError's ResponseError trait to get the correct status code
+            Ok(ResponseError::error_response(&e))
         }
     }
 }

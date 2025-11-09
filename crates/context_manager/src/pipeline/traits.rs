@@ -30,7 +30,7 @@ use super::result::ProcessResult;
 ///
 ///     fn process(&self, ctx: &mut ProcessingContext) -> Result<ProcessResult, ProcessError> {
 ///         // Validate message
-///         if ctx.message.content.is_none() {
+///         if ctx.message.content.is_empty() {
 ///             return Ok(ProcessResult::Abort {
 ///                 reason: "Empty message".to_string()
 ///             });
@@ -71,4 +71,3 @@ pub trait MessageProcessor: Send + Sync {
         true
     }
 }
-

@@ -228,6 +228,11 @@ impl StreamingResponseMsg {
     }
 
     /// Get chunks after a given sequence number
+    ///
+    /// Note: Sequence numbers are 1-based (first chunk has sequence=1)
+    /// - `chunks_after(0)` returns all chunks
+    /// - `chunks_after(1)` returns chunks from sequence 2 onwards
+    /// - `chunks_after(n)` returns chunks from sequence n+1 onwards
     pub fn chunks_after(&self, sequence: u64) -> &[StreamChunk] {
         let start_index = sequence as usize;
         if start_index < self.chunks.len() {

@@ -65,6 +65,7 @@ pub struct ChatService<T: StorageProvider> {
     agent_service: Arc<AgentService>,
     approval_manager: Arc<ApprovalManager>,
     workflow_service: Arc<WorkflowService>,
+    event_broadcaster: Option<Arc<crate::services::EventBroadcaster>>,
 }
 
 fn stringify_tool_output(value: &serde_json::Value) -> String {
@@ -180,6 +181,35 @@ impl<T: StorageProvider + 'static> ChatService<T> {
             agent_service: Arc::new(AgentService::with_default_config()),
             approval_manager,
             workflow_service,
+            event_broadcaster: None,
+        }
+    }
+
+    /// Set the event broadcaster for Signal-Pull SSE
+    pub fn with_event_broadcaster(
+        mut self,
+        broadcaster: Arc<crate::services::EventBroadcaster>,
+    ) -> Self {
+        self.event_broadcaster = Some(broadcaster);
+        self
+    }
+
+    /// Send a Signal-Pull SSE event
+    async fn send_sse_event(&self, event: crate::controllers::context_controller::SignalEvent) {
+        if let Some(broadcaster) = &self.event_broadcaster {
+            log::debug!("Sending SSE event: {:?}", event);
+            if let Ok(data) = actix_web_lab::sse::Data::new_json(&event) {
+                let sse_event = actix_web_lab::sse::Event::Data(data.event("signal"));
+                broadcaster.broadcast(self.conversation_id, sse_event).await;
+                log::debug!("SSE event broadcasted successfully");
+            } else {
+                log::error!("Failed to serialize SSE event to JSON");
+            }
+        } else {
+            log::warn!(
+                "EventBroadcaster is None, cannot send SSE event: {:?}",
+                event
+            );
         }
     }
 
@@ -492,7 +522,7 @@ impl<T: StorageProvider + 'static> ChatService<T> {
             .await?
             .ok_or_else(|| {
                 log::error!("Session not found: {}", self.conversation_id);
-                AppError::InternalError(anyhow::anyhow!("Session not found"))
+                AppError::NotFound("Session".to_string())
             })?;
 
         log::info!("Context loaded successfully");
@@ -682,22 +712,51 @@ impl<T: StorageProvider + 'static> ChatService<T> {
                                             {
                                                 id
                                             } else {
-                                                let (message_id, _) = {
+                                                let message_id = {
                                                     let mut ctx = context.write().await;
-                                                    // begin_streaming_response already handles state transition
-                                                    let result = ctx.begin_streaming_response();
+                                                    // Use begin_streaming_llm_response to create StreamingResponse message
+                                                    let message_id = ctx
+                                                        .begin_streaming_llm_response(Some(
+                                                            llm_request.prepared.model_id.clone(),
+                                                        ));
                                                     log::info!(
-                                                        "FSM: AwaitingLLMResponse -> StreamingLLMResponse"
+                                                        "FSM: AwaitingLLMResponse -> StreamingLLMResponse (with rich streaming)"
                                                     );
-                                                    result
+                                                    message_id
                                                 };
                                                 assistant_message_id = Some(message_id);
+
+                                                // Send MessageCreated event
+                                                self.send_sse_event(
+                                                    crate::controllers::context_controller::SignalEvent::MessageCreated {
+                                                        message_id: message_id.to_string(),
+                                                        role: "assistant".to_string(),
+                                                    }
+                                                ).await;
+
                                                 message_id
                                             };
 
-                                            let mut ctx = context.write().await;
-                                            // apply_streaming_delta already updates state, no need for manual event
-                                            ctx.apply_streaming_delta(message_id, content.clone());
+                                            let sequence = {
+                                                let mut ctx = context.write().await;
+                                                // Use append_streaming_chunk to add chunks with sequence tracking
+                                                ctx.append_streaming_chunk(
+                                                    message_id,
+                                                    content.clone(),
+                                                )
+                                            };
+
+                                            // Send ContentDelta event (only if sequence is available)
+                                            if let Some(seq) = sequence {
+                                                self.send_sse_event(
+                                                    crate::controllers::context_controller::SignalEvent::ContentDelta {
+                                                        context_id: self.conversation_id.to_string(),
+                                                        message_id: message_id.to_string(),
+                                                        current_sequence: seq,
+                                                        timestamp: chrono::Utc::now().to_rfc3339(),
+                                                    }
+                                                ).await;
+                                            }
                                         }
                                     }
                                 }
@@ -729,21 +788,37 @@ impl<T: StorageProvider + 'static> ChatService<T> {
                 }
 
                 if let Some(message_id) = assistant_message_id {
-                    let final_text = {
+                    let (final_text, final_sequence) = {
                         let mut ctx = context.write().await;
-                        // finish_streaming_response already handles state transitions:
-                        // StreamingLLMResponse -> ProcessingLLMResponse -> Idle
+                        // Finalize the streaming response with rich chunk tracking
+                        ctx.finalize_streaming_response(message_id, Some("stop".to_string()), None);
+                        // Also call finish_streaming_response for FSM state transitions
                         let _ = ctx.finish_streaming_response(message_id);
                         log::info!("FSM: Finished streaming response");
 
-                        ctx.message_pool.get(&message_id).map(|node| {
+                        let text = ctx.message_pool.get(&message_id).map(|node| {
                             node.message
                                 .content
                                 .iter()
                                 .filter_map(|part| part.text_content())
                                 .collect::<String>()
-                        })
+                        });
+
+                        let sequence = ctx.get_streaming_sequence(message_id).unwrap_or(0);
+
+                        (text, sequence)
                     };
+
+                    // Send MessageCompleted event
+                    self.send_sse_event(
+                        crate::controllers::context_controller::SignalEvent::MessageCompleted {
+                            context_id: self.conversation_id.to_string(),
+                            message_id: message_id.to_string(),
+                            final_sequence,
+                            timestamp: chrono::Utc::now().to_rfc3339(),
+                        },
+                    )
+                    .await;
 
                     if let Some(text) = final_text {
                         full_text = text;
@@ -865,7 +940,7 @@ impl<T: StorageProvider + 'static> ChatService<T> {
             .await?
             .ok_or_else(|| {
                 log::error!("Session not found: {}", self.conversation_id);
-                AppError::InternalError(anyhow::anyhow!("Session not found"))
+                AppError::NotFound("Session".to_string())
             })?;
 
         log::info!("Context loaded successfully");
@@ -1100,7 +1175,7 @@ impl<T: StorageProvider + 'static> ChatService<T> {
             .session_manager
             .load_context(self.conversation_id, None)
             .await?
-            .ok_or_else(|| AppError::InternalError(anyhow::anyhow!("Session not found")))?;
+            .ok_or_else(|| AppError::NotFound("Session".to_string()))?;
 
         // Continue the agent loop with the approved tool call
         let llm_response = format!("Approved tool call: {}", tool_call.tool);
@@ -1117,7 +1192,7 @@ impl<T: StorageProvider + 'static> ChatService<T> {
             .session_manager
             .load_context(self.conversation_id, None)
             .await?
-            .ok_or_else(|| AppError::InternalError(anyhow::anyhow!("Session not found")))?;
+            .ok_or_else(|| AppError::NotFound("Session".to_string()))?;
         let final_message = {
             let ctx = context.write().await;
             ctx.get_active_branch()

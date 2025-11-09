@@ -4,6 +4,7 @@ pub mod approval_manager;
 pub mod chat_service;
 pub mod context_tool_runtime;
 pub mod copilot_stream_handler;
+pub mod event_broadcaster;
 pub mod llm_request_builder;
 pub mod llm_utils;
 pub mod session_manager;
@@ -17,6 +18,7 @@ pub mod workflow_service;
 
 pub use agent_service::{AgentService, ToolCall};
 pub use chat_service::ChatService;
+pub use event_broadcaster::EventBroadcaster;
 pub use session_manager::ChatSessionManager;
 pub use system_prompt_enhancer::SystemPromptEnhancer;
 pub use user_preference_service::{UserPreferenceService, UserPreferenceUpdate, UserPreferences};
