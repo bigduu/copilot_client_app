@@ -785,7 +785,7 @@ impl ChatContext {
             .execute_tool(self.id, &tool_name, arguments.clone(), request_id)
             .await
         {
-            Ok(result) => {
+            Ok(mut result) => {
                 updates.push(self.record_auto_loop_progress());
 
                 let mut execution_update = self.complete_tool_execution();
@@ -803,6 +803,13 @@ impl ChatContext {
                 updates.push(execution_update);
 
                 updates.push(self.complete_auto_loop());
+
+                // ✅ Set display_preference to Hidden for read_file and list_directory tools
+                if tool_name == "read_file" || tool_name == "list_directory" {
+                    if let Some(obj) = result.as_object_mut() {
+                        obj.insert("display_preference".to_string(), json!("Hidden"));
+                    }
+                }
 
                 let message_text = format_tool_output(&result);
                 let final_message = InternalMessage {
@@ -1212,6 +1219,7 @@ impl ChatContext {
     /// - ValidationProcessor: Always included to validate incoming messages
     /// - FileReferenceProcessor: Included if workspace_path is configured
     /// - ToolEnhancementProcessor: Included to inject tool definitions
+    /// - RoleContextProcessor: Injects current active agent role
     /// - SystemPromptProcessor: Included to assemble the final system prompt
     fn build_message_pipeline(&self) -> crate::pipeline::pipeline::MessagePipeline {
         use crate::pipeline::pipeline::MessagePipeline;
@@ -1229,15 +1237,16 @@ impl ChatContext {
             )));
         }
 
-        // 3. Tool Enhancement (inject tool definitions)
-        // TODO: Phase 2.x - Get tools from ToolRegistry
-        pipeline = pipeline.register(Box::new(tool_enhancement::ToolEnhancementProcessor::new()));
-
-        // 4. System Prompt Assembly (always last)
+        // 3. System Prompt Assembly (always last)
+        // Uses internal enhancer pipeline for modular prompt construction:
+        // - RoleContextEnhancer: Injects current active agent role
+        // - ToolEnhancementEnhancer: Injects tool definitions
+        // - MermaidEnhancementEnhancer: Adds Mermaid diagram guidelines (if enabled)
+        // - ContextHintsEnhancer: Adds context hints (file and tool counts)
         // TODO: Phase 2.x - Get actual system prompt content from SystemPromptService
         let base_prompt = "You are a helpful AI assistant.".to_string();
         pipeline = pipeline.register(Box::new(
-            system_prompt::SystemPromptProcessor::with_base_prompt(base_prompt),
+            system_prompt::SystemPromptProcessor::with_default_enhancers(base_prompt),
         ));
 
         pipeline

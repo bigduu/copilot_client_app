@@ -27,6 +27,7 @@
 //! ```
 
 pub mod context;
+pub mod enhancers;
 pub mod error;
 pub mod pipeline;
 pub mod processors;

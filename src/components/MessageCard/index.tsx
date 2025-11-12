@@ -24,6 +24,7 @@ import {
   isAssistantToolCallMessage,
   isAssistantToolResultMessage,
   isWorkflowResultMessage,
+  isUserFileReferenceMessage,
   Message,
   PlanMessage,
   QuestionMessage,
@@ -33,6 +34,7 @@ import QuestionMessageCard from "../QuestionMessageCard";
 import { useBackendContext } from "../../hooks/useBackendContext";
 import ToolResultCard from "../ToolResultCard";
 import WorkflowResultCard from "../WorkflowResultCard";
+import FileReferenceCard from "../FileReferenceCard";
 import { format } from "date-fns";
 
 const { Text } = Typography;
@@ -235,7 +237,14 @@ const MessageCardComponent: React.FC<MessageCardProps> = ({
 
   // Memoize expensive operations for better performance
   const messageText = useMemo(() => {
-    if (message.role === "system" || message.role === "user") {
+    if (message.role === "system") {
+      return typeof message.content === "string" ? message.content : "";
+    }
+    if (message.role === "user") {
+      if ("type" in message && message.type === "file_reference") {
+        // File reference messages are handled by FileReferenceCard
+        return "";
+      }
       return typeof message.content === "string" ? message.content : "";
     }
     if (message.role === "assistant") {
@@ -259,13 +268,13 @@ const MessageCardComponent: React.FC<MessageCardProps> = ({
 
   const isUserToolCall = useMemo(
     () => role === "user" && messageText.startsWith("/"),
-    [role, messageText],
+    [role, messageText]
   );
 
   // Create markdown components with current theme
   const markdownComponents = useMemo(
     () => createMarkdownComponents(token),
-    [token],
+    [token]
   );
 
   // Standardized plugin configuration for consistency
@@ -480,6 +489,25 @@ const MessageCardComponent: React.FC<MessageCardProps> = ({
     );
   }
 
+  // Route to FileReferenceCard for file reference messages
+  if (isUserFileReferenceMessage(message)) {
+    return (
+      <div
+        style={{
+          width: "100%",
+          display: "flex",
+          justifyContent: "flex-end", // Align to right for user messages
+        }}
+      >
+        <FileReferenceCard
+          paths={message.paths}
+          displayText={message.displayText}
+          timestamp={formattedTimestamp ?? undefined}
+        />
+      </div>
+    );
+  }
+
   // Default rendering for text messages
   return (
     <div onContextMenu={(e) => handleMouseUp(e)} style={{ width: "100%" }}>
@@ -562,10 +590,9 @@ const MessageCardComponent: React.FC<MessageCardProps> = ({
                     !toolResultErrorMessage &&
                     toolResultContent.trim().length === 0;
 
+                  // ✅ Completely hide tool results with Hidden preference
                   if (message.result.display_preference === "Hidden") {
-                    return (
-                      <Text italic>Tool executed: {message.toolName}</Text>
-                    );
+                    return null;
                   }
 
                   return (

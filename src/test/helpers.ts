@@ -3,31 +3,39 @@
  * Utilities for creating test data and mocking API responses
  */
 
-import { vi } from 'vitest';
-import type { ChatContextDTO, MessageDTO } from '../services/BackendContextService';
+import { vi } from "vitest";
+import type {
+  ChatContextDTO,
+  MessageDTO,
+} from "../services/BackendContextService";
 
 /**
  * Create a mock ChatContextDTO for testing
  */
-export function createMockContext(overrides?: Partial<ChatContextDTO>): ChatContextDTO {
+export function createMockContext(
+  overrides?: Partial<ChatContextDTO>
+): ChatContextDTO {
   return {
-    id: 'test-context-id',
+    id: "test-context-id",
     config: {
-      model_id: 'gpt-4',
-      mode: 'general',
+      model_id: "gpt-4",
+      mode: "general",
       parameters: {},
-      agent_role: 'actor',
-      workspace_path: '/test/workspace',
+      agent_role: "actor",
+      workspace_path: "/test/workspace",
+      mermaid_diagrams: true,
     },
-    current_state: 'idle',
-    active_branch_name: 'main',
+    current_state: "idle",
+    active_branch_name: "main",
     message_count: 0,
     branches: [
       {
-        name: 'main',
+        name: "main",
         message_count: 0,
       },
     ],
+    title: undefined,
+    auto_generate_title: true,
     ...overrides,
   };
 }
@@ -37,15 +45,15 @@ export function createMockContext(overrides?: Partial<ChatContextDTO>): ChatCont
  */
 export function createMockMessage(overrides?: Partial<MessageDTO>): MessageDTO {
   return {
-    id: 'test-message-id',
-    role: 'user',
+    id: "test-message-id",
+    role: "user",
     content: [
       {
-        type: 'text',
-        text: 'Test message',
+        type: "text",
+        text: "Test message",
       },
     ],
-    message_type: 'text',
+    message_type: "text",
     ...overrides,
   };
 }
@@ -55,29 +63,32 @@ export function createMockMessage(overrides?: Partial<MessageDTO>): MessageDTO {
  */
 export function createMockAssistantMessage(text: string): MessageDTO {
   return {
-    id: 'assistant-message-id',
-    role: 'assistant',
+    id: "assistant-message-id",
+    role: "assistant",
     content: [
       {
-        type: 'text',
+        type: "text",
         text,
       },
     ],
-    message_type: 'text',
+    message_type: "text",
   };
 }
 
 /**
  * Mock fetch response helper
  */
-export function mockFetchResponse(data: any, options?: { ok?: boolean; status?: number }) {
+export function mockFetchResponse(
+  data: any,
+  options?: { ok?: boolean; status?: number }
+) {
   return {
     ok: options?.ok ?? true,
     status: options?.status ?? 200,
     json: async () => data,
     text: async () => JSON.stringify(data),
     headers: new Headers({
-      'content-type': 'application/json',
+      "content-type": "application/json",
     }),
   } as Response;
 }
@@ -93,7 +104,7 @@ export function mockFetchError(message: string, status: number = 500) {
     json: async () => ({ error: message }),
     text: async () => JSON.stringify({ error: message }),
     headers: new Headers({
-      'content-type': 'application/json',
+      "content-type": "application/json",
     }),
   } as Response;
 }
@@ -105,7 +116,7 @@ export function createMockEventSource() {
   const listeners = new Map<string, Set<EventListener>>();
 
   const mockEventSource = {
-    url: '',
+    url: "",
     readyState: 1, // OPEN
     onmessage: null as ((event: MessageEvent) => void) | null,
     onerror: null as ((event: Event) => void) | null,
@@ -158,7 +169,7 @@ export async function waitFor(
 
   while (!condition()) {
     if (Date.now() - startTime > timeout) {
-      throw new Error('Timeout waiting for condition');
+      throw new Error("Timeout waiting for condition");
     }
     await new Promise((resolve) => setTimeout(resolve, interval));
   }
@@ -170,24 +181,24 @@ export async function waitFor(
 export function createMockSSEEvents() {
   return {
     stateChanged: (state: string) => ({
-      event_type: 'state_changed',
+      event_type: "state_changed",
       new_state: state,
       timestamp: Date.now(),
     }),
     contentDelta: (messageId: string, sequence: number) => ({
-      event_type: 'content_delta',
+      event_type: "content_delta",
       message_id: messageId,
       sequence,
       timestamp: Date.now(),
     }),
     messageCompleted: (messageId: string, finalSequence: number) => ({
-      event_type: 'message_completed',
+      event_type: "message_completed",
       message_id: messageId,
       final_sequence: finalSequence,
       timestamp: Date.now(),
     }),
     heartbeat: () => ({
-      event_type: 'heartbeat',
+      event_type: "heartbeat",
       timestamp: Date.now(),
     }),
   };
@@ -198,8 +209,8 @@ export function createMockSSEEvents() {
  */
 export function createMockStreamingChunksResponse(chunks: string[]) {
   return {
-    context_id: 'test-context-id',
-    message_id: 'test-message-id',
+    context_id: "test-context-id",
+    message_id: "test-message-id",
     chunks: chunks.map((delta, index) => ({
       sequence: index,
       delta,
@@ -208,4 +219,3 @@ export function createMockStreamingChunksResponse(chunks: string[]) {
     has_more: false,
   };
 }
-

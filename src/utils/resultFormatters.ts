@@ -17,6 +17,27 @@ const DEFAULT_COLLAPSE_OPTIONS: Required<CollapseOptions> = {
 };
 
 /**
+ * Recursively process JSON values to convert escaped newlines to actual newlines
+ */
+const unescapeJsonStrings = (value: unknown): unknown => {
+  if (typeof value === "string") {
+    // Replace literal \n with actual newlines
+    return value.replace(/\\n/g, "\n").replace(/\\t/g, "\t");
+  }
+  if (Array.isArray(value)) {
+    return value.map(unescapeJsonStrings);
+  }
+  if (value !== null && typeof value === "object") {
+    const result: Record<string, unknown> = {};
+    for (const [key, val] of Object.entries(value)) {
+      result[key] = unescapeJsonStrings(val);
+    }
+    return result;
+  }
+  return value;
+};
+
+/**
  * Try to parse JSON content and return formatted output with metadata.
  */
 export const formatResultContent = (content: string): FormattedResult => {
@@ -48,10 +69,39 @@ export const formatResultContent = (content: string): FormattedResult => {
 
   try {
     const parsed = JSON.parse(trimmed);
+
+    // Check if this is a simple object with a single "content" or "result" field
+    // that contains the actual text content
+    if (
+      parsed &&
+      typeof parsed === "object" &&
+      !Array.isArray(parsed) &&
+      Object.keys(parsed).length === 1
+    ) {
+      const key = Object.keys(parsed)[0];
+      if (
+        (key === "content" || key === "result" || key === "output") &&
+        typeof parsed[key] === "string"
+      ) {
+        // This is likely a wrapped text content, extract and unescape it
+        const textContent = parsed[key] as string;
+        const unescaped = textContent
+          .replace(/\\n/g, "\n")
+          .replace(/\\t/g, "\t");
+        return {
+          isJson: false, // Treat as plain text for better display
+          formattedText: unescaped,
+          parsedJson: parsed,
+        };
+      }
+    }
+
+    // For complex JSON, unescape strings recursively
+    const unescaped = unescapeJsonStrings(parsed);
     return {
       isJson: true,
-      formattedText: JSON.stringify(parsed, null, 2),
-      parsedJson: parsed,
+      formattedText: JSON.stringify(unescaped, null, 2),
+      parsedJson: unescaped,
     };
   } catch (error) {
     // Fall back to original content if parsing fails
@@ -67,7 +117,7 @@ export const formatResultContent = (content: string): FormattedResult => {
  */
 export const shouldCollapseContent = (
   content: string,
-  options: CollapseOptions = {},
+  options: CollapseOptions = {}
 ): boolean => {
   const config: Required<CollapseOptions> = {
     ...DEFAULT_COLLAPSE_OPTIONS,
@@ -91,7 +141,7 @@ export const shouldCollapseContent = (
  */
 export const createContentPreview = (
   content: string,
-  maxLength = 320,
+  maxLength = 320
 ): { preview: string; isTruncated: boolean } => {
   if (!content) {
     return { preview: "", isTruncated: false };

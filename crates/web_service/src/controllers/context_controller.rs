@@ -1,12 +1,11 @@
 use crate::{
     dto::{get_branch_messages, ChatContextDTO, ContentPartDTO},
-    error::AppError,
     middleware::extract_trace_id,
     models::{MessagePayload, SendMessageRequest, SendMessageRequestBody},
     server::AppState,
 };
 use actix_web::{
-    delete, get, post, put,
+    delete, get, patch, post, put,
     web::{Data, Json, Path, Query},
     HttpRequest, HttpResponse, ResponseError, Result,
 };
@@ -50,6 +49,11 @@ pub struct ContextSummary {
     pub current_state: String,
     pub active_branch_name: String,
     pub message_count: usize,
+    /// Optional title for this context. If None, frontend should display a default title.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub title: Option<String>,
+    /// Whether to automatically generate a title after the first AI response.
+    pub auto_generate_title: bool,
 }
 
 #[derive(Serialize, Debug)]
@@ -95,6 +99,14 @@ pub struct GenerateTitleResponse {
     pub title: String,
 }
 
+#[derive(Deserialize, Debug)]
+pub struct UpdateContextConfigRequest {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub auto_generate_title: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub mermaid_diagrams: Option<bool>,
+}
+
 /// Lightweight context metadata response (for Signal-Pull architecture)
 #[derive(Serialize, Debug)]
 pub struct ContextMetadataResponse {
@@ -106,6 +118,13 @@ pub struct ContextMetadataResponse {
     pub mode: String,
     pub system_prompt_id: Option<String>,
     pub workspace_path: Option<String>,
+    /// Optional title for this context. If None, frontend should display a default title.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub title: Option<String>,
+    /// Whether to automatically generate a title after the first AI response.
+    pub auto_generate_title: bool,
+    /// Whether Mermaid diagram enhancement is enabled for this context.
+    pub mermaid_diagrams: bool,
 }
 
 /// Response for streaming chunks query
@@ -382,6 +401,9 @@ pub async fn get_context_metadata(
                     mode: ctx.config.mode.clone(),
                     system_prompt_id: ctx.config.system_prompt_id.clone(),
                     workspace_path: ctx.config.workspace_path.clone(),
+                    title: ctx.title.clone(),
+                    auto_generate_title: ctx.auto_generate_title,
+                    mermaid_diagrams: ctx.config.mermaid_diagrams,
                 }
             };
 
@@ -745,6 +767,13 @@ pub async fn generate_context_title(
 
             let sanitized = sanitize_title(&raw_title, max_length, &fallback_title);
 
+            // Save the generated title to the context
+            {
+                let mut ctx = context.write().await;
+                ctx.title = Some(sanitized.clone());
+                ctx.mark_dirty(); // Trigger auto-save
+            }
+
             Ok(HttpResponse::Ok().json(GenerateTitleResponse { title: sanitized }))
         }
         Ok(None) => Ok(HttpResponse::NotFound().json(serde_json::json!({
@@ -753,6 +782,64 @@ pub async fn generate_context_title(
         Err(err) => {
             error!(
                 "Failed to load context {} for title generation: {}",
+                context_id, err
+            );
+            Ok(HttpResponse::InternalServerError().json(serde_json::json!({
+                "error": "Failed to load context"
+            })))
+        }
+    }
+}
+
+/// Update context configuration (e.g., auto_generate_title)
+#[patch("/contexts/{id}/config")]
+pub async fn update_context_config(
+    app_state: Data<AppState>,
+    path: Path<Uuid>,
+    req: Json<UpdateContextConfigRequest>,
+    http_req: HttpRequest,
+) -> Result<HttpResponse> {
+    let context_id = path.into_inner();
+    let trace_id = extract_trace_id(&http_req);
+
+    tracing::info!(
+        context_id = %context_id,
+        auto_generate_title = ?req.auto_generate_title,
+        mermaid_diagrams = ?req.mermaid_diagrams,
+        "Updating context configuration"
+    );
+
+    match app_state
+        .session_manager
+        .load_context(context_id, trace_id)
+        .await
+    {
+        Ok(Some(context)) => {
+            // Update configuration in a write lock
+            {
+                let mut ctx = context.write().await;
+
+                if let Some(auto_generate) = req.auto_generate_title {
+                    ctx.auto_generate_title = auto_generate;
+                    ctx.mark_dirty(); // Trigger auto-save
+                }
+
+                if let Some(mermaid_enabled) = req.mermaid_diagrams {
+                    ctx.config.mermaid_diagrams = mermaid_enabled;
+                    ctx.mark_dirty(); // Trigger auto-save
+                }
+            }
+
+            Ok(HttpResponse::Ok().json(serde_json::json!({
+                "message": "Context configuration updated successfully"
+            })))
+        }
+        Ok(None) => Ok(HttpResponse::NotFound().json(serde_json::json!({
+            "error": "Context not found"
+        }))),
+        Err(err) => {
+            error!(
+                "Failed to load context {} for config update: {}",
                 context_id, err
             );
             Ok(HttpResponse::InternalServerError().json(serde_json::json!({
@@ -867,6 +954,8 @@ pub async fn list_contexts(
                         current_state: format!("{:?}", ctx.current_state),
                         active_branch_name: ctx.active_branch_name.clone(),
                         message_count: ctx.message_pool.len(),
+                        title: ctx.title.clone(),
+                        auto_generate_title: ctx.auto_generate_title,
                     }
                 } else {
                     ContextSummary {
@@ -880,6 +969,8 @@ pub async fn list_contexts(
                         current_state: "Unknown".to_string(),
                         active_branch_name: "main".to_string(),
                         message_count: 0,
+                        title: None,
+                        auto_generate_title: true,
                     }
                 };
 
@@ -1242,101 +1333,6 @@ pub async fn subscribe_context_events(
 /// that triggers LLM responses, tool execution, and full conversation flow.
 ///
 /// This endpoint will be removed in a future version.
-#[deprecated(
-    since = "0.2.0",
-    note = "Use POST /contexts/{id}/actions/send_message instead. This endpoint does not trigger FSM."
-)]
-#[post("/contexts/{id}/messages")]
-pub async fn add_context_message(
-    path: Path<Uuid>,
-    req: Json<AddMessageRequest>,
-    app_state: Data<AppState>,
-    http_req: HttpRequest,
-) -> Result<HttpResponse> {
-    let context_id = path.into_inner();
-    let branch_name = req.branch.clone().unwrap_or_else(|| "main".to_string());
-    let trace_id = extract_trace_id(&http_req);
-
-    info!("=== add_context_message (OLD CRUD ENDPOINT) CALLED ===");
-    info!("Context ID: {}", context_id);
-    info!("Message role: {}, content: {}", req.role, req.content);
-    info!("Branch: {}", branch_name);
-    log::warn!("⚠️  WARNING: This endpoint does NOT trigger FSM!");
-    log::warn!("⚠️  No assistant response will be generated!");
-    log::warn!(
-        "⚠️  Use POST /contexts/{}/actions/send_message instead!",
-        context_id
-    );
-
-    // Parse role
-    let role = match req.role.as_str() {
-        "system" => context_manager::structs::message::Role::System,
-        "user" => context_manager::structs::message::Role::User,
-        "assistant" => context_manager::structs::message::Role::Assistant,
-        "tool" => context_manager::structs::message::Role::Tool,
-        _ => {
-            return Ok(HttpResponse::BadRequest().json(serde_json::json!({
-                "error": "Invalid role. Must be 'system', 'user', 'assistant', or 'tool'"
-            })))
-        }
-    };
-
-    match app_state
-        .session_manager
-        .load_context(context_id, trace_id)
-        .await
-    {
-        Ok(Some(context)) => {
-            // Create internal message
-            let message = context_manager::structs::message::InternalMessage {
-                role,
-                content: vec![context_manager::structs::message::ContentPart::Text {
-                    text: req.content.clone(),
-                }],
-                ..Default::default()
-            };
-
-            // Add message and save in a single write lock scope
-            let result = {
-                let mut ctx_guard = context.write().await;
-                let _ = ctx_guard.add_message_to_branch(&branch_name, message);
-                // Save context (add_message_to_branch already marks as dirty)
-                app_state
-                    .session_manager
-                    .save_context(&mut *ctx_guard)
-                    .await
-            }; // Lock released here
-
-            match result {
-                Ok(_) => {
-                    info!(
-                        "Added message to context: {}, branch: {}",
-                        context_id, branch_name
-                    );
-                    Ok(HttpResponse::Ok().json(serde_json::json!({
-                        "message": "Message added successfully"
-                    })))
-                }
-                Err(e) => {
-                    error!("Failed to save context: {}", e);
-                    Ok(HttpResponse::InternalServerError().json(serde_json::json!({
-                        "error": format!("Failed to save context: {}", e)
-                    })))
-                }
-            }
-        }
-        Ok(None) => Ok(HttpResponse::NotFound().json(serde_json::json!({
-            "error": "Context not found"
-        }))),
-        Err(e) => {
-            error!("Failed to load context: {}", e);
-            Ok(HttpResponse::InternalServerError().json(serde_json::json!({
-                "error": format!("Failed to load context: {}", e)
-            })))
-        }
-    }
-}
-
 #[derive(Deserialize, Debug)]
 pub struct ApproveToolsRequest {
     pub tool_call_ids: Vec<String>,
@@ -1478,7 +1474,6 @@ pub async fn send_message_action(
         context_id,
         app_state.copilot_client.clone(),
         app_state.tool_executor.clone(),
-        app_state.system_prompt_enhancer.clone(),
         app_state.system_prompt_service.clone(),
         app_state.approval_manager.clone(),
         app_state.workflow_service.clone(),
@@ -1517,6 +1512,14 @@ pub async fn send_message_action(
                         };
                         (dto, status)
                     }; // Lock released here
+
+                    // Trigger auto title generation asynchronously (don't wait for it)
+                    let app_state_clone = app_state.clone();
+                    let trace_id_clone = trace_id.clone();
+                    tokio::spawn(async move {
+                        auto_generate_title_if_needed(&app_state_clone, context_id, trace_id_clone)
+                            .await;
+                    });
 
                     Ok(HttpResponse::Ok().json(ActionResponse {
                         context: dto,
@@ -1567,7 +1570,6 @@ pub async fn approve_tools_action(
         context_id,
         app_state.copilot_client.clone(),
         app_state.tool_executor.clone(),
-        app_state.system_prompt_enhancer.clone(),
         app_state.system_prompt_service.clone(),
         app_state.approval_manager.clone(),
         app_state.workflow_service.clone(),
@@ -1783,10 +1785,209 @@ fn payload_type(payload: &MessagePayload) -> &'static str {
 fn payload_preview(payload: &MessagePayload) -> String {
     match payload {
         MessagePayload::Text { content, .. } => content.chars().take(120).collect(),
-        MessagePayload::FileReference { path, .. } => format!("file_reference: {}", path),
+        MessagePayload::FileReference { paths, .. } => format!("file_reference: {:?}", paths),
         MessagePayload::Workflow { workflow, .. } => format!("workflow: {}", workflow),
         MessagePayload::ToolResult { tool_name, .. } => format!("tool_result: {}", tool_name),
     }
+}
+
+/// Check if auto-generation of title is needed and trigger it if necessary.
+/// This should be called after the first AI response is completed.
+async fn auto_generate_title_if_needed(
+    app_state: &AppState,
+    context_id: Uuid,
+    trace_id: Option<String>,
+) {
+    // Load the context to check if auto-generation is needed
+    let context = match app_state
+        .session_manager
+        .load_context(context_id, trace_id.clone())
+        .await
+    {
+        Ok(Some(ctx)) => ctx,
+        Ok(None) => {
+            tracing::warn!(
+                context_id = %context_id,
+                "Context not found for auto title generation"
+            );
+            return;
+        }
+        Err(err) => {
+            tracing::error!(
+                context_id = %context_id,
+                error = %err,
+                "Failed to load context for auto title generation"
+            );
+            return;
+        }
+    };
+
+    let (should_generate, model_id) = {
+        let ctx = context.read().await;
+
+        // Check if auto-generation is enabled and title is not already set
+        let should_generate = ctx.auto_generate_title && ctx.title.is_none();
+
+        // Check if there's at least one assistant message (first AI response completed)
+        let has_assistant_message = ctx
+            .message_pool
+            .values()
+            .any(|msg| matches!(msg.message.role, context_manager::Role::Assistant));
+
+        (
+            should_generate && has_assistant_message,
+            ctx.config.model_id.clone(),
+        )
+    };
+
+    if !should_generate {
+        return;
+    }
+
+    tracing::info!(
+        context_id = %context_id,
+        "Auto-generating title for context"
+    );
+
+    // Generate the title using the same logic as the manual endpoint
+    let (conversation_lines, fallback_title) = {
+        let ctx = context.read().await;
+        let mut lines: Vec<String> = Vec::new();
+        let branch_messages = get_branch_messages(&ctx, &ctx.active_branch_name);
+
+        for message in branch_messages.iter().filter(|msg| {
+            msg.role.eq_ignore_ascii_case("user") || msg.role.eq_ignore_ascii_case("assistant")
+        }) {
+            let mut text_parts = Vec::new();
+            for part in &message.content {
+                if let ContentPartDTO::Text { text } = part {
+                    if !text.trim().is_empty() {
+                        text_parts.push(text.trim());
+                    }
+                }
+            }
+
+            if text_parts.is_empty() {
+                continue;
+            }
+
+            let role_label = if message.role.eq_ignore_ascii_case("user") {
+                "User"
+            } else {
+                "Assistant"
+            };
+            lines.push(format!("{}: {}", role_label, text_parts.join("\n")));
+        }
+
+        // Limit to last 6 messages
+        if lines.len() > 6 {
+            let start = lines.len() - 6;
+            lines = lines.split_off(start);
+        }
+
+        (lines, "New Chat".to_string())
+    };
+
+    if conversation_lines.is_empty() {
+        return;
+    }
+
+    let conversation_input = conversation_lines.join("\n");
+    let max_length = 60;
+    let instructions = format!(
+        "You generate concise, descriptive chat titles. Respond with Title Case text, without quotes or trailing punctuation. Maximum length: {} characters. If there is not enough context, respond with '{}'.",
+        max_length, fallback_title
+    );
+
+    let mut request = ChatCompletionRequest::default();
+    request.model = model_id;
+    request.stream = Some(false);
+    request.messages = vec![
+        ChatMessage {
+            role: ClientRole::System,
+            content: Content::Text(instructions),
+            tool_calls: None,
+            tool_call_id: None,
+        },
+        ChatMessage {
+            role: ClientRole::User,
+            content: Content::Text(conversation_input),
+            tool_calls: None,
+            tool_call_id: None,
+        },
+    ];
+
+    let response = match app_state
+        .copilot_client
+        .send_chat_completion_request(request)
+        .await
+    {
+        Ok(resp) => resp,
+        Err(err) => {
+            tracing::error!(
+                context_id = %context_id,
+                error = %err,
+                "Failed to request auto title generation"
+            );
+            return;
+        }
+    };
+
+    let status = response.status();
+    let body = match response.bytes().await {
+        Ok(bytes) => bytes,
+        Err(err) => {
+            tracing::error!(
+                context_id = %context_id,
+                error = %err,
+                "Failed to read auto title generation response"
+            );
+            return;
+        }
+    };
+
+    if !status.is_success() {
+        tracing::error!(
+            context_id = %context_id,
+            status = %status,
+            body = %String::from_utf8_lossy(&body),
+            "Auto title generation request failed"
+        );
+        return;
+    }
+
+    let completion: ChatCompletionResponse = match serde_json::from_slice(&body) {
+        Ok(parsed) => parsed,
+        Err(err) => {
+            tracing::error!(
+                context_id = %context_id,
+                error = %err,
+                "Failed to parse auto title generation response"
+            );
+            return;
+        }
+    };
+
+    let raw_title = completion
+        .choices
+        .first()
+        .map(|choice| extract_message_text(&choice.message.content))
+        .unwrap_or_default();
+
+    let sanitized = sanitize_title(&raw_title, max_length, &fallback_title);
+
+    // Save the generated title to the context
+    {
+        let mut ctx = context.write().await;
+        ctx.title = Some(sanitized.clone());
+        ctx.mark_dirty(); // Trigger auto-save
+    }
+
+    tracing::info!(
+        context_id = %context_id,
+        title = %sanitized,
+        "Auto-generated title for context"
+    );
 }
 
 pub fn config(cfg: &mut actix_web::web::ServiceConfig) {
@@ -1794,6 +1995,7 @@ pub fn config(cfg: &mut actix_web::web::ServiceConfig) {
         .service(get_context)
         .service(get_context_metadata) // Signal-Pull: lightweight metadata
         .service(update_context)
+        .service(update_context_config) // Update context configuration (auto_generate_title, etc.)
         .service(delete_context)
         .service(list_contexts)
         .service(generate_context_title)
@@ -1801,7 +2003,6 @@ pub fn config(cfg: &mut actix_web::web::ServiceConfig) {
         .service(get_message_content)
         .service(get_streaming_chunks) // Signal-Pull: incremental streaming chunks
         .service(subscribe_context_events) // Signal-Pull: SSE event stream
-        .service(add_context_message)
         .service(approve_context_tools)
         // New action-based endpoints
         .service(send_message_action)

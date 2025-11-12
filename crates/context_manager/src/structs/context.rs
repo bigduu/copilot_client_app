@@ -14,6 +14,14 @@ pub struct ChatContext {
     pub parent_id: Option<Uuid>,
     pub config: ChatConfig,
 
+    /// Optional title for this context. If None, frontend should display a default title.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub title: Option<String>,
+
+    /// Whether to automatically generate a title after the first AI response.
+    #[serde(default = "default_auto_generate_title")]
+    pub auto_generate_title: bool,
+
     /// The single source of truth for all message data in this context.
     /// Provides O(1) lookup performance for any message by its ID.
     pub message_pool: HashMap<Uuid, MessageNode>,
@@ -45,6 +53,10 @@ pub struct ChatContext {
     pub stream_sequences: HashMap<Uuid, u64>,
 }
 
+const fn default_auto_generate_title() -> bool {
+    true
+}
+
 impl ChatContext {
     pub fn new(id: Uuid, model_id: String, mode: String) -> Self {
         tracing::debug!(
@@ -68,7 +80,10 @@ impl ChatContext {
                 system_prompt_id: None,
                 agent_role: AgentRole::default(),
                 workspace_path: None,
+                mermaid_diagrams: true, // Default to enabled
             },
+            title: None,
+            auto_generate_title: true,
             message_pool: HashMap::new(),
             branches,
             active_branch_name: "main".to_string(),
@@ -96,6 +111,13 @@ pub struct ChatConfig {
     /// Workspace root path for file references
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub workspace_path: Option<String>,
+    /// Enable Mermaid diagrams enhancement in system prompt
+    #[serde(default = "default_mermaid_diagrams")]
+    pub mermaid_diagrams: bool,
+}
+
+fn default_mermaid_diagrams() -> bool {
+    true
 }
 
 impl ChatConfig {
@@ -126,30 +148,30 @@ impl ChatContext {
     pub fn tool_approval_policy(&self) -> &ToolApprovalPolicy {
         self.tool_execution.policy()
     }
-    
+
     // Tool timeout configuration
     pub fn set_tool_timeout_config(&mut self, config: crate::ToolTimeoutConfig) {
         self.tool_execution.set_timeout_config(config);
     }
-    
+
     pub fn tool_timeout_config(&self) -> &crate::ToolTimeoutConfig {
         self.tool_execution.timeout_config()
     }
-    
+
     // Tool safety configuration
     pub fn set_tool_safety_config(&mut self, config: crate::ToolSafetyConfig) {
         self.tool_execution.set_safety_config(config);
     }
-    
+
     pub fn tool_safety_config(&self) -> &crate::ToolSafetyConfig {
         self.tool_execution.safety_config()
     }
-    
+
     // Tool execution context accessors
     pub fn tool_execution_context(&self) -> &crate::ToolExecutionContext {
         &self.tool_execution
     }
-    
+
     pub fn tool_execution_context_mut(&mut self) -> &mut crate::ToolExecutionContext {
         &mut self.tool_execution
     }

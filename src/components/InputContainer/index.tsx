@@ -90,7 +90,7 @@ export const InputContainer: React.FC<InputContainerProps> = ({
   const [referenceText, setReferenceText] = useState<string | null>(null);
   const [attachments, setAttachments] = useState<ProcessedFile[]>([]);
   const [workspaceFiles, setWorkspaceFiles] = useState<WorkspaceFileEntry[]>(
-    [],
+    []
   );
   const [isWorkspaceModalVisible, setIsWorkspaceModalVisible] = useState(false);
   const [workspacePathInput, setWorkspacePathInput] = useState("");
@@ -148,29 +148,29 @@ export const InputContainer: React.FC<InputContainerProps> = ({
     recordEntry(composedMessage);
 
     // Check if message contains file references (@filename)
-    const fileRefMatches = Array.from(
-      composedMessage.matchAll(/@([^\s]+)/g),
-    );
+    const fileRefMatches = Array.from(composedMessage.matchAll(/@([^\s]+)/g));
 
     if (fileRefMatches.length > 0 && fileReferences.size > 0) {
-      // For now, handle single file reference
-      // TODO: Support multiple file references in one message
-      const firstMatch = fileRefMatches[0];
-      const fileName = firstMatch[1];
-      const fileEntry = fileReferences.get(fileName);
+      // ✅ Collect all referenced files
+      const referencedFiles: WorkspaceFileEntry[] = [];
+      for (const match of fileRefMatches) {
+        const fileName = match[1];
+        const fileEntry = fileReferences.get(fileName);
+        if (fileEntry) {
+          referencedFiles.push(fileEntry);
+        }
+      }
 
-      if (fileEntry) {
-        // Send structured file reference message
+      if (referencedFiles.length > 0) {
+        // Send structured file reference message with multiple paths
         const structuredMessage = JSON.stringify({
-          type: "user_file_reference",
-          payload: {
-            path: fileEntry.path,
-            display_text: composedMessage,
-          },
+          type: "file_reference",
+          paths: referencedFiles.map((f) => f.path), // ✅ Array of paths
+          display_text: composedMessage,
         });
         sendMessage(structuredMessage, images);
       } else {
-        // Fallback to plain text if reference not found
+        // Fallback to plain text if no valid references found
         sendMessage(composedMessage, images);
       }
     } else {
@@ -222,7 +222,7 @@ export const InputContainer: React.FC<InputContainerProps> = ({
         setIsWorkspaceLoading(false);
       }
     },
-    [],
+    []
   );
 
   const handleFileReferenceChange = useCallback(
@@ -257,7 +257,7 @@ export const InputContainer: React.FC<InputContainerProps> = ({
         fetchWorkspaceFiles(currentChatId, workspacePath);
       }
     },
-    [currentChat, currentChatId, fetchWorkspaceFiles, workspaceFiles.length],
+    [currentChat, currentChatId, fetchWorkspaceFiles, workspaceFiles.length]
   );
 
   const handleWorkflowCommandChange = useCallback(
@@ -265,7 +265,7 @@ export const InputContainer: React.FC<InputContainerProps> = ({
       setShowWorkflowSelector(info.isTriggerActive);
       setWorkflowSearchText(info.isTriggerActive ? info.searchText : "");
     },
-    [],
+    []
   );
 
   const handleHistoryNavigate = useCallback(
@@ -276,7 +276,7 @@ export const InputContainer: React.FC<InputContainerProps> = ({
       }
       return result.value;
     },
-    [navigate],
+    [navigate]
   );
 
   // Handle workflow selection
@@ -332,7 +332,7 @@ export const InputContainer: React.FC<InputContainerProps> = ({
     console.log(
       "[InputContainer] Executing workflow:",
       selectedWorkflow.name,
-      parameters,
+      parameters
     );
     setShowParameterForm(false);
 
@@ -345,7 +345,7 @@ export const InputContainer: React.FC<InputContainerProps> = ({
 
       if (result.success) {
         messageApi.success(
-          `Workflow '${selectedWorkflow.name}' executed successfully`,
+          `Workflow '${selectedWorkflow.name}' executed successfully`
         );
         // TODO: Display WorkflowExecutionFeedback in chat
         // For now, we'll just show a success message
@@ -387,18 +387,18 @@ export const InputContainer: React.FC<InputContainerProps> = ({
             : ` ${remainder}`;
 
       setContent(`${before}@${file.name}${normalizedRemainder}`);
-      
+
       // Store the file reference mapping
       setFileReferences((prev) => {
         const newMap = new Map(prev);
         newMap.set(file.name, file);
         return newMap;
       });
-      
+
       setShowFileSelector(false);
       setFileSearchText("");
     },
-    [content],
+    [content]
   );
 
   const handleFileSelectorCancel = useCallback(() => {
@@ -423,7 +423,7 @@ export const InputContainer: React.FC<InputContainerProps> = ({
       try {
         const response = await backendServiceRef.setWorkspacePath(
           currentChatId,
-          trimmedPath,
+          trimmedPath
         );
         const normalizedPath = response.workspace_path || trimmedPath;
 
@@ -447,7 +447,7 @@ export const InputContainer: React.FC<InputContainerProps> = ({
         setIsSavingWorkspace(false);
       }
     },
-    [currentChat, currentChatId, fetchWorkspaceFiles, messageApi, updateChat],
+    [currentChat, currentChatId, fetchWorkspaceFiles, messageApi, updateChat]
   );
 
   const placeholder = useMemo(() => {

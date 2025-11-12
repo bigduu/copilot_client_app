@@ -10,7 +10,6 @@ use copilot_client::api::models::{
 };
 
 use crate::error::AppError;
-use crate::services::system_prompt_enhancer::SystemPromptEnhancer;
 use crate::services::system_prompt_service::SystemPromptService;
 
 #[derive(Clone, Debug)]
@@ -20,35 +19,60 @@ pub struct BuiltLlmRequest {
 }
 
 pub struct LlmRequestBuilder {
-    system_prompt_enhancer: Arc<SystemPromptEnhancer>,
     system_prompt_service: Arc<SystemPromptService>,
 }
 
 impl LlmRequestBuilder {
-    pub fn new(
-        system_prompt_enhancer: Arc<SystemPromptEnhancer>,
-        system_prompt_service: Arc<SystemPromptService>,
-    ) -> Self {
+    /// Create a new LlmRequestBuilder (Phase 2.0 - Pipeline-based)
+    ///
+    /// Note: SystemPromptEnhancer is no longer used. System prompt enhancement
+    /// is now handled by the Pipeline architecture in ChatContext.
+    pub fn new(system_prompt_service: Arc<SystemPromptService>) -> Self {
         Self {
-            system_prompt_enhancer,
             system_prompt_service,
         }
     }
 
+    /// Build an LLM request using Pipeline-enhanced system prompt (Phase 2.0)
+    ///
+    /// This method:
+    /// 1. Calls ChatContext.prepare_llm_request_async() to get Pipeline-enhanced prompt
+    /// 2. Falls back to SystemPromptService if no enhanced prompt is available
+    /// 3. Converts messages to ChatCompletionRequest format
+    ///
+    /// # Arguments
+    /// * `context` - The ChatContext to build the request from
+    ///
+    /// # Returns
+    /// * `Ok(BuiltLlmRequest)` - The built request ready to send to LLM
+    /// * `Err(AppError)` - If building fails
     pub async fn build(
         &self,
         context: &Arc<RwLock<ChatContext>>,
     ) -> Result<BuiltLlmRequest, AppError> {
+        // Use Pipeline-enhanced prepare_llm_request_async (Phase 2.0)
         let prepared = {
-            let context_lock = context.read().await;
-            context_lock.prepare_llm_request()
+            let mut context_lock = context.write().await;
+            context_lock.prepare_llm_request_async().await
         };
 
-        let base_prompt = if let Some(prompt) = prepared.branch_system_prompt.as_ref() {
+        // Determine final system prompt
+        // Priority: Pipeline enhanced > Branch prompt > SystemPromptService
+        let final_prompt = if let Some(enhanced) = prepared.enhanced_system_prompt.as_ref() {
+            log::info!(
+                "Using Pipeline-enhanced system prompt (length: {})",
+                enhanced.len()
+            );
+            Some(enhanced.clone())
+        } else if let Some(prompt) = prepared.branch_system_prompt.as_ref() {
+            log::info!("Using branch system prompt (no Pipeline enhancement)");
             Some(prompt.content.clone())
         } else if let Some(prompt_id) = prepared.system_prompt_id.as_ref() {
             match self.system_prompt_service.get_prompt(prompt_id).await {
-                Some(prompt) => Some(prompt.content),
+                Some(prompt) => {
+                    log::info!("Using system prompt from service: {}", prompt_id);
+                    Some(prompt.content)
+                }
                 None => {
                     log::warn!("System prompt {} not found", prompt_id);
                     None
@@ -58,35 +82,15 @@ impl LlmRequestBuilder {
             None
         };
 
-        let enhanced_prompt = if let Some(ref base_prompt) = base_prompt {
-            match self
-                .system_prompt_enhancer
-                .enhance_prompt(base_prompt, &prepared.agent_role)
-                .await
-            {
-                Ok(enhanced) => {
-                    log::info!(
-                        "System prompt enhanced successfully for role: {:?}",
-                        prepared.agent_role
-                    );
-                    Some(enhanced)
-                }
-                Err(e) => {
-                    log::warn!("Failed to enhance system prompt: {}, using base prompt", e);
-                    Some(base_prompt.clone())
-                }
-            }
-        } else {
-            None
-        };
-
+        // Convert internal messages to chat messages
         let mut chat_messages: Vec<ChatMessage> = prepared
             .messages
             .iter()
             .map(convert_to_chat_message)
             .collect();
 
-        if let Some(prompt) = enhanced_prompt {
+        // Inject system prompt as first message if available
+        if let Some(prompt) = final_prompt {
             chat_messages.insert(
                 0,
                 ChatMessage {
@@ -96,7 +100,7 @@ impl LlmRequestBuilder {
                     tool_call_id: None,
                 },
             );
-            log::info!("Enhanced system prompt injected into messages");
+            log::info!("System prompt injected into messages");
         }
 
         let request = ChatCompletionRequest {

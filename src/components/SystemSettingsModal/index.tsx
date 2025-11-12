@@ -12,18 +12,10 @@ import {
   theme,
   Flex,
 } from "antd";
-import {
-  DeleteOutlined,
-  ApiOutlined,
-  DesktopOutlined,
-} from "@ant-design/icons";
+import { DeleteOutlined } from "@ant-design/icons";
 import { useChatManager } from "../../hooks/useChatManager";
 import { useModels } from "../../hooks/useModels";
-import { useServiceMode } from "../../hooks/useServiceMode";
-import {
-  isMermaidEnhancementEnabled,
-  setMermaidEnhancementEnabled,
-} from "../../utils/mermaidUtils";
+import { useBackendContext } from "../../contexts/BackendContextProvider";
 const SystemPromptManager = lazy(() => import("../SystemPromptManager"));
 const TemplateVariableEditor = lazy(() => import("../TemplateVariableEditor"));
 
@@ -126,11 +118,9 @@ const SystemSettingsModal = ({
     setAutoGenerateTitlesPreference,
     isUpdatingAutoTitlePreference,
   } = useChatManager();
+  const { currentContext, updateMermaidDiagrams } = useBackendContext();
   const [msgApi, contextHolder] = message.useMessage();
-  const [mermaidEnhancementEnabled, setMermaidEnhancementEnabledState] =
-    useState<boolean>(() => {
-      return isMermaidEnhancementEnabled();
-    });
+  const [isUpdatingMermaid, setIsUpdatingMermaid] = useState(false);
   const [isTemplateVariableEditorOpen, setIsTemplateVariableEditorOpen] =
     useState(false);
   const {
@@ -140,7 +130,10 @@ const SystemSettingsModal = ({
     selectedModel,
     setSelectedModel,
   } = useModels();
-  const { setServiceMode, isOpenAIMode } = useServiceMode();
+
+  // Get mermaid_diagrams from current context
+  const mermaidEnhancementEnabled =
+    currentContext?.config?.mermaid_diagrams ?? true;
 
   const handleDeleteAll = () => {
     deleteAllUnpinnedChats();
@@ -165,6 +158,26 @@ const SystemSettingsModal = ({
       msgApi.success(checked ? "自动标题生成已开启" : "自动标题生成已关闭");
     } catch (error) {
       msgApi.error("更新自动标题生成偏好失败");
+    }
+  };
+
+  const handleMermaidToggle = async (checked: boolean) => {
+    if (!currentContext?.id) {
+      msgApi.error("No active context");
+      return;
+    }
+
+    setIsUpdatingMermaid(true);
+    try {
+      await updateMermaidDiagrams(currentContext.id, checked);
+      msgApi.success(
+        checked ? "Mermaid Diagrams enabled" : "Mermaid Diagrams disabled"
+      );
+    } catch (error) {
+      msgApi.error("Failed to update Mermaid diagrams setting");
+      console.error("Failed to update Mermaid diagrams:", error);
+    } finally {
+      setIsUpdatingMermaid(false);
     }
   };
 
@@ -235,35 +248,6 @@ const SystemSettingsModal = ({
             启用后,在新会话开始时会自动调用 AI 生成更具描述性的聊天标题。
           </Text>
           <Flex align="center" gap={token.marginSM}>
-            <Text strong>Service Mode</Text>
-            <Switch
-              checked={isOpenAIMode}
-              onChange={(checked) => {
-                const mode = checked ? "openai" : "tauri";
-                setServiceMode(mode);
-                msgApi.success(
-                  `Switched to ${checked ? "OpenAI API" : "Tauri"} mode`
-                );
-              }}
-              checkedChildren={
-                <Flex align="center" gap={4}>
-                  <ApiOutlined />
-                  OpenAI
-                </Flex>
-              }
-              unCheckedChildren={
-                <Flex align="center" gap={4}>
-                  <DesktopOutlined />
-                  Tauri
-                </Flex>
-              }
-            />
-          </Flex>
-          <Text type="secondary" style={{ fontSize: token.fontSizeSM }}>
-            OpenAI mode uses standard HTTP API calls, Tauri mode uses native
-            commands
-          </Text>
-          <Flex align="center" gap={token.marginSM}>
             <Text strong>Dark Mode</Text>
             <Switch
               checked={themeMode === "dark"}
@@ -280,10 +264,8 @@ const SystemSettingsModal = ({
             <Text strong>Mermaid Diagrams Enhancement</Text>
             <Switch
               checked={mermaidEnhancementEnabled}
-              onChange={(checked) => {
-                setMermaidEnhancementEnabledState(checked);
-                setMermaidEnhancementEnabled(checked);
-              }}
+              loading={isUpdatingMermaid}
+              onChange={handleMermaidToggle}
               checkedChildren="ON"
               unCheckedChildren="OFF"
             />

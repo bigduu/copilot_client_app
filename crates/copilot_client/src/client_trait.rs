@@ -18,4 +18,7 @@ pub trait CopilotClientTrait: Send + Sync {
         response: Response,
         tx: Sender<Result<Bytes>>,
     ) -> Result<()>;
+
+    /// Get available models from the Copilot API
+    async fn get_models(&self) -> Result<Vec<String>>;
 }

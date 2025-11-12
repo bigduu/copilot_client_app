@@ -10,7 +10,7 @@ export class TauriChatService {
     messages: Message[],
     model?: string,
     onChunk?: (chunk: string) => void,
-    abortSignal?: AbortSignal,
+    abortSignal?: AbortSignal
   ): Promise<void> {
     const channel = new Channel<string>();
     let cancelled = false;
@@ -56,10 +56,22 @@ export class TauriChatService {
   }
 
   /**
-   * Get available models
+   * Get available models from HTTP API
    */
   async getModels(): Promise<string[]> {
-    return await invoke("get_models");
+    try {
+      const response = await fetch("http://localhost:8080/v1/models");
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      const data = await response.json();
+      // Extract model IDs from OpenAI-compatible response format
+      // Response format: { object: "list", data: [{ id: "model-name", ... }, ...] }
+      return data.data.map((model: any) => model.id);
+    } catch (error) {
+      console.error("Failed to fetch models from HTTP API:", error);
+      throw error;
+    }
   }
 }
 
@@ -97,7 +109,7 @@ export class TauriUtilityService implements UtilityService {
    */
   async invoke<T = any>(
     command: string,
-    args?: Record<string, any>,
+    args?: Record<string, any>
   ): Promise<T> {
     return await invoke(command, args);
   }

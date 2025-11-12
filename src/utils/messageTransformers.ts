@@ -8,6 +8,7 @@ import type {
   Message,
   SystemMessage,
   UserMessage,
+  UserFileReferenceMessage,
   WorkflowResultMessage,
 } from "../types/chat";
 
@@ -31,7 +32,7 @@ export const stringifyResultValue = (value: unknown): string => {
   } catch (error) {
     console.warn(
       "[messageTransformers] Failed to stringify tool result",
-      error,
+      error
     );
     return String(value);
   }
@@ -39,7 +40,7 @@ export const stringifyResultValue = (value: unknown): string => {
 
 /** Normalises the backend display preference into the UI union. */
 export const normalizeDisplayPreference = (
-  preference: any,
+  preference: any
 ): DisplayPreference => {
   if (preference === "Collapsible") return "Collapsible";
   if (preference === "Hidden") return "Hidden";
@@ -76,6 +77,58 @@ export const transformMessageDTOToMessage = (dto: MessageDTO): Message => {
       : undefined;
 
   if (roleLower === "user") {
+    // Check if this is a file reference message (structured JSON format)
+    try {
+      const parsed = JSON.parse(baseContent);
+      if (parsed.type === "file_reference" && parsed.paths) {
+        const fileRefMessage: UserFileReferenceMessage = {
+          id: dto.id,
+          role: "user",
+          type: "file_reference",
+          paths: Array.isArray(parsed.paths) ? parsed.paths : [parsed.paths],
+          displayText: parsed.display_text || baseContent,
+          createdAt: createTimestamp(),
+        };
+        return fileRefMessage;
+      }
+      // Backward compatibility: support old single path format
+      if (parsed.type === "file_reference" && parsed.path) {
+        const fileRefMessage: UserFileReferenceMessage = {
+          id: dto.id,
+          role: "user",
+          type: "file_reference",
+          paths: [parsed.path],
+          displayText: parsed.display_text || baseContent,
+          createdAt: createTimestamp(),
+        };
+        return fileRefMessage;
+      }
+    } catch (e) {
+      // Not JSON or not a file reference, treat as regular message
+    }
+
+    // Check if content looks like a file reference (starts with @)
+    // Backend saves file references as text messages with @ prefix
+    if (baseContent.includes("@")) {
+      // Extract all file names from content like "@Cargo.toml @README.md compare these"
+      const fileMatches = Array.from(baseContent.matchAll(/@([^\s]+)/g));
+      if (fileMatches.length > 0) {
+        const paths = fileMatches.map((match) => match[1]);
+
+        // Try to construct file reference message
+        // Note: We don't have the full path from backend, so we use the filename
+        const fileRefMessage: UserFileReferenceMessage = {
+          id: dto.id,
+          role: "user",
+          type: "file_reference",
+          paths, // ✅ Array of file names
+          displayText: baseContent,
+          createdAt: createTimestamp(),
+        };
+        return fileRefMessage;
+      }
+    }
+
     const message: UserMessage = {
       id: dto.id,
       role: "user",
@@ -104,7 +157,7 @@ export const transformMessageDTOToMessage = (dto: MessageDTO): Message => {
       (dto as any).tool_name ||
       "Tool";
     const displayPreference = normalizeDisplayPreference(
-      toolResultData.display_preference,
+      toolResultData.display_preference
     );
 
     const toolResultMessage: AssistantToolResultMessage = {
@@ -120,7 +173,7 @@ export const transformMessageDTOToMessage = (dto: MessageDTO): Message => {
         display_preference: displayPreference,
       },
       isError: Boolean(
-        toolResultData.is_error ?? toolResultData.error ?? false,
+        toolResultData.is_error ?? toolResultData.error ?? false
       ),
       createdAt: createTimestamp(),
     };
@@ -138,7 +191,7 @@ export const transformMessageDTOToMessage = (dto: MessageDTO): Message => {
     const workflowParameters =
       metadata.parameters || (dto as any).workflow_parameters || null;
     const workflowStatus = normalizeExecutionStatus(
-      metadata.status || (dto as any).status,
+      metadata.status || (dto as any).status
     );
 
     const workflowMessage: WorkflowResultMessage = {

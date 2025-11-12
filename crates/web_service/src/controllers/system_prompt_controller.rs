@@ -1,11 +1,19 @@
 use crate::dto::SystemPromptDTO;
-use crate::services::system_prompt_enhancer::SystemPromptEnhancer;
 use crate::services::system_prompt_service::SystemPromptService;
 use actix_web::{
     web::{Data, Json, Path},
     HttpResponse, Result,
 };
-use context_manager::structs::branch::SystemPrompt;
+use context_manager::{
+    pipeline::{
+        context::ProcessingContext, processors::system_prompt::SystemPromptProcessor,
+        traits::MessageProcessor,
+    },
+    structs::{
+        branch::SystemPrompt,
+        message::{ContentPart, InternalMessage, MessageType, Role},
+    },
+};
 use log::{error, info};
 use serde::{Deserialize, Serialize};
 
@@ -132,30 +140,68 @@ pub async fn delete_system_prompt(
 }
 
 /// Get enhanced system prompt (base + tools + mermaid)
+///
+/// This endpoint uses Pipeline processors to enhance the system prompt with:
+/// - Role context (via RoleContextEnhancer)
+/// - Tool definitions (via ToolEnhancementEnhancer)
+/// - Mermaid diagram guidelines (via MermaidEnhancementEnhancer)
+/// - Context hints (via ContextHintsEnhancer)
+/// - Formatting and structure (via SystemPromptProcessor)
 pub async fn get_enhanced_system_prompt(
     path: Path<String>,
     prompt_service: Data<SystemPromptService>,
-    enhancer_service: Data<SystemPromptEnhancer>,
 ) -> Result<HttpResponse> {
     let prompt_id = path.into_inner();
 
     // Get base prompt
     match prompt_service.get_prompt(&prompt_id).await {
         Some(prompt) => {
-            // Enhance the prompt with Actor role (default for preview)
-            match enhancer_service
-                .enhance_prompt(&prompt.content, &context_manager::AgentRole::Actor)
-                .await
-            {
-                Ok(enhanced_content) => Ok(HttpResponse::Ok().json(serde_json::json!({
-                    "id": prompt.id,
-                    "content": enhanced_content,
-                    "enhanced": true
-                }))),
+            // Create a dummy ChatContext for Pipeline processing
+            // We need a context to run the processors, but we don't need a real one
+            let mut dummy_context = context_manager::ChatContext::new(
+                uuid::Uuid::new_v4(),
+                "gpt-4".to_string(),
+                "preview".to_string(),
+            );
+
+            // Create a dummy message for ProcessingContext
+            let dummy_message = InternalMessage {
+                role: Role::User,
+                content: vec![ContentPart::text_owned("dummy".to_string())],
+                message_type: MessageType::Text,
+                ..Default::default()
+            };
+
+            // Create processing context
+            let mut ctx = ProcessingContext::new(dummy_message, &mut dummy_context);
+
+            // Run SystemPromptProcessor with default enhancers
+            // This will automatically run all enhancers:
+            // - RoleContextEnhancer
+            // - ToolEnhancementEnhancer
+            // - MermaidEnhancementEnhancer
+            // - ContextHintsEnhancer
+            let system_prompt_processor =
+                SystemPromptProcessor::with_default_enhancers(prompt.content.clone());
+            match system_prompt_processor.process(&mut ctx) {
+                Ok(_) => {
+                    // Extract enhanced prompt from metadata
+                    let enhanced_content = ctx
+                        .get_metadata("final_system_prompt")
+                        .and_then(|v| v.as_str())
+                        .map(|s| s.to_string())
+                        .unwrap_or(prompt.content.clone());
+
+                    Ok(HttpResponse::Ok().json(serde_json::json!({
+                        "id": prompt.id,
+                        "content": enhanced_content,
+                        "enhanced": true
+                    })))
+                }
                 Err(e) => {
-                    error!("Failed to enhance system prompt: {}", e);
+                    error!("Failed to enhance system prompt: {:?}", e);
                     Ok(HttpResponse::InternalServerError().json(serde_json::json!({
-                        "error": format!("Failed to enhance prompt: {}", e)
+                        "error": format!("Failed to enhance prompt: {:?}", e)
                     })))
                 }
             }

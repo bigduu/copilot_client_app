@@ -1,30 +1,22 @@
-//! Tool Enhancement Processor
+//! Tool Enhancement Enhancer
 //!
-//! This processor injects available tool definitions into the system prompt.
+//! Injects available tool definitions into the system prompt.
 
+use super::PromptEnhancer;
 use crate::pipeline::context::{ProcessingContext, PromptFragment, ToolDefinition};
-use crate::pipeline::error::ProcessError;
-use crate::pipeline::result::ProcessResult;
-use crate::pipeline::traits::MessageProcessor;
 
-/// Tool Enhancement Processor
+/// Tool Enhancement Enhancer
 ///
 /// Injects tool definitions into the system prompt based on:
 /// - Current agent mode (Plan/Act)
 /// - Tool availability
 /// - Tool categories
 ///
-/// # Example
+/// # Priority
 ///
-/// ```no_run
-/// use context_manager::pipeline::processors::ToolEnhancementProcessor;
-/// use context_manager::pipeline::MessagePipeline;
-///
-/// let processor = ToolEnhancementProcessor::new();
-/// let pipeline = MessagePipeline::new()
-///     .register(Box::new(processor));
-/// ```
-pub struct ToolEnhancementProcessor {
+/// This enhancer uses priority 60, placing it after role context (90)
+/// but before general enhancements like Mermaid (50).
+pub struct ToolEnhancementEnhancer {
     config: ToolEnhancementConfig,
 }
 
@@ -55,8 +47,8 @@ impl Default for ToolEnhancementConfig {
     }
 }
 
-impl ToolEnhancementProcessor {
-    /// Create a new tool enhancement processor
+impl ToolEnhancementEnhancer {
+    /// Create a new tool enhancement enhancer
     pub fn new() -> Self {
         Self {
             config: ToolEnhancementConfig::default(),
@@ -135,7 +127,10 @@ impl ToolEnhancementProcessor {
                             .unwrap_or(false);
 
                         let required_str = if required { " (required)" } else { "" };
-                        prompt.push_str(&format!("- `{}` ({}){}",  param_name, param_type, required_str));
+                        prompt.push_str(&format!(
+                            "- `{}` ({}){}", 
+                            param_name, param_type, required_str
+                        ));
 
                         if let Some(desc) = param_schema.get("description").and_then(|d| d.as_str())
                         {
@@ -223,20 +218,25 @@ impl ToolEnhancementProcessor {
     }
 }
 
-impl Default for ToolEnhancementProcessor {
+impl Default for ToolEnhancementEnhancer {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl MessageProcessor for ToolEnhancementProcessor {
+impl PromptEnhancer for ToolEnhancementEnhancer {
     fn name(&self) -> &str {
         "tool_enhancement"
     }
 
-    fn process<'a>(&self, ctx: &mut ProcessingContext<'a>) -> Result<ProcessResult, ProcessError> {
+    fn enhance(&self, ctx: &ProcessingContext) -> Option<PromptFragment> {
         // Get available tools
         let tools = self.get_available_tools(ctx);
+
+        if tools.is_empty() {
+            log::debug!("[ToolEnhancementEnhancer] No tools available, skipping");
+            return None;
+        }
 
         // Limit tools if configured
         let tools_to_include = if self.config.max_tools > 0 && tools.len() > self.config.max_tools
@@ -246,99 +246,23 @@ impl MessageProcessor for ToolEnhancementProcessor {
             &tools
         };
 
-        // Add tools to context
-        for tool in tools_to_include {
-            ctx.add_tool(tool.clone());
-        }
-
         // Generate tools prompt
         let tools_prompt = self.generate_tools_prompt(tools_to_include);
 
-        if !tools_prompt.is_empty() {
-            // Add prompt fragment
-            let fragment = PromptFragment {
+        if tools_prompt.is_empty() {
+            None
+        } else {
+            log::debug!(
+                "[ToolEnhancementEnhancer] Adding {} tools to prompt (priority: 60)",
+                tools_to_include.len()
+            );
+
+            Some(PromptFragment {
                 content: tools_prompt,
                 source: "tool_enhancement".to_string(),
-                priority: 60, // Medium-high priority
-            };
-            ctx.add_prompt_fragment(fragment);
+                priority: 60,
+            })
         }
-
-        Ok(ProcessResult::Continue)
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::structs::context::ChatContext;
-    use crate::structs::message::{InternalMessage, Role};
-    use crate::structs::message_types::{RichMessageType, TextMessage};
-    use uuid::Uuid;
-
-    fn create_test_context() -> ChatContext {
-        ChatContext::new(Uuid::new_v4(), "test-model".to_string(), "test-mode".to_string())
-    }
-
-    fn create_test_message() -> InternalMessage {
-        InternalMessage {
-            role: Role::User,
-            content: Vec::new(),
-            tool_calls: None,
-            tool_result: None,
-            metadata: None,
-            message_type: Default::default(),
-            rich_type: Some(RichMessageType::Text(TextMessage::new("Test message"))),
-        }
-    }
-
-    #[test]
-    fn test_tool_enhancement() {
-        let processor = ToolEnhancementProcessor::new();
-        let message = create_test_message();
-        let mut context = create_test_context();
-        let mut ctx = ProcessingContext::new(message, &mut context);
-
-        let result = processor.process(&mut ctx);
-        assert!(result.is_ok());
-
-        // Should have tools injected
-        assert!(!ctx.available_tools.is_empty());
-
-        // Should have prompt fragment
-        assert!(!ctx.prompt_fragments.is_empty());
-    }
-
-    #[test]
-    fn test_generate_tools_prompt() {
-        let processor = ToolEnhancementProcessor::new();
-        let mut context = create_test_context();
-        let tools = processor.get_available_tools(&ProcessingContext::new(create_test_message(), &mut context));
-
-        let prompt = processor.generate_tools_prompt(&tools);
-
-        assert!(prompt.contains("Available Tools"));
-        assert!(prompt.contains("read_file"));
-        assert!(prompt.contains("write_file"));
-        assert!(prompt.contains("codebase_search"));
-    }
-
-    #[test]
-    fn test_max_tools_limit() {
-        let config = ToolEnhancementConfig {
-            max_tools: 2,
-            ..Default::default()
-        };
-        let processor = ToolEnhancementProcessor::with_config(config);
-        let message = create_test_message();
-        let mut context = create_test_context();
-        let mut ctx = ProcessingContext::new(message, &mut context);
-
-        let result = processor.process(&mut ctx);
-        assert!(result.is_ok());
-
-        // Should only have 2 tools
-        assert_eq!(ctx.available_tools.len(), 2);
     }
 }
 

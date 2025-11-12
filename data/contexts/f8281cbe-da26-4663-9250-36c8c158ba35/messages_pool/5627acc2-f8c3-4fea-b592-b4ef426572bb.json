@@ -1,0 +1,19 @@
+{
+  "id": "5627acc2-f8c3-4fea-b592-b4ef426572bb",
+  "message": {
+    "role": "User",
+    "content": [
+      {
+        "type": "text",
+        "text": "@Cargo.toml what's the content in this file?"
+      }
+    ],
+    "metadata": {
+      "extra": {
+        "display_text": "@Cargo.toml what's the content in this file?"
+      }
+    },
+    "message_type": "text"
+  },
+  "parent_id": "872ca6b4-4a25-4e36-b91c-96713fbc8340"
+}

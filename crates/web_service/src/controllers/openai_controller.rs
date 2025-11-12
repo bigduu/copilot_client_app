@@ -1,5 +1,5 @@
 use crate::{error::AppError, server::AppState};
-use actix_web::{get, post, web, HttpResponse, Responder};
+use actix_web::{get, post, web, HttpResponse};
 use bytes::Bytes;
 use copilot_client::api::models::{ChatCompletionRequest, ChatCompletionResponse};
 use futures_util::StreamExt;
@@ -22,29 +22,30 @@ struct Model {
 }
 
 #[get("/models")]
-pub async fn get_models() -> impl Responder {
-    // In the future, this could come from a config file or a dynamic source.
-    let models = vec![
-        Model {
-            id: "gpt-4".to_string(),
+pub async fn get_models(app_state: web::Data<AppState>) -> Result<HttpResponse, AppError> {
+    // Fetch real models from copilot_client
+    let model_ids =
+        app_state.copilot_client.get_models().await.map_err(|e| {
+            AppError::InternalError(anyhow::anyhow!("Failed to fetch models: {}", e))
+        })?;
+
+    // Convert model IDs to OpenAI-compatible format
+    let models: Vec<Model> = model_ids
+        .into_iter()
+        .map(|id| Model {
+            id,
             object: "model".to_string(),
-            created: 1677610602,
-            owned_by: "openai".to_string(),
-        },
-        Model {
-            id: "gpt-3.5-turbo".to_string(),
-            object: "model".to_string(),
-            created: 1677610602,
-            owned_by: "openai".to_string(),
-        },
-    ];
+            created: 1677610602, // Use a fixed timestamp for compatibility
+            owned_by: "github-copilot".to_string(),
+        })
+        .collect();
 
     let response = ListModelsResponse {
         object: "list".to_string(),
         data: models,
     };
 
-    HttpResponse::Ok().json(response)
+    Ok(HttpResponse::Ok().json(response))
 }
 
 #[post("/chat/completions")]

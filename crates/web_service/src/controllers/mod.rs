@@ -5,6 +5,5 @@ pub mod session_controller;
 pub mod system_controller;
 pub mod system_prompt_controller;
 pub mod template_variable_controller;
-pub mod tool_controller;
 pub mod user_preference_controller;
 pub mod workflow_controller;

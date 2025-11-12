@@ -5,11 +5,11 @@ use copilot_client::api::models::{Content, Role as ClientRole};
 use futures_util::StreamExt;
 use tempfile::tempdir;
 use tokio::sync::RwLock;
-use tool_system::ToolRegistry;
+
 use uuid::Uuid;
 
 use web_service::services::llm_request_builder::LlmRequestBuilder;
-use web_service::services::system_prompt_enhancer::SystemPromptEnhancer;
+
 use web_service::services::system_prompt_service::SystemPromptService;
 
 fn create_context() -> Arc<RwLock<ChatContext>> {
@@ -33,9 +33,7 @@ async fn test_builder_injects_system_prompt_from_service() {
         .await
         .expect("create prompt");
 
-    let tool_registry = Arc::new(ToolRegistry::new());
-    let enhancer = Arc::new(SystemPromptEnhancer::with_default_config(tool_registry));
-    let builder = LlmRequestBuilder::new(enhancer, prompt_service.clone());
+    let builder = LlmRequestBuilder::new(prompt_service.clone());
 
     let context = create_context();
     {
@@ -67,9 +65,7 @@ async fn test_builder_injects_system_prompt_from_service() {
 async fn test_builder_prefers_branch_prompt() {
     let temp_dir = tempdir().expect("temp dir");
     let prompt_service = Arc::new(SystemPromptService::new(temp_dir.path().to_path_buf()));
-    let tool_registry = Arc::new(ToolRegistry::new());
-    let enhancer = Arc::new(SystemPromptEnhancer::with_default_config(tool_registry));
-    let builder = LlmRequestBuilder::new(enhancer, prompt_service);
+    let builder = LlmRequestBuilder::new(prompt_service);
 
     let context = create_context();
     {

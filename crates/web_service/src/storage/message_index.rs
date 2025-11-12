@@ -2,7 +2,7 @@ use crate::error::Result;
 use context_manager::structs::message::Role;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use tokio::fs;
 use uuid::Uuid;
 
@@ -17,10 +17,10 @@ use uuid::Uuid;
 pub struct MessageIndex {
     /// Map of message ID to message metadata
     pub entries: HashMap<Uuid, MessageIndexEntry>,
-    
+
     /// Index version for migration compatibility
     pub version: u32,
-    
+
     /// Last updated timestamp
     pub updated_at: chrono::DateTime<chrono::Utc>,
 }
@@ -215,12 +215,8 @@ mod tests {
         let user_id = Uuid::new_v4();
         let assistant_id = Uuid::new_v4();
 
-        index.insert(
-            MessageIndexEntryBuilder::new(user_id, Role::User).build()
-        );
-        index.insert(
-            MessageIndexEntryBuilder::new(assistant_id, Role::Assistant).build()
-        );
+        index.insert(MessageIndexEntryBuilder::new(user_id, Role::User).build());
+        index.insert(MessageIndexEntryBuilder::new(assistant_id, Role::Assistant).build());
 
         let user_entries = index.filter_by_role(&Role::User);
         assert_eq!(user_entries.len(), 1);
@@ -246,17 +242,17 @@ mod tests {
         index.insert(
             MessageIndexEntryBuilder::new(id1, Role::User)
                 .timestamp(now)
-                .build()
+                .build(),
         );
         index.insert(
             MessageIndexEntryBuilder::new(id2, Role::User)
                 .timestamp(past)
-                .build()
+                .build(),
         );
         index.insert(
             MessageIndexEntryBuilder::new(id3, Role::User)
                 .timestamp(future)
-                .build()
+                .build(),
         );
 
         let sorted = index.sorted_by_timestamp();
@@ -277,7 +273,7 @@ mod tests {
             MessageIndexEntryBuilder::new(message_id, Role::User)
                 .size_bytes(200)
                 .has_tool_calls(true)
-                .build()
+                .build(),
         );
 
         // Save
@@ -294,4 +290,3 @@ mod tests {
         assert_eq!(entry.has_tool_calls, true);
     }
 }
-

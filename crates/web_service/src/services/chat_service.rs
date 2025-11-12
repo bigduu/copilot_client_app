@@ -1,6 +1,6 @@
 use crate::{
     error::AppError,
-    models::{ClientMessageMetadata, FileRange, MessagePayload, SendMessageRequest},
+    models::{ClientMessageMetadata, MessagePayload, SendMessageRequest},
     services::workflow_service::WorkflowService,
     storage::StorageProvider,
 };
@@ -29,7 +29,6 @@ use super::copilot_stream_handler;
 use super::llm_request_builder::LlmRequestBuilder;
 use super::llm_utils::{detect_message_type, send_context_update};
 use super::session_manager::ChatSessionManager;
-use super::system_prompt_enhancer::SystemPromptEnhancer;
 use super::system_prompt_service::SystemPromptService;
 
 #[derive(Debug, Serialize)]
@@ -60,7 +59,6 @@ pub struct ChatService<T: StorageProvider> {
     conversation_id: Uuid,
     copilot_client: Arc<dyn CopilotClientTrait>,
     tool_executor: Arc<ToolExecutor>,
-    system_prompt_enhancer: Arc<SystemPromptEnhancer>,
     system_prompt_service: Arc<SystemPromptService>,
     agent_service: Arc<AgentService>,
     approval_manager: Arc<ApprovalManager>,
@@ -100,10 +98,12 @@ fn compute_display_text(request: &SendMessageRequest) -> String {
             display.clone().unwrap_or_else(|| content.clone())
         }
         MessagePayload::FileReference {
-            path, display_text, ..
+            paths,
+            display_text,
+            ..
         } => display_text
             .clone()
-            .unwrap_or_else(|| format!("读取文件 {}", path)),
+            .unwrap_or_else(|| format!("读取文件 {:?}", paths)),
         MessagePayload::Workflow {
             workflow,
             display_text,
@@ -160,13 +160,16 @@ fn build_incoming_text_message(
 }
 
 impl<T: StorageProvider + 'static> ChatService<T> {
+    /// Create a new ChatService (Phase 2.0 - Pipeline-based)
+    ///
+    /// Note: SystemPromptEnhancer is no longer required. System prompt enhancement
+    /// is now handled by the Pipeline architecture in ChatContext.
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         session_manager: Arc<ChatSessionManager<T>>,
         conversation_id: Uuid,
         copilot_client: Arc<dyn CopilotClientTrait>,
         tool_executor: Arc<ToolExecutor>,
-        system_prompt_enhancer: Arc<SystemPromptEnhancer>,
         system_prompt_service: Arc<SystemPromptService>,
         approval_manager: Arc<ApprovalManager>,
         workflow_service: Arc<WorkflowService>,
@@ -176,7 +179,6 @@ impl<T: StorageProvider + 'static> ChatService<T> {
             conversation_id,
             copilot_client,
             tool_executor,
-            system_prompt_enhancer,
             system_prompt_service,
             agent_service: Arc::new(AgentService::with_default_config()),
             approval_manager,
@@ -214,10 +216,7 @@ impl<T: StorageProvider + 'static> ChatService<T> {
     }
 
     fn llm_request_builder(&self) -> LlmRequestBuilder {
-        LlmRequestBuilder::new(
-            self.system_prompt_enhancer.clone(),
-            self.system_prompt_service.clone(),
-        )
+        LlmRequestBuilder::new(self.system_prompt_service.clone())
     }
 
     fn agent_loop_runner(&self) -> AgentLoopRunner<T> {
@@ -247,14 +246,16 @@ impl<T: StorageProvider + 'static> ChatService<T> {
         Ok(updates)
     }
 
+    /// Execute file reference: read files or list directories
+    /// Returns Ok(()) to allow AI call to proceed
     async fn execute_file_reference(
         &self,
         context: &Arc<tokio::sync::RwLock<ChatContext>>,
-        path: &str,
-        range: &Option<FileRange>,
+        paths: &[String],
         display_text: &str,
         metadata: &ClientMessageMetadata,
-    ) -> Result<FinalizedMessage, AppError> {
+    ) -> Result<(), AppError> {
+        // 1. Add user message
         let incoming = build_incoming_text_message(display_text, Some(display_text), metadata);
         self.apply_incoming_message(context, incoming).await?;
         self.auto_save_context(context).await?;
@@ -262,65 +263,50 @@ impl<T: StorageProvider + 'static> ChatService<T> {
         let runtime =
             ContextToolRuntime::new(self.tool_executor.clone(), self.approval_manager.clone());
 
-        let mut arguments = serde_json::Map::new();
-        arguments.insert("path".to_string(), json!(path));
-        if let Some(range) = range {
-            if let Some(start_line) = range.start_line {
-                arguments.insert("start_line".to_string(), json!(start_line));
-            }
-            if let Some(end_line) = range.end_line {
-                arguments.insert("end_line".to_string(), json!(end_line));
-            }
-        }
+        // 2. Process each path
+        for path in paths {
+            let path_obj = std::path::Path::new(path);
 
-        {
-            let mut context_lock = context.write().await;
-            context_lock
-                .process_auto_tool_step(
-                    &runtime,
-                    "read_file".to_string(),
-                    serde_json::Value::Object(arguments),
-                    false,
-                    None,
-                )
-                .await
-                .map_err(|err| AppError::InternalError(anyhow::anyhow!(err.to_string())))?;
+            if path_obj.is_dir() {
+                // Directory: use list_directory tool with depth=1
+                let mut arguments = serde_json::Map::new();
+                arguments.insert("path".to_string(), json!(path));
+                arguments.insert("depth".to_string(), json!(1));
+
+                let mut context_lock = context.write().await;
+                context_lock
+                    .process_auto_tool_step(
+                        &runtime,
+                        "list_directory".to_string(),
+                        serde_json::Value::Object(arguments),
+                        false,
+                        None,
+                    )
+                    .await
+                    .map_err(|err| AppError::InternalError(anyhow::anyhow!(err.to_string())))?;
+            } else {
+                // File: use read_file tool
+                let mut arguments = serde_json::Map::new();
+                arguments.insert("path".to_string(), json!(path));
+
+                let mut context_lock = context.write().await;
+                context_lock
+                    .process_auto_tool_step(
+                        &runtime,
+                        "read_file".to_string(),
+                        serde_json::Value::Object(arguments),
+                        false,
+                        None,
+                    )
+                    .await
+                    .map_err(|err| AppError::InternalError(anyhow::anyhow!(err.to_string())))?;
+            }
         }
 
         self.auto_save_context(context).await?;
 
-        let (message_id, summary, sequence) = {
-            let context_lock = context.write().await;
-            let branch = context_lock.get_active_branch().ok_or_else(|| {
-                AppError::InternalError(anyhow::anyhow!(
-                    "Active branch not found after tool execution"
-                ))
-            })?;
-
-            let message_id = *branch.message_ids.last().ok_or_else(|| {
-                AppError::InternalError(anyhow::anyhow!("No messages found after tool execution"))
-            })?;
-
-            let MessageTextSnapshot {
-                content: summary,
-                sequence,
-                ..
-            } = context_lock
-                .message_text_snapshot(message_id)
-                .ok_or_else(|| {
-                    AppError::InternalError(anyhow::anyhow!(
-                        "Message snapshot unavailable after tool execution"
-                    ))
-                })?;
-
-            (message_id, summary, sequence)
-        };
-
-        Ok(FinalizedMessage {
-            message_id,
-            sequence,
-            summary,
-        })
+        // ✅ Return Ok(()) to allow AI call to proceed
+        Ok(())
     }
 
     async fn execute_workflow(
@@ -549,18 +535,16 @@ impl<T: StorageProvider + 'static> ChatService<T> {
         }
 
         match &request.payload {
-            MessagePayload::FileReference { path, range, .. } => {
-                let finalized = self
-                    .execute_file_reference(
-                        &context,
-                        path,
-                        range,
-                        &display_text,
-                        &request.client_metadata,
-                    )
-                    .await?;
-                log::info!("=== ChatService::process_message END (structured file reference) ===");
-                return Ok(ServiceResponse::FinalMessage(finalized.summary));
+            MessagePayload::FileReference { paths, .. } => {
+                // ✅ Execute file reference but don't return - let AI call proceed
+                self.execute_file_reference(
+                    &context,
+                    paths,
+                    &display_text,
+                    &request.client_metadata,
+                )
+                .await?;
+                // ✅ Don't return - continue to LLM call below
             }
             MessagePayload::Workflow {
                 workflow,
@@ -576,6 +560,18 @@ impl<T: StorageProvider + 'static> ChatService<T> {
                         &request.client_metadata,
                     )
                     .await?;
+
+                // Send SSE event to notify frontend
+                self.send_sse_event(
+                    crate::controllers::context_controller::SignalEvent::MessageCompleted {
+                        context_id: self.conversation_id.to_string(),
+                        message_id: finalized.message_id.to_string(),
+                        final_sequence: finalized.sequence,
+                        timestamp: chrono::Utc::now().to_rfc3339(),
+                    },
+                )
+                .await;
+
                 log::info!("=== ChatService::process_message END (structured workflow) ===");
                 return Ok(ServiceResponse::FinalMessage(finalized.summary));
             }
@@ -948,25 +944,16 @@ impl<T: StorageProvider + 'static> ChatService<T> {
         let display_text = compute_display_text(&request);
 
         match &request.payload {
-            MessagePayload::FileReference { path, range, .. } => {
-                let finalized = self
-                    .execute_file_reference(
-                        &context,
-                        path,
-                        range,
-                        &display_text,
-                        &request.client_metadata,
-                    )
-                    .await?;
-                log::info!(
-                    "=== ChatService::process_message_stream END (structured file reference) ==="
-                );
-                return Self::build_message_signal_sse(
-                    self.conversation_id,
-                    finalized.message_id,
-                    finalized.sequence,
+            MessagePayload::FileReference { paths, .. } => {
+                // ✅ Execute file reference but don't return - let AI streaming proceed
+                self.execute_file_reference(
+                    &context,
+                    paths,
+                    &display_text,
+                    &request.client_metadata,
                 )
-                .await;
+                .await?;
+                // ✅ Don't return - continue to LLM streaming below
             }
             MessagePayload::Workflow {
                 workflow,
@@ -1301,6 +1288,10 @@ mod tests {
         ) -> anyhow::Result<()> {
             bail!("noop client should not be used in tests")
         }
+
+        async fn get_models(&self) -> anyhow::Result<Vec<String>> {
+            Ok(vec!["gpt-test".to_string()])
+        }
     }
 
     struct TestEnv {
@@ -1317,9 +1308,6 @@ mod tests {
         let temp_dir = TempDir::new().unwrap();
         let system_prompt_service =
             Arc::new(SystemPromptService::new(temp_dir.path().to_path_buf()));
-        let system_prompt_enhancer = Arc::new(SystemPromptEnhancer::with_default_config(Arc::new(
-            ToolRegistry::new(),
-        )));
         let tool_executor = Arc::new(ToolExecutor::new(Arc::new(Mutex::new(ToolRegistry::new()))));
         let approval_manager = Arc::new(ApprovalManager::new());
         let workflow_service = Arc::new(WorkflowService::new(Arc::new(WorkflowRegistry::new())));
@@ -1338,7 +1326,6 @@ mod tests {
             conversation_id,
             copilot_client,
             tool_executor,
-            system_prompt_enhancer,
             system_prompt_service,
             approval_manager,
             workflow_service,
@@ -1555,6 +1542,264 @@ mod tests {
             .as_str()
             .unwrap()
             .contains("Workflow execution failed"));
+
+        drop(context_guard);
+    }
+
+    /// Test file reference with single file
+    #[tokio::test]
+    async fn test_file_reference_single_file() {
+        let TestEnv {
+            chat_service,
+            context,
+            conversation_id: _,
+            _session_manager: _,
+            _temp_dir,
+        } = setup_test_env().await;
+
+        // Create a test file
+        let test_file = _temp_dir.path().join("test.txt");
+        std::fs::write(&test_file, "Hello, World!").unwrap();
+
+        // Execute file reference
+        chat_service
+            .execute_file_reference(
+                &context,
+                &[test_file.to_str().unwrap().to_string()],
+                "@test.txt what's the content?",
+                &ClientMessageMetadata::default(),
+            )
+            .await
+            .expect("file reference executed");
+
+        // Verify context state
+        let context_guard = context.read().await;
+        let branch = context_guard
+            .get_active_branch()
+            .expect("active branch available");
+
+        // Should have: user message + tool result message
+        assert_eq!(branch.message_ids.len(), 2);
+
+        // Check user message
+        let user_message_id = branch.message_ids[0];
+        let user_node = context_guard
+            .message_pool
+            .get(&user_message_id)
+            .expect("user message present");
+        assert_eq!(user_node.message.role, Role::User);
+
+        // Check tool result message
+        let tool_message_id = branch.message_ids[1];
+        let tool_node = context_guard
+            .message_pool
+            .get(&tool_message_id)
+            .expect("tool message present");
+        assert_eq!(tool_node.message.role, Role::Tool);
+        assert_eq!(tool_node.message.message_type, MessageType::ToolResult);
+
+        // Verify tool result has display_preference: Hidden
+        let tool_result = tool_node
+            .message
+            .tool_result
+            .as_ref()
+            .expect("tool result present");
+        assert_eq!(
+            tool_result.result.get("display_preference"),
+            Some(&json!("Hidden"))
+        );
+
+        drop(context_guard);
+    }
+
+    /// Test file reference with multiple files
+    #[tokio::test]
+    async fn test_file_reference_multiple_files() {
+        let TestEnv {
+            chat_service,
+            context,
+            conversation_id: _,
+            _session_manager: _,
+            _temp_dir,
+        } = setup_test_env().await;
+
+        // Create test files
+        let test_file1 = _temp_dir.path().join("file1.txt");
+        let test_file2 = _temp_dir.path().join("file2.txt");
+        std::fs::write(&test_file1, "Content 1").unwrap();
+        std::fs::write(&test_file2, "Content 2").unwrap();
+
+        let paths = vec![
+            test_file1.to_str().unwrap().to_string(),
+            test_file2.to_str().unwrap().to_string(),
+        ];
+
+        // Execute file reference
+        chat_service
+            .execute_file_reference(
+                &context,
+                &paths,
+                "@file1.txt @file2.txt compare these",
+                &ClientMessageMetadata::default(),
+            )
+            .await
+            .expect("file reference executed");
+
+        // Verify context state
+        let context_guard = context.read().await;
+        let branch = context_guard
+            .get_active_branch()
+            .expect("active branch available");
+
+        // Should have: user message + 2 tool result messages
+        assert_eq!(branch.message_ids.len(), 3);
+
+        // Check both tool results have display_preference: Hidden
+        for i in 1..=2 {
+            let tool_message_id = branch.message_ids[i];
+            let tool_node = context_guard
+                .message_pool
+                .get(&tool_message_id)
+                .expect("tool message present");
+            assert_eq!(tool_node.message.role, Role::Tool);
+
+            let tool_result = tool_node
+                .message
+                .tool_result
+                .as_ref()
+                .expect("tool result present");
+            assert_eq!(
+                tool_result.result.get("display_preference"),
+                Some(&json!("Hidden"))
+            );
+        }
+
+        drop(context_guard);
+    }
+
+    /// Test file reference with directory
+    #[tokio::test]
+    async fn test_file_reference_directory() {
+        let TestEnv {
+            chat_service,
+            context,
+            conversation_id: _,
+            _session_manager: _,
+            _temp_dir,
+        } = setup_test_env().await;
+
+        // Create a test directory with files
+        let test_dir = _temp_dir.path().join("test_folder");
+        std::fs::create_dir(&test_dir).unwrap();
+        std::fs::write(test_dir.join("file1.txt"), "File 1").unwrap();
+        std::fs::write(test_dir.join("file2.txt"), "File 2").unwrap();
+
+        let paths = vec![test_dir.to_str().unwrap().to_string()];
+
+        // Execute file reference
+        chat_service
+            .execute_file_reference(
+                &context,
+                &paths,
+                "@test_folder/ what files are here?",
+                &ClientMessageMetadata::default(),
+            )
+            .await
+            .expect("file reference executed");
+
+        // Verify context state
+        let context_guard = context.read().await;
+        let branch = context_guard
+            .get_active_branch()
+            .expect("active branch available");
+
+        // Should have: user message + tool result message (list_directory)
+        assert_eq!(branch.message_ids.len(), 2);
+
+        // Check tool result
+        let tool_message_id = branch.message_ids[1];
+        let tool_node = context_guard
+            .message_pool
+            .get(&tool_message_id)
+            .expect("tool message present");
+        assert_eq!(tool_node.message.role, Role::Tool);
+
+        // Verify tool result has display_preference: Hidden
+        let tool_result = tool_node
+            .message
+            .tool_result
+            .as_ref()
+            .expect("tool result present");
+        assert_eq!(
+            tool_result.result.get("display_preference"),
+            Some(&json!("Hidden"))
+        );
+
+        drop(context_guard);
+    }
+
+    /// Test file reference with mixed files and directories
+    #[tokio::test]
+    async fn test_file_reference_mixed() {
+        let TestEnv {
+            chat_service,
+            context,
+            conversation_id: _,
+            _session_manager: _,
+            _temp_dir,
+        } = setup_test_env().await;
+
+        // Create test file and directory
+        let test_file = _temp_dir.path().join("readme.txt");
+        let test_dir = _temp_dir.path().join("src");
+        std::fs::write(&test_file, "README content").unwrap();
+        std::fs::create_dir(&test_dir).unwrap();
+        std::fs::write(test_dir.join("main.rs"), "fn main() {}").unwrap();
+
+        let paths = vec![
+            test_file.to_str().unwrap().to_string(),
+            test_dir.to_str().unwrap().to_string(),
+        ];
+
+        // Execute file reference
+        chat_service
+            .execute_file_reference(
+                &context,
+                &paths,
+                "@readme.txt @src/ analyze the project",
+                &ClientMessageMetadata::default(),
+            )
+            .await
+            .expect("file reference executed");
+
+        // Verify context state
+        let context_guard = context.read().await;
+        let branch = context_guard
+            .get_active_branch()
+            .expect("active branch available");
+
+        // Should have: user message + 2 tool result messages (read_file + list_directory)
+        assert_eq!(branch.message_ids.len(), 3);
+
+        // Check both tool results have display_preference: Hidden
+        for i in 1..=2 {
+            let tool_message_id = branch.message_ids[i];
+            let tool_node = context_guard
+                .message_pool
+                .get(&tool_message_id)
+                .expect("tool message present");
+            assert_eq!(tool_node.message.role, Role::Tool);
+
+            let tool_result = tool_node
+                .message
+                .tool_result
+                .as_ref()
+                .expect("tool result present");
+            assert_eq!(
+                tool_result.result.get("display_preference"),
+                Some(&json!("Hidden"))
+            );
+        }
 
         drop(context_guard);
     }

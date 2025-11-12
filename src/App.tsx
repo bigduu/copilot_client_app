@@ -5,6 +5,7 @@ import "./App.css";
 import { MainLayout } from "./layouts/MainLayout";
 import { SystemSettingsModal } from "./components/SystemSettingsModal";
 import { ChatControllerProvider } from "./contexts/ChatControllerContext";
+import { BackendContextProvider } from "./contexts/BackendContextProvider";
 import { useAppStore } from "./store";
 // Migration disabled per user request - not migrating historical data
 // import { MigrationBanner } from "./components/MigrationBanner";
@@ -33,14 +34,14 @@ function App() {
         // eslint-disable-next-line no-console -- Development-only performance trace
         console.info(
           `[Profiler:${id}] phase=${phase} actual=${actualDuration.toFixed(
-            2,
+            2
           )}ms base=${baseDuration.toFixed(2)}ms start=${startTime.toFixed(
-            2,
-          )}ms commit=${commitTime.toFixed(2)}ms`,
+            2
+          )}ms commit=${commitTime.toFixed(2)}ms`
         );
       }
     },
-    [],
+    []
   );
 
   useEffect(() => {
@@ -85,30 +86,32 @@ function App() {
       }}
     >
       <AntApp>
-        <ChatControllerProvider>
-          <div style={{ position: "relative" }}>
-            {import.meta.env.DEV ? (
-              <Profiler id="MainLayout" onRender={handleProfilerRender}>
+        <BackendContextProvider>
+          <ChatControllerProvider>
+            <div style={{ position: "relative" }}>
+              {import.meta.env.DEV ? (
+                <Profiler id="MainLayout" onRender={handleProfilerRender}>
+                  <MainLayout
+                    themeMode={themeMode}
+                    onThemeModeChange={setThemeMode}
+                  />
+                </Profiler>
+              ) : (
                 <MainLayout
                   themeMode={themeMode}
                   onThemeModeChange={setThemeMode}
                 />
-              </Profiler>
-            ) : (
-              <MainLayout
+              )}
+              {/* MigrationBanner removed - migration disabled per user request */}
+              <SystemSettingsModal
+                open={settingsOpen}
+                onClose={() => setSettingsOpen(false)}
                 themeMode={themeMode}
                 onThemeModeChange={setThemeMode}
               />
-            )}
-            {/* MigrationBanner removed - migration disabled per user request */}
-            <SystemSettingsModal
-              open={settingsOpen}
-              onClose={() => setSettingsOpen(false)}
-              themeMode={themeMode}
-              onThemeModeChange={setThemeMode}
-            />
-          </div>
-        </ChatControllerProvider>
+            </div>
+          </ChatControllerProvider>
+        </BackendContextProvider>
       </AntApp>
     </ConfigProvider>
   );

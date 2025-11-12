@@ -10,6 +10,11 @@ pub struct ChatContextDTO {
     pub active_branch_name: String,
     pub message_count: usize,
     pub branches: Vec<BranchDTO>,
+    /// Optional title for this context. If None, frontend should display a default title.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub title: Option<String>,
+    /// Whether to automatically generate a title after the first AI response.
+    pub auto_generate_title: bool,
 }
 
 /// DTO representing chat configuration
@@ -21,6 +26,7 @@ pub struct ChatConfigDTO {
     pub system_prompt_id: Option<String>,
     pub agent_role: String, // "planner" or "actor"
     pub workspace_path: Option<String>,
+    pub mermaid_diagrams: bool,
 }
 
 /// DTO representing a branch
@@ -101,6 +107,8 @@ impl From<context_manager::structs::context::ChatContext> for ChatContextDTO {
             active_branch_name: context.active_branch_name,
             message_count: context.message_pool.len(),
             branches,
+            title: context.title,
+            auto_generate_title: context.auto_generate_title,
         }
     }
 }
@@ -114,6 +122,7 @@ impl From<context_manager::structs::context::ChatConfig> for ChatConfigDTO {
             system_prompt_id: config.system_prompt_id,
             agent_role: format!("{:?}", config.agent_role).to_lowercase(),
             workspace_path: config.workspace_path,
+            mermaid_diagrams: config.mermaid_diagrams,
         }
     }
 }

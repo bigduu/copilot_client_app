@@ -7,6 +7,10 @@ import { useBackendContext } from "../../hooks/useBackendContext";
 import { SystemPromptService } from "../../services/SystemPromptService";
 import { Message } from "../../types/chat";
 import { useAppStore } from "../../store";
+import {
+  isMermaidEnhancementEnabled,
+  getMermaidEnhancementPrompt,
+} from "../../utils/mermaidUtils";
 
 const { Text, Paragraph } = Typography;
 const { useToken } = theme;
@@ -28,12 +32,34 @@ const SystemMessageCard: React.FC<SystemMessageCardProps> = ({ message }) => {
 
   const systemPromptService = React.useMemo(
     () => SystemPromptService.getInstance(),
-    [],
+    []
   );
   const systemMessageContent =
     message.role === "system" && typeof message.content === "string"
       ? message.content
       : "";
+
+  // Monitor system message changes
+  useEffect(() => {
+    if (message.role === "system") {
+      console.log(
+        "[SystemMessageCard] ========== SYSTEM MESSAGE CHANGED =========="
+      );
+      console.log("[SystemMessageCard] Message ID:", message.id);
+      console.log(
+        "[SystemMessageCard] Message content length:",
+        systemMessageContent.length
+      );
+      console.log("[SystemMessageCard] Message timestamp:", message.timestamp);
+      console.log(
+        "[SystemMessageCard] ============================================="
+      );
+
+      // Reset enhanced prompt when system message changes
+      setEnhancedPrompt(null);
+      setShowEnhanced(false);
+    }
+  }, [message.id, message.role, systemMessageContent, message.timestamp]);
 
   // Get current agent role - prioritize backend context, always default to "actor"
   const currentRole = useMemo(() => {
@@ -42,12 +68,14 @@ const SystemMessageCard: React.FC<SystemMessageCardProps> = ({ message }) => {
     const chatRole = currentChat?.config?.agentRole;
     const role = contextRole ?? chatRole ?? "actor";
 
-    console.log("[SystemMessageCard] Current role:", role, {
-      fromContext: contextRole,
-      fromChat: chatRole,
-      contextId: currentContext?.id,
-      hasContext: !!currentContext,
-    });
+    console.log("[SystemMessageCard] ========== ROLE CALCULATION ==========");
+    console.log("[SystemMessageCard] currentContext:", currentContext);
+    console.log("[SystemMessageCard] contextRole:", contextRole);
+    console.log("[SystemMessageCard] chatRole:", chatRole);
+    console.log("[SystemMessageCard] Final role:", role);
+    console.log(
+      "[SystemMessageCard] =========================================="
+    );
     return role;
   }, [
     currentContext?.config?.agent_role,
@@ -61,7 +89,7 @@ const SystemMessageCard: React.FC<SystemMessageCardProps> = ({ message }) => {
       if (!currentChat?.config) {
         // Try to get from backend context
         const activeBranch = currentContext?.branches?.find(
-          (b) => b.name === currentContext?.active_branch_name,
+          (b) => b.name === currentContext?.active_branch_name
         );
         if (activeBranch?.system_prompt?.content) {
           setBasePrompt(activeBranch.system_prompt.content);
@@ -105,7 +133,7 @@ const SystemMessageCard: React.FC<SystemMessageCardProps> = ({ message }) => {
           const presets = await systemPromptService.getSystemPromptPresets();
           const matchingPreset = presets.find(
             (preset) =>
-              preset.id === toolCategory || preset.category === toolCategory,
+              preset.id === toolCategory || preset.category === toolCategory
           );
           if (matchingPreset?.content) {
             setBasePrompt(matchingPreset.content);
@@ -122,29 +150,11 @@ const SystemMessageCard: React.FC<SystemMessageCardProps> = ({ message }) => {
     loadBasePrompt();
   }, [currentChat?.config, currentContext, systemPromptService, systemPrompts]);
 
-  // Load enhanced prompt when requested
-  const loadEnhancedPrompt = async () => {
-    if (!basePrompt || loadingEnhanced) return;
-
-    setLoadingEnhanced(true);
-    try {
-      // Build enhanced prompt on frontend (since backend API might not support role parameter)
-      // For now, we'll build it client-side
-      const roleSection = buildRoleSection(currentRole as "planner" | "actor");
-      const enhanced = `${basePrompt}\n\n${roleSection}`;
-      setEnhancedPrompt(enhanced);
-      setShowEnhanced(true);
-    } catch (error) {
-      console.error("Failed to load enhanced prompt:", error);
-    } finally {
-      setLoadingEnhanced(false);
-    }
-  };
-
   // Build role-specific section (simplified version matching backend)
-  const buildRoleSection = (role: "planner" | "actor"): string => {
-    if (role === "planner") {
-      return `# CURRENT ROLE: PLANNER
+  const buildRoleSection = React.useCallback(
+    (role: "planner" | "actor"): string => {
+      if (role === "planner") {
+        return `# CURRENT ROLE: PLANNER
 
 You are operating in the PLANNER role. Your responsibilities:
 1. Analyze the user's request thoroughly
@@ -184,8 +194,8 @@ When you create a plan, output it in the following JSON format:
 }
 
 After presenting the plan, discuss it with the user. When they approve, they will switch to ACT mode for execution.`;
-    } else {
-      return `# CURRENT ROLE: ACTOR
+      } else {
+        return `# CURRENT ROLE: ACTOR
 
 You are operating in the ACTOR role. Your responsibilities:
 1. Execute the approved plan (if any)
@@ -225,6 +235,57 @@ When to ask:
 - ALWAYS: Deleting files, major refactors, security-sensitive changes
 - USUALLY: Changes beyond original plan, uncertainty about approach
 - RARELY: Minor formatting, obvious fixes, style adjustments`;
+      }
+    },
+    []
+  );
+
+  // Clear enhanced prompt when role changes
+  useEffect(() => {
+    console.log("[SystemMessageCard] Role changed to:", currentRole);
+    // Clear cached enhanced prompt
+    setEnhancedPrompt(null);
+
+    // If enhanced view is currently shown, reload it with new role
+    if (showEnhanced && basePrompt) {
+      console.log("[SystemMessageCard] Reloading enhanced prompt for new role");
+      const roleSection = buildRoleSection(currentRole as "planner" | "actor");
+
+      // Add Mermaid enhancement if enabled
+      let enhanced = `${basePrompt}\n\n${roleSection}`;
+      if (isMermaidEnhancementEnabled()) {
+        const mermaidSection = getMermaidEnhancementPrompt();
+        enhanced += `\n\n${mermaidSection}`;
+      }
+
+      setEnhancedPrompt(enhanced);
+    }
+  }, [currentRole, showEnhanced, basePrompt, buildRoleSection]);
+
+  // Load enhanced prompt when requested
+  const loadEnhancedPrompt = async () => {
+    if (!basePrompt || loadingEnhanced) return;
+
+    setLoadingEnhanced(true);
+    try {
+      // Build enhanced prompt on frontend (since backend API might not support role parameter)
+      // For now, we'll build it client-side
+      const roleSection = buildRoleSection(currentRole as "planner" | "actor");
+
+      // Add Mermaid enhancement if enabled
+      let enhanced = `${basePrompt}\n\n${roleSection}`;
+      if (isMermaidEnhancementEnabled()) {
+        const mermaidSection = getMermaidEnhancementPrompt();
+        enhanced += `\n\n${mermaidSection}`;
+        console.log("[SystemMessageCard] Mermaid enhancement added to prompt");
+      }
+
+      setEnhancedPrompt(enhanced);
+      setShowEnhanced(true);
+    } catch (error) {
+      console.error("Failed to load enhanced prompt:", error);
+    } finally {
+      setLoadingEnhanced(false);
     }
   };
 

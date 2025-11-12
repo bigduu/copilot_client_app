@@ -1,0 +1,36 @@
+{
+  "id": "f8281cbe-da26-4663-9250-36c8c158ba35",
+  "parent_id": null,
+  "config": {
+    "model_id": "gpt-4",
+    "mode": "chat",
+    "parameters": {},
+    "system_prompt_id": "general_assistant",
+    "agent_role": "actor",
+    "workspace_path": "/Users/bigduu/Workspace/TauriProjects/copilot_chat",
+    "mermaid_diagrams": true
+  },
+  "title": "Tech or Fintech Assistance Query",
+  "auto_generate_title": true,
+  "message_pool": {},
+  "branches": {
+    "main": {
+      "name": "main",
+      "message_ids": [
+        "57c3eaa6-1765-49ea-ad76-30de67357262",
+        "dce1d227-93e7-403e-a46c-770fb07bb302",
+        "50516e1f-dbc8-4bec-94e6-d6c028f2ee20",
+        "872ca6b4-4a25-4e36-b91c-96713fbc8340",
+        "5627acc2-f8c3-4fea-b592-b4ef426572bb",
+        "0dba6841-57a4-40db-a8a8-acedbd0339d1",
+        "8827be9c-f944-42d7-bc6e-e0aa6e614276",
+        "fe6af387-7eb1-4e70-bcbb-56f5f473071a",
+        "c29f077c-f9c4-4521-8da1-2c010f09a5fb"
+      ],
+      "system_prompt": null,
+      "user_prompt": null
+    }
+  },
+  "active_branch_name": "main",
+  "current_state": "idle"
+}

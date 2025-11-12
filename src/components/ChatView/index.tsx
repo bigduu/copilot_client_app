@@ -55,14 +55,18 @@ export const ChatView: React.FC = () => {
   } = useBackendContext();
 
   // Auto-load backend context when currentChatId changes
+  // Use a ref to track the last loaded chat ID to prevent unnecessary reloads
+  const lastLoadedChatIdRef = useRef<string | null>(null);
+
   useEffect(() => {
-    if (currentChatId && currentChatId !== currentContext?.id) {
+    if (currentChatId && currentChatId !== lastLoadedChatIdRef.current) {
       console.log(`[ChatView] Loading context for chat: ${currentChatId}`);
+      lastLoadedChatIdRef.current = currentChatId;
       loadContext(currentChatId).catch((err) => {
         console.error(`[ChatView] Failed to load context:`, err);
       });
     }
-  }, [currentChatId, currentContext?.id, loadContext]);
+  }, [currentChatId, loadContext]);
 
   // Handle message deletion - optimized with useCallback
   const handleDeleteMessage = useCallback(
@@ -82,6 +86,8 @@ export const ChatView: React.FC = () => {
   const lastChatIdRef = useRef<string | null>(null);
   // Scroll-to-bottom button state
   const [showScrollToBottom, setShowScrollToBottom] = useState(false);
+  // Track if user has manually scrolled up (to prevent auto-scroll interruption)
+  const userHasScrolledUpRef = useRef(false);
 
   // Responsive container width calculation
   const getContainerMaxWidth = () => {
@@ -410,7 +416,17 @@ export const ChatView: React.FC = () => {
     const threshold = 40;
     const atBottom =
       el.scrollHeight - el.scrollTop - el.clientHeight < threshold;
+
+    // Update scroll-to-bottom button visibility
     setShowScrollToBottom(!atBottom);
+
+    // Track if user has manually scrolled up
+    if (!atBottom) {
+      userHasScrolledUpRef.current = true;
+    } else {
+      // User scrolled back to bottom, reset the flag
+      userHasScrolledUpRef.current = false;
+    }
   }, []);
 
   const scrollToBottom = useCallback(() => {
@@ -420,15 +436,52 @@ export const ChatView: React.FC = () => {
     });
   }, [renderableMessages.length, rowVirtualizer]);
 
+  // Reset scroll flag and scroll to bottom when user sends a message
+  // Detect message sending by watching state transition from IDLE to THINKING
+  const previousStateRef = useRef(interactionState.value);
   useEffect(() => {
-    if (!showScrollToBottom) {
+    const currentState = interactionState.value;
+    const previousState = previousStateRef.current;
+
+    // User sent a message: state changed from IDLE to THINKING
+    if (previousState === "IDLE" && currentState === "THINKING") {
+      console.log(
+        "[ChatView] User sent message, resetting scroll flag and scrolling to bottom"
+      );
+      userHasScrolledUpRef.current = false; // Reset flag
+      scrollToBottom(); // Scroll to bottom immediately
+    }
+
+    previousStateRef.current = currentState;
+  }, [interactionState.value, scrollToBottom]);
+
+  // Auto-scroll to bottom when streaming content updates
+  // Only auto-scroll if user hasn't manually scrolled up
+  // This allows users to see streaming effects while not interrupting manual scrolling
+  useEffect(() => {
+    if (
+      !userHasScrolledUpRef.current &&
+      interactionState.context.streamingContent
+    ) {
       scrollToBottom();
     }
-  }, [
-    showScrollToBottom,
-    scrollToBottom,
-    interactionState.context.streamingContent,
-  ]);
+  }, [scrollToBottom, interactionState.context.streamingContent]);
+
+  // Auto-scroll when new messages are added (only if user hasn't scrolled up)
+  useEffect(() => {
+    if (!userHasScrolledUpRef.current && renderableMessages.length > 0) {
+      scrollToBottom();
+    }
+  }, [renderableMessages.length, scrollToBottom]);
+
+  // Reset scroll flag when chat context changes
+  useEffect(() => {
+    if (currentContext?.id !== lastChatIdRef.current) {
+      lastChatIdRef.current = currentContext?.id || null;
+      userHasScrolledUpRef.current = false; // Reset on context change
+      scrollToBottom(); // Auto-scroll to bottom on context change
+    }
+  }, [currentContext?.id, scrollToBottom]);
 
   // Calculate scroll to bottom button position
   const getScrollButtonPosition = () => {
@@ -776,7 +829,10 @@ export const ChatView: React.FC = () => {
               background: token.colorPrimary,
               color: token.colorBgContainer,
             }}
-            onClick={scrollToBottom}
+            onClick={() => {
+              userHasScrolledUpRef.current = false; // Reset flag when user clicks scroll-to-bottom
+              scrollToBottom();
+            }}
           />
         )}
 

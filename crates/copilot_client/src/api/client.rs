@@ -158,4 +158,9 @@ impl CopilotClientTrait for CopilotClient {
         }
         Ok(())
     }
+
+    async fn get_models(&self) -> anyhow::Result<Vec<String>> {
+        let chat_token = self.auth_handler.get_chat_token().await?;
+        self.models_handler.get_models(chat_token).await
+    }
 }

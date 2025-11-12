@@ -12,7 +12,7 @@ use actix_web::{
 use async_trait::async_trait;
 use bytes::Bytes;
 use copilot_client::{
-    api::models::{ChatCompletionRequest, ChatCompletionResponse, ChatCompletionStreamChunk},
+    api::models::{ChatCompletionRequest, ChatCompletionStreamChunk},
     client_trait::CopilotClientTrait,
 };
 use reqwest::Response;
@@ -26,8 +26,8 @@ use tool_system::{registry::ToolRegistry, ToolExecutor};
 use uuid::Uuid;
 use web_service::server::{app_config, AppState};
 use web_service::services::{
-    approval_manager::ApprovalManager, session_manager::ChatSessionManager,
-    system_prompt_enhancer::SystemPromptEnhancer, system_prompt_service::SystemPromptService,
+    approval_manager::ApprovalManager, event_broadcaster::EventBroadcaster,
+    session_manager::ChatSessionManager, system_prompt_service::SystemPromptService,
     template_variable_service::TemplateVariableService,
     user_preference_service::UserPreferenceService, workflow_service::WorkflowService,
 };
@@ -119,6 +119,11 @@ impl CopilotClientTrait for MockCopilotClient {
         tx.send(Ok(Bytes::from("[DONE]"))).await.ok();
         Ok(())
     }
+
+    async fn get_models(&self) -> anyhow::Result<Vec<String>> {
+        // Return mock models for testing
+        Ok(vec!["gpt-4".to_string(), "gpt-3.5-turbo".to_string()])
+    }
 }
 
 /// Setup test environment with AppState
@@ -135,13 +140,9 @@ async fn setup_test_app() -> impl Service<Request, Response = ServiceResponse, E
     let template_variable_service = Arc::new(TemplateVariableService::new(PathBuf::from(
         "test_template_variables",
     )));
-    let system_prompt_enhancer = Arc::new(
-        SystemPromptEnhancer::with_default_config(Arc::new(ToolRegistry::new()))
-            .with_template_service(template_variable_service.clone()),
-    );
     let session_manager = Arc::new(ChatSessionManager::new(
         Arc::new(
-            web_service::storage::file_provider::FileStorageProvider::new(
+            web_service::storage::message_pool_provider::MessagePoolStorageProvider::new(
                 conversations_path.to_str().unwrap(),
             ),
         ),
@@ -154,10 +155,10 @@ async fn setup_test_app() -> impl Service<Request, Response = ServiceResponse, E
         "test_user_preferences",
     )));
     let workflow_service = Arc::new(WorkflowService::new(Arc::new(WorkflowRegistry::new())));
+    let event_broadcaster = Arc::new(EventBroadcaster::new());
 
     let app_state = actix_web::web::Data::new(AppState {
         system_prompt_service,
-        system_prompt_enhancer,
         session_manager,
         copilot_client,
         tool_executor,
@@ -165,6 +166,7 @@ async fn setup_test_app() -> impl Service<Request, Response = ServiceResponse, E
         approval_manager,
         user_preference_service,
         workflow_service,
+        event_broadcaster,
     });
 
     test::init_service(App::new().app_data(app_state.clone()).configure(app_config)).await

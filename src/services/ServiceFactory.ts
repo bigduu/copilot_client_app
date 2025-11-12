@@ -1,31 +1,22 @@
-import { ToolService, UtilityService, ServiceMode } from "./types";
-import { AIService } from "./AIService";
+import { ToolService, UtilityService } from "./types";
 import { HttpToolService, HttpUtilityService } from "./HttpServices";
 import { TauriChatService, TauriUtilityService } from "./TauriService";
 
-const SERVICE_MODE_KEY = "copilot_service_mode";
-
+/**
+ * ServiceFactory - Simplified to use only Web/HTTP mode
+ * All services now use HTTP API calls to the backend
+ */
 export class ServiceFactory {
   private static instance: ServiceFactory;
-  private currentMode: ServiceMode = "openai";
 
   // Service instances
   private tauriChatService = new TauriChatService();
   private tauriUtilityService = new TauriUtilityService();
-  private openaiService = new AIService();
   private httpToolService = new HttpToolService();
   private httpUtilityService = new HttpUtilityService();
 
   private constructor() {
-    // Load saved mode from localStorage, default to 'openai' if not set
-    const savedMode = localStorage.getItem(SERVICE_MODE_KEY) as ServiceMode;
-    if (savedMode && (savedMode === "tauri" || savedMode === "openai")) {
-      this.currentMode = savedMode;
-    } else {
-      // Set default mode to openai and save it
-      this.currentMode = "openai";
-      localStorage.setItem(SERVICE_MODE_KEY, "openai");
-    }
+    // No mode switching needed - always use Web/HTTP mode
   }
 
   static getInstance(): ServiceFactory {
@@ -35,50 +26,33 @@ export class ServiceFactory {
     return ServiceFactory.instance;
   }
 
-  getCurrentMode(): ServiceMode {
-    return this.currentMode;
-  }
-
-  setMode(mode: ServiceMode): void {
-    this.currentMode = mode;
-    localStorage.setItem(SERVICE_MODE_KEY, mode);
-  }
-
-  getChatService(): AIService | TauriChatService {
-    switch (this.currentMode) {
-      case "openai":
-        return this.openaiService;
-      case "tauri":
-      default:
-        return this.tauriChatService;
-    }
+  getChatService(): TauriChatService {
+    // Always return Tauri chat service (used for all chat operations)
+    return this.tauriChatService;
   }
 
   getToolService(): ToolService {
-    // Always return the HTTP-based tool service as the Tauri one is deprecated.
+    // Always return HTTP-based tool service
     return this.httpToolService;
   }
 
   getUtilityService(): UtilityService {
-    // This is a composite service.
-    // Native functions like copyToClipboard always use Tauri.
-    // Other functions use HTTP when in openai mode.
-    if (this.currentMode === "openai") {
-      return {
-        copyToClipboard: (text: string) =>
-          this.tauriUtilityService.copyToClipboard(text),
-        invoke: <T = any>(
-          command: string,
-          args?: Record<string, any>,
-        ): Promise<T> => this.tauriUtilityService.invoke(command, args),
-        getMcpServers: () => this.httpUtilityService.getMcpServers(),
-        setMcpServers: (servers: any) =>
-          this.httpUtilityService.setMcpServers(servers),
-        getMcpClientStatus: (name: string) =>
-          this.httpUtilityService.getMcpClientStatus(name),
-      };
-    }
-    return this.tauriUtilityService;
+    // Composite service:
+    // - Native functions (copyToClipboard, invoke) use Tauri
+    // - MCP functions use HTTP
+    return {
+      copyToClipboard: (text: string) =>
+        this.tauriUtilityService.copyToClipboard(text),
+      invoke: <T = any>(
+        command: string,
+        args?: Record<string, any>
+      ): Promise<T> => this.tauriUtilityService.invoke(command, args),
+      getMcpServers: () => this.httpUtilityService.getMcpServers(),
+      setMcpServers: (servers: any) =>
+        this.httpUtilityService.setMcpServers(servers),
+      getMcpClientStatus: (name: string) =>
+        this.httpUtilityService.getMcpClientStatus(name),
+    };
   }
 
   // Convenience methods for direct access
@@ -86,13 +60,13 @@ export class ServiceFactory {
     messages: any[],
     model?: string,
     onChunk?: (chunk: string) => void,
-    abortSignal?: AbortSignal,
+    abortSignal?: AbortSignal
   ): Promise<void> {
     return this.getChatService().executePrompt(
       messages,
       model,
       onChunk,
-      abortSignal,
+      abortSignal
     );
   }
 
@@ -118,7 +92,7 @@ export class ServiceFactory {
 
   async invoke<T = any>(
     command: string,
-    args?: Record<string, any>,
+    args?: Record<string, any>
   ): Promise<T> {
     return this.getUtilityService().invoke(command, args);
   }

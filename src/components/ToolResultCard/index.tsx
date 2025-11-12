@@ -73,7 +73,7 @@ const ToolResultCardComponent: React.FC<ToolResultCardProps> = ({
 
   const collapseByDefault = useMemo(
     () => shouldCollapseContent(formatted.formattedText),
-    [formatted.formattedText],
+    [formatted.formattedText]
   );
 
   const isCollapsible = formatted.isJson || collapseByDefault;
@@ -81,7 +81,7 @@ const ToolResultCardComponent: React.FC<ToolResultCardProps> = ({
 
   const preview = useMemo(
     () => createContentPreview(formatted.formattedText),
-    [formatted.formattedText],
+    [formatted.formattedText]
   );
 
   const handleCopy = async () => {
@@ -162,14 +162,14 @@ const ToolResultCardComponent: React.FC<ToolResultCardProps> = ({
           />
         )}
 
-        <div style={{ width: "100%" }}>
+        <div style={{ width: "100%", overflow: "hidden" }}>
           {derivedIsLoading ? (
             <Spin tip="Waiting for tool result..." />
           ) : formatted.isJson ? (
             <SyntaxHighlighter
               language="json"
               style={oneDark}
-              wrapLongLines
+              wrapLongLines={true}
               customStyle={{
                 margin: 0,
                 borderRadius: token.borderRadiusSM,
@@ -177,6 +177,14 @@ const ToolResultCardComponent: React.FC<ToolResultCardProps> = ({
                 fontSize: token.fontSizeSM,
                 maxHeight: isExpanded ? "none" : 280,
                 overflow: isExpanded ? "auto" : "hidden",
+                whiteSpace: "pre-wrap",
+                wordBreak: "break-word",
+              }}
+              codeTagProps={{
+                style: {
+                  whiteSpace: "pre-wrap",
+                  wordBreak: "break-word",
+                },
               }}
             >
               {formatted.formattedText}

@@ -79,3 +79,38 @@ fn test_default_state_serialization() {
     let deserialized: ContextState = serde_json::from_str(&json).unwrap();
     assert_eq!(deserialized, ContextState::Idle);
 }
+
+#[test]
+fn test_context_title_serialization() {
+    // Test with title set
+    let mut context = ChatContext::new(Uuid::new_v4(), "gpt-4".to_string(), "default".to_string());
+    context.title = Some("Test Chat Title".to_string());
+    context.auto_generate_title = false;
+
+    let json = serde_json::to_string(&context).unwrap();
+    let deserialized: ChatContext = serde_json::from_str(&json).unwrap();
+
+    assert_eq!(deserialized.title, Some("Test Chat Title".to_string()));
+    assert_eq!(deserialized.auto_generate_title, false);
+
+    // Test with title None (should not be serialized due to skip_serializing_if)
+    let context_no_title =
+        ChatContext::new(Uuid::new_v4(), "gpt-4".to_string(), "default".to_string());
+    let json_no_title = serde_json::to_string(&context_no_title).unwrap();
+
+    // Verify title field is not in JSON when None
+    assert!(!json_no_title.contains("\"title\""));
+
+    // But auto_generate_title should default to true
+    let deserialized_no_title: ChatContext = serde_json::from_str(&json_no_title).unwrap();
+    assert_eq!(deserialized_no_title.title, None);
+    assert_eq!(deserialized_no_title.auto_generate_title, true);
+}
+
+#[test]
+fn test_context_auto_generate_title_default() {
+    // Test that auto_generate_title defaults to true for new contexts
+    let context = ChatContext::new(Uuid::new_v4(), "gpt-4".to_string(), "default".to_string());
+    assert_eq!(context.auto_generate_title, true);
+    assert_eq!(context.title, None);
+}

@@ -13,14 +13,13 @@ import {
 } from "../types/chat";
 import { ImageFile } from "../utils/imageUtils";
 import { SystemPromptService } from "../services";
-
-// Feature flag for Signal-Pull SSE architecture
-// Set to true to enable the new backend-driven streaming model
-const USE_SIGNAL_PULL_SSE = true; // ✅ ENABLED: Using new Signal-Pull SSE architecture
+import { transformMessageDTOToMessage } from "../utils/messageTransformers";
 
 /**
  * Unified hook for managing all chat-related state and interactions.
  * This hook is the single source of truth for chat management in the UI.
+ *
+ * Uses Signal-Pull SSE architecture for backend-driven streaming.
  */
 export const useChatManager = () => {
   const { modal, message: appMessage } = AntApp.useApp();
@@ -41,35 +40,35 @@ export const useChatManager = () => {
   const loadChats = useAppStore((state) => state.loadChats);
   const autoGenerateTitles = useAppStore((state) => state.autoGenerateTitles);
   const setAutoGenerateTitlesPreference = useAppStore(
-    (state) => state.setAutoGenerateTitlesPreference,
+    (state) => state.setAutoGenerateTitlesPreference
   );
   const isUpdatingAutoTitlePreference = useAppStore(
-    (state) => state.isUpdatingAutoTitlePreference,
+    (state) => state.isUpdatingAutoTitlePreference
   );
   const updateMessageContent = useAppStore(
-    (state) => state.updateMessageContent,
+    (state) => state.updateMessageContent
   );
   const lastSelectedPromptId = useAppStore(
-    (state) => state.lastSelectedPromptId,
+    (state) => state.lastSelectedPromptId
   );
   const systemPrompts = useAppStore((state) => state.systemPrompts);
 
   // --- DERIVED STATE ---
   const currentChat = useMemo(
     () => chats.find((chat) => chat.id === currentChatId) || null,
-    [chats, currentChatId],
+    [chats, currentChatId]
   );
   const baseMessages = useMemo(
     () => currentChat?.messages || [],
-    [currentChat],
+    [currentChat]
   );
   const pinnedChats = useMemo(
     () => chats.filter((chat) => chat.pinned),
-    [chats],
+    [chats]
   );
   const unpinnedChats = useMemo(
     () => chats.filter((chat) => !chat.pinned),
-    [chats],
+    [chats]
   );
   const chatCount = chats.length;
 
@@ -152,8 +151,13 @@ export const useChatManager = () => {
           throw new Error("生成的标题为空");
         }
 
-        updateChat(chatId, { title: candidate });
-        if (!isAuto || candidate.toLowerCase() !== "new chat") {
+        // Backend now saves the title, so we sync from backend
+        // Fetch the updated context to get the saved title
+        const context = await backendService.getContext(chatId);
+        const savedTitle = context.title || candidate;
+
+        updateChat(chatId, { title: savedTitle });
+        if (!isAuto || savedTitle.toLowerCase() !== "new chat") {
           autoTitleGeneratedRef.current.add(chatId);
         }
 
@@ -181,13 +185,13 @@ export const useChatManager = () => {
         titleGenerationInFlightRef.current.delete(chatId);
       }
     },
-    [appMessage, autoGenerateTitles, isDefaultTitle, updateChat],
+    [appMessage, autoGenerateTitles, isDefaultTitle, updateChat]
   );
 
   // --- LOCAL UI STATE FOR STREAMING ---
   const [streamingText, setStreamingText] = useState("");
   const [streamingMessageId, setStreamingMessageId] = useState<string | null>(
-    null,
+    null
   );
 
   // --- AGENT APPROVAL STATE ---
@@ -223,7 +227,7 @@ export const useChatManager = () => {
             await updateMessageContent(
               chatId,
               streamingMessageId,
-              event.payload.finalContent,
+              event.payload.finalContent
             );
             // Reset local streaming UI state
             setStreamingMessageId(null);
@@ -246,7 +250,7 @@ export const useChatManager = () => {
     }
     // Ensure the streaming message placeholder is part of the list
     const messageExists = baseMessages.some(
-      (msg) => msg.id === streamingMessageId,
+      (msg) => msg.id === streamingMessageId
     );
     const list = messageExists
       ? baseMessages
@@ -262,7 +266,7 @@ export const useChatManager = () => {
         ];
 
     return list.map((msg) =>
-      msg.id === streamingMessageId ? { ...msg, content: streamingText } : msg,
+      msg.id === streamingMessageId ? { ...msg, content: streamingText } : msg
     );
   }, [baseMessages, streamingMessageId, streamingText]);
 
@@ -289,8 +293,8 @@ export const useChatManager = () => {
 
     console.log(
       `[ChatManager] State changed from ${JSON.stringify(
-        prevState.value,
-      )} to ${JSON.stringify(state.value)}`,
+        prevState.value
+      )} to ${JSON.stringify(state.value)}`
     );
 
     // --- Handle entering THINKING state ---
@@ -341,266 +345,14 @@ export const useChatManager = () => {
       }
       console.log(
         "[ChatManager] sendMessage: currentChat.config on entry:",
-        currentChat.config,
+        currentChat.config
       );
       const chatId = currentChat.id;
 
-      // ✅ NEW: Signal-Pull SSE architecture
-      if (USE_SIGNAL_PULL_SSE) {
-        console.log("[ChatManager] Using Signal-Pull SSE architecture (NEW)");
-
-        const processedContent = content;
-        const messageImages: MessageImage[] =
-          images?.map((img) => ({
-            id: img.id,
-            base64: img.base64,
-            name: img.name,
-            size: img.size,
-            type: img.type,
-          })) || [];
-
-        const userMessage: UserMessage = {
-          role: "user",
-          content: processedContent,
-          id: crypto.randomUUID(),
-          createdAt: new Date().toISOString(),
-          images: messageImages,
-        };
-
-        // Add user message locally for optimistic UI update
-        await addMessage(chatId, userMessage);
-
-        try {
-          const { backendContextService } = await import(
-            "../services/BackendContextService"
-          );
-
-          // Create temporary assistant message for streaming
-          const assistantMessageId = crypto.randomUUID();
-          const assistantMessage: AssistantTextMessage = {
-            id: assistantMessageId,
-            role: "assistant",
-            type: "text",
-            content: "",
-            createdAt: new Date().toISOString(),
-          };
-
-          // Add empty assistant message to show streaming indicator
-          await addMessage(chatId, assistantMessage);
-
-          // Reset sequence tracking
-          currentSequenceRef.current = 0;
-          currentMessageIdRef.current = assistantMessageId;
-          let accumulatedContent = "";
-
-          // Queue to ensure sequential processing of content_delta events
-          let pullQueue = Promise.resolve();
-
-          console.log(`[ChatManager] Starting Signal-Pull SSE for chat ${chatId}`);
-
-          // 1. Subscribe to SSE events FIRST (before sending message)
-          const unsubscribe = backendContextService.subscribeToContextEvents(
-            chatId,
-            async (event) => {
-              console.log(`[ChatManager] SSE event received:`, event.type);
-
-              switch (event.type) {
-                case "message_created":
-                  console.log(
-                    `[ChatManager] MessageCreated event: message_id=${event.message_id}, role=${event.role}`,
-                  );
-                  // Reset sequence tracking for new message
-                  currentSequenceRef.current = 0;
-                  accumulatedContent = "";
-                  break;
-
-                case "content_delta":
-                  // Queue this pull operation to ensure sequential processing
-                  pullQueue = pullQueue.then(async () => {
-                    try {
-                      const fromSequence = currentSequenceRef.current;
-                      console.log(
-                        `[ChatManager] ContentDelta: event.current_sequence=${event.current_sequence}, pulling from ${fromSequence}`,
-                      );
-
-                      // Pull new chunks from current sequence
-                      const contentResponse =
-                        await backendContextService.getMessageContent(
-                          event.context_id,
-                          event.message_id,
-                          fromSequence,
-                        );
-
-                      console.log(
-                        `[ChatManager] Pulled ${contentResponse.chunks.length} chunks, new current_sequence=${contentResponse.current_sequence}`,
-                      );
-
-                      // Accumulate content from NEW chunks only
-                      if (contentResponse.chunks && contentResponse.chunks.length > 0) {
-                        for (const chunk of contentResponse.chunks) {
-                          accumulatedContent += chunk.delta;
-                        }
-
-                        console.log(
-                          `[ChatManager] Accumulated content length: ${accumulatedContent.length}`,
-                        );
-
-                        // Update message in UI
-                        const updatedAssistantMessage: AssistantTextMessage = {
-                          ...assistantMessage,
-                          content: accumulatedContent,
-                        };
-
-                        const { chats } = useAppStore.getState();
-                        const currentChat = chats.find((c) => c.id === chatId);
-                        if (currentChat) {
-                          const updatedMessages = currentChat.messages.map((msg) =>
-                            msg.id === assistantMessageId
-                              ? updatedAssistantMessage
-                              : msg,
-                          );
-                          setMessages(chatId, updatedMessages);
-                        }
-                      }
-
-                      // Update sequence tracking AFTER processing
-                      currentSequenceRef.current = contentResponse.current_sequence;
-                    } catch (error) {
-                      console.error(
-                        "[ChatManager] Failed to pull content:",
-                        error,
-                      );
-                      appMessage.error("Failed to receive message content");
-                    }
-                  });
-                  break;
-
-                case "message_completed":
-                  console.log(
-                    `[ChatManager] Message completed, fetching final state`,
-                  );
-
-                  // Cleanup SSE subscription
-                  if (sseUnsubscribeRef.current) {
-                    sseUnsubscribeRef.current();
-                    sseUnsubscribeRef.current = null;
-                  }
-
-                  // Fetch final messages from backend to ensure consistency
-                  try {
-                    const messages = await backendContextService.getMessages(
-                      chatId,
-                    );
-                    const allMessages: Message[] = messages.messages
-                      .map((msg) => {
-                        const baseContent =
-                          msg.content
-                            .map((c) => {
-                              if (c.type === "text") return c.text;
-                              if (c.type === "image") return c.url;
-                              return "";
-                            })
-                            .join("\n") || "";
-
-                        const roleLower = msg.role.toLowerCase();
-
-                        if (roleLower === "user") {
-                          return {
-                            id: msg.id,
-                            role: "user",
-                            content: baseContent,
-                            createdAt: new Date().toISOString(),
-                          } as Message;
-                        } else if (roleLower === "assistant") {
-                          return {
-                            id: msg.id,
-                            role: "assistant",
-                            type: "text",
-                            content: baseContent,
-                            createdAt: new Date().toISOString(),
-                          } as Message;
-                        } else if (roleLower === "tool") {
-                          return {
-                            id: msg.id,
-                            role: "assistant",
-                            type: "text",
-                            content: `[Tool Result]\n${baseContent}`,
-                            createdAt: new Date().toISOString(),
-                          } as Message;
-                        }
-                        return null;
-                      })
-                      .filter(Boolean) as Message[];
-
-                    setMessages(chatId, allMessages);
-                    console.log(
-                      `[ChatManager] Final messages synced: ${allMessages.length} messages`,
-                    );
-                  } catch (error) {
-                    console.error(
-                      "[ChatManager] Failed to fetch final messages:",
-                      error,
-                    );
-                  }
-                  break;
-
-                case "state_changed":
-                  console.log(
-                    `[ChatManager] Backend state changed: ${event.new_state}`,
-                  );
-                  // Could update UI state indicator here if needed
-                  break;
-
-                case "heartbeat":
-                  // Keep-alive, no action needed
-                  break;
-
-                default:
-                  console.warn(
-                    "[ChatManager] Unknown SSE event type:",
-                    (event as any).type,
-                  );
-              }
-            },
-            (error) => {
-              console.error("[ChatManager] SSE error:", error);
-              appMessage.error("Connection error. Please try again.");
-
-              // Cleanup on error
-              if (sseUnsubscribeRef.current) {
-                sseUnsubscribeRef.current();
-                sseUnsubscribeRef.current = null;
-              }
-            },
-          );
-
-          // Store unsubscribe function for cleanup
-          sseUnsubscribeRef.current = unsubscribe;
-
-          // 2. Send message to backend AFTER subscribing to SSE
-          try {
-            await backendContextService.sendMessage(chatId, processedContent);
-            console.log(`[ChatManager] Message sent successfully`);
-          } catch (error) {
-            console.error("[ChatManager] Failed to send message:", error);
-            appMessage.error("Failed to send message. Please try again.");
-
-            // Cleanup SSE subscription on error
-            if (sseUnsubscribeRef.current) {
-              sseUnsubscribeRef.current();
-              sseUnsubscribeRef.current = null;
-            }
-          }
-        } catch (error) {
-          console.error("[ChatManager] Failed to setup SSE:", error);
-          appMessage.error("Failed to setup connection. Please try again.");
-        }
-
-        return;
-      }
+      // ✅ Signal-Pull SSE architecture
+      console.log("[ChatManager] Using Signal-Pull SSE architecture");
 
       const processedContent = content;
-
       const messageImages: MessageImage[] =
         images?.map((img) => ({
           id: img.id,
@@ -618,26 +370,13 @@ export const useChatManager = () => {
         images: messageImages,
       };
 
-      // ✅ NEW BACKEND-FIRST APPROACH:
-      // Add user message locally for optimistic UI update (no backend persistence)
+      // Add user message locally for optimistic UI update
       await addMessage(chatId, userMessage);
 
-      // NOTE: Tool command parsing DISABLED
-      // Workflows are now invoked via WorkflowSelector UI (type "/" to trigger)
-      // The old "/command" text parsing is removed to avoid conflicts
-      // Tools will be handled by backend agent loop (JSON format from LLM)
-
-      // ✅ All messages now go through backend action API
-      // Backend will: save user message → run FSM → generate response → save response
-      console.log(
-        `[ChatManager] Calling backend action API for chat ${chatId}`,
-      );
-
       try {
-        const { BackendContextService } = await import(
+        const { backendContextService } = await import(
           "../services/BackendContextService"
         );
-        const backendService = new BackendContextService();
 
         // Create temporary assistant message for streaming
         const assistantMessageId = crypto.randomUUID();
@@ -651,121 +390,182 @@ export const useChatManager = () => {
 
         // Add empty assistant message to show streaming indicator
         await addMessage(chatId, assistantMessage);
+
+        // Reset sequence tracking
+        currentSequenceRef.current = 0;
+        currentMessageIdRef.current = assistantMessageId;
         let accumulatedContent = "";
 
-        console.log(`[ChatManager] Starting streaming for chat ${chatId}`);
+        // Queue to ensure sequential processing of content_delta events
+        let pullQueue = Promise.resolve();
 
-        // Call streaming endpoint
-        await backendService.sendMessageStream(
-          chatId,
-          processedContent,
-          // onChunk: update message content in real-time
-          (chunk: string) => {
-            accumulatedContent += chunk;
-            const updatedAssistantMessage: AssistantTextMessage = {
-              ...assistantMessage,
-              content: accumulatedContent,
-            };
-            // ✅ Get current messages from store to avoid stale closure
-            const { chats } = useAppStore.getState();
-            const currentChat = chats.find((c) => c.id === chatId);
-            if (currentChat) {
-              const updatedMessages = currentChat.messages.map((msg) =>
-                msg.id === assistantMessageId ? updatedAssistantMessage : msg,
-              );
-              setMessages(chatId, updatedMessages);
-            }
-          },
-          // onDone: fetch final state from backend
-          async () => {
-            console.log(`[ChatManager] Stream completed, fetching final state`);
-            try {
-              // Get final messages from backend to ensure consistency
-              const messages = await backendService.getMessages(chatId);
-              const allMessages: Message[] = messages.messages
-                .map((msg) => {
-                  const baseContent =
-                    msg.content
-                      .map((c) => {
-                        if (c.type === "text") return c.text;
-                        if (c.type === "image") return c.url;
-                        return "";
-                      })
-                      .join("\n") || "";
-
-                  const roleLower = msg.role.toLowerCase();
-
-                  if (roleLower === "user") {
-                    return {
-                      id: msg.id,
-                      role: "user",
-                      content: baseContent,
-                      createdAt: new Date().toISOString(),
-                    } as Message;
-                  } else if (roleLower === "assistant") {
-                    return {
-                      id: msg.id,
-                      role: "assistant",
-                      type: "text",
-                      content: baseContent,
-                      createdAt: new Date().toISOString(),
-                    } as Message;
-                  } else if (roleLower === "tool") {
-                    // ✅ Handle tool messages (tool execution results)
-                    return {
-                      id: msg.id,
-                      role: "assistant", // Display as assistant message
-                      type: "text",
-                      content: `[Tool Result]\n${baseContent}`,
-                      createdAt: new Date().toISOString(),
-                    } as Message;
-                  }
-                  return null;
-                })
-                .filter(Boolean) as Message[];
-
-              // Update local state with backend messages
-              setMessages(chatId, allMessages);
-              console.log(
-                `[ChatManager] Updated local state with ${allMessages.length} messages from backend`,
-              );
-              void generateChatTitle(chatId);
-            } catch (error) {
-              console.error(
-                "[ChatManager] Failed to fetch final messages:",
-                error,
-              );
-            }
-          },
-          // onError: show error and remove assistant message
-          (error: string) => {
-            console.error("[ChatManager] Streaming error:", error);
-            modal.error({
-              title: "Streaming Error",
-              content: error,
-            });
-            // Remove the failed assistant message
-            const messagesWithoutAssistant = [...baseMessages, userMessage];
-            setMessages(chatId, messagesWithoutAssistant);
-          },
-          // onApprovalRequired: handle agent-initiated tool approval requests
-          (data: {
-            request_id: string;
-            session_id: string;
-            tool: string;
-            tool_description: string;
-            parameters: Record<string, any>;
-          }) => {
-            console.log("🔒 [ChatManager] Agent approval required:", data);
-            setPendingAgentApproval(data);
-          },
+        console.log(
+          `[ChatManager] Starting Signal-Pull SSE for chat ${chatId}`
         );
+
+        // 1. Subscribe to SSE events FIRST (before sending message)
+        const unsubscribe = backendContextService.subscribeToContextEvents(
+          chatId,
+          async (event) => {
+            console.log(`[ChatManager] SSE event received:`, event.type);
+
+            switch (event.type) {
+              case "message_created":
+                console.log(
+                  `[ChatManager] MessageCreated event: message_id=${event.message_id}, role=${event.role}`
+                );
+                // Reset sequence tracking for new message
+                currentSequenceRef.current = 0;
+                accumulatedContent = "";
+                break;
+
+              case "content_delta":
+                // Queue this pull operation to ensure sequential processing
+                pullQueue = pullQueue.then(async () => {
+                  try {
+                    const fromSequence = currentSequenceRef.current;
+                    console.log(
+                      `[ChatManager] ContentDelta: event.current_sequence=${event.current_sequence}, pulling from ${fromSequence}`
+                    );
+
+                    // Pull new chunks from current sequence
+                    const contentResponse =
+                      await backendContextService.getMessageContent(
+                        event.context_id,
+                        event.message_id,
+                        fromSequence
+                      );
+
+                    console.log(
+                      `[ChatManager] Pulled ${contentResponse.chunks.length} chunks, new current_sequence=${contentResponse.current_sequence}`
+                    );
+
+                    // Accumulate content from NEW chunks only
+                    if (
+                      contentResponse.chunks &&
+                      contentResponse.chunks.length > 0
+                    ) {
+                      for (const chunk of contentResponse.chunks) {
+                        accumulatedContent += chunk.delta;
+                      }
+
+                      console.log(
+                        `[ChatManager] Accumulated content length: ${accumulatedContent.length}`
+                      );
+
+                      // Update message in UI
+                      const updatedAssistantMessage: AssistantTextMessage = {
+                        ...assistantMessage,
+                        content: accumulatedContent,
+                      };
+
+                      const { chats } = useAppStore.getState();
+                      const currentChat = chats.find((c) => c.id === chatId);
+                      if (currentChat) {
+                        const updatedMessages = currentChat.messages.map(
+                          (msg) =>
+                            msg.id === assistantMessageId
+                              ? updatedAssistantMessage
+                              : msg
+                        );
+                        setMessages(chatId, updatedMessages);
+                      }
+                    }
+
+                    // Update sequence tracking AFTER processing
+                    currentSequenceRef.current =
+                      contentResponse.current_sequence;
+                  } catch (error) {
+                    console.error(
+                      "[ChatManager] Failed to pull content:",
+                      error
+                    );
+                    appMessage.error("Failed to receive message content");
+                  }
+                });
+                break;
+
+              case "message_completed":
+                console.log(
+                  `[ChatManager] Message completed, fetching final state`
+                );
+
+                // Cleanup SSE subscription
+                if (sseUnsubscribeRef.current) {
+                  sseUnsubscribeRef.current();
+                  sseUnsubscribeRef.current = null;
+                }
+
+                // Fetch final messages from backend to ensure consistency
+                try {
+                  const messages =
+                    await backendContextService.getMessages(chatId);
+                  const allMessages: Message[] = messages.messages
+                    .map((msg) => transformMessageDTOToMessage(msg))
+                    .filter(Boolean) as Message[];
+
+                  setMessages(chatId, allMessages);
+                  console.log(
+                    `[ChatManager] Final messages synced: ${allMessages.length} messages`
+                  );
+                } catch (error) {
+                  console.error(
+                    "[ChatManager] Failed to fetch final messages:",
+                    error
+                  );
+                }
+                break;
+
+              case "state_changed":
+                console.log(
+                  `[ChatManager] Backend state changed: ${event.new_state}`
+                );
+                // Could update UI state indicator here if needed
+                break;
+
+              case "heartbeat":
+                // Keep-alive, no action needed
+                break;
+
+              default:
+                console.warn(
+                  "[ChatManager] Unknown SSE event type:",
+                  (event as any).type
+                );
+            }
+          },
+          (error) => {
+            console.error("[ChatManager] SSE error:", error);
+            appMessage.error("Connection error. Please try again.");
+
+            // Cleanup on error
+            if (sseUnsubscribeRef.current) {
+              sseUnsubscribeRef.current();
+              sseUnsubscribeRef.current = null;
+            }
+          }
+        );
+
+        // Store unsubscribe function for cleanup
+        sseUnsubscribeRef.current = unsubscribe;
+
+        // 2. Send message to backend AFTER subscribing to SSE
+        try {
+          await backendContextService.sendMessage(chatId, processedContent);
+          console.log(`[ChatManager] Message sent successfully`);
+        } catch (error) {
+          console.error("[ChatManager] Failed to send message:", error);
+          appMessage.error("Failed to send message. Please try again.");
+
+          // Cleanup SSE subscription on error
+          if (sseUnsubscribeRef.current) {
+            sseUnsubscribeRef.current();
+            sseUnsubscribeRef.current = null;
+          }
+        }
       } catch (error) {
-        console.error("[ChatManager] Backend streaming failed:", error);
-        modal.error({
-          title: "Failed to send message",
-          content: "Could not connect to backend. Please try again.",
-        });
+        console.error("[ChatManager] Failed to setup SSE:", error);
+        appMessage.error("Failed to setup connection. Please try again.");
       }
     },
     [
@@ -777,7 +577,7 @@ export const useChatManager = () => {
       systemPrompts,
       setMessages,
       generateChatTitle,
-    ],
+    ]
   );
 
   const retryLastMessage = useCallback(async () => {
@@ -814,7 +614,7 @@ export const useChatManager = () => {
   const createNewChat = useCallback(
     async (title?: string, options?: Partial<Omit<ChatItem, "id">>) => {
       const selectedPrompt = systemPrompts.find(
-        (p) => p.id === lastSelectedPromptId,
+        (p) => p.id === lastSelectedPromptId
       );
 
       // Use actual prompt ID or undefined (no hardcoded defaults)
@@ -845,18 +645,18 @@ export const useChatManager = () => {
       };
       await addChat(newChatData);
     },
-    [addChat, lastSelectedPromptId, systemPrompts],
+    [addChat, lastSelectedPromptId, systemPrompts]
   );
 
   const createChatWithSystemPrompt = useCallback(
     async (prompt: UserSystemPrompt) => {
       console.log(
         "[ChatManager] createChatWithSystemPrompt started with prompt:",
-        prompt,
+        prompt
       );
       const systemPromptService = SystemPromptService.getInstance();
       const enhancedPrompt = await systemPromptService.getEnhancedSystemPrompt(
-        prompt.id,
+        prompt.id
       );
 
       const newChatData: Omit<ChatItem, "id"> = {
@@ -880,11 +680,11 @@ export const useChatManager = () => {
       };
       console.log(
         "[ChatManager] Calling addChat with newChatData.config:",
-        newChatData.config,
+        newChatData.config
       );
       await addChat(newChatData);
     },
-    [addChat],
+    [addChat]
   );
 
   const toggleChatPin = useCallback(
@@ -894,14 +694,14 @@ export const useChatManager = () => {
         chat.pinned ? unpinChat(chatId) : pinChat(chatId);
       }
     },
-    [chats, pinChat, unpinChat],
+    [chats, pinChat, unpinChat]
   );
 
   const updateChatTitle = useCallback(
     (chatId: string, newTitle: string) => {
       updateChat(chatId, { title: newTitle });
     },
-    [updateChat],
+    [updateChat]
   );
 
   const deleteEmptyChats = useCallback(() => {

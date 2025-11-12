@@ -1,0 +1,15 @@
+{
+  "id": "fe6af387-7eb1-4e70-bcbb-56f5f473071a",
+  "message": {
+    "role": "User",
+    "content": [
+      {
+        "type": "text",
+        "text": "could you please just show me the full content directly"
+      }
+    ],
+    "metadata": null,
+    "message_type": "text"
+  },
+  "parent_id": "8827be9c-f944-42d7-bc6e-e0aa6e614276"
+}

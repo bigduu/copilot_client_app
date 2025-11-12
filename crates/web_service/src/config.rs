@@ -3,7 +3,6 @@
 //! Supports loading configuration from environment variables with fallback to defaults.
 
 use crate::services::agent_service::AgentLoopConfig;
-use crate::services::system_prompt_enhancer::EnhancementConfig;
 use std::time::Duration;
 
 /// Load AgentLoopConfig from environment variables
@@ -43,36 +42,6 @@ pub fn load_agent_loop_config() -> AgentLoopConfig {
     }
 }
 
-/// Load EnhancementConfig from environment variables
-///
-/// Environment variables:
-/// - `PROMPT_ENABLE_TOOLS`: Enable tool injection (default: true)
-/// - `PROMPT_ENABLE_MERMAID`: Enable Mermaid support (default: true)
-/// - `PROMPT_CACHE_TTL_SECS`: Cache TTL in seconds (default: 300)
-/// - `PROMPT_MAX_SIZE`: Maximum prompt size in characters (default: 100000)
-pub fn load_enhancement_config() -> EnhancementConfig {
-    EnhancementConfig {
-        enable_tools: std::env::var("PROMPT_ENABLE_TOOLS")
-            .ok()
-            .and_then(|v| v.parse().ok())
-            .unwrap_or(true),
-        enable_mermaid: std::env::var("PROMPT_ENABLE_MERMAID")
-            .ok()
-            .and_then(|v| v.parse().ok())
-            .unwrap_or(true),
-        cache_ttl: Duration::from_secs(
-            std::env::var("PROMPT_CACHE_TTL_SECS")
-                .ok()
-                .and_then(|v| v.parse().ok())
-                .unwrap_or(300),
-        ),
-        max_prompt_size: std::env::var("PROMPT_MAX_SIZE")
-            .ok()
-            .and_then(|v| v.parse().ok())
-            .unwrap_or(100_000),
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -86,13 +55,5 @@ mod tests {
         assert!(config.max_json_parse_retries > 0);
         assert!(config.max_tool_execution_retries > 0);
         assert!(config.tool_execution_timeout.as_secs() > 0);
-    }
-
-    #[test]
-    fn test_enhancement_config_has_sensible_defaults() {
-        let config = load_enhancement_config();
-        // Should have positive cache TTL and max size
-        assert!(config.cache_ttl.as_secs() > 0);
-        assert!(config.max_prompt_size > 0);
     }
 }

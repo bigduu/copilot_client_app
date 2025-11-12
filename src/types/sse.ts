@@ -1,6 +1,6 @@
 /**
  * SSE (Server-Sent Events) Types for Signal-Pull Architecture
- * 
+ *
  * The backend sends lightweight metadata events via SSE, and the frontend
  * pulls actual content via REST API when needed.
  */
@@ -10,6 +10,7 @@
  */
 export type SignalEvent =
   | StateChangedEvent
+  | MessageCreatedEvent
   | ContentDeltaEvent
   | MessageCompletedEvent
   | HeartbeatEvent;
@@ -22,6 +23,15 @@ export interface StateChangedEvent {
   context_id: string;
   new_state: string;
   timestamp: string;
+}
+
+/**
+ * New message created (signal only, frontend should pull message details via REST)
+ */
+export interface MessageCreatedEvent {
+  type: "message_created";
+  message_id: string;
+  role: string;
 }
 
 /**
@@ -80,4 +90,3 @@ export interface ToolApprovalRequestEvent {
   tool_description: string;
   parameters: Record<string, any>;
 }
-

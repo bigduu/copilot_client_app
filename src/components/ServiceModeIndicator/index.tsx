@@ -1,11 +1,6 @@
 import React from "react";
 import { Tag, Tooltip, Badge } from "antd";
-import {
-  ApiOutlined,
-  DesktopOutlined,
-  ExclamationCircleOutlined,
-} from "@ant-design/icons";
-import { useServiceMode } from "../../hooks/useServiceMode";
+import { ApiOutlined, ExclamationCircleOutlined } from "@ant-design/icons";
 import { useServiceHealth } from "../../hooks/useServiceHealth";
 
 interface ServiceModeIndicatorProps {
@@ -13,43 +8,34 @@ interface ServiceModeIndicatorProps {
   showTooltip?: boolean;
 }
 
+/**
+ * ServiceModeIndicator - Shows Web API service health status
+ * Simplified to only show Web/HTTP mode (no Tauri mode switching)
+ */
 const ServiceModeIndicator: React.FC<ServiceModeIndicatorProps> = ({
   size = "small",
   showTooltip = true,
 }) => {
-  const { isOpenAIMode } = useServiceMode();
   const { health } = useServiceHealth();
 
-  const getStatusColor = () => {
-    if (isOpenAIMode) {
-      return health.isHealthy ? "blue" : "red";
-    }
-    return "green"; // Tauri is always healthy
-  };
-
-  const getStatusIcon = () => {
-    if (isOpenAIMode) {
-      return health.isHealthy ? <ApiOutlined /> : <ExclamationCircleOutlined />;
-    }
-    return <DesktopOutlined />;
-  };
+  const statusColor = health.isHealthy ? "blue" : "red";
+  const statusIcon = health.isHealthy ? (
+    <ApiOutlined />
+  ) : (
+    <ExclamationCircleOutlined />
+  );
 
   const tagContent = (
-    <Badge
-      status={
-        isOpenAIMode ? (health.isHealthy ? "success" : "error") : "success"
-      }
-      dot={isOpenAIMode}
-    >
+    <Badge status={health.isHealthy ? "success" : "error"} dot>
       <Tag
-        color={getStatusColor()}
-        icon={getStatusIcon()}
+        color={statusColor}
+        icon={statusIcon}
         style={{
           fontSize: size === "small" ? "12px" : "14px",
           padding: size === "small" ? "2px 6px" : "4px 8px",
         }}
       >
-        {isOpenAIMode ? "OpenAI API" : "Tauri"}
+        Web API
       </Tag>
     </Badge>
   );
@@ -58,20 +44,11 @@ const ServiceModeIndicator: React.FC<ServiceModeIndicatorProps> = ({
     return tagContent;
   }
 
-  const getTooltipTitle = () => {
-    if (isOpenAIMode) {
-      if (health.isHealthy) {
-        return "OpenAI API mode - Service healthy (localhost:8080)";
-      } else {
-        return `OpenAI API mode - Service error: ${
-          health.error || "Unknown error"
-        }`;
-      }
-    }
-    return "Tauri mode - Using native commands";
-  };
+  const tooltipTitle = health.isHealthy
+    ? "Web API mode - Service healthy (localhost:8080)"
+    : `Web API mode - Service error: ${health.error || "Unknown error"}`;
 
-  return <Tooltip title={getTooltipTitle()}>{tagContent}</Tooltip>;
+  return <Tooltip title={tooltipTitle}>{tagContent}</Tooltip>;
 };
 
 export default ServiceModeIndicator;

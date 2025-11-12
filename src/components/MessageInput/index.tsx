@@ -48,7 +48,7 @@ export interface MessageInputInteractionControls {
   onCancel?: () => void;
   onHistoryNavigate?: (
     direction: "previous" | "next",
-    currentValue: string,
+    currentValue: string
   ) => string | null;
 }
 
@@ -138,7 +138,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
         setIsProcessingAttachments(false);
       }
     },
-    [handleImageFiles, messageApi, onAttachmentsAdded],
+    [handleImageFiles, messageApi, onAttachmentsAdded]
   );
 
   const { isDragOver, handleDragOver, handleDragLeave, handleDrop } =
@@ -161,11 +161,13 @@ export const MessageInput: React.FC<MessageInputProps> = ({
     allowImages,
   });
 
+  // Use debounced value only for triggering workflow/file search to avoid excessive API calls
+  // But use real-time value for highlighting to prevent input lag
   const debouncedValue = useDebouncedValue(value, 80);
 
   const highlightSegments = useMemo(
-    () => getInputHighlightSegments(debouncedValue),
-    [debouncedValue],
+    () => getInputHighlightSegments(value),
+    [value]
   );
 
   const syncOverlayScroll = () => {
@@ -251,7 +253,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
 
     if (isOverCharLimit) {
       messageApi.error(
-        `Message exceeds the maximum length of ${maxCharCount.toLocaleString()} characters.`,
+        `Message exceeds the maximum length of ${maxCharCount.toLocaleString()} characters.`
       );
       return;
     }
@@ -263,7 +265,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
       if (!validation.isValid) {
         // Show error message
         messageApi.error(
-          validation.errorMessage || "Message format is incorrect",
+          validation.errorMessage || "Message format is incorrect"
         );
         return;
       }
@@ -494,15 +496,11 @@ export const MessageInput: React.FC<MessageInputProps> = ({
                       backgroundColor: token.colorPrimaryBg,
                       color: token.colorPrimary,
                       fontWeight: 500,
-                      borderRadius: token.borderRadiusSM,
-                      padding: "0 2px",
                     };
                   } else if (segment.type === "file") {
                     style = {
                       backgroundColor: token.colorSuccessBg,
                       color: token.colorSuccess,
-                      borderRadius: token.borderRadiusSM,
-                      padding: "0 2px",
                     };
                   }
                   return (

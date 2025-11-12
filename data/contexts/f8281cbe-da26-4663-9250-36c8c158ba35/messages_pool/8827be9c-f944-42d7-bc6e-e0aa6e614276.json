@@ -1,0 +1,5231 @@
+{
+  "id": "8827be9c-f944-42d7-bc6e-e0aa6e614276",
+  "message": {
+    "role": "Assistant",
+    "content": [
+      {
+        "type": "text",
+        "text": "The snippet you provided appears to be the content of a `Cargo.toml` file that’s used by Rust’s package manager (`cargo`). This specific file appears to define a **workspace configuration**, which is a way in Rust to manage multiple related crates (or packages) within a single project.\n\nHere’s a breakdown of its content:\n\n### Explanation of the `Cargo.toml` File Content:\n\n#### 1. **Workspace Declaration**\n```toml\n[workspace]\n```\nThis declares that the following `Cargo.toml` file belongs to a **workspace**. A workspace in Rust allows multiple crates (libraries, binaries, or both) to be managed together, sharing a single `Cargo.lock` file and often dependencies. It’s especially useful in large projects.\n\n#### 2. **Members of the Workspace**\n```toml\nmembers = [\n    \"crates/copilot_client\",\n    \"crates/tool_system\",\n    \"crates/workflow_system\",\n    \"crates/mcp_client\",\n    \"crates/web_service\",\n    \"src-tauri\",\n    \"crates/web_service_standalone\",\n    \"crates/context_manager\",\n    \"crates/session_manager\",\n]\n```\nThis section lists all the **members** of the workspace. Each string in the list represents a relative path to a crate within the workspace (e.g., `\"crates/copilot_client\"`). By organizing these crates in subdirectories, the workspace creates a parent-child relationship.\n\n- **Examples of members listed:**\n  - `\"crates/copilot_client\"`: Likely a library or client for interacting with an external API or service.\n  - `\"crates/tool_system\"`: Could be a shared library for various utility functions or tools.\n  - `\"src-tauri\"`: This suggests the project includes a **Tauri** app (Tauri is a Rust framework for building smaller, web-based desktop applications).\n  - `\"crates/session_manager\"`: Likely responsible for session handling.\n\nUsing a workspace allows you to build, test, and maintain multiple related crates as part of one project.\n\n#### 3. **`resolver` Key**\n```toml\nresolver = \"2\"\n```\nThis sets the **resolver version** for dependency management. Rust introduced the `resolver = \"2\"` option in **Rust 1.51.0**. It changes how dependencies are resolved:\n- It avoids activating feature flags of dependencies that aren’t used by the current crate.\n- This makes builds faster and avoids unnecessary compilation.\n\nIf you’re using features across multiple crates in the workspace, `resolver = \"2\"` is generally recommended.\n\n#### 4. **Default Members**\n```toml\ndefault-members = [\"src-tauri\"]\n```\nThis specifies which member(s) in the workspace are treated as **default members**. If you run commands like `cargo build` or `cargo test` from the root of the workspace, only the crates listed here will be built or tested by default.\n\n- `[\"src-tauri\"]`: Indicates that the Tauri application is the default crate to work with when no specific crate is mentioned.\n\n### Putting It All Together\nFrom the structure, this workspace is built to manage **multiple interrelated Rust projects**, likely a mix of shared libraries and a Tauri-based desktop application. \n\nWorkspace benefits:\n- **Centralized dependency management:** All workspace members share the same `Cargo.lock` file.\n- **Simplified organization:** Separate concerns into reusable libraries.\n- **Ease of development:** Build/test/manage multiple crates in one go.\n\nIf you have more questions about Rust workspaces or want explanations of specific entries, feel free to ask! 😊"
+      }
+    ],
+    "metadata": {
+      "created_at": "2025-11-12T15:44:53.622538Z",
+      "source": "a_i_generated",
+      "streaming": {
+        "chunks_count": 742,
+        "started_at": "2025-11-12T15:44:53.622534Z",
+        "completed_at": "2025-11-12T15:45:24.270318Z",
+        "total_duration_ms": 30648,
+        "average_chunk_interval_ms": 41.36032388663968
+      }
+    },
+    "message_type": "text",
+    "rich_type": {
+      "kind": "streaming_response",
+      "data": {
+        "content": "The snippet you provided appears to be the content of a `Cargo.toml` file that’s used by Rust’s package manager (`cargo`). This specific file appears to define a **workspace configuration**, which is a way in Rust to manage multiple related crates (or packages) within a single project.\n\nHere’s a breakdown of its content:\n\n### Explanation of the `Cargo.toml` File Content:\n\n#### 1. **Workspace Declaration**\n```toml\n[workspace]\n```\nThis declares that the following `Cargo.toml` file belongs to a **workspace**. A workspace in Rust allows multiple crates (libraries, binaries, or both) to be managed together, sharing a single `Cargo.lock` file and often dependencies. It’s especially useful in large projects.\n\n#### 2. **Members of the Workspace**\n```toml\nmembers = [\n    \"crates/copilot_client\",\n    \"crates/tool_system\",\n    \"crates/workflow_system\",\n    \"crates/mcp_client\",\n    \"crates/web_service\",\n    \"src-tauri\",\n    \"crates/web_service_standalone\",\n    \"crates/context_manager\",\n    \"crates/session_manager\",\n]\n```\nThis section lists all the **members** of the workspace. Each string in the list represents a relative path to a crate within the workspace (e.g., `\"crates/copilot_client\"`). By organizing these crates in subdirectories, the workspace creates a parent-child relationship.\n\n- **Examples of members listed:**\n  - `\"crates/copilot_client\"`: Likely a library or client for interacting with an external API or service.\n  - `\"crates/tool_system\"`: Could be a shared library for various utility functions or tools.\n  - `\"src-tauri\"`: This suggests the project includes a **Tauri** app (Tauri is a Rust framework for building smaller, web-based desktop applications).\n  - `\"crates/session_manager\"`: Likely responsible for session handling.\n\nUsing a workspace allows you to build, test, and maintain multiple related crates as part of one project.\n\n#### 3. **`resolver` Key**\n```toml\nresolver = \"2\"\n```\nThis sets the **resolver version** for dependency management. Rust introduced the `resolver = \"2\"` option in **Rust 1.51.0**. It changes how dependencies are resolved:\n- It avoids activating feature flags of dependencies that aren’t used by the current crate.\n- This makes builds faster and avoids unnecessary compilation.\n\nIf you’re using features across multiple crates in the workspace, `resolver = \"2\"` is generally recommended.\n\n#### 4. **Default Members**\n```toml\ndefault-members = [\"src-tauri\"]\n```\nThis specifies which member(s) in the workspace are treated as **default members**. If you run commands like `cargo build` or `cargo test` from the root of the workspace, only the crates listed here will be built or tested by default.\n\n- `[\"src-tauri\"]`: Indicates that the Tauri application is the default crate to work with when no specific crate is mentioned.\n\n### Putting It All Together\nFrom the structure, this workspace is built to manage **multiple interrelated Rust projects**, likely a mix of shared libraries and a Tauri-based desktop application. \n\nWorkspace benefits:\n- **Centralized dependency management:** All workspace members share the same `Cargo.lock` file.\n- **Simplified organization:** Separate concerns into reusable libraries.\n- **Ease of development:** Build/test/manage multiple crates in one go.\n\nIf you have more questions about Rust workspaces or want explanations of specific entries, feel free to ask! 😊",
+        "chunks": [
+          {
+            "sequence": 1,
+            "delta": "The",
+            "timestamp": "2025-11-12T15:44:53.622975Z",
+            "accumulated_chars": 3
+          },
+          {
+            "sequence": 2,
+            "delta": " snippet",
+            "timestamp": "2025-11-12T15:44:53.623273Z",
+            "accumulated_chars": 11,
+            "interval_ms": 1
+          },
+          {
+            "sequence": 3,
+            "delta": " you",
+            "timestamp": "2025-11-12T15:44:53.623570Z",
+            "accumulated_chars": 15,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 4,
+            "delta": " provided",
+            "timestamp": "2025-11-12T15:44:53.623689Z",
+            "accumulated_chars": 24,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 5,
+            "delta": " appears",
+            "timestamp": "2025-11-12T15:44:53.623786Z",
+            "accumulated_chars": 32,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 6,
+            "delta": " to",
+            "timestamp": "2025-11-12T15:44:53.894140Z",
+            "accumulated_chars": 35,
+            "interval_ms": 271
+          },
+          {
+            "sequence": 7,
+            "delta": " be",
+            "timestamp": "2025-11-12T15:44:53.894917Z",
+            "accumulated_chars": 38,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 8,
+            "delta": " the",
+            "timestamp": "2025-11-12T15:44:53.895268Z",
+            "accumulated_chars": 42,
+            "interval_ms": 1
+          },
+          {
+            "sequence": 9,
+            "delta": " content",
+            "timestamp": "2025-11-12T15:44:53.895639Z",
+            "accumulated_chars": 50,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 10,
+            "delta": " of",
+            "timestamp": "2025-11-12T15:44:53.895953Z",
+            "accumulated_chars": 53,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 11,
+            "delta": " a",
+            "timestamp": "2025-11-12T15:44:54.061644Z",
+            "accumulated_chars": 55,
+            "interval_ms": 166
+          },
+          {
+            "sequence": 12,
+            "delta": " `",
+            "timestamp": "2025-11-12T15:44:54.062027Z",
+            "accumulated_chars": 57,
+            "interval_ms": 1
+          },
+          {
+            "sequence": 13,
+            "delta": "Cargo",
+            "timestamp": "2025-11-12T15:44:54.062740Z",
+            "accumulated_chars": 62,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 14,
+            "delta": ".tom",
+            "timestamp": "2025-11-12T15:44:54.062944Z",
+            "accumulated_chars": 66,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 15,
+            "delta": "l",
+            "timestamp": "2025-11-12T15:44:54.063153Z",
+            "accumulated_chars": 67,
+            "interval_ms": 1
+          },
+          {
+            "sequence": 16,
+            "delta": "`",
+            "timestamp": "2025-11-12T15:44:54.063684Z",
+            "accumulated_chars": 68,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 17,
+            "delta": " file",
+            "timestamp": "2025-11-12T15:44:54.064761Z",
+            "accumulated_chars": 73,
+            "interval_ms": 1
+          },
+          {
+            "sequence": 18,
+            "delta": " that",
+            "timestamp": "2025-11-12T15:44:54.103513Z",
+            "accumulated_chars": 78,
+            "interval_ms": 39
+          },
+          {
+            "sequence": 19,
+            "delta": "’s",
+            "timestamp": "2025-11-12T15:44:54.104218Z",
+            "accumulated_chars": 82,
+            "interval_ms": 1
+          },
+          {
+            "sequence": 20,
+            "delta": " used",
+            "timestamp": "2025-11-12T15:44:54.104525Z",
+            "accumulated_chars": 87,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 21,
+            "delta": " by",
+            "timestamp": "2025-11-12T15:44:54.271865Z",
+            "accumulated_chars": 90,
+            "interval_ms": 167
+          },
+          {
+            "sequence": 22,
+            "delta": " Rust",
+            "timestamp": "2025-11-12T15:44:54.272656Z",
+            "accumulated_chars": 95,
+            "interval_ms": 1
+          },
+          {
+            "sequence": 23,
+            "delta": "’s",
+            "timestamp": "2025-11-12T15:44:54.315476Z",
+            "accumulated_chars": 99,
+            "interval_ms": 43
+          },
+          {
+            "sequence": 24,
+            "delta": " package",
+            "timestamp": "2025-11-12T15:44:54.315906Z",
+            "accumulated_chars": 107,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 25,
+            "delta": " manager",
+            "timestamp": "2025-11-12T15:44:54.316268Z",
+            "accumulated_chars": 115,
+            "interval_ms": 1
+          },
+          {
+            "sequence": 26,
+            "delta": " (`",
+            "timestamp": "2025-11-12T15:44:54.316551Z",
+            "accumulated_chars": 118,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 27,
+            "delta": "cargo",
+            "timestamp": "2025-11-12T15:44:54.316824Z",
+            "accumulated_chars": 123,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 28,
+            "delta": "`).",
+            "timestamp": "2025-11-12T15:44:54.317036Z",
+            "accumulated_chars": 126,
+            "interval_ms": 1
+          },
+          {
+            "sequence": 29,
+            "delta": " This",
+            "timestamp": "2025-11-12T15:44:54.483077Z",
+            "accumulated_chars": 131,
+            "interval_ms": 166
+          },
+          {
+            "sequence": 30,
+            "delta": " specific",
+            "timestamp": "2025-11-12T15:44:54.483507Z",
+            "accumulated_chars": 140,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 31,
+            "delta": " file",
+            "timestamp": "2025-11-12T15:44:54.526170Z",
+            "accumulated_chars": 145,
+            "interval_ms": 43
+          },
+          {
+            "sequence": 32,
+            "delta": " appears",
+            "timestamp": "2025-11-12T15:44:54.526623Z",
+            "accumulated_chars": 153,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 33,
+            "delta": " to",
+            "timestamp": "2025-11-12T15:44:54.526975Z",
+            "accumulated_chars": 156,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 34,
+            "delta": " define",
+            "timestamp": "2025-11-12T15:44:54.527264Z",
+            "accumulated_chars": 163,
+            "interval_ms": 1
+          },
+          {
+            "sequence": 35,
+            "delta": " a",
+            "timestamp": "2025-11-12T15:44:54.527509Z",
+            "accumulated_chars": 165,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 36,
+            "delta": " **",
+            "timestamp": "2025-11-12T15:44:54.527719Z",
+            "accumulated_chars": 168,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 37,
+            "delta": "workspace",
+            "timestamp": "2025-11-12T15:44:54.694305Z",
+            "accumulated_chars": 177,
+            "interval_ms": 167
+          },
+          {
+            "sequence": 38,
+            "delta": " configuration",
+            "timestamp": "2025-11-12T15:44:54.694499Z",
+            "accumulated_chars": 191,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 39,
+            "delta": "**,",
+            "timestamp": "2025-11-12T15:44:54.736855Z",
+            "accumulated_chars": 194,
+            "interval_ms": 42
+          },
+          {
+            "sequence": 40,
+            "delta": " which",
+            "timestamp": "2025-11-12T15:44:54.737502Z",
+            "accumulated_chars": 200,
+            "interval_ms": 1
+          },
+          {
+            "sequence": 41,
+            "delta": " is",
+            "timestamp": "2025-11-12T15:44:54.738147Z",
+            "accumulated_chars": 203,
+            "interval_ms": 1
+          },
+          {
+            "sequence": 42,
+            "delta": " a",
+            "timestamp": "2025-11-12T15:44:54.738375Z",
+            "accumulated_chars": 205,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 43,
+            "delta": " way",
+            "timestamp": "2025-11-12T15:44:54.738585Z",
+            "accumulated_chars": 209,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 44,
+            "delta": " in",
+            "timestamp": "2025-11-12T15:44:54.904743Z",
+            "accumulated_chars": 212,
+            "interval_ms": 166
+          },
+          {
+            "sequence": 45,
+            "delta": " Rust",
+            "timestamp": "2025-11-12T15:44:54.905316Z",
+            "accumulated_chars": 217,
+            "interval_ms": 1
+          },
+          {
+            "sequence": 46,
+            "delta": " to",
+            "timestamp": "2025-11-12T15:44:54.905698Z",
+            "accumulated_chars": 220,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 47,
+            "delta": " manage",
+            "timestamp": "2025-11-12T15:44:54.906160Z",
+            "accumulated_chars": 227,
+            "interval_ms": 1
+          },
+          {
+            "sequence": 48,
+            "delta": " multiple",
+            "timestamp": "2025-11-12T15:44:55.218204Z",
+            "accumulated_chars": 236,
+            "interval_ms": 312
+          },
+          {
+            "sequence": 49,
+            "delta": " related",
+            "timestamp": "2025-11-12T15:44:55.218789Z",
+            "accumulated_chars": 244,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 50,
+            "delta": " crates",
+            "timestamp": "2025-11-12T15:44:55.219134Z",
+            "accumulated_chars": 251,
+            "interval_ms": 1
+          },
+          {
+            "sequence": 51,
+            "delta": " (",
+            "timestamp": "2025-11-12T15:44:55.222493Z",
+            "accumulated_chars": 253,
+            "interval_ms": 3
+          },
+          {
+            "sequence": 52,
+            "delta": "or",
+            "timestamp": "2025-11-12T15:44:55.222692Z",
+            "accumulated_chars": 255,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 53,
+            "delta": " packages",
+            "timestamp": "2025-11-12T15:44:55.412822Z",
+            "accumulated_chars": 264,
+            "interval_ms": 190
+          },
+          {
+            "sequence": 54,
+            "delta": ")",
+            "timestamp": "2025-11-12T15:44:55.413261Z",
+            "accumulated_chars": 265,
+            "interval_ms": 1
+          },
+          {
+            "sequence": 55,
+            "delta": " within",
+            "timestamp": "2025-11-12T15:44:55.413560Z",
+            "accumulated_chars": 272,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 56,
+            "delta": " a",
+            "timestamp": "2025-11-12T15:44:55.414034Z",
+            "accumulated_chars": 274,
+            "interval_ms": 1
+          },
+          {
+            "sequence": 57,
+            "delta": " single",
+            "timestamp": "2025-11-12T15:44:55.414217Z",
+            "accumulated_chars": 281,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 58,
+            "delta": " project",
+            "timestamp": "2025-11-12T15:44:55.414322Z",
+            "accumulated_chars": 289,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 59,
+            "delta": ".\n\n",
+            "timestamp": "2025-11-12T15:44:55.414558Z",
+            "accumulated_chars": 292,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 60,
+            "delta": "Here",
+            "timestamp": "2025-11-12T15:44:55.414662Z",
+            "accumulated_chars": 296,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 61,
+            "delta": "’s",
+            "timestamp": "2025-11-12T15:44:55.414763Z",
+            "accumulated_chars": 300,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 62,
+            "delta": " a",
+            "timestamp": "2025-11-12T15:44:55.832577Z",
+            "accumulated_chars": 302,
+            "interval_ms": 418
+          },
+          {
+            "sequence": 63,
+            "delta": " breakdown",
+            "timestamp": "2025-11-12T15:44:55.833110Z",
+            "accumulated_chars": 312,
+            "interval_ms": 1
+          },
+          {
+            "sequence": 64,
+            "delta": " of",
+            "timestamp": "2025-11-12T15:44:55.838413Z",
+            "accumulated_chars": 315,
+            "interval_ms": 5
+          },
+          {
+            "sequence": 65,
+            "delta": " its",
+            "timestamp": "2025-11-12T15:44:55.842144Z",
+            "accumulated_chars": 319,
+            "interval_ms": 4
+          },
+          {
+            "sequence": 66,
+            "delta": " content",
+            "timestamp": "2025-11-12T15:44:55.842672Z",
+            "accumulated_chars": 327,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 67,
+            "delta": ":\n\n",
+            "timestamp": "2025-11-12T15:44:56.045048Z",
+            "accumulated_chars": 330,
+            "interval_ms": 203
+          },
+          {
+            "sequence": 68,
+            "delta": "###",
+            "timestamp": "2025-11-12T15:44:56.046276Z",
+            "accumulated_chars": 333,
+            "interval_ms": 1
+          },
+          {
+            "sequence": 69,
+            "delta": " Explanation",
+            "timestamp": "2025-11-12T15:44:56.046872Z",
+            "accumulated_chars": 345,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 70,
+            "delta": " of",
+            "timestamp": "2025-11-12T15:44:56.047196Z",
+            "accumulated_chars": 348,
+            "interval_ms": 1
+          },
+          {
+            "sequence": 71,
+            "delta": " the",
+            "timestamp": "2025-11-12T15:44:56.047485Z",
+            "accumulated_chars": 352,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 72,
+            "delta": " `",
+            "timestamp": "2025-11-12T15:44:56.254844Z",
+            "accumulated_chars": 354,
+            "interval_ms": 207
+          },
+          {
+            "sequence": 73,
+            "delta": "Cargo",
+            "timestamp": "2025-11-12T15:44:56.255424Z",
+            "accumulated_chars": 359,
+            "interval_ms": 1
+          },
+          {
+            "sequence": 74,
+            "delta": ".tom",
+            "timestamp": "2025-11-12T15:44:56.255856Z",
+            "accumulated_chars": 363,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 75,
+            "delta": "l",
+            "timestamp": "2025-11-12T15:44:56.298971Z",
+            "accumulated_chars": 364,
+            "interval_ms": 43
+          },
+          {
+            "sequence": 76,
+            "delta": "`",
+            "timestamp": "2025-11-12T15:44:56.299704Z",
+            "accumulated_chars": 365,
+            "interval_ms": 1
+          },
+          {
+            "sequence": 77,
+            "delta": " File",
+            "timestamp": "2025-11-12T15:44:56.300373Z",
+            "accumulated_chars": 370,
+            "interval_ms": 1
+          },
+          {
+            "sequence": 78,
+            "delta": " Content",
+            "timestamp": "2025-11-12T15:44:56.778430Z",
+            "accumulated_chars": 378,
+            "interval_ms": 478
+          },
+          {
+            "sequence": 79,
+            "delta": ":\n\n",
+            "timestamp": "2025-11-12T15:44:56.782604Z",
+            "accumulated_chars": 381,
+            "interval_ms": 4
+          },
+          {
+            "sequence": 80,
+            "delta": "####",
+            "timestamp": "2025-11-12T15:44:56.782862Z",
+            "accumulated_chars": 385,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 81,
+            "delta": " ",
+            "timestamp": "2025-11-12T15:44:56.783126Z",
+            "accumulated_chars": 386,
+            "interval_ms": 1
+          },
+          {
+            "sequence": 82,
+            "delta": "1",
+            "timestamp": "2025-11-12T15:44:56.784194Z",
+            "accumulated_chars": 387,
+            "interval_ms": 1
+          },
+          {
+            "sequence": 83,
+            "delta": ".",
+            "timestamp": "2025-11-12T15:44:56.784431Z",
+            "accumulated_chars": 388,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 84,
+            "delta": " **",
+            "timestamp": "2025-11-12T15:44:56.784891Z",
+            "accumulated_chars": 391,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 85,
+            "delta": "Workspace",
+            "timestamp": "2025-11-12T15:44:56.785111Z",
+            "accumulated_chars": 400,
+            "interval_ms": 1
+          },
+          {
+            "sequence": 86,
+            "delta": " Declaration",
+            "timestamp": "2025-11-12T15:44:57.620926Z",
+            "accumulated_chars": 412,
+            "interval_ms": 835
+          },
+          {
+            "sequence": 87,
+            "delta": "**\n",
+            "timestamp": "2025-11-12T15:44:57.621194Z",
+            "accumulated_chars": 415,
+            "interval_ms": 1
+          },
+          {
+            "sequence": 88,
+            "delta": "```",
+            "timestamp": "2025-11-12T15:44:57.621340Z",
+            "accumulated_chars": 418,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 89,
+            "delta": "tom",
+            "timestamp": "2025-11-12T15:44:57.621484Z",
+            "accumulated_chars": 421,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 90,
+            "delta": "l",
+            "timestamp": "2025-11-12T15:44:57.621615Z",
+            "accumulated_chars": 422,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 91,
+            "delta": "\n",
+            "timestamp": "2025-11-12T15:44:57.621757Z",
+            "accumulated_chars": 423,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 92,
+            "delta": "[",
+            "timestamp": "2025-11-12T15:44:57.621884Z",
+            "accumulated_chars": 424,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 93,
+            "delta": "workspace",
+            "timestamp": "2025-11-12T15:44:57.622009Z",
+            "accumulated_chars": 433,
+            "interval_ms": 1
+          },
+          {
+            "sequence": 94,
+            "delta": "]\n",
+            "timestamp": "2025-11-12T15:44:57.832552Z",
+            "accumulated_chars": 435,
+            "interval_ms": 210
+          },
+          {
+            "sequence": 95,
+            "delta": "``",
+            "timestamp": "2025-11-12T15:44:57.832907Z",
+            "accumulated_chars": 437,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 96,
+            "delta": "`\n",
+            "timestamp": "2025-11-12T15:44:57.833289Z",
+            "accumulated_chars": 439,
+            "interval_ms": 1
+          },
+          {
+            "sequence": 97,
+            "delta": "This",
+            "timestamp": "2025-11-12T15:44:57.833885Z",
+            "accumulated_chars": 443,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 98,
+            "delta": " declares",
+            "timestamp": "2025-11-12T15:44:57.834967Z",
+            "accumulated_chars": 452,
+            "interval_ms": 1
+          },
+          {
+            "sequence": 99,
+            "delta": " that",
+            "timestamp": "2025-11-12T15:44:58.315067Z",
+            "accumulated_chars": 457,
+            "interval_ms": 481
+          },
+          {
+            "sequence": 100,
+            "delta": " the",
+            "timestamp": "2025-11-12T15:44:58.315709Z",
+            "accumulated_chars": 461,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 101,
+            "delta": " following",
+            "timestamp": "2025-11-12T15:44:58.316300Z",
+            "accumulated_chars": 471,
+            "interval_ms": 1
+          },
+          {
+            "sequence": 102,
+            "delta": " `",
+            "timestamp": "2025-11-12T15:44:58.316575Z",
+            "accumulated_chars": 473,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 103,
+            "delta": "Cargo",
+            "timestamp": "2025-11-12T15:44:58.317823Z",
+            "accumulated_chars": 478,
+            "interval_ms": 1
+          },
+          {
+            "sequence": 104,
+            "delta": ".tom",
+            "timestamp": "2025-11-12T15:44:58.318139Z",
+            "accumulated_chars": 482,
+            "interval_ms": 1
+          },
+          {
+            "sequence": 105,
+            "delta": "l",
+            "timestamp": "2025-11-12T15:44:58.318544Z",
+            "accumulated_chars": 483,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 106,
+            "delta": "`",
+            "timestamp": "2025-11-12T15:44:58.318787Z",
+            "accumulated_chars": 484,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 107,
+            "delta": " file",
+            "timestamp": "2025-11-12T15:44:58.464041Z",
+            "accumulated_chars": 489,
+            "interval_ms": 146
+          },
+          {
+            "sequence": 108,
+            "delta": " belongs",
+            "timestamp": "2025-11-12T15:44:58.464689Z",
+            "accumulated_chars": 497,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 109,
+            "delta": " to",
+            "timestamp": "2025-11-12T15:44:58.465240Z",
+            "accumulated_chars": 500,
+            "interval_ms": 1
+          },
+          {
+            "sequence": 110,
+            "delta": " a",
+            "timestamp": "2025-11-12T15:44:58.522584Z",
+            "accumulated_chars": 502,
+            "interval_ms": 57
+          },
+          {
+            "sequence": 111,
+            "delta": " **",
+            "timestamp": "2025-11-12T15:44:58.523036Z",
+            "accumulated_chars": 505,
+            "interval_ms": 1
+          },
+          {
+            "sequence": 112,
+            "delta": "workspace",
+            "timestamp": "2025-11-12T15:44:58.675957Z",
+            "accumulated_chars": 514,
+            "interval_ms": 152
+          },
+          {
+            "sequence": 113,
+            "delta": "**",
+            "timestamp": "2025-11-12T15:44:58.676528Z",
+            "accumulated_chars": 516,
+            "interval_ms": 1
+          },
+          {
+            "sequence": 114,
+            "delta": ".",
+            "timestamp": "2025-11-12T15:44:58.676906Z",
+            "accumulated_chars": 517,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 115,
+            "delta": " A",
+            "timestamp": "2025-11-12T15:44:58.677551Z",
+            "accumulated_chars": 519,
+            "interval_ms": 1
+          },
+          {
+            "sequence": 116,
+            "delta": " workspace",
+            "timestamp": "2025-11-12T15:44:58.734257Z",
+            "accumulated_chars": 529,
+            "interval_ms": 57
+          },
+          {
+            "sequence": 117,
+            "delta": " in",
+            "timestamp": "2025-11-12T15:44:58.734932Z",
+            "accumulated_chars": 532,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 118,
+            "delta": " Rust",
+            "timestamp": "2025-11-12T15:44:58.885019Z",
+            "accumulated_chars": 537,
+            "interval_ms": 151
+          },
+          {
+            "sequence": 119,
+            "delta": " allows",
+            "timestamp": "2025-11-12T15:44:58.885365Z",
+            "accumulated_chars": 544,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 120,
+            "delta": " multiple",
+            "timestamp": "2025-11-12T15:44:58.885768Z",
+            "accumulated_chars": 553,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 121,
+            "delta": " crates",
+            "timestamp": "2025-11-12T15:44:58.886057Z",
+            "accumulated_chars": 560,
+            "interval_ms": 1
+          },
+          {
+            "sequence": 122,
+            "delta": " (",
+            "timestamp": "2025-11-12T15:44:58.886268Z",
+            "accumulated_chars": 562,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 123,
+            "delta": "libraries",
+            "timestamp": "2025-11-12T15:44:58.944117Z",
+            "accumulated_chars": 571,
+            "interval_ms": 58
+          },
+          {
+            "sequence": 124,
+            "delta": ",",
+            "timestamp": "2025-11-12T15:44:58.944937Z",
+            "accumulated_chars": 572,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 125,
+            "delta": " binaries",
+            "timestamp": "2025-11-12T15:44:58.945683Z",
+            "accumulated_chars": 581,
+            "interval_ms": 1
+          },
+          {
+            "sequence": 126,
+            "delta": ",",
+            "timestamp": "2025-11-12T15:44:59.096614Z",
+            "accumulated_chars": 582,
+            "interval_ms": 151
+          },
+          {
+            "sequence": 127,
+            "delta": " or",
+            "timestamp": "2025-11-12T15:44:59.098126Z",
+            "accumulated_chars": 585,
+            "interval_ms": 2
+          },
+          {
+            "sequence": 128,
+            "delta": " both",
+            "timestamp": "2025-11-12T15:44:59.098669Z",
+            "accumulated_chars": 590,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 129,
+            "delta": ")",
+            "timestamp": "2025-11-12T15:44:59.099816Z",
+            "accumulated_chars": 591,
+            "interval_ms": 1
+          },
+          {
+            "sequence": 130,
+            "delta": " to",
+            "timestamp": "2025-11-12T15:44:59.100827Z",
+            "accumulated_chars": 594,
+            "interval_ms": 1
+          },
+          {
+            "sequence": 131,
+            "delta": " be",
+            "timestamp": "2025-11-12T15:44:59.101075Z",
+            "accumulated_chars": 597,
+            "interval_ms": 1
+          },
+          {
+            "sequence": 132,
+            "delta": " managed",
+            "timestamp": "2025-11-12T15:44:59.154713Z",
+            "accumulated_chars": 605,
+            "interval_ms": 53
+          },
+          {
+            "sequence": 133,
+            "delta": " together",
+            "timestamp": "2025-11-12T15:44:59.157219Z",
+            "accumulated_chars": 614,
+            "interval_ms": 3
+          },
+          {
+            "sequence": 134,
+            "delta": ",",
+            "timestamp": "2025-11-12T15:44:59.157410Z",
+            "accumulated_chars": 615,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 135,
+            "delta": " sharing",
+            "timestamp": "2025-11-12T15:44:59.307593Z",
+            "accumulated_chars": 623,
+            "interval_ms": 150
+          },
+          {
+            "sequence": 136,
+            "delta": " a",
+            "timestamp": "2025-11-12T15:44:59.308209Z",
+            "accumulated_chars": 625,
+            "interval_ms": 1
+          },
+          {
+            "sequence": 137,
+            "delta": " single",
+            "timestamp": "2025-11-12T15:44:59.308617Z",
+            "accumulated_chars": 632,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 138,
+            "delta": " `",
+            "timestamp": "2025-11-12T15:44:59.309078Z",
+            "accumulated_chars": 634,
+            "interval_ms": 1
+          },
+          {
+            "sequence": 139,
+            "delta": "Cargo",
+            "timestamp": "2025-11-12T15:44:59.309381Z",
+            "accumulated_chars": 639,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 140,
+            "delta": ".lock",
+            "timestamp": "2025-11-12T15:44:59.311625Z",
+            "accumulated_chars": 644,
+            "interval_ms": 2
+          },
+          {
+            "sequence": 141,
+            "delta": "`",
+            "timestamp": "2025-11-12T15:44:59.311748Z",
+            "accumulated_chars": 645,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 142,
+            "delta": " file",
+            "timestamp": "2025-11-12T15:44:59.311883Z",
+            "accumulated_chars": 650,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 143,
+            "delta": " and",
+            "timestamp": "2025-11-12T15:44:59.365512Z",
+            "accumulated_chars": 654,
+            "interval_ms": 54
+          },
+          {
+            "sequence": 144,
+            "delta": " often",
+            "timestamp": "2025-11-12T15:44:59.365903Z",
+            "accumulated_chars": 660,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 145,
+            "delta": " dependencies",
+            "timestamp": "2025-11-12T15:44:59.518667Z",
+            "accumulated_chars": 673,
+            "interval_ms": 153
+          },
+          {
+            "sequence": 146,
+            "delta": ".",
+            "timestamp": "2025-11-12T15:44:59.519034Z",
+            "accumulated_chars": 674,
+            "interval_ms": 1
+          },
+          {
+            "sequence": 147,
+            "delta": " It",
+            "timestamp": "2025-11-12T15:44:59.519367Z",
+            "accumulated_chars": 677,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 148,
+            "delta": "’s",
+            "timestamp": "2025-11-12T15:44:59.519601Z",
+            "accumulated_chars": 681,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 149,
+            "delta": " especially",
+            "timestamp": "2025-11-12T15:44:59.520111Z",
+            "accumulated_chars": 692,
+            "interval_ms": 1
+          },
+          {
+            "sequence": 150,
+            "delta": " useful",
+            "timestamp": "2025-11-12T15:44:59.520515Z",
+            "accumulated_chars": 699,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 151,
+            "delta": " in",
+            "timestamp": "2025-11-12T15:44:59.522290Z",
+            "accumulated_chars": 702,
+            "interval_ms": 2
+          },
+          {
+            "sequence": 152,
+            "delta": " large",
+            "timestamp": "2025-11-12T15:44:59.522403Z",
+            "accumulated_chars": 708,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 153,
+            "delta": " projects",
+            "timestamp": "2025-11-12T15:45:00.161256Z",
+            "accumulated_chars": 717,
+            "interval_ms": 639
+          },
+          {
+            "sequence": 154,
+            "delta": ".\n\n",
+            "timestamp": "2025-11-12T15:45:00.161679Z",
+            "accumulated_chars": 720,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 155,
+            "delta": "####",
+            "timestamp": "2025-11-12T15:45:00.161930Z",
+            "accumulated_chars": 724,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 156,
+            "delta": " ",
+            "timestamp": "2025-11-12T15:45:00.162100Z",
+            "accumulated_chars": 725,
+            "interval_ms": 1
+          },
+          {
+            "sequence": 157,
+            "delta": "2",
+            "timestamp": "2025-11-12T15:45:00.162261Z",
+            "accumulated_chars": 726,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 158,
+            "delta": ".",
+            "timestamp": "2025-11-12T15:45:00.162421Z",
+            "accumulated_chars": 727,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 159,
+            "delta": " **",
+            "timestamp": "2025-11-12T15:45:00.162579Z",
+            "accumulated_chars": 730,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 160,
+            "delta": "Members",
+            "timestamp": "2025-11-12T15:45:00.162738Z",
+            "accumulated_chars": 737,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 161,
+            "delta": " of",
+            "timestamp": "2025-11-12T15:45:00.162899Z",
+            "accumulated_chars": 740,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 162,
+            "delta": " the",
+            "timestamp": "2025-11-12T15:45:00.163055Z",
+            "accumulated_chars": 744,
+            "interval_ms": 1
+          },
+          {
+            "sequence": 163,
+            "delta": " Workspace",
+            "timestamp": "2025-11-12T15:45:00.163214Z",
+            "accumulated_chars": 754,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 164,
+            "delta": "**\n",
+            "timestamp": "2025-11-12T15:45:00.163369Z",
+            "accumulated_chars": 757,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 165,
+            "delta": "```",
+            "timestamp": "2025-11-12T15:45:00.163530Z",
+            "accumulated_chars": 760,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 166,
+            "delta": "tom",
+            "timestamp": "2025-11-12T15:45:00.163685Z",
+            "accumulated_chars": 763,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 167,
+            "delta": "l",
+            "timestamp": "2025-11-12T15:45:00.163880Z",
+            "accumulated_chars": 764,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 168,
+            "delta": "\n",
+            "timestamp": "2025-11-12T15:45:00.206413Z",
+            "accumulated_chars": 765,
+            "interval_ms": 43
+          },
+          {
+            "sequence": 169,
+            "delta": "members",
+            "timestamp": "2025-11-12T15:45:00.206757Z",
+            "accumulated_chars": 772,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 170,
+            "delta": " =",
+            "timestamp": "2025-11-12T15:45:00.639766Z",
+            "accumulated_chars": 774,
+            "interval_ms": 433
+          },
+          {
+            "sequence": 171,
+            "delta": " [\n",
+            "timestamp": "2025-11-12T15:45:00.646208Z",
+            "accumulated_chars": 777,
+            "interval_ms": 7
+          },
+          {
+            "sequence": 172,
+            "delta": "   ",
+            "timestamp": "2025-11-12T15:45:00.647545Z",
+            "accumulated_chars": 780,
+            "interval_ms": 1
+          },
+          {
+            "sequence": 173,
+            "delta": " \"",
+            "timestamp": "2025-11-12T15:45:00.647758Z",
+            "accumulated_chars": 782,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 174,
+            "delta": "cr",
+            "timestamp": "2025-11-12T15:45:00.647941Z",
+            "accumulated_chars": 784,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 175,
+            "delta": "ates",
+            "timestamp": "2025-11-12T15:45:00.648110Z",
+            "accumulated_chars": 788,
+            "interval_ms": 1
+          },
+          {
+            "sequence": 176,
+            "delta": "/cop",
+            "timestamp": "2025-11-12T15:45:00.648283Z",
+            "accumulated_chars": 792,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 177,
+            "delta": "ilot",
+            "timestamp": "2025-11-12T15:45:00.648445Z",
+            "accumulated_chars": 796,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 178,
+            "delta": "_client",
+            "timestamp": "2025-11-12T15:45:00.649204Z",
+            "accumulated_chars": 803,
+            "interval_ms": 1
+          },
+          {
+            "sequence": 179,
+            "delta": "\",\n",
+            "timestamp": "2025-11-12T15:45:00.649388Z",
+            "accumulated_chars": 806,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 180,
+            "delta": "   ",
+            "timestamp": "2025-11-12T15:45:00.650195Z",
+            "accumulated_chars": 809,
+            "interval_ms": 1
+          },
+          {
+            "sequence": 181,
+            "delta": " \"",
+            "timestamp": "2025-11-12T15:45:00.847165Z",
+            "accumulated_chars": 811,
+            "interval_ms": 197
+          },
+          {
+            "sequence": 182,
+            "delta": "cr",
+            "timestamp": "2025-11-12T15:45:00.847583Z",
+            "accumulated_chars": 813,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 183,
+            "delta": "ates",
+            "timestamp": "2025-11-12T15:45:00.847894Z",
+            "accumulated_chars": 817,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 184,
+            "delta": "/tool",
+            "timestamp": "2025-11-12T15:45:01.059224Z",
+            "accumulated_chars": 822,
+            "interval_ms": 212
+          },
+          {
+            "sequence": 185,
+            "delta": "_system",
+            "timestamp": "2025-11-12T15:45:01.059942Z",
+            "accumulated_chars": 829,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 186,
+            "delta": "\",\n",
+            "timestamp": "2025-11-12T15:45:01.060673Z",
+            "accumulated_chars": 832,
+            "interval_ms": 1
+          },
+          {
+            "sequence": 187,
+            "delta": "   ",
+            "timestamp": "2025-11-12T15:45:01.060943Z",
+            "accumulated_chars": 835,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 188,
+            "delta": " \"",
+            "timestamp": "2025-11-12T15:45:01.061233Z",
+            "accumulated_chars": 837,
+            "interval_ms": 1
+          },
+          {
+            "sequence": 189,
+            "delta": "cr",
+            "timestamp": "2025-11-12T15:45:01.270784Z",
+            "accumulated_chars": 839,
+            "interval_ms": 209
+          },
+          {
+            "sequence": 190,
+            "delta": "ates",
+            "timestamp": "2025-11-12T15:45:01.274261Z",
+            "accumulated_chars": 843,
+            "interval_ms": 4
+          },
+          {
+            "sequence": 191,
+            "delta": "/work",
+            "timestamp": "2025-11-12T15:45:01.274575Z",
+            "accumulated_chars": 848,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 192,
+            "delta": "flow",
+            "timestamp": "2025-11-12T15:45:01.274921Z",
+            "accumulated_chars": 852,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 193,
+            "delta": "_system",
+            "timestamp": "2025-11-12T15:45:01.275105Z",
+            "accumulated_chars": 859,
+            "interval_ms": 1
+          },
+          {
+            "sequence": 194,
+            "delta": "\",\n",
+            "timestamp": "2025-11-12T15:45:01.483686Z",
+            "accumulated_chars": 862,
+            "interval_ms": 208
+          },
+          {
+            "sequence": 195,
+            "delta": "   ",
+            "timestamp": "2025-11-12T15:45:01.484396Z",
+            "accumulated_chars": 865,
+            "interval_ms": 1
+          },
+          {
+            "sequence": 196,
+            "delta": " \"",
+            "timestamp": "2025-11-12T15:45:01.484586Z",
+            "accumulated_chars": 867,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 197,
+            "delta": "cr",
+            "timestamp": "2025-11-12T15:45:01.484745Z",
+            "accumulated_chars": 869,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 198,
+            "delta": "ates",
+            "timestamp": "2025-11-12T15:45:01.484961Z",
+            "accumulated_chars": 873,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 199,
+            "delta": "/m",
+            "timestamp": "2025-11-12T15:45:01.485168Z",
+            "accumulated_chars": 875,
+            "interval_ms": 1
+          },
+          {
+            "sequence": 200,
+            "delta": "cp",
+            "timestamp": "2025-11-12T15:45:01.485463Z",
+            "accumulated_chars": 877,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 201,
+            "delta": "_client",
+            "timestamp": "2025-11-12T15:45:01.485589Z",
+            "accumulated_chars": 884,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 202,
+            "delta": "\",\n",
+            "timestamp": "2025-11-12T15:45:01.485699Z",
+            "accumulated_chars": 887,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 203,
+            "delta": "   ",
+            "timestamp": "2025-11-12T15:45:01.485900Z",
+            "accumulated_chars": 890,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 204,
+            "delta": " \"",
+            "timestamp": "2025-11-12T15:45:01.486039Z",
+            "accumulated_chars": 892,
+            "interval_ms": 1
+          },
+          {
+            "sequence": 205,
+            "delta": "cr",
+            "timestamp": "2025-11-12T15:45:01.691703Z",
+            "accumulated_chars": 894,
+            "interval_ms": 205
+          },
+          {
+            "sequence": 206,
+            "delta": "ates",
+            "timestamp": "2025-11-12T15:45:01.692254Z",
+            "accumulated_chars": 898,
+            "interval_ms": 1
+          },
+          {
+            "sequence": 207,
+            "delta": "/web",
+            "timestamp": "2025-11-12T15:45:01.692808Z",
+            "accumulated_chars": 902,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 208,
+            "delta": "_service",
+            "timestamp": "2025-11-12T15:45:01.960699Z",
+            "accumulated_chars": 910,
+            "interval_ms": 268
+          },
+          {
+            "sequence": 209,
+            "delta": "\",\n",
+            "timestamp": "2025-11-12T15:45:01.961985Z",
+            "accumulated_chars": 913,
+            "interval_ms": 1
+          },
+          {
+            "sequence": 210,
+            "delta": "   ",
+            "timestamp": "2025-11-12T15:45:01.962948Z",
+            "accumulated_chars": 916,
+            "interval_ms": 1
+          },
+          {
+            "sequence": 211,
+            "delta": " \"",
+            "timestamp": "2025-11-12T15:45:02.115426Z",
+            "accumulated_chars": 918,
+            "interval_ms": 153
+          },
+          {
+            "sequence": 212,
+            "delta": "src",
+            "timestamp": "2025-11-12T15:45:02.115813Z",
+            "accumulated_chars": 921,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 213,
+            "delta": "-ta",
+            "timestamp": "2025-11-12T15:45:02.116372Z",
+            "accumulated_chars": 924,
+            "interval_ms": 1
+          },
+          {
+            "sequence": 214,
+            "delta": "uri",
+            "timestamp": "2025-11-12T15:45:02.116534Z",
+            "accumulated_chars": 927,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 215,
+            "delta": "\",\n",
+            "timestamp": "2025-11-12T15:45:02.116597Z",
+            "accumulated_chars": 930,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 216,
+            "delta": "   ",
+            "timestamp": "2025-11-12T15:45:02.116691Z",
+            "accumulated_chars": 933,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 217,
+            "delta": " \"",
+            "timestamp": "2025-11-12T15:45:02.116819Z",
+            "accumulated_chars": 935,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 218,
+            "delta": "cr",
+            "timestamp": "2025-11-12T15:45:02.116890Z",
+            "accumulated_chars": 937,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 219,
+            "delta": "ates",
+            "timestamp": "2025-11-12T15:45:02.117054Z",
+            "accumulated_chars": 941,
+            "interval_ms": 1
+          },
+          {
+            "sequence": 220,
+            "delta": "/web",
+            "timestamp": "2025-11-12T15:45:02.117117Z",
+            "accumulated_chars": 945,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 221,
+            "delta": "_service",
+            "timestamp": "2025-11-12T15:45:02.117179Z",
+            "accumulated_chars": 953,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 222,
+            "delta": "_st",
+            "timestamp": "2025-11-12T15:45:02.172325Z",
+            "accumulated_chars": 956,
+            "interval_ms": 55
+          },
+          {
+            "sequence": 223,
+            "delta": "andal",
+            "timestamp": "2025-11-12T15:45:02.172977Z",
+            "accumulated_chars": 961,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 224,
+            "delta": "one",
+            "timestamp": "2025-11-12T15:45:02.867882Z",
+            "accumulated_chars": 964,
+            "interval_ms": 695
+          },
+          {
+            "sequence": 225,
+            "delta": "\",\n",
+            "timestamp": "2025-11-12T15:45:02.868721Z",
+            "accumulated_chars": 967,
+            "interval_ms": 1
+          },
+          {
+            "sequence": 226,
+            "delta": "   ",
+            "timestamp": "2025-11-12T15:45:02.868920Z",
+            "accumulated_chars": 970,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 227,
+            "delta": " \"",
+            "timestamp": "2025-11-12T15:45:02.869093Z",
+            "accumulated_chars": 972,
+            "interval_ms": 1
+          },
+          {
+            "sequence": 228,
+            "delta": "cr",
+            "timestamp": "2025-11-12T15:45:02.869257Z",
+            "accumulated_chars": 974,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 229,
+            "delta": "ates",
+            "timestamp": "2025-11-12T15:45:02.869422Z",
+            "accumulated_chars": 978,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 230,
+            "delta": "/context",
+            "timestamp": "2025-11-12T15:45:02.869579Z",
+            "accumulated_chars": 986,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 231,
+            "delta": "_manager",
+            "timestamp": "2025-11-12T15:45:02.869735Z",
+            "accumulated_chars": 994,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 232,
+            "delta": "\",\n",
+            "timestamp": "2025-11-12T15:45:02.869900Z",
+            "accumulated_chars": 997,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 233,
+            "delta": "   ",
+            "timestamp": "2025-11-12T15:45:02.870054Z",
+            "accumulated_chars": 1000,
+            "interval_ms": 1
+          },
+          {
+            "sequence": 234,
+            "delta": " \"",
+            "timestamp": "2025-11-12T15:45:02.870211Z",
+            "accumulated_chars": 1002,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 235,
+            "delta": "cr",
+            "timestamp": "2025-11-12T15:45:03.353027Z",
+            "accumulated_chars": 1004,
+            "interval_ms": 483
+          },
+          {
+            "sequence": 236,
+            "delta": "ates",
+            "timestamp": "2025-11-12T15:45:03.353916Z",
+            "accumulated_chars": 1008,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 237,
+            "delta": "/session",
+            "timestamp": "2025-11-12T15:45:03.354109Z",
+            "accumulated_chars": 1016,
+            "interval_ms": 1
+          },
+          {
+            "sequence": 238,
+            "delta": "_manager",
+            "timestamp": "2025-11-12T15:45:03.354276Z",
+            "accumulated_chars": 1024,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 239,
+            "delta": "\",\n",
+            "timestamp": "2025-11-12T15:45:03.354444Z",
+            "accumulated_chars": 1027,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 240,
+            "delta": "]\n",
+            "timestamp": "2025-11-12T15:45:03.354609Z",
+            "accumulated_chars": 1029,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 241,
+            "delta": "``",
+            "timestamp": "2025-11-12T15:45:03.354771Z",
+            "accumulated_chars": 1031,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 242,
+            "delta": "`\n",
+            "timestamp": "2025-11-12T15:45:03.772929Z",
+            "accumulated_chars": 1033,
+            "interval_ms": 418
+          },
+          {
+            "sequence": 243,
+            "delta": "This",
+            "timestamp": "2025-11-12T15:45:03.773699Z",
+            "accumulated_chars": 1037,
+            "interval_ms": 1
+          },
+          {
+            "sequence": 244,
+            "delta": " section",
+            "timestamp": "2025-11-12T15:45:03.774585Z",
+            "accumulated_chars": 1045,
+            "interval_ms": 1
+          },
+          {
+            "sequence": 245,
+            "delta": " lists",
+            "timestamp": "2025-11-12T15:45:03.775773Z",
+            "accumulated_chars": 1051,
+            "interval_ms": 1
+          },
+          {
+            "sequence": 246,
+            "delta": " all",
+            "timestamp": "2025-11-12T15:45:03.776053Z",
+            "accumulated_chars": 1055,
+            "interval_ms": 1
+          },
+          {
+            "sequence": 247,
+            "delta": " the",
+            "timestamp": "2025-11-12T15:45:04.694550Z",
+            "accumulated_chars": 1059,
+            "interval_ms": 918
+          },
+          {
+            "sequence": 248,
+            "delta": " **",
+            "timestamp": "2025-11-12T15:45:04.695122Z",
+            "accumulated_chars": 1062,
+            "interval_ms": 1
+          },
+          {
+            "sequence": 249,
+            "delta": "members",
+            "timestamp": "2025-11-12T15:45:04.696558Z",
+            "accumulated_chars": 1069,
+            "interval_ms": 1
+          },
+          {
+            "sequence": 250,
+            "delta": "**",
+            "timestamp": "2025-11-12T15:45:04.698184Z",
+            "accumulated_chars": 1071,
+            "interval_ms": 2
+          },
+          {
+            "sequence": 251,
+            "delta": " of",
+            "timestamp": "2025-11-12T15:45:04.698376Z",
+            "accumulated_chars": 1074,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 252,
+            "delta": " the",
+            "timestamp": "2025-11-12T15:45:04.698548Z",
+            "accumulated_chars": 1078,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 253,
+            "delta": " workspace",
+            "timestamp": "2025-11-12T15:45:04.905436Z",
+            "accumulated_chars": 1088,
+            "interval_ms": 207
+          },
+          {
+            "sequence": 254,
+            "delta": ".",
+            "timestamp": "2025-11-12T15:45:04.905985Z",
+            "accumulated_chars": 1089,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 255,
+            "delta": " Each",
+            "timestamp": "2025-11-12T15:45:04.906651Z",
+            "accumulated_chars": 1094,
+            "interval_ms": 1
+          },
+          {
+            "sequence": 256,
+            "delta": " string",
+            "timestamp": "2025-11-12T15:45:04.907055Z",
+            "accumulated_chars": 1101,
+            "interval_ms": 1
+          },
+          {
+            "sequence": 257,
+            "delta": " in",
+            "timestamp": "2025-11-12T15:45:04.907163Z",
+            "accumulated_chars": 1104,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 258,
+            "delta": " the",
+            "timestamp": "2025-11-12T15:45:05.772841Z",
+            "accumulated_chars": 1108,
+            "interval_ms": 865
+          },
+          {
+            "sequence": 259,
+            "delta": " list",
+            "timestamp": "2025-11-12T15:45:05.774556Z",
+            "accumulated_chars": 1113,
+            "interval_ms": 2
+          },
+          {
+            "sequence": 260,
+            "delta": " represents",
+            "timestamp": "2025-11-12T15:45:05.775115Z",
+            "accumulated_chars": 1124,
+            "interval_ms": 1
+          },
+          {
+            "sequence": 261,
+            "delta": " a",
+            "timestamp": "2025-11-12T15:45:06.614478Z",
+            "accumulated_chars": 1126,
+            "interval_ms": 839
+          },
+          {
+            "sequence": 262,
+            "delta": " relative",
+            "timestamp": "2025-11-12T15:45:06.615004Z",
+            "accumulated_chars": 1135,
+            "interval_ms": 1
+          },
+          {
+            "sequence": 263,
+            "delta": " path",
+            "timestamp": "2025-11-12T15:45:06.615491Z",
+            "accumulated_chars": 1140,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 264,
+            "delta": " to",
+            "timestamp": "2025-11-12T15:45:06.617373Z",
+            "accumulated_chars": 1143,
+            "interval_ms": 2
+          },
+          {
+            "sequence": 265,
+            "delta": " a",
+            "timestamp": "2025-11-12T15:45:06.617495Z",
+            "accumulated_chars": 1145,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 266,
+            "delta": " crate",
+            "timestamp": "2025-11-12T15:45:06.617565Z",
+            "accumulated_chars": 1151,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 267,
+            "delta": " within",
+            "timestamp": "2025-11-12T15:45:06.617627Z",
+            "accumulated_chars": 1158,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 268,
+            "delta": " the",
+            "timestamp": "2025-11-12T15:45:06.617770Z",
+            "accumulated_chars": 1162,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 269,
+            "delta": " workspace",
+            "timestamp": "2025-11-12T15:45:06.824559Z",
+            "accumulated_chars": 1172,
+            "interval_ms": 207
+          },
+          {
+            "sequence": 270,
+            "delta": " (",
+            "timestamp": "2025-11-12T15:45:06.825276Z",
+            "accumulated_chars": 1174,
+            "interval_ms": 1
+          },
+          {
+            "sequence": 271,
+            "delta": "e",
+            "timestamp": "2025-11-12T15:45:06.827374Z",
+            "accumulated_chars": 1175,
+            "interval_ms": 2
+          },
+          {
+            "sequence": 272,
+            "delta": ".g",
+            "timestamp": "2025-11-12T15:45:06.827567Z",
+            "accumulated_chars": 1177,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 273,
+            "delta": ".,",
+            "timestamp": "2025-11-12T15:45:07.035066Z",
+            "accumulated_chars": 1179,
+            "interval_ms": 208
+          },
+          {
+            "sequence": 274,
+            "delta": " `\"",
+            "timestamp": "2025-11-12T15:45:07.036336Z",
+            "accumulated_chars": 1182,
+            "interval_ms": 1
+          },
+          {
+            "sequence": 275,
+            "delta": "cr",
+            "timestamp": "2025-11-12T15:45:07.456837Z",
+            "accumulated_chars": 1184,
+            "interval_ms": 420
+          },
+          {
+            "sequence": 276,
+            "delta": "ates",
+            "timestamp": "2025-11-12T15:45:07.457100Z",
+            "accumulated_chars": 1188,
+            "interval_ms": 1
+          },
+          {
+            "sequence": 277,
+            "delta": "/cop",
+            "timestamp": "2025-11-12T15:45:07.457300Z",
+            "accumulated_chars": 1192,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 278,
+            "delta": "ilot",
+            "timestamp": "2025-11-12T15:45:07.457629Z",
+            "accumulated_chars": 1196,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 279,
+            "delta": "_client",
+            "timestamp": "2025-11-12T15:45:07.457762Z",
+            "accumulated_chars": 1203,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 280,
+            "delta": "\"`",
+            "timestamp": "2025-11-12T15:45:07.457846Z",
+            "accumulated_chars": 1205,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 281,
+            "delta": ").",
+            "timestamp": "2025-11-12T15:45:07.457958Z",
+            "accumulated_chars": 1207,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 282,
+            "delta": " By",
+            "timestamp": "2025-11-12T15:45:07.458088Z",
+            "accumulated_chars": 1210,
+            "interval_ms": 1
+          },
+          {
+            "sequence": 283,
+            "delta": " organizing",
+            "timestamp": "2025-11-12T15:45:07.458252Z",
+            "accumulated_chars": 1221,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 284,
+            "delta": " these",
+            "timestamp": "2025-11-12T15:45:07.666992Z",
+            "accumulated_chars": 1227,
+            "interval_ms": 208
+          },
+          {
+            "sequence": 285,
+            "delta": " crates",
+            "timestamp": "2025-11-12T15:45:07.668326Z",
+            "accumulated_chars": 1234,
+            "interval_ms": 2
+          },
+          {
+            "sequence": 286,
+            "delta": " in",
+            "timestamp": "2025-11-12T15:45:07.668707Z",
+            "accumulated_chars": 1237,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 287,
+            "delta": " sub",
+            "timestamp": "2025-11-12T15:45:07.668881Z",
+            "accumulated_chars": 1241,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 288,
+            "delta": "directories",
+            "timestamp": "2025-11-12T15:45:07.669053Z",
+            "accumulated_chars": 1252,
+            "interval_ms": 1
+          },
+          {
+            "sequence": 289,
+            "delta": ",",
+            "timestamp": "2025-11-12T15:45:07.669175Z",
+            "accumulated_chars": 1253,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 290,
+            "delta": " the",
+            "timestamp": "2025-11-12T15:45:07.669276Z",
+            "accumulated_chars": 1257,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 291,
+            "delta": " workspace",
+            "timestamp": "2025-11-12T15:45:07.875120Z",
+            "accumulated_chars": 1267,
+            "interval_ms": 206
+          },
+          {
+            "sequence": 292,
+            "delta": " creates",
+            "timestamp": "2025-11-12T15:45:07.877222Z",
+            "accumulated_chars": 1275,
+            "interval_ms": 2
+          },
+          {
+            "sequence": 293,
+            "delta": " a",
+            "timestamp": "2025-11-12T15:45:07.877726Z",
+            "accumulated_chars": 1277,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 294,
+            "delta": " parent",
+            "timestamp": "2025-11-12T15:45:07.878656Z",
+            "accumulated_chars": 1284,
+            "interval_ms": 1
+          },
+          {
+            "sequence": 295,
+            "delta": "-child",
+            "timestamp": "2025-11-12T15:45:07.878884Z",
+            "accumulated_chars": 1290,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 296,
+            "delta": " relationship",
+            "timestamp": "2025-11-12T15:45:08.084020Z",
+            "accumulated_chars": 1303,
+            "interval_ms": 206
+          },
+          {
+            "sequence": 297,
+            "delta": ".\n\n",
+            "timestamp": "2025-11-12T15:45:08.084299Z",
+            "accumulated_chars": 1306,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 298,
+            "delta": "-",
+            "timestamp": "2025-11-12T15:45:08.084419Z",
+            "accumulated_chars": 1307,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 299,
+            "delta": " **",
+            "timestamp": "2025-11-12T15:45:08.084502Z",
+            "accumulated_chars": 1310,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 300,
+            "delta": "Examples",
+            "timestamp": "2025-11-12T15:45:08.084586Z",
+            "accumulated_chars": 1318,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 301,
+            "delta": " of",
+            "timestamp": "2025-11-12T15:45:08.084716Z",
+            "accumulated_chars": 1321,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 302,
+            "delta": " members",
+            "timestamp": "2025-11-12T15:45:08.366164Z",
+            "accumulated_chars": 1329,
+            "interval_ms": 282
+          },
+          {
+            "sequence": 303,
+            "delta": " listed",
+            "timestamp": "2025-11-12T15:45:08.366780Z",
+            "accumulated_chars": 1336,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 304,
+            "delta": ":",
+            "timestamp": "2025-11-12T15:45:08.367830Z",
+            "accumulated_chars": 1337,
+            "interval_ms": 1
+          },
+          {
+            "sequence": 305,
+            "delta": "**\n",
+            "timestamp": "2025-11-12T15:45:08.368165Z",
+            "accumulated_chars": 1340,
+            "interval_ms": 1
+          },
+          {
+            "sequence": 306,
+            "delta": " ",
+            "timestamp": "2025-11-12T15:45:08.368409Z",
+            "accumulated_chars": 1341,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 307,
+            "delta": " -",
+            "timestamp": "2025-11-12T15:45:08.368698Z",
+            "accumulated_chars": 1343,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 308,
+            "delta": " `\"",
+            "timestamp": "2025-11-12T15:45:08.368876Z",
+            "accumulated_chars": 1346,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 309,
+            "delta": "cr",
+            "timestamp": "2025-11-12T15:45:08.369385Z",
+            "accumulated_chars": 1348,
+            "interval_ms": 1
+          },
+          {
+            "sequence": 310,
+            "delta": "ates",
+            "timestamp": "2025-11-12T15:45:08.369600Z",
+            "accumulated_chars": 1352,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 311,
+            "delta": "/cop",
+            "timestamp": "2025-11-12T15:45:08.369743Z",
+            "accumulated_chars": 1356,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 312,
+            "delta": "ilot",
+            "timestamp": "2025-11-12T15:45:08.370026Z",
+            "accumulated_chars": 1360,
+            "interval_ms": 1
+          },
+          {
+            "sequence": 313,
+            "delta": "_client",
+            "timestamp": "2025-11-12T15:45:08.370183Z",
+            "accumulated_chars": 1367,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 314,
+            "delta": "\"`",
+            "timestamp": "2025-11-12T15:45:08.370327Z",
+            "accumulated_chars": 1369,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 315,
+            "delta": ":",
+            "timestamp": "2025-11-12T15:45:08.508823Z",
+            "accumulated_chars": 1370,
+            "interval_ms": 138
+          },
+          {
+            "sequence": 316,
+            "delta": " Lik",
+            "timestamp": "2025-11-12T15:45:08.510591Z",
+            "accumulated_chars": 1374,
+            "interval_ms": 2
+          },
+          {
+            "sequence": 317,
+            "delta": "ely",
+            "timestamp": "2025-11-12T15:45:08.573703Z",
+            "accumulated_chars": 1377,
+            "interval_ms": 63
+          },
+          {
+            "sequence": 318,
+            "delta": " a",
+            "timestamp": "2025-11-12T15:45:08.573836Z",
+            "accumulated_chars": 1379,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 319,
+            "delta": " library",
+            "timestamp": "2025-11-12T15:45:08.573911Z",
+            "accumulated_chars": 1387,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 320,
+            "delta": " or",
+            "timestamp": "2025-11-12T15:45:08.574068Z",
+            "accumulated_chars": 1390,
+            "interval_ms": 1
+          },
+          {
+            "sequence": 321,
+            "delta": " client",
+            "timestamp": "2025-11-12T15:45:08.993561Z",
+            "accumulated_chars": 1397,
+            "interval_ms": 419
+          },
+          {
+            "sequence": 322,
+            "delta": " for",
+            "timestamp": "2025-11-12T15:45:08.994415Z",
+            "accumulated_chars": 1401,
+            "interval_ms": 1
+          },
+          {
+            "sequence": 323,
+            "delta": " interacting",
+            "timestamp": "2025-11-12T15:45:08.996524Z",
+            "accumulated_chars": 1413,
+            "interval_ms": 2
+          },
+          {
+            "sequence": 324,
+            "delta": " with",
+            "timestamp": "2025-11-12T15:45:08.996689Z",
+            "accumulated_chars": 1418,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 325,
+            "delta": " an",
+            "timestamp": "2025-11-12T15:45:08.996787Z",
+            "accumulated_chars": 1421,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 326,
+            "delta": " external",
+            "timestamp": "2025-11-12T15:45:08.996917Z",
+            "accumulated_chars": 1430,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 327,
+            "delta": " API",
+            "timestamp": "2025-11-12T15:45:08.997032Z",
+            "accumulated_chars": 1434,
+            "interval_ms": 1
+          },
+          {
+            "sequence": 328,
+            "delta": " or",
+            "timestamp": "2025-11-12T15:45:08.997271Z",
+            "accumulated_chars": 1437,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 329,
+            "delta": " service",
+            "timestamp": "2025-11-12T15:45:08.997403Z",
+            "accumulated_chars": 1445,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 330,
+            "delta": ".\n",
+            "timestamp": "2025-11-12T15:45:08.997904Z",
+            "accumulated_chars": 1447,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 331,
+            "delta": " ",
+            "timestamp": "2025-11-12T15:45:09.141584Z",
+            "accumulated_chars": 1448,
+            "interval_ms": 144
+          },
+          {
+            "sequence": 332,
+            "delta": " -",
+            "timestamp": "2025-11-12T15:45:09.142610Z",
+            "accumulated_chars": 1450,
+            "interval_ms": 1
+          },
+          {
+            "sequence": 333,
+            "delta": " `\"",
+            "timestamp": "2025-11-12T15:45:09.203695Z",
+            "accumulated_chars": 1453,
+            "interval_ms": 61
+          },
+          {
+            "sequence": 334,
+            "delta": "cr",
+            "timestamp": "2025-11-12T15:45:09.204127Z",
+            "accumulated_chars": 1455,
+            "interval_ms": 1
+          },
+          {
+            "sequence": 335,
+            "delta": "ates",
+            "timestamp": "2025-11-12T15:45:09.204483Z",
+            "accumulated_chars": 1459,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 336,
+            "delta": "/tool",
+            "timestamp": "2025-11-12T15:45:09.204755Z",
+            "accumulated_chars": 1464,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 337,
+            "delta": "_system",
+            "timestamp": "2025-11-12T15:45:09.353190Z",
+            "accumulated_chars": 1471,
+            "interval_ms": 149
+          },
+          {
+            "sequence": 338,
+            "delta": "\"`",
+            "timestamp": "2025-11-12T15:45:09.353778Z",
+            "accumulated_chars": 1473,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 339,
+            "delta": ":",
+            "timestamp": "2025-11-12T15:45:09.354693Z",
+            "accumulated_chars": 1474,
+            "interval_ms": 1
+          },
+          {
+            "sequence": 340,
+            "delta": " Could",
+            "timestamp": "2025-11-12T15:45:09.457061Z",
+            "accumulated_chars": 1480,
+            "interval_ms": 103
+          },
+          {
+            "sequence": 341,
+            "delta": " be",
+            "timestamp": "2025-11-12T15:45:09.458182Z",
+            "accumulated_chars": 1483,
+            "interval_ms": 1
+          },
+          {
+            "sequence": 342,
+            "delta": " a",
+            "timestamp": "2025-11-12T15:45:09.646806Z",
+            "accumulated_chars": 1485,
+            "interval_ms": 188
+          },
+          {
+            "sequence": 343,
+            "delta": " shared",
+            "timestamp": "2025-11-12T15:45:09.648732Z",
+            "accumulated_chars": 1492,
+            "interval_ms": 2
+          },
+          {
+            "sequence": 344,
+            "delta": " library",
+            "timestamp": "2025-11-12T15:45:09.648977Z",
+            "accumulated_chars": 1500,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 345,
+            "delta": " for",
+            "timestamp": "2025-11-12T15:45:09.649193Z",
+            "accumulated_chars": 1504,
+            "interval_ms": 1
+          },
+          {
+            "sequence": 346,
+            "delta": " various",
+            "timestamp": "2025-11-12T15:45:09.649523Z",
+            "accumulated_chars": 1512,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 347,
+            "delta": " utility",
+            "timestamp": "2025-11-12T15:45:09.649798Z",
+            "accumulated_chars": 1520,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 348,
+            "delta": " functions",
+            "timestamp": "2025-11-12T15:45:09.650667Z",
+            "accumulated_chars": 1530,
+            "interval_ms": 1
+          },
+          {
+            "sequence": 349,
+            "delta": " or",
+            "timestamp": "2025-11-12T15:45:09.854552Z",
+            "accumulated_chars": 1533,
+            "interval_ms": 204
+          },
+          {
+            "sequence": 350,
+            "delta": " tools",
+            "timestamp": "2025-11-12T15:45:09.855317Z",
+            "accumulated_chars": 1539,
+            "interval_ms": 1
+          },
+          {
+            "sequence": 351,
+            "delta": ".\n",
+            "timestamp": "2025-11-12T15:45:10.477585Z",
+            "accumulated_chars": 1541,
+            "interval_ms": 622
+          },
+          {
+            "sequence": 352,
+            "delta": " ",
+            "timestamp": "2025-11-12T15:45:10.478421Z",
+            "accumulated_chars": 1542,
+            "interval_ms": 1
+          },
+          {
+            "sequence": 353,
+            "delta": " -",
+            "timestamp": "2025-11-12T15:45:10.682589Z",
+            "accumulated_chars": 1544,
+            "interval_ms": 204
+          },
+          {
+            "sequence": 354,
+            "delta": " `\"",
+            "timestamp": "2025-11-12T15:45:10.682963Z",
+            "accumulated_chars": 1547,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 355,
+            "delta": "src",
+            "timestamp": "2025-11-12T15:45:10.683148Z",
+            "accumulated_chars": 1550,
+            "interval_ms": 1
+          },
+          {
+            "sequence": 356,
+            "delta": "-ta",
+            "timestamp": "2025-11-12T15:45:10.683420Z",
+            "accumulated_chars": 1553,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 357,
+            "delta": "uri",
+            "timestamp": "2025-11-12T15:45:10.683600Z",
+            "accumulated_chars": 1556,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 358,
+            "delta": "\"`",
+            "timestamp": "2025-11-12T15:45:10.683776Z",
+            "accumulated_chars": 1558,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 359,
+            "delta": ":",
+            "timestamp": "2025-11-12T15:45:10.684317Z",
+            "accumulated_chars": 1559,
+            "interval_ms": 1
+          },
+          {
+            "sequence": 360,
+            "delta": " This",
+            "timestamp": "2025-11-12T15:45:10.684455Z",
+            "accumulated_chars": 1564,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 361,
+            "delta": " suggests",
+            "timestamp": "2025-11-12T15:45:10.684562Z",
+            "accumulated_chars": 1573,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 362,
+            "delta": " the",
+            "timestamp": "2025-11-12T15:45:10.686003Z",
+            "accumulated_chars": 1577,
+            "interval_ms": 2
+          },
+          {
+            "sequence": 363,
+            "delta": " project",
+            "timestamp": "2025-11-12T15:45:10.686214Z",
+            "accumulated_chars": 1585,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 364,
+            "delta": " includes",
+            "timestamp": "2025-11-12T15:45:10.686395Z",
+            "accumulated_chars": 1594,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 365,
+            "delta": " a",
+            "timestamp": "2025-11-12T15:45:10.686549Z",
+            "accumulated_chars": 1596,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 366,
+            "delta": " **",
+            "timestamp": "2025-11-12T15:45:10.890059Z",
+            "accumulated_chars": 1599,
+            "interval_ms": 204
+          },
+          {
+            "sequence": 367,
+            "delta": "T",
+            "timestamp": "2025-11-12T15:45:10.899912Z",
+            "accumulated_chars": 1600,
+            "interval_ms": 9
+          },
+          {
+            "sequence": 368,
+            "delta": "auri",
+            "timestamp": "2025-11-12T15:45:10.900208Z",
+            "accumulated_chars": 1604,
+            "interval_ms": 1
+          },
+          {
+            "sequence": 369,
+            "delta": "**",
+            "timestamp": "2025-11-12T15:45:10.900787Z",
+            "accumulated_chars": 1606,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 370,
+            "delta": " app",
+            "timestamp": "2025-11-12T15:45:10.900983Z",
+            "accumulated_chars": 1610,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 371,
+            "delta": " (",
+            "timestamp": "2025-11-12T15:45:10.901168Z",
+            "accumulated_chars": 1612,
+            "interval_ms": 1
+          },
+          {
+            "sequence": 372,
+            "delta": "T",
+            "timestamp": "2025-11-12T15:45:10.901239Z",
+            "accumulated_chars": 1613,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 373,
+            "delta": "auri",
+            "timestamp": "2025-11-12T15:45:10.901313Z",
+            "accumulated_chars": 1617,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 374,
+            "delta": " is",
+            "timestamp": "2025-11-12T15:45:11.111579Z",
+            "accumulated_chars": 1620,
+            "interval_ms": 210
+          },
+          {
+            "sequence": 375,
+            "delta": " a",
+            "timestamp": "2025-11-12T15:45:11.112151Z",
+            "accumulated_chars": 1622,
+            "interval_ms": 1
+          },
+          {
+            "sequence": 376,
+            "delta": " Rust",
+            "timestamp": "2025-11-12T15:45:11.112697Z",
+            "accumulated_chars": 1627,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 377,
+            "delta": " framework",
+            "timestamp": "2025-11-12T15:45:11.112900Z",
+            "accumulated_chars": 1637,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 378,
+            "delta": " for",
+            "timestamp": "2025-11-12T15:45:11.113019Z",
+            "accumulated_chars": 1641,
+            "interval_ms": 1
+          },
+          {
+            "sequence": 379,
+            "delta": " building",
+            "timestamp": "2025-11-12T15:45:11.113115Z",
+            "accumulated_chars": 1650,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 380,
+            "delta": " smaller",
+            "timestamp": "2025-11-12T15:45:11.113211Z",
+            "accumulated_chars": 1658,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 381,
+            "delta": ",",
+            "timestamp": "2025-11-12T15:45:11.113300Z",
+            "accumulated_chars": 1659,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 382,
+            "delta": " web",
+            "timestamp": "2025-11-12T15:45:11.113389Z",
+            "accumulated_chars": 1663,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 383,
+            "delta": "-based",
+            "timestamp": "2025-11-12T15:45:11.322304Z",
+            "accumulated_chars": 1669,
+            "interval_ms": 209
+          },
+          {
+            "sequence": 384,
+            "delta": " desktop",
+            "timestamp": "2025-11-12T15:45:11.322855Z",
+            "accumulated_chars": 1677,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 385,
+            "delta": " applications",
+            "timestamp": "2025-11-12T15:45:11.323079Z",
+            "accumulated_chars": 1690,
+            "interval_ms": 1
+          },
+          {
+            "sequence": 386,
+            "delta": ").\n",
+            "timestamp": "2025-11-12T15:45:11.323296Z",
+            "accumulated_chars": 1693,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 387,
+            "delta": " ",
+            "timestamp": "2025-11-12T15:45:11.323554Z",
+            "accumulated_chars": 1694,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 388,
+            "delta": " -",
+            "timestamp": "2025-11-12T15:45:11.323972Z",
+            "accumulated_chars": 1696,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 389,
+            "delta": " `\"",
+            "timestamp": "2025-11-12T15:45:11.324100Z",
+            "accumulated_chars": 1699,
+            "interval_ms": 1
+          },
+          {
+            "sequence": 390,
+            "delta": "cr",
+            "timestamp": "2025-11-12T15:45:11.324283Z",
+            "accumulated_chars": 1701,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 391,
+            "delta": "ates",
+            "timestamp": "2025-11-12T15:45:11.787909Z",
+            "accumulated_chars": 1705,
+            "interval_ms": 463
+          },
+          {
+            "sequence": 392,
+            "delta": "/session",
+            "timestamp": "2025-11-12T15:45:11.788285Z",
+            "accumulated_chars": 1713,
+            "interval_ms": 1
+          },
+          {
+            "sequence": 393,
+            "delta": "_manager",
+            "timestamp": "2025-11-12T15:45:11.788504Z",
+            "accumulated_chars": 1721,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 394,
+            "delta": "\"`",
+            "timestamp": "2025-11-12T15:45:11.788943Z",
+            "accumulated_chars": 1723,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 395,
+            "delta": ":",
+            "timestamp": "2025-11-12T15:45:11.789163Z",
+            "accumulated_chars": 1724,
+            "interval_ms": 1
+          },
+          {
+            "sequence": 396,
+            "delta": " Lik",
+            "timestamp": "2025-11-12T15:45:11.789326Z",
+            "accumulated_chars": 1728,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 397,
+            "delta": "ely",
+            "timestamp": "2025-11-12T15:45:11.789475Z",
+            "accumulated_chars": 1731,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 398,
+            "delta": " responsible",
+            "timestamp": "2025-11-12T15:45:11.789624Z",
+            "accumulated_chars": 1743,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 399,
+            "delta": " for",
+            "timestamp": "2025-11-12T15:45:11.789768Z",
+            "accumulated_chars": 1747,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 400,
+            "delta": " session",
+            "timestamp": "2025-11-12T15:45:11.790222Z",
+            "accumulated_chars": 1755,
+            "interval_ms": 1
+          },
+          {
+            "sequence": 401,
+            "delta": " handling",
+            "timestamp": "2025-11-12T15:45:11.790374Z",
+            "accumulated_chars": 1764,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 402,
+            "delta": ".\n\n",
+            "timestamp": "2025-11-12T15:45:11.790523Z",
+            "accumulated_chars": 1767,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 403,
+            "delta": "Using",
+            "timestamp": "2025-11-12T15:45:11.790826Z",
+            "accumulated_chars": 1772,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 404,
+            "delta": " a",
+            "timestamp": "2025-11-12T15:45:11.790977Z",
+            "accumulated_chars": 1774,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 405,
+            "delta": " workspace",
+            "timestamp": "2025-11-12T15:45:11.791333Z",
+            "accumulated_chars": 1784,
+            "interval_ms": 1
+          },
+          {
+            "sequence": 406,
+            "delta": " allows",
+            "timestamp": "2025-11-12T15:45:11.997750Z",
+            "accumulated_chars": 1791,
+            "interval_ms": 206
+          },
+          {
+            "sequence": 407,
+            "delta": " you",
+            "timestamp": "2025-11-12T15:45:11.998168Z",
+            "accumulated_chars": 1795,
+            "interval_ms": 1
+          },
+          {
+            "sequence": 408,
+            "delta": " to",
+            "timestamp": "2025-11-12T15:45:11.998503Z",
+            "accumulated_chars": 1798,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 409,
+            "delta": " build",
+            "timestamp": "2025-11-12T15:45:11.998776Z",
+            "accumulated_chars": 1804,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 410,
+            "delta": ",",
+            "timestamp": "2025-11-12T15:45:11.998995Z",
+            "accumulated_chars": 1805,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 411,
+            "delta": " test",
+            "timestamp": "2025-11-12T15:45:11.999308Z",
+            "accumulated_chars": 1810,
+            "interval_ms": 1
+          },
+          {
+            "sequence": 412,
+            "delta": ",",
+            "timestamp": "2025-11-12T15:45:11.999522Z",
+            "accumulated_chars": 1811,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 413,
+            "delta": " and",
+            "timestamp": "2025-11-12T15:45:11.999772Z",
+            "accumulated_chars": 1815,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 414,
+            "delta": " maintain",
+            "timestamp": "2025-11-12T15:45:11.999875Z",
+            "accumulated_chars": 1824,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 415,
+            "delta": " multiple",
+            "timestamp": "2025-11-12T15:45:12.206694Z",
+            "accumulated_chars": 1833,
+            "interval_ms": 207
+          },
+          {
+            "sequence": 416,
+            "delta": " related",
+            "timestamp": "2025-11-12T15:45:12.207029Z",
+            "accumulated_chars": 1841,
+            "interval_ms": 1
+          },
+          {
+            "sequence": 417,
+            "delta": " crates",
+            "timestamp": "2025-11-12T15:45:12.207170Z",
+            "accumulated_chars": 1848,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 418,
+            "delta": " as",
+            "timestamp": "2025-11-12T15:45:12.207302Z",
+            "accumulated_chars": 1851,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 419,
+            "delta": " part",
+            "timestamp": "2025-11-12T15:45:12.207475Z",
+            "accumulated_chars": 1856,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 420,
+            "delta": " of",
+            "timestamp": "2025-11-12T15:45:12.207667Z",
+            "accumulated_chars": 1859,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 421,
+            "delta": " one",
+            "timestamp": "2025-11-12T15:45:12.207773Z",
+            "accumulated_chars": 1863,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 422,
+            "delta": " project",
+            "timestamp": "2025-11-12T15:45:12.208018Z",
+            "accumulated_chars": 1871,
+            "interval_ms": 1
+          },
+          {
+            "sequence": 423,
+            "delta": ".\n\n",
+            "timestamp": "2025-11-12T15:45:12.208253Z",
+            "accumulated_chars": 1874,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 424,
+            "delta": "####",
+            "timestamp": "2025-11-12T15:45:12.629238Z",
+            "accumulated_chars": 1878,
+            "interval_ms": 421
+          },
+          {
+            "sequence": 425,
+            "delta": " ",
+            "timestamp": "2025-11-12T15:45:12.629826Z",
+            "accumulated_chars": 1879,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 426,
+            "delta": "3",
+            "timestamp": "2025-11-12T15:45:12.630310Z",
+            "accumulated_chars": 1880,
+            "interval_ms": 1
+          },
+          {
+            "sequence": 427,
+            "delta": ".",
+            "timestamp": "2025-11-12T15:45:12.633303Z",
+            "accumulated_chars": 1881,
+            "interval_ms": 3
+          },
+          {
+            "sequence": 428,
+            "delta": " **",
+            "timestamp": "2025-11-12T15:45:12.633384Z",
+            "accumulated_chars": 1884,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 429,
+            "delta": "`",
+            "timestamp": "2025-11-12T15:45:12.633459Z",
+            "accumulated_chars": 1885,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 430,
+            "delta": "resolver",
+            "timestamp": "2025-11-12T15:45:12.633531Z",
+            "accumulated_chars": 1893,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 431,
+            "delta": "`",
+            "timestamp": "2025-11-12T15:45:12.633632Z",
+            "accumulated_chars": 1894,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 432,
+            "delta": " Key",
+            "timestamp": "2025-11-12T15:45:12.633719Z",
+            "accumulated_chars": 1898,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 433,
+            "delta": "**\n",
+            "timestamp": "2025-11-12T15:45:12.633797Z",
+            "accumulated_chars": 1901,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 434,
+            "delta": "```",
+            "timestamp": "2025-11-12T15:45:12.633869Z",
+            "accumulated_chars": 1904,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 435,
+            "delta": "tom",
+            "timestamp": "2025-11-12T15:45:12.838285Z",
+            "accumulated_chars": 1907,
+            "interval_ms": 205
+          },
+          {
+            "sequence": 436,
+            "delta": "l",
+            "timestamp": "2025-11-12T15:45:12.839894Z",
+            "accumulated_chars": 1908,
+            "interval_ms": 1
+          },
+          {
+            "sequence": 437,
+            "delta": "\n",
+            "timestamp": "2025-11-12T15:45:12.841174Z",
+            "accumulated_chars": 1909,
+            "interval_ms": 2
+          },
+          {
+            "sequence": 438,
+            "delta": "resolver",
+            "timestamp": "2025-11-12T15:45:12.842191Z",
+            "accumulated_chars": 1917,
+            "interval_ms": 1
+          },
+          {
+            "sequence": 439,
+            "delta": " =",
+            "timestamp": "2025-11-12T15:45:12.842456Z",
+            "accumulated_chars": 1919,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 440,
+            "delta": " \"",
+            "timestamp": "2025-11-12T15:45:12.843121Z",
+            "accumulated_chars": 1921,
+            "interval_ms": 1
+          },
+          {
+            "sequence": 441,
+            "delta": "2",
+            "timestamp": "2025-11-12T15:45:12.843294Z",
+            "accumulated_chars": 1922,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 442,
+            "delta": "\"\n",
+            "timestamp": "2025-11-12T15:45:12.843642Z",
+            "accumulated_chars": 1924,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 443,
+            "delta": "``",
+            "timestamp": "2025-11-12T15:45:13.047994Z",
+            "accumulated_chars": 1926,
+            "interval_ms": 204
+          },
+          {
+            "sequence": 444,
+            "delta": "`\n",
+            "timestamp": "2025-11-12T15:45:13.048150Z",
+            "accumulated_chars": 1928,
+            "interval_ms": 1
+          },
+          {
+            "sequence": 445,
+            "delta": "This",
+            "timestamp": "2025-11-12T15:45:13.048226Z",
+            "accumulated_chars": 1932,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 446,
+            "delta": " sets",
+            "timestamp": "2025-11-12T15:45:13.048300Z",
+            "accumulated_chars": 1937,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 447,
+            "delta": " the",
+            "timestamp": "2025-11-12T15:45:13.048461Z",
+            "accumulated_chars": 1941,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 448,
+            "delta": " **",
+            "timestamp": "2025-11-12T15:45:13.089010Z",
+            "accumulated_chars": 1944,
+            "interval_ms": 41
+          },
+          {
+            "sequence": 449,
+            "delta": "resolver",
+            "timestamp": "2025-11-12T15:45:13.089147Z",
+            "accumulated_chars": 1952,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 450,
+            "delta": " version",
+            "timestamp": "2025-11-12T15:45:13.089272Z",
+            "accumulated_chars": 1960,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 451,
+            "delta": "**",
+            "timestamp": "2025-11-12T15:45:13.089360Z",
+            "accumulated_chars": 1962,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 452,
+            "delta": " for",
+            "timestamp": "2025-11-12T15:45:13.089623Z",
+            "accumulated_chars": 1966,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 453,
+            "delta": " dependency",
+            "timestamp": "2025-11-12T15:45:13.261431Z",
+            "accumulated_chars": 1977,
+            "interval_ms": 172
+          },
+          {
+            "sequence": 454,
+            "delta": " management",
+            "timestamp": "2025-11-12T15:45:13.262041Z",
+            "accumulated_chars": 1988,
+            "interval_ms": 1
+          },
+          {
+            "sequence": 455,
+            "delta": ".",
+            "timestamp": "2025-11-12T15:45:13.262245Z",
+            "accumulated_chars": 1989,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 456,
+            "delta": " Rust",
+            "timestamp": "2025-11-12T15:45:13.262424Z",
+            "accumulated_chars": 1994,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 457,
+            "delta": " introduced",
+            "timestamp": "2025-11-12T15:45:13.262604Z",
+            "accumulated_chars": 2005,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 458,
+            "delta": " the",
+            "timestamp": "2025-11-12T15:45:13.304024Z",
+            "accumulated_chars": 2009,
+            "interval_ms": 42
+          },
+          {
+            "sequence": 459,
+            "delta": " `",
+            "timestamp": "2025-11-12T15:45:13.304403Z",
+            "accumulated_chars": 2011,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 460,
+            "delta": "resolver",
+            "timestamp": "2025-11-12T15:45:13.304758Z",
+            "accumulated_chars": 2019,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 461,
+            "delta": " =",
+            "timestamp": "2025-11-12T15:45:13.305062Z",
+            "accumulated_chars": 2021,
+            "interval_ms": 1
+          },
+          {
+            "sequence": 462,
+            "delta": " \"",
+            "timestamp": "2025-11-12T15:45:13.305335Z",
+            "accumulated_chars": 2023,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 463,
+            "delta": "2",
+            "timestamp": "2025-11-12T15:45:13.305647Z",
+            "accumulated_chars": 2024,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 464,
+            "delta": "\"`",
+            "timestamp": "2025-11-12T15:45:13.471605Z",
+            "accumulated_chars": 2026,
+            "interval_ms": 166
+          },
+          {
+            "sequence": 465,
+            "delta": " option",
+            "timestamp": "2025-11-12T15:45:13.472300Z",
+            "accumulated_chars": 2033,
+            "interval_ms": 1
+          },
+          {
+            "sequence": 466,
+            "delta": " in",
+            "timestamp": "2025-11-12T15:45:13.472819Z",
+            "accumulated_chars": 2036,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 467,
+            "delta": " **",
+            "timestamp": "2025-11-12T15:45:13.473119Z",
+            "accumulated_chars": 2039,
+            "interval_ms": 1
+          },
+          {
+            "sequence": 468,
+            "delta": "Rust",
+            "timestamp": "2025-11-12T15:45:13.473435Z",
+            "accumulated_chars": 2043,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 469,
+            "delta": " ",
+            "timestamp": "2025-11-12T15:45:13.512391Z",
+            "accumulated_chars": 2044,
+            "interval_ms": 39
+          },
+          {
+            "sequence": 470,
+            "delta": "1",
+            "timestamp": "2025-11-12T15:45:13.512767Z",
+            "accumulated_chars": 2045,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 471,
+            "delta": ".",
+            "timestamp": "2025-11-12T15:45:13.513064Z",
+            "accumulated_chars": 2046,
+            "interval_ms": 1
+          },
+          {
+            "sequence": 472,
+            "delta": "51",
+            "timestamp": "2025-11-12T15:45:13.513611Z",
+            "accumulated_chars": 2048,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 473,
+            "delta": ".",
+            "timestamp": "2025-11-12T15:45:13.514063Z",
+            "accumulated_chars": 2049,
+            "interval_ms": 1
+          },
+          {
+            "sequence": 474,
+            "delta": "0",
+            "timestamp": "2025-11-12T15:45:13.514366Z",
+            "accumulated_chars": 2050,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 475,
+            "delta": "**",
+            "timestamp": "2025-11-12T15:45:13.682589Z",
+            "accumulated_chars": 2052,
+            "interval_ms": 168
+          },
+          {
+            "sequence": 476,
+            "delta": ".",
+            "timestamp": "2025-11-12T15:45:13.683156Z",
+            "accumulated_chars": 2053,
+            "interval_ms": 1
+          },
+          {
+            "sequence": 477,
+            "delta": " It",
+            "timestamp": "2025-11-12T15:45:13.683459Z",
+            "accumulated_chars": 2056,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 478,
+            "delta": " changes",
+            "timestamp": "2025-11-12T15:45:13.683670Z",
+            "accumulated_chars": 2064,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 479,
+            "delta": " how",
+            "timestamp": "2025-11-12T15:45:13.684298Z",
+            "accumulated_chars": 2068,
+            "interval_ms": 1
+          },
+          {
+            "sequence": 480,
+            "delta": " dependencies",
+            "timestamp": "2025-11-12T15:45:13.684653Z",
+            "accumulated_chars": 2081,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 481,
+            "delta": " are",
+            "timestamp": "2025-11-12T15:45:13.723303Z",
+            "accumulated_chars": 2085,
+            "interval_ms": 39
+          },
+          {
+            "sequence": 482,
+            "delta": " resolved",
+            "timestamp": "2025-11-12T15:45:13.723829Z",
+            "accumulated_chars": 2094,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 483,
+            "delta": ":\n",
+            "timestamp": "2025-11-12T15:45:13.724321Z",
+            "accumulated_chars": 2096,
+            "interval_ms": 1
+          },
+          {
+            "sequence": 484,
+            "delta": "-",
+            "timestamp": "2025-11-12T15:45:13.724853Z",
+            "accumulated_chars": 2097,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 485,
+            "delta": " It",
+            "timestamp": "2025-11-12T15:45:13.725130Z",
+            "accumulated_chars": 2100,
+            "interval_ms": 1
+          },
+          {
+            "sequence": 486,
+            "delta": " avoids",
+            "timestamp": "2025-11-12T15:45:13.891397Z",
+            "accumulated_chars": 2107,
+            "interval_ms": 166
+          },
+          {
+            "sequence": 487,
+            "delta": " activating",
+            "timestamp": "2025-11-12T15:45:13.891735Z",
+            "accumulated_chars": 2118,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 488,
+            "delta": " feature",
+            "timestamp": "2025-11-12T15:45:13.891959Z",
+            "accumulated_chars": 2126,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 489,
+            "delta": " flags",
+            "timestamp": "2025-11-12T15:45:13.892134Z",
+            "accumulated_chars": 2132,
+            "interval_ms": 1
+          },
+          {
+            "sequence": 490,
+            "delta": " of",
+            "timestamp": "2025-11-12T15:45:13.892430Z",
+            "accumulated_chars": 2135,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 491,
+            "delta": " dependencies",
+            "timestamp": "2025-11-12T15:45:13.892697Z",
+            "accumulated_chars": 2148,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 492,
+            "delta": " that",
+            "timestamp": "2025-11-12T15:45:13.934035Z",
+            "accumulated_chars": 2153,
+            "interval_ms": 42
+          },
+          {
+            "sequence": 493,
+            "delta": " aren",
+            "timestamp": "2025-11-12T15:45:13.934376Z",
+            "accumulated_chars": 2158,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 494,
+            "delta": "’t",
+            "timestamp": "2025-11-12T15:45:13.934593Z",
+            "accumulated_chars": 2162,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 495,
+            "delta": " used",
+            "timestamp": "2025-11-12T15:45:13.934942Z",
+            "accumulated_chars": 2167,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 496,
+            "delta": " by",
+            "timestamp": "2025-11-12T15:45:13.935212Z",
+            "accumulated_chars": 2170,
+            "interval_ms": 1
+          },
+          {
+            "sequence": 497,
+            "delta": " the",
+            "timestamp": "2025-11-12T15:45:14.101913Z",
+            "accumulated_chars": 2174,
+            "interval_ms": 166
+          },
+          {
+            "sequence": 498,
+            "delta": " current",
+            "timestamp": "2025-11-12T15:45:14.102785Z",
+            "accumulated_chars": 2182,
+            "interval_ms": 1
+          },
+          {
+            "sequence": 499,
+            "delta": " crate",
+            "timestamp": "2025-11-12T15:45:14.103207Z",
+            "accumulated_chars": 2188,
+            "interval_ms": 1
+          },
+          {
+            "sequence": 500,
+            "delta": ".\n",
+            "timestamp": "2025-11-12T15:45:14.777439Z",
+            "accumulated_chars": 2190,
+            "interval_ms": 674
+          },
+          {
+            "sequence": 501,
+            "delta": "-",
+            "timestamp": "2025-11-12T15:45:14.777769Z",
+            "accumulated_chars": 2191,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 502,
+            "delta": " This",
+            "timestamp": "2025-11-12T15:45:14.777962Z",
+            "accumulated_chars": 2196,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 503,
+            "delta": " makes",
+            "timestamp": "2025-11-12T15:45:14.778137Z",
+            "accumulated_chars": 2202,
+            "interval_ms": 1
+          },
+          {
+            "sequence": 504,
+            "delta": " builds",
+            "timestamp": "2025-11-12T15:45:14.778242Z",
+            "accumulated_chars": 2209,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 505,
+            "delta": " faster",
+            "timestamp": "2025-11-12T15:45:14.778347Z",
+            "accumulated_chars": 2216,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 506,
+            "delta": " and",
+            "timestamp": "2025-11-12T15:45:14.778616Z",
+            "accumulated_chars": 2220,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 507,
+            "delta": " avoids",
+            "timestamp": "2025-11-12T15:45:14.779060Z",
+            "accumulated_chars": 2227,
+            "interval_ms": 1
+          },
+          {
+            "sequence": 508,
+            "delta": " unnecessary",
+            "timestamp": "2025-11-12T15:45:14.779182Z",
+            "accumulated_chars": 2239,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 509,
+            "delta": " compilation",
+            "timestamp": "2025-11-12T15:45:14.779291Z",
+            "accumulated_chars": 2251,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 510,
+            "delta": ".\n\n",
+            "timestamp": "2025-11-12T15:45:14.779401Z",
+            "accumulated_chars": 2254,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 511,
+            "delta": "If",
+            "timestamp": "2025-11-12T15:45:14.779508Z",
+            "accumulated_chars": 2256,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 512,
+            "delta": " you",
+            "timestamp": "2025-11-12T15:45:14.779973Z",
+            "accumulated_chars": 2260,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 513,
+            "delta": "’re",
+            "timestamp": "2025-11-12T15:45:14.989234Z",
+            "accumulated_chars": 2265,
+            "interval_ms": 210
+          },
+          {
+            "sequence": 514,
+            "delta": " using",
+            "timestamp": "2025-11-12T15:45:14.989966Z",
+            "accumulated_chars": 2271,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 515,
+            "delta": " features",
+            "timestamp": "2025-11-12T15:45:14.990390Z",
+            "accumulated_chars": 2280,
+            "interval_ms": 1
+          },
+          {
+            "sequence": 516,
+            "delta": " across",
+            "timestamp": "2025-11-12T15:45:14.990611Z",
+            "accumulated_chars": 2287,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 517,
+            "delta": " multiple",
+            "timestamp": "2025-11-12T15:45:14.990908Z",
+            "accumulated_chars": 2296,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 518,
+            "delta": " crates",
+            "timestamp": "2025-11-12T15:45:14.991164Z",
+            "accumulated_chars": 2303,
+            "interval_ms": 1
+          },
+          {
+            "sequence": 519,
+            "delta": " in",
+            "timestamp": "2025-11-12T15:45:14.991764Z",
+            "accumulated_chars": 2306,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 520,
+            "delta": " the",
+            "timestamp": "2025-11-12T15:45:15.199566Z",
+            "accumulated_chars": 2310,
+            "interval_ms": 208
+          },
+          {
+            "sequence": 521,
+            "delta": " workspace",
+            "timestamp": "2025-11-12T15:45:15.200156Z",
+            "accumulated_chars": 2320,
+            "interval_ms": 1
+          },
+          {
+            "sequence": 522,
+            "delta": ",",
+            "timestamp": "2025-11-12T15:45:15.200675Z",
+            "accumulated_chars": 2321,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 523,
+            "delta": " `",
+            "timestamp": "2025-11-12T15:45:15.201004Z",
+            "accumulated_chars": 2323,
+            "interval_ms": 1
+          },
+          {
+            "sequence": 524,
+            "delta": "resolver",
+            "timestamp": "2025-11-12T15:45:15.201697Z",
+            "accumulated_chars": 2331,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 525,
+            "delta": " =",
+            "timestamp": "2025-11-12T15:45:15.201852Z",
+            "accumulated_chars": 2333,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 526,
+            "delta": " \"",
+            "timestamp": "2025-11-12T15:45:15.201974Z",
+            "accumulated_chars": 2335,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 527,
+            "delta": "2",
+            "timestamp": "2025-11-12T15:45:15.202114Z",
+            "accumulated_chars": 2336,
+            "interval_ms": 1
+          },
+          {
+            "sequence": 528,
+            "delta": "\"`",
+            "timestamp": "2025-11-12T15:45:15.202291Z",
+            "accumulated_chars": 2338,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 529,
+            "delta": " is",
+            "timestamp": "2025-11-12T15:45:15.409605Z",
+            "accumulated_chars": 2341,
+            "interval_ms": 207
+          },
+          {
+            "sequence": 530,
+            "delta": " generally",
+            "timestamp": "2025-11-12T15:45:15.410468Z",
+            "accumulated_chars": 2351,
+            "interval_ms": 1
+          },
+          {
+            "sequence": 531,
+            "delta": " recommended",
+            "timestamp": "2025-11-12T15:45:15.410963Z",
+            "accumulated_chars": 2363,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 532,
+            "delta": ".\n\n",
+            "timestamp": "2025-11-12T15:45:15.411624Z",
+            "accumulated_chars": 2366,
+            "interval_ms": 1
+          },
+          {
+            "sequence": 533,
+            "delta": "####",
+            "timestamp": "2025-11-12T15:45:15.411961Z",
+            "accumulated_chars": 2370,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 534,
+            "delta": " ",
+            "timestamp": "2025-11-12T15:45:15.680376Z",
+            "accumulated_chars": 2371,
+            "interval_ms": 269
+          },
+          {
+            "sequence": 535,
+            "delta": "4",
+            "timestamp": "2025-11-12T15:45:15.681570Z",
+            "accumulated_chars": 2372,
+            "interval_ms": 1
+          },
+          {
+            "sequence": 536,
+            "delta": ".",
+            "timestamp": "2025-11-12T15:45:15.681834Z",
+            "accumulated_chars": 2373,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 537,
+            "delta": " **",
+            "timestamp": "2025-11-12T15:45:15.682088Z",
+            "accumulated_chars": 2376,
+            "interval_ms": 1
+          },
+          {
+            "sequence": 538,
+            "delta": "Default",
+            "timestamp": "2025-11-12T15:45:15.682262Z",
+            "accumulated_chars": 2383,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 539,
+            "delta": " Members",
+            "timestamp": "2025-11-12T15:45:15.682586Z",
+            "accumulated_chars": 2391,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 540,
+            "delta": "**\n",
+            "timestamp": "2025-11-12T15:45:15.682834Z",
+            "accumulated_chars": 2394,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 541,
+            "delta": "```",
+            "timestamp": "2025-11-12T15:45:15.683016Z",
+            "accumulated_chars": 2397,
+            "interval_ms": 1
+          },
+          {
+            "sequence": 542,
+            "delta": "tom",
+            "timestamp": "2025-11-12T15:45:15.835037Z",
+            "accumulated_chars": 2400,
+            "interval_ms": 152
+          },
+          {
+            "sequence": 543,
+            "delta": "l",
+            "timestamp": "2025-11-12T15:45:15.835190Z",
+            "accumulated_chars": 2401,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 544,
+            "delta": "\n",
+            "timestamp": "2025-11-12T15:45:15.835304Z",
+            "accumulated_chars": 2402,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 545,
+            "delta": "default",
+            "timestamp": "2025-11-12T15:45:15.835393Z",
+            "accumulated_chars": 2409,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 546,
+            "delta": "-members",
+            "timestamp": "2025-11-12T15:45:15.835564Z",
+            "accumulated_chars": 2417,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 547,
+            "delta": " =",
+            "timestamp": "2025-11-12T15:45:15.835650Z",
+            "accumulated_chars": 2419,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 548,
+            "delta": " [\"",
+            "timestamp": "2025-11-12T15:45:15.835797Z",
+            "accumulated_chars": 2422,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 549,
+            "delta": "src",
+            "timestamp": "2025-11-12T15:45:15.835938Z",
+            "accumulated_chars": 2425,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 550,
+            "delta": "-ta",
+            "timestamp": "2025-11-12T15:45:15.836059Z",
+            "accumulated_chars": 2428,
+            "interval_ms": 1
+          },
+          {
+            "sequence": 551,
+            "delta": "uri",
+            "timestamp": "2025-11-12T15:45:15.836152Z",
+            "accumulated_chars": 2431,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 552,
+            "delta": "\"]\n",
+            "timestamp": "2025-11-12T15:45:15.836221Z",
+            "accumulated_chars": 2434,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 553,
+            "delta": "``",
+            "timestamp": "2025-11-12T15:45:15.836339Z",
+            "accumulated_chars": 2436,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 554,
+            "delta": "`\n",
+            "timestamp": "2025-11-12T15:45:15.836461Z",
+            "accumulated_chars": 2438,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 555,
+            "delta": "This",
+            "timestamp": "2025-11-12T15:45:15.836532Z",
+            "accumulated_chars": 2442,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 556,
+            "delta": " specifies",
+            "timestamp": "2025-11-12T15:45:15.836599Z",
+            "accumulated_chars": 2452,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 557,
+            "delta": " which",
+            "timestamp": "2025-11-12T15:45:15.896354Z",
+            "accumulated_chars": 2458,
+            "interval_ms": 60
+          },
+          {
+            "sequence": 558,
+            "delta": " member",
+            "timestamp": "2025-11-12T15:45:15.896697Z",
+            "accumulated_chars": 2465,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 559,
+            "delta": "(s",
+            "timestamp": "2025-11-12T15:45:16.677629Z",
+            "accumulated_chars": 2467,
+            "interval_ms": 781
+          },
+          {
+            "sequence": 560,
+            "delta": ")",
+            "timestamp": "2025-11-12T15:45:16.678477Z",
+            "accumulated_chars": 2468,
+            "interval_ms": 1
+          },
+          {
+            "sequence": 561,
+            "delta": " in",
+            "timestamp": "2025-11-12T15:45:16.679075Z",
+            "accumulated_chars": 2471,
+            "interval_ms": 1
+          },
+          {
+            "sequence": 562,
+            "delta": " the",
+            "timestamp": "2025-11-12T15:45:16.679534Z",
+            "accumulated_chars": 2475,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 563,
+            "delta": " workspace",
+            "timestamp": "2025-11-12T15:45:16.680201Z",
+            "accumulated_chars": 2485,
+            "interval_ms": 1
+          },
+          {
+            "sequence": 564,
+            "delta": " are",
+            "timestamp": "2025-11-12T15:45:16.680312Z",
+            "accumulated_chars": 2489,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 565,
+            "delta": " treated",
+            "timestamp": "2025-11-12T15:45:16.680619Z",
+            "accumulated_chars": 2497,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 566,
+            "delta": " as",
+            "timestamp": "2025-11-12T15:45:16.680815Z",
+            "accumulated_chars": 2500,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 567,
+            "delta": " **",
+            "timestamp": "2025-11-12T15:45:16.681008Z",
+            "accumulated_chars": 2503,
+            "interval_ms": 1
+          },
+          {
+            "sequence": 568,
+            "delta": "default",
+            "timestamp": "2025-11-12T15:45:16.681143Z",
+            "accumulated_chars": 2510,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 569,
+            "delta": " members",
+            "timestamp": "2025-11-12T15:45:16.681888Z",
+            "accumulated_chars": 2518,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 570,
+            "delta": "**",
+            "timestamp": "2025-11-12T15:45:16.682052Z",
+            "accumulated_chars": 2520,
+            "interval_ms": 1
+          },
+          {
+            "sequence": 571,
+            "delta": ".",
+            "timestamp": "2025-11-12T15:45:16.682169Z",
+            "accumulated_chars": 2521,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 572,
+            "delta": " If",
+            "timestamp": "2025-11-12T15:45:16.682455Z",
+            "accumulated_chars": 2524,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 573,
+            "delta": " you",
+            "timestamp": "2025-11-12T15:45:16.682534Z",
+            "accumulated_chars": 2528,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 574,
+            "delta": " run",
+            "timestamp": "2025-11-12T15:45:16.682666Z",
+            "accumulated_chars": 2532,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 575,
+            "delta": " commands",
+            "timestamp": "2025-11-12T15:45:16.682798Z",
+            "accumulated_chars": 2541,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 576,
+            "delta": " like",
+            "timestamp": "2025-11-12T15:45:17.158390Z",
+            "accumulated_chars": 2546,
+            "interval_ms": 476
+          },
+          {
+            "sequence": 577,
+            "delta": " `",
+            "timestamp": "2025-11-12T15:45:17.159121Z",
+            "accumulated_chars": 2548,
+            "interval_ms": 1
+          },
+          {
+            "sequence": 578,
+            "delta": "cargo",
+            "timestamp": "2025-11-12T15:45:17.164379Z",
+            "accumulated_chars": 2553,
+            "interval_ms": 5
+          },
+          {
+            "sequence": 579,
+            "delta": " build",
+            "timestamp": "2025-11-12T15:45:17.165829Z",
+            "accumulated_chars": 2559,
+            "interval_ms": 1
+          },
+          {
+            "sequence": 580,
+            "delta": "`",
+            "timestamp": "2025-11-12T15:45:17.166046Z",
+            "accumulated_chars": 2560,
+            "interval_ms": 1
+          },
+          {
+            "sequence": 581,
+            "delta": " or",
+            "timestamp": "2025-11-12T15:45:17.166522Z",
+            "accumulated_chars": 2563,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 582,
+            "delta": " `",
+            "timestamp": "2025-11-12T15:45:17.166670Z",
+            "accumulated_chars": 2565,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 583,
+            "delta": "cargo",
+            "timestamp": "2025-11-12T15:45:17.166826Z",
+            "accumulated_chars": 2570,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 584,
+            "delta": " test",
+            "timestamp": "2025-11-12T15:45:17.586641Z",
+            "accumulated_chars": 2575,
+            "interval_ms": 420
+          },
+          {
+            "sequence": 585,
+            "delta": "`",
+            "timestamp": "2025-11-12T15:45:17.587627Z",
+            "accumulated_chars": 2576,
+            "interval_ms": 1
+          },
+          {
+            "sequence": 586,
+            "delta": " from",
+            "timestamp": "2025-11-12T15:45:17.588901Z",
+            "accumulated_chars": 2581,
+            "interval_ms": 1
+          },
+          {
+            "sequence": 587,
+            "delta": " the",
+            "timestamp": "2025-11-12T15:45:17.589209Z",
+            "accumulated_chars": 2585,
+            "interval_ms": 1
+          },
+          {
+            "sequence": 588,
+            "delta": " root",
+            "timestamp": "2025-11-12T15:45:17.589774Z",
+            "accumulated_chars": 2590,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 589,
+            "delta": " of",
+            "timestamp": "2025-11-12T15:45:17.789518Z",
+            "accumulated_chars": 2593,
+            "interval_ms": 200
+          },
+          {
+            "sequence": 590,
+            "delta": " the",
+            "timestamp": "2025-11-12T15:45:17.789901Z",
+            "accumulated_chars": 2597,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 591,
+            "delta": " workspace",
+            "timestamp": "2025-11-12T15:45:17.790417Z",
+            "accumulated_chars": 2607,
+            "interval_ms": 1
+          },
+          {
+            "sequence": 592,
+            "delta": ",",
+            "timestamp": "2025-11-12T15:45:17.790856Z",
+            "accumulated_chars": 2608,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 593,
+            "delta": " only",
+            "timestamp": "2025-11-12T15:45:17.791307Z",
+            "accumulated_chars": 2613,
+            "interval_ms": 1
+          },
+          {
+            "sequence": 594,
+            "delta": " the",
+            "timestamp": "2025-11-12T15:45:18.001455Z",
+            "accumulated_chars": 2617,
+            "interval_ms": 210
+          },
+          {
+            "sequence": 595,
+            "delta": " crates",
+            "timestamp": "2025-11-12T15:45:18.008658Z",
+            "accumulated_chars": 2624,
+            "interval_ms": 7
+          },
+          {
+            "sequence": 596,
+            "delta": " listed",
+            "timestamp": "2025-11-12T15:45:18.010025Z",
+            "accumulated_chars": 2631,
+            "interval_ms": 2
+          },
+          {
+            "sequence": 597,
+            "delta": " here",
+            "timestamp": "2025-11-12T15:45:18.428082Z",
+            "accumulated_chars": 2636,
+            "interval_ms": 418
+          },
+          {
+            "sequence": 598,
+            "delta": " will",
+            "timestamp": "2025-11-12T15:45:18.428239Z",
+            "accumulated_chars": 2641,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 599,
+            "delta": " be",
+            "timestamp": "2025-11-12T15:45:18.428412Z",
+            "accumulated_chars": 2644,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 600,
+            "delta": " built",
+            "timestamp": "2025-11-12T15:45:18.428492Z",
+            "accumulated_chars": 2650,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 601,
+            "delta": " or",
+            "timestamp": "2025-11-12T15:45:18.428610Z",
+            "accumulated_chars": 2653,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 602,
+            "delta": " tested",
+            "timestamp": "2025-11-12T15:45:18.428688Z",
+            "accumulated_chars": 2660,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 603,
+            "delta": " by",
+            "timestamp": "2025-11-12T15:45:18.428873Z",
+            "accumulated_chars": 2663,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 604,
+            "delta": " default",
+            "timestamp": "2025-11-12T15:45:18.428980Z",
+            "accumulated_chars": 2671,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 605,
+            "delta": ".\n\n",
+            "timestamp": "2025-11-12T15:45:18.429165Z",
+            "accumulated_chars": 2674,
+            "interval_ms": 1
+          },
+          {
+            "sequence": 606,
+            "delta": "-",
+            "timestamp": "2025-11-12T15:45:18.429249Z",
+            "accumulated_chars": 2675,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 607,
+            "delta": " `",
+            "timestamp": "2025-11-12T15:45:18.632618Z",
+            "accumulated_chars": 2677,
+            "interval_ms": 203
+          },
+          {
+            "sequence": 608,
+            "delta": "[\"",
+            "timestamp": "2025-11-12T15:45:18.633355Z",
+            "accumulated_chars": 2679,
+            "interval_ms": 1
+          },
+          {
+            "sequence": 609,
+            "delta": "src",
+            "timestamp": "2025-11-12T15:45:18.633714Z",
+            "accumulated_chars": 2682,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 610,
+            "delta": "-ta",
+            "timestamp": "2025-11-12T15:45:18.634273Z",
+            "accumulated_chars": 2685,
+            "interval_ms": 1
+          },
+          {
+            "sequence": 611,
+            "delta": "uri",
+            "timestamp": "2025-11-12T15:45:18.634733Z",
+            "accumulated_chars": 2688,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 612,
+            "delta": "\"]",
+            "timestamp": "2025-11-12T15:45:18.635236Z",
+            "accumulated_chars": 2690,
+            "interval_ms": 1
+          },
+          {
+            "sequence": 613,
+            "delta": "`:",
+            "timestamp": "2025-11-12T15:45:18.845512Z",
+            "accumulated_chars": 2692,
+            "interval_ms": 210
+          },
+          {
+            "sequence": 614,
+            "delta": " Indicates",
+            "timestamp": "2025-11-12T15:45:18.846116Z",
+            "accumulated_chars": 2702,
+            "interval_ms": 1
+          },
+          {
+            "sequence": 615,
+            "delta": " that",
+            "timestamp": "2025-11-12T15:45:18.846374Z",
+            "accumulated_chars": 2707,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 616,
+            "delta": " the",
+            "timestamp": "2025-11-12T15:45:18.846700Z",
+            "accumulated_chars": 2711,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 617,
+            "delta": " T",
+            "timestamp": "2025-11-12T15:45:18.847341Z",
+            "accumulated_chars": 2713,
+            "interval_ms": 1
+          },
+          {
+            "sequence": 618,
+            "delta": "auri",
+            "timestamp": "2025-11-12T15:45:18.847496Z",
+            "accumulated_chars": 2717,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 619,
+            "delta": " application",
+            "timestamp": "2025-11-12T15:45:18.847681Z",
+            "accumulated_chars": 2729,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 620,
+            "delta": " is",
+            "timestamp": "2025-11-12T15:45:18.847986Z",
+            "accumulated_chars": 2732,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 621,
+            "delta": " the",
+            "timestamp": "2025-11-12T15:45:19.072526Z",
+            "accumulated_chars": 2736,
+            "interval_ms": 225
+          },
+          {
+            "sequence": 622,
+            "delta": " default",
+            "timestamp": "2025-11-12T15:45:19.073133Z",
+            "accumulated_chars": 2744,
+            "interval_ms": 1
+          },
+          {
+            "sequence": 623,
+            "delta": " crate",
+            "timestamp": "2025-11-12T15:45:19.073581Z",
+            "accumulated_chars": 2750,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 624,
+            "delta": " to",
+            "timestamp": "2025-11-12T15:45:19.074103Z",
+            "accumulated_chars": 2753,
+            "interval_ms": 1
+          },
+          {
+            "sequence": 625,
+            "delta": " work",
+            "timestamp": "2025-11-12T15:45:19.074272Z",
+            "accumulated_chars": 2758,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 626,
+            "delta": " with",
+            "timestamp": "2025-11-12T15:45:19.074620Z",
+            "accumulated_chars": 2763,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 627,
+            "delta": " when",
+            "timestamp": "2025-11-12T15:45:19.074764Z",
+            "accumulated_chars": 2768,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 628,
+            "delta": " no",
+            "timestamp": "2025-11-12T15:45:19.270456Z",
+            "accumulated_chars": 2771,
+            "interval_ms": 196
+          },
+          {
+            "sequence": 629,
+            "delta": " specific",
+            "timestamp": "2025-11-12T15:45:19.271031Z",
+            "accumulated_chars": 2780,
+            "interval_ms": 1
+          },
+          {
+            "sequence": 630,
+            "delta": " crate",
+            "timestamp": "2025-11-12T15:45:19.271579Z",
+            "accumulated_chars": 2786,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 631,
+            "delta": " is",
+            "timestamp": "2025-11-12T15:45:19.272074Z",
+            "accumulated_chars": 2789,
+            "interval_ms": 1
+          },
+          {
+            "sequence": 632,
+            "delta": " mentioned",
+            "timestamp": "2025-11-12T15:45:19.272407Z",
+            "accumulated_chars": 2799,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 633,
+            "delta": ".\n\n",
+            "timestamp": "2025-11-12T15:45:19.695160Z",
+            "accumulated_chars": 2802,
+            "interval_ms": 423
+          },
+          {
+            "sequence": 634,
+            "delta": "###",
+            "timestamp": "2025-11-12T15:45:19.695771Z",
+            "accumulated_chars": 2805,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 635,
+            "delta": " Putting",
+            "timestamp": "2025-11-12T15:45:19.695939Z",
+            "accumulated_chars": 2813,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 636,
+            "delta": " It",
+            "timestamp": "2025-11-12T15:45:19.696081Z",
+            "accumulated_chars": 2816,
+            "interval_ms": 1
+          },
+          {
+            "sequence": 637,
+            "delta": " All",
+            "timestamp": "2025-11-12T15:45:19.696285Z",
+            "accumulated_chars": 2820,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 638,
+            "delta": " Together",
+            "timestamp": "2025-11-12T15:45:19.696446Z",
+            "accumulated_chars": 2829,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 639,
+            "delta": "\n",
+            "timestamp": "2025-11-12T15:45:19.696593Z",
+            "accumulated_chars": 2830,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 640,
+            "delta": "From",
+            "timestamp": "2025-11-12T15:45:19.696735Z",
+            "accumulated_chars": 2834,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 641,
+            "delta": " the",
+            "timestamp": "2025-11-12T15:45:19.696876Z",
+            "accumulated_chars": 2838,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 642,
+            "delta": " structure",
+            "timestamp": "2025-11-12T15:45:19.697023Z",
+            "accumulated_chars": 2848,
+            "interval_ms": 1
+          },
+          {
+            "sequence": 643,
+            "delta": ",",
+            "timestamp": "2025-11-12T15:45:19.697155Z",
+            "accumulated_chars": 2849,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 644,
+            "delta": " this",
+            "timestamp": "2025-11-12T15:45:19.697282Z",
+            "accumulated_chars": 2854,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 645,
+            "delta": " workspace",
+            "timestamp": "2025-11-12T15:45:19.901731Z",
+            "accumulated_chars": 2864,
+            "interval_ms": 204
+          },
+          {
+            "sequence": 646,
+            "delta": " is",
+            "timestamp": "2025-11-12T15:45:19.902558Z",
+            "accumulated_chars": 2867,
+            "interval_ms": 1
+          },
+          {
+            "sequence": 647,
+            "delta": " built",
+            "timestamp": "2025-11-12T15:45:19.903662Z",
+            "accumulated_chars": 2873,
+            "interval_ms": 1
+          },
+          {
+            "sequence": 648,
+            "delta": " to",
+            "timestamp": "2025-11-12T15:45:20.171875Z",
+            "accumulated_chars": 2876,
+            "interval_ms": 268
+          },
+          {
+            "sequence": 649,
+            "delta": " manage",
+            "timestamp": "2025-11-12T15:45:20.172306Z",
+            "accumulated_chars": 2883,
+            "interval_ms": 1
+          },
+          {
+            "sequence": 650,
+            "delta": " **",
+            "timestamp": "2025-11-12T15:45:20.172519Z",
+            "accumulated_chars": 2886,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 651,
+            "delta": "multiple",
+            "timestamp": "2025-11-12T15:45:20.172728Z",
+            "accumulated_chars": 2894,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 652,
+            "delta": " inter",
+            "timestamp": "2025-11-12T15:45:20.173102Z",
+            "accumulated_chars": 2900,
+            "interval_ms": 1
+          },
+          {
+            "sequence": 653,
+            "delta": "related",
+            "timestamp": "2025-11-12T15:45:20.173460Z",
+            "accumulated_chars": 2907,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 654,
+            "delta": " Rust",
+            "timestamp": "2025-11-12T15:45:20.173870Z",
+            "accumulated_chars": 2912,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 655,
+            "delta": " projects",
+            "timestamp": "2025-11-12T15:45:20.174043Z",
+            "accumulated_chars": 2921,
+            "interval_ms": 1
+          },
+          {
+            "sequence": 656,
+            "delta": "**,",
+            "timestamp": "2025-11-12T15:45:20.174391Z",
+            "accumulated_chars": 2924,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 657,
+            "delta": " likely",
+            "timestamp": "2025-11-12T15:45:20.174547Z",
+            "accumulated_chars": 2931,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 658,
+            "delta": " a",
+            "timestamp": "2025-11-12T15:45:20.174700Z",
+            "accumulated_chars": 2933,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 659,
+            "delta": " mix",
+            "timestamp": "2025-11-12T15:45:20.174837Z",
+            "accumulated_chars": 2937,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 660,
+            "delta": " of",
+            "timestamp": "2025-11-12T15:45:20.322015Z",
+            "accumulated_chars": 2940,
+            "interval_ms": 148
+          },
+          {
+            "sequence": 661,
+            "delta": " shared",
+            "timestamp": "2025-11-12T15:45:20.322595Z",
+            "accumulated_chars": 2947,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 662,
+            "delta": " libraries",
+            "timestamp": "2025-11-12T15:45:20.382400Z",
+            "accumulated_chars": 2957,
+            "interval_ms": 60
+          },
+          {
+            "sequence": 663,
+            "delta": " and",
+            "timestamp": "2025-11-12T15:45:20.382854Z",
+            "accumulated_chars": 2961,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 664,
+            "delta": " a",
+            "timestamp": "2025-11-12T15:45:20.383070Z",
+            "accumulated_chars": 2963,
+            "interval_ms": 1
+          },
+          {
+            "sequence": 665,
+            "delta": " T",
+            "timestamp": "2025-11-12T15:45:21.274208Z",
+            "accumulated_chars": 2965,
+            "interval_ms": 891
+          },
+          {
+            "sequence": 666,
+            "delta": "auri",
+            "timestamp": "2025-11-12T15:45:21.275495Z",
+            "accumulated_chars": 2969,
+            "interval_ms": 1
+          },
+          {
+            "sequence": 667,
+            "delta": "-based",
+            "timestamp": "2025-11-12T15:45:21.275945Z",
+            "accumulated_chars": 2975,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 668,
+            "delta": " desktop",
+            "timestamp": "2025-11-12T15:45:21.276312Z",
+            "accumulated_chars": 2983,
+            "interval_ms": 1
+          },
+          {
+            "sequence": 669,
+            "delta": " application",
+            "timestamp": "2025-11-12T15:45:21.276500Z",
+            "accumulated_chars": 2995,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 670,
+            "delta": ".",
+            "timestamp": "2025-11-12T15:45:21.481870Z",
+            "accumulated_chars": 2996,
+            "interval_ms": 205
+          },
+          {
+            "sequence": 671,
+            "delta": " \n\n",
+            "timestamp": "2025-11-12T15:45:21.482335Z",
+            "accumulated_chars": 2999,
+            "interval_ms": 1
+          },
+          {
+            "sequence": 672,
+            "delta": "Workspace",
+            "timestamp": "2025-11-12T15:45:21.482643Z",
+            "accumulated_chars": 3008,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 673,
+            "delta": " benefits",
+            "timestamp": "2025-11-12T15:45:21.482933Z",
+            "accumulated_chars": 3017,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 674,
+            "delta": ":\n",
+            "timestamp": "2025-11-12T15:45:21.483255Z",
+            "accumulated_chars": 3019,
+            "interval_ms": 1
+          },
+          {
+            "sequence": 675,
+            "delta": "-",
+            "timestamp": "2025-11-12T15:45:21.483472Z",
+            "accumulated_chars": 3020,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 676,
+            "delta": " **",
+            "timestamp": "2025-11-12T15:45:21.692035Z",
+            "accumulated_chars": 3023,
+            "interval_ms": 209
+          },
+          {
+            "sequence": 677,
+            "delta": "Central",
+            "timestamp": "2025-11-12T15:45:21.692545Z",
+            "accumulated_chars": 3030,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 678,
+            "delta": "ized",
+            "timestamp": "2025-11-12T15:45:21.692853Z",
+            "accumulated_chars": 3034,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 679,
+            "delta": " dependency",
+            "timestamp": "2025-11-12T15:45:21.693072Z",
+            "accumulated_chars": 3045,
+            "interval_ms": 1
+          },
+          {
+            "sequence": 680,
+            "delta": " management",
+            "timestamp": "2025-11-12T15:45:21.693286Z",
+            "accumulated_chars": 3056,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 681,
+            "delta": ":**",
+            "timestamp": "2025-11-12T15:45:21.693606Z",
+            "accumulated_chars": 3059,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 682,
+            "delta": " All",
+            "timestamp": "2025-11-12T15:45:21.902150Z",
+            "accumulated_chars": 3063,
+            "interval_ms": 209
+          },
+          {
+            "sequence": 683,
+            "delta": " workspace",
+            "timestamp": "2025-11-12T15:45:21.902735Z",
+            "accumulated_chars": 3073,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 684,
+            "delta": " members",
+            "timestamp": "2025-11-12T15:45:22.537070Z",
+            "accumulated_chars": 3081,
+            "interval_ms": 635
+          },
+          {
+            "sequence": 685,
+            "delta": " share",
+            "timestamp": "2025-11-12T15:45:22.537869Z",
+            "accumulated_chars": 3087,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 686,
+            "delta": " the",
+            "timestamp": "2025-11-12T15:45:22.538299Z",
+            "accumulated_chars": 3091,
+            "interval_ms": 1
+          },
+          {
+            "sequence": 687,
+            "delta": " same",
+            "timestamp": "2025-11-12T15:45:22.541073Z",
+            "accumulated_chars": 3096,
+            "interval_ms": 3
+          },
+          {
+            "sequence": 688,
+            "delta": " `",
+            "timestamp": "2025-11-12T15:45:22.544928Z",
+            "accumulated_chars": 3098,
+            "interval_ms": 3
+          },
+          {
+            "sequence": 689,
+            "delta": "Cargo",
+            "timestamp": "2025-11-12T15:45:22.545252Z",
+            "accumulated_chars": 3103,
+            "interval_ms": 1
+          },
+          {
+            "sequence": 690,
+            "delta": ".lock",
+            "timestamp": "2025-11-12T15:45:22.545429Z",
+            "accumulated_chars": 3108,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 691,
+            "delta": "`",
+            "timestamp": "2025-11-12T15:45:22.545598Z",
+            "accumulated_chars": 3109,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 692,
+            "delta": " file",
+            "timestamp": "2025-11-12T15:45:22.546692Z",
+            "accumulated_chars": 3114,
+            "interval_ms": 1
+          },
+          {
+            "sequence": 693,
+            "delta": ".\n",
+            "timestamp": "2025-11-12T15:45:22.547348Z",
+            "accumulated_chars": 3116,
+            "interval_ms": 1
+          },
+          {
+            "sequence": 694,
+            "delta": "-",
+            "timestamp": "2025-11-12T15:45:22.547540Z",
+            "accumulated_chars": 3117,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 695,
+            "delta": " **",
+            "timestamp": "2025-11-12T15:45:22.547987Z",
+            "accumulated_chars": 3120,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 696,
+            "delta": "Simpl",
+            "timestamp": "2025-11-12T15:45:22.548137Z",
+            "accumulated_chars": 3125,
+            "interval_ms": 1
+          },
+          {
+            "sequence": 697,
+            "delta": "ified",
+            "timestamp": "2025-11-12T15:45:22.549478Z",
+            "accumulated_chars": 3130,
+            "interval_ms": 1
+          },
+          {
+            "sequence": 698,
+            "delta": " organization",
+            "timestamp": "2025-11-12T15:45:22.549648Z",
+            "accumulated_chars": 3143,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 699,
+            "delta": ":**",
+            "timestamp": "2025-11-12T15:45:22.549795Z",
+            "accumulated_chars": 3146,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 700,
+            "delta": " Separate",
+            "timestamp": "2025-11-12T15:45:22.549936Z",
+            "accumulated_chars": 3155,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 701,
+            "delta": " concerns",
+            "timestamp": "2025-11-12T15:45:22.550197Z",
+            "accumulated_chars": 3164,
+            "interval_ms": 1
+          },
+          {
+            "sequence": 702,
+            "delta": " into",
+            "timestamp": "2025-11-12T15:45:22.550529Z",
+            "accumulated_chars": 3169,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 703,
+            "delta": " reusable",
+            "timestamp": "2025-11-12T15:45:22.744015Z",
+            "accumulated_chars": 3178,
+            "interval_ms": 194
+          },
+          {
+            "sequence": 704,
+            "delta": " libraries",
+            "timestamp": "2025-11-12T15:45:22.744323Z",
+            "accumulated_chars": 3188,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 705,
+            "delta": ".\n",
+            "timestamp": "2025-11-12T15:45:22.744598Z",
+            "accumulated_chars": 3190,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 706,
+            "delta": "-",
+            "timestamp": "2025-11-12T15:45:22.744865Z",
+            "accumulated_chars": 3191,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 707,
+            "delta": " **",
+            "timestamp": "2025-11-12T15:45:22.744943Z",
+            "accumulated_chars": 3194,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 708,
+            "delta": "Ease",
+            "timestamp": "2025-11-12T15:45:22.956872Z",
+            "accumulated_chars": 3198,
+            "interval_ms": 212
+          },
+          {
+            "sequence": 709,
+            "delta": " of",
+            "timestamp": "2025-11-12T15:45:22.957927Z",
+            "accumulated_chars": 3201,
+            "interval_ms": 1
+          },
+          {
+            "sequence": 710,
+            "delta": " development",
+            "timestamp": "2025-11-12T15:45:22.958518Z",
+            "accumulated_chars": 3213,
+            "interval_ms": 1
+          },
+          {
+            "sequence": 711,
+            "delta": ":**",
+            "timestamp": "2025-11-12T15:45:22.958721Z",
+            "accumulated_chars": 3216,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 712,
+            "delta": " Build",
+            "timestamp": "2025-11-12T15:45:22.959263Z",
+            "accumulated_chars": 3222,
+            "interval_ms": 1
+          },
+          {
+            "sequence": 713,
+            "delta": "/test",
+            "timestamp": "2025-11-12T15:45:22.959407Z",
+            "accumulated_chars": 3227,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 714,
+            "delta": "/manage",
+            "timestamp": "2025-11-12T15:45:22.959559Z",
+            "accumulated_chars": 3234,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 715,
+            "delta": " multiple",
+            "timestamp": "2025-11-12T15:45:22.959678Z",
+            "accumulated_chars": 3243,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 716,
+            "delta": " crates",
+            "timestamp": "2025-11-12T15:45:23.164749Z",
+            "accumulated_chars": 3250,
+            "interval_ms": 205
+          },
+          {
+            "sequence": 717,
+            "delta": " in",
+            "timestamp": "2025-11-12T15:45:23.164941Z",
+            "accumulated_chars": 3253,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 718,
+            "delta": " one",
+            "timestamp": "2025-11-12T15:45:23.165039Z",
+            "accumulated_chars": 3257,
+            "interval_ms": 1
+          },
+          {
+            "sequence": 719,
+            "delta": " go",
+            "timestamp": "2025-11-12T15:45:23.165131Z",
+            "accumulated_chars": 3260,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 720,
+            "delta": ".\n\n",
+            "timestamp": "2025-11-12T15:45:23.165451Z",
+            "accumulated_chars": 3263,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 721,
+            "delta": "If",
+            "timestamp": "2025-11-12T15:45:23.165561Z",
+            "accumulated_chars": 3265,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 722,
+            "delta": " you",
+            "timestamp": "2025-11-12T15:45:23.165740Z",
+            "accumulated_chars": 3269,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 723,
+            "delta": " have",
+            "timestamp": "2025-11-12T15:45:23.165839Z",
+            "accumulated_chars": 3274,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 724,
+            "delta": " more",
+            "timestamp": "2025-11-12T15:45:23.165933Z",
+            "accumulated_chars": 3279,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 725,
+            "delta": " questions",
+            "timestamp": "2025-11-12T15:45:23.377750Z",
+            "accumulated_chars": 3289,
+            "interval_ms": 212
+          },
+          {
+            "sequence": 726,
+            "delta": " about",
+            "timestamp": "2025-11-12T15:45:23.378510Z",
+            "accumulated_chars": 3295,
+            "interval_ms": 1
+          },
+          {
+            "sequence": 727,
+            "delta": " Rust",
+            "timestamp": "2025-11-12T15:45:23.378706Z",
+            "accumulated_chars": 3300,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 728,
+            "delta": " work",
+            "timestamp": "2025-11-12T15:45:23.378995Z",
+            "accumulated_chars": 3305,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 729,
+            "delta": "spaces",
+            "timestamp": "2025-11-12T15:45:23.379173Z",
+            "accumulated_chars": 3311,
+            "interval_ms": 1
+          },
+          {
+            "sequence": 730,
+            "delta": " or",
+            "timestamp": "2025-11-12T15:45:23.379350Z",
+            "accumulated_chars": 3314,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 731,
+            "delta": " want",
+            "timestamp": "2025-11-12T15:45:23.379532Z",
+            "accumulated_chars": 3319,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 732,
+            "delta": " explanations",
+            "timestamp": "2025-11-12T15:45:23.379777Z",
+            "accumulated_chars": 3332,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 733,
+            "delta": " of",
+            "timestamp": "2025-11-12T15:45:23.844028Z",
+            "accumulated_chars": 3335,
+            "interval_ms": 465
+          },
+          {
+            "sequence": 734,
+            "delta": " specific",
+            "timestamp": "2025-11-12T15:45:23.844849Z",
+            "accumulated_chars": 3344,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 735,
+            "delta": " entries",
+            "timestamp": "2025-11-12T15:45:23.845642Z",
+            "accumulated_chars": 3352,
+            "interval_ms": 1
+          },
+          {
+            "sequence": 736,
+            "delta": ",",
+            "timestamp": "2025-11-12T15:45:24.263190Z",
+            "accumulated_chars": 3353,
+            "interval_ms": 418
+          },
+          {
+            "sequence": 737,
+            "delta": " feel",
+            "timestamp": "2025-11-12T15:45:24.264215Z",
+            "accumulated_chars": 3358,
+            "interval_ms": 1
+          },
+          {
+            "sequence": 738,
+            "delta": " free",
+            "timestamp": "2025-11-12T15:45:24.269361Z",
+            "accumulated_chars": 3363,
+            "interval_ms": 5
+          },
+          {
+            "sequence": 739,
+            "delta": " to",
+            "timestamp": "2025-11-12T15:45:24.269570Z",
+            "accumulated_chars": 3366,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 740,
+            "delta": " ask",
+            "timestamp": "2025-11-12T15:45:24.269745Z",
+            "accumulated_chars": 3370,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 741,
+            "delta": "!",
+            "timestamp": "2025-11-12T15:45:24.269919Z",
+            "accumulated_chars": 3371,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 742,
+            "delta": " 😊",
+            "timestamp": "2025-11-12T15:45:24.270091Z",
+            "accumulated_chars": 3376,
+            "interval_ms": 1
+          }
+        ],
+        "started_at": "2025-11-12T15:44:53.622534Z",
+        "completed_at": "2025-11-12T15:45:24.270318Z",
+        "total_duration_ms": 30648,
+        "model": "gpt-4",
+        "finish_reason": "stop"
+      }
+    }
+  },
+  "parent_id": "0dba6841-57a4-40db-a8a8-acedbd0339d1"
+}

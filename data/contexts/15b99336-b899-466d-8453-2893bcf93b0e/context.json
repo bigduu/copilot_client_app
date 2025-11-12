@@ -1,0 +1,27 @@
+{
+  "id": "15b99336-b899-466d-8453-2893bcf93b0e",
+  "parent_id": null,
+  "config": {
+    "model_id": "gpt-4",
+    "mode": "chat",
+    "parameters": {},
+    "system_prompt_id": "general_assistant",
+    "agent_role": "actor",
+    "mermaid_diagrams": true
+  },
+  "auto_generate_title": true,
+  "message_pool": {},
+  "branches": {
+    "main": {
+      "name": "main",
+      "message_ids": [
+        "e7c0a629-39a8-49d5-b346-8e2f4e6a2a94",
+        "415647d6-16a3-4793-9ae8-91c8ad1035d8"
+      ],
+      "system_prompt": null,
+      "user_prompt": null
+    }
+  },
+  "active_branch_name": "main",
+  "current_state": "idle"
+}

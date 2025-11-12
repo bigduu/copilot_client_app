@@ -1,5 +1,4 @@
 import { setup, assign, fromPromise, fromCallback } from "xstate";
-import { AIService } from "../services/AIService";
 import {
   ToolService,
   ToolCallRequest,
@@ -17,8 +16,7 @@ import {
 } from "../types/chat";
 import { SystemPromptService } from "../services";
 
-// Create single instances of services
-const aiService = new AIService();
+// Create single instance of tool service
 const toolService = ToolService.getInstance();
 
 // 1. 定义状态机的 Context
@@ -83,7 +81,7 @@ export const chatMachine = setup({
         "[ChatMachine] enhanceSystemPrompt: Actor started with chat.config:",
         input.chat.config,
         "and systemPrompts count:",
-        input.systemPrompts.length,
+        input.systemPrompts.length
       );
 
       const { systemPromptId } = input.chat.config;
@@ -96,7 +94,7 @@ export const chatMachine = setup({
         currentPrompt?.content ?? input.chat.config.baseSystemPrompt ?? "";
 
       console.log(
-        `[ChatMachine] enhanceSystemPrompt: Using basePrompt: "${basePrompt}"`,
+        `[ChatMachine] enhanceSystemPrompt: Using basePrompt: "${basePrompt}"`
       );
 
       // Get the prompt ID if available, otherwise fall back to content-based enhancement
@@ -104,77 +102,15 @@ export const chatMachine = setup({
       const enhancedPrompt = systemPromptId
         ? await systemPromptService.getEnhancedSystemPrompt(systemPromptId)
         : await systemPromptService.getEnhancedSystemPromptFromContent(
-            basePrompt,
+            basePrompt
           );
 
       console.log(
-        "[ChatMachine] enhanceSystemPrompt: Prompt enhanced successfully.",
+        "[ChatMachine] enhanceSystemPrompt: Prompt enhanced successfully."
       );
       return enhancedPrompt;
     }),
-    /**
-     * @deprecated This actor is deprecated and will be removed in a future version.
-     *
-     * **Migration Path**:
-     * - Use `contextStream` actor instead
-     * - The new Signal-Pull SSE architecture provides better reliability
-     *
-     * **Why deprecated**:
-     * - Direct AIService streaming bypasses backend FSM
-     * - Cannot support tool auto-loop and approval system
-     * - Replaced by backend-driven Signal-Pull architecture (Phase 10)
-     *
-     * **Removal timeline**: After Phase 10 migration is complete
-     *
-     * @see contextStream
-     */
-    aiStream: fromCallback<ChatMachineEvent, { messages: Message[] }>(
-      ({ sendBack, input }) => {
-        console.warn(
-          "[ChatMachine] ⚠️ DEPRECATED: aiStream actor is deprecated. Use contextStream instead."
-        );
 
-        const controller = new AbortController();
-        let fullContent = "";
-
-        // The AIService now handles the message conversion.
-        const messagesForAI = input.messages;
-
-        const onChunk = async (chunk: string) => {
-          if (chunk === "[DONE]") {
-            // NOTE: Tool detection disabled - tools are now handled by backend agent loop
-            // Workflows are user-invoked, not AI-invoked
-            // The backend will handle JSON tool calls from the LLM autonomously
-            sendBack({
-              type: "STREAM_COMPLETE_TEXT",
-              payload: { finalContent: fullContent },
-            });
-            return;
-          }
-          if (chunk === "[CANCELLED]") {
-            // The abort signal will handle the cleanup
-            return;
-          }
-
-          // We simplified the AIService to return raw chunks.
-          fullContent += chunk;
-          sendBack({ type: "CHUNK_RECEIVED", payload: { chunk } });
-        };
-
-        // Use the transformed messages
-        aiService
-          .executePrompt(messagesForAI, undefined, onChunk, controller.signal)
-          .catch((error) => {
-            if (error.name !== "AbortError") {
-              sendBack({ type: "STREAM_ERROR", payload: { error } });
-            }
-          });
-
-        return () => {
-          controller.abort();
-        };
-      },
-    ),
     /**
      * NEW: contextStream actor for Signal-Pull SSE architecture
      * This replaces aiStream for the new backend-driven streaming model.
@@ -189,45 +125,58 @@ export const chatMachine = setup({
       ({ input, sendBack }) => {
         const { contextId } = input;
         let currentSequence = 0;
-        let currentMessageId: string | null = null;
 
-        console.log("[ChatMachine] contextStream: Starting SSE subscription for context:", contextId);
+        console.log(
+          "[ChatMachine] contextStream: Starting SSE subscription for context:",
+          contextId
+        );
 
         // Import backendContextService dynamically to avoid circular dependency
-        const { backendContextService } = require("../services/BackendContextService");
+        const {
+          backendContextService,
+        } = require("../services/BackendContextService");
 
         // Subscribe to SSE events
         const unsubscribe = backendContextService.subscribeToContextEvents(
           contextId,
           async (event: import("../types/sse").SignalEvent) => {
-            console.log("[ChatMachine] contextStream: SSE event received:", event.type);
+            console.log(
+              "[ChatMachine] contextStream: SSE event received:",
+              event.type
+            );
 
             switch (event.type) {
               case "content_delta":
                 // Pull content from REST API
                 try {
-                  console.log(`[ChatMachine] contextStream: Pulling content from sequence ${currentSequence}`);
+                  console.log(
+                    `[ChatMachine] contextStream: Pulling content from sequence ${currentSequence}`
+                  );
 
                   const content = await backendContextService.getMessageContent(
                     event.context_id,
                     event.message_id,
-                    currentSequence,
+                    currentSequence
                   );
 
                   // Update tracking
                   currentSequence = content.sequence;
-                  currentMessageId = event.message_id;
 
                   // Forward chunk to UI
                   if (content.content) {
-                    console.log(`[ChatMachine] contextStream: Forwarding chunk (${content.content.length} chars)`);
+                    console.log(
+                      `[ChatMachine] contextStream: Forwarding chunk (${content.content.length} chars)`
+                    );
                     sendBack({
                       type: "CHUNK_RECEIVED",
                       payload: { chunk: content.content },
                     });
                   }
                 } catch (error) {
-                  console.error("[ChatMachine] contextStream: Failed to pull content:", error);
+                  console.error(
+                    "[ChatMachine] contextStream: Failed to pull content:",
+                    error
+                  );
                   sendBack({
                     type: "STREAM_ERROR",
                     payload: { error: error as Error },
@@ -236,7 +185,9 @@ export const chatMachine = setup({
                 break;
 
               case "message_completed":
-                console.log("[ChatMachine] contextStream: Message completed, finalizing...");
+                console.log(
+                  "[ChatMachine] contextStream: Message completed, finalizing..."
+                );
                 sendBack({
                   type: "STREAM_COMPLETE_TEXT",
                   payload: { finalContent: "" }, // Content already accumulated
@@ -244,7 +195,9 @@ export const chatMachine = setup({
                 break;
 
               case "state_changed":
-                console.log(`[ChatMachine] contextStream: Backend state changed to ${event.new_state}`);
+                console.log(
+                  `[ChatMachine] contextStream: Backend state changed to ${event.new_state}`
+                );
                 // Could update UI state indicator here if needed
                 break;
 
@@ -253,35 +206,40 @@ export const chatMachine = setup({
                 break;
 
               default:
-                console.warn("[ChatMachine] contextStream: Unknown event type:", (event as any).type);
+                console.warn(
+                  "[ChatMachine] contextStream: Unknown event type:",
+                  (event as any).type
+                );
             }
           },
-          (error) => {
+          (error: Error) => {
             console.error("[ChatMachine] contextStream: SSE error:", error);
             sendBack({
               type: "STREAM_ERROR",
               payload: { error },
             });
-          },
+          }
         );
 
         // Return cleanup function
         return () => {
-          console.log("[ChatMachine] contextStream: Cleaning up SSE subscription");
+          console.log(
+            "[ChatMachine] contextStream: Cleaning up SSE subscription"
+          );
           unsubscribe();
         };
-      },
+      }
     ),
     // Note: checkToolApproval removed - tool approval is now handled by backend agent loop
     // The backend will send approval requests via ServiceResponse::AwaitingToolApproval
     checkToolApproval: fromPromise<boolean, { toolName: string }>(
       async ({ input: _input }) => {
         console.warn(
-          `[ChatMachine] checkToolApproval: This should not be called - approval handled by backend`,
+          `[ChatMachine] checkToolApproval: This should not be called - approval handled by backend`
         );
         // Default to requiring approval for safety
         return true;
-      },
+      }
     ),
     toolExecutor: fromPromise<
       ToolExecutionResult,
@@ -289,7 +247,7 @@ export const chatMachine = setup({
     >(async ({ input }) => {
       console.log(
         "[ChatMachine] toolExecutor: Actor started with input:",
-        input,
+        input
       );
       const { tool_name, parameters } = input;
       if (!tool_name || !parameters) {
@@ -299,14 +257,14 @@ export const chatMachine = setup({
       const executionRequest = { tool_name, parameters };
       console.log(
         `[ChatMachine] toolExecutor: Calling toolService.executeTool with:`,
-        executionRequest,
+        executionRequest
       );
 
       // The service now returns a structured result.
       const structuredResult = await toolService.executeTool(executionRequest);
       console.log(
         `[ChatMachine] toolExecutor: toolService.executeTool returned:`,
-        structuredResult,
+        structuredResult
       );
 
       // The actor now returns the entire structured result object.
@@ -320,11 +278,11 @@ export const chatMachine = setup({
       { toolCallRequest: ToolCallRequest }
     >(async ({ input }) => {
       console.warn(
-        "[ChatMachine] parameterParser: This should not be called for LLM-driven tools",
+        "[ChatMachine] parameterParser: This should not be called for LLM-driven tools"
       );
       if (!input.toolCallRequest) {
         throw new Error(
-          "Parameter parser actor received no tool call request.",
+          "Parameter parser actor received no tool call request."
         );
       }
       // For workflows, return simple parameter extraction
@@ -392,7 +350,7 @@ export const chatMachine = setup({
                 createdAt: new Date().toISOString(),
               };
               const history = context.messages.filter(
-                (m) => m.role !== "system",
+                (m) => m.role !== "system"
               );
               return [systemMessage, ...history];
             },
@@ -404,7 +362,7 @@ export const chatMachine = setup({
             error: ({ event }) => {
               console.error(
                 "[ChatMachine] enhanceSystemPrompt actor failed:",
-                event.error,
+                event.error
               );
               return event.error as Error;
             },
@@ -427,14 +385,14 @@ export const chatMachine = setup({
             target: "AWAITING_APPROVAL",
             actions: () =>
               console.log(
-                "[ChatMachine] Approval required. Transitioning to AWAITING_APPROVAL.",
+                "[ChatMachine] Approval required. Transitioning to AWAITING_APPROVAL."
               ),
           },
           {
             target: "EXECUTING_TOOL", // If tool does not require approval
             actions: () =>
               console.log(
-                "[ChatMachine] Approval not required. Transitioning to EXECUTING_TOOL.",
+                "[ChatMachine] Approval not required. Transitioning to EXECUTING_TOOL."
               ),
           },
         ],
@@ -444,7 +402,7 @@ export const chatMachine = setup({
             error: ({ event }) => {
               console.error(
                 "[ChatMachine] checkToolApproval actor failed:",
-                event.error,
+                event.error
               );
               return event.error as Error;
             },
@@ -458,14 +416,9 @@ export const chatMachine = setup({
         () => console.log("[ChatMachine] Entering THINKING state"),
       ],
       invoke: {
-        id: "aiStream",
-        src: "aiStream",
-        input: ({ context }) => ({ messages: context.messages }),
-        // TODO: Switch to contextStream for Signal-Pull SSE architecture
-        // Uncomment the following when ready to migrate:
-        // id: "contextStream",
-        // src: "contextStream",
-        // input: ({ context }) => ({ contextId: context.currentContextId || "" }),
+        id: "contextStream",
+        src: "contextStream",
+        input: ({ context }) => ({ contextId: context.currentContextId || "" }),
       },
       on: {
         CHUNK_RECEIVED: {
@@ -506,7 +459,7 @@ export const chatMachine = setup({
           actions: [
             () =>
               console.warn(
-                "[ChatMachine] STREAM_COMPLETE_TOOL_CALL received - tool calls should be handled by backend",
+                "[ChatMachine] STREAM_COMPLETE_TOOL_CALL received - tool calls should be handled by backend"
               ),
             assign({
               toolCallRequest: ({ event }) => event.payload.toolCall,
@@ -582,7 +535,7 @@ export const chatMachine = setup({
           actions: [
             () =>
               console.log(
-                "[ChatMachine] Routing directly to approval check for non-AI tool.",
+                "[ChatMachine] Routing directly to approval check for non-AI tool."
               ),
             assign({
               parsedParameters: ({ context }) => {
@@ -657,14 +610,14 @@ export const chatMachine = setup({
           target: "EXECUTING_TOOL",
           actions: () =>
             console.log(
-              "[ChatMachine] User approved. Transitioning to EXECUTING_TOOL.",
+              "[ChatMachine] User approved. Transitioning to EXECUTING_TOOL."
             ),
         },
         USER_REJECTS: {
           target: "THINKING", // 或者回到 IDLE，这里选择回到 THINKING 告诉 AI 用户拒绝了
           actions: () =>
             console.log(
-              "[ChatMachine] User rejected. Transitioning to THINKING.",
+              "[ChatMachine] User rejected. Transitioning to THINKING."
             ),
         },
       },
@@ -684,7 +637,7 @@ export const chatMachine = setup({
             messages: ({ context, event }) => {
               console.log(
                 "[ChatMachine] toolExecutor succeeded, output:",
-                event.output,
+                event.output
               );
               const toolResult: ToolExecutionResult = event.output;
               const newResultMessage: AssistantToolResultMessage = {
@@ -707,7 +660,7 @@ export const chatMachine = setup({
             messages: ({ context, event }) => {
               console.error(
                 "[ChatMachine] toolExecutor failed, error:",
-                event.error,
+                event.error
               );
               const toolResult: ToolExecutionResult = {
                 tool_name: context.toolCallRequest!.tool_name,

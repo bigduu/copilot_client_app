@@ -56,10 +56,10 @@ export class LocalStorageMigrator {
     if (validationErrors.length > 0) {
       console.error(
         "[Migration] Validation failed with errors:",
-        validationErrors,
+        validationErrors
       );
       throw new Error(
-        `Data validation failed: ${validationErrors.slice(0, 3).join("; ")}`,
+        `Data validation failed: ${validationErrors.slice(0, 3).join("; ")}`
       );
     }
     console.info("[Migration] Validation passed");
@@ -70,7 +70,7 @@ export class LocalStorageMigrator {
     // Map legacy system prompts first (if any)
     const legacyPrompts = this.loadLegacyPrompts();
     console.info(
-      `[Migration] Found ${legacyPrompts.length} legacy system prompts`,
+      `[Migration] Found ${legacyPrompts.length} legacy system prompts`
     );
     for (const prompt of legacyPrompts) {
       console.info(`[Migration] Creating system prompt: ${prompt.id}`);
@@ -81,11 +81,11 @@ export class LocalStorageMigrator {
 
     // Create contexts and push messages
     console.info(
-      `[Migration] Found ${legacyChats.length} legacy chats to migrate`,
+      `[Migration] Found ${legacyChats.length} legacy chats to migrate`
     );
     for (const chat of legacyChats) {
       console.info(
-        `[Migration] Creating context for chat '${chat.title}' (${chat.id})`,
+        `[Migration] Creating context for chat '${chat.title}' (${chat.id})`
       );
       const system_prompt_id: string | undefined =
         chat.config?.baseSystemPromptId || chat.config?.systemPromptId;
@@ -101,7 +101,7 @@ export class LocalStorageMigrator {
 
       const messages = this.loadLegacyMessages(chat.id);
       console.info(
-        `[Migration] Migrating ${messages.length} messages for chat '${chat.title}' (${chat.id})`,
+        `[Migration] Migrating ${messages.length} messages for chat '${chat.title}' (${chat.id})`
       );
       for (const message of messages) {
         const { role, content } = this.convertMessage(message);
@@ -111,7 +111,7 @@ export class LocalStorageMigrator {
     }
 
     console.info(
-      `[Migration] Completed. Contexts: ${result.migratedContexts}, Messages: ${result.migratedMessages}, Prompts: ${Object.keys(result.promptMappings).length}`,
+      `[Migration] Completed. Contexts: ${result.migratedContexts}, Messages: ${result.migratedMessages}, Prompts: ${Object.keys(result.promptMappings).length}`
     );
 
     try {
@@ -167,14 +167,14 @@ export class LocalStorageMigrator {
       for (const [chatId, msgs] of Object.entries(backup.messages)) {
         localStorage.setItem(
           `${STORAGE_KEYS.MESSAGES_PREFIX}${chatId}`,
-          JSON.stringify(msgs),
+          JSON.stringify(msgs)
         );
       }
 
       // Restore prompts
       localStorage.setItem(
         STORAGE_KEYS.SYSTEM_PROMPTS,
-        JSON.stringify(backup.prompts),
+        JSON.stringify(backup.prompts)
       );
 
       console.info("[Migration] Legacy data restored from backup");
@@ -217,7 +217,7 @@ export class LocalStorageMigrator {
   private loadLegacyMessages(chatId: string): Message[] {
     try {
       const stored = localStorage.getItem(
-        `${STORAGE_KEYS.MESSAGES_PREFIX}${chatId}`,
+        `${STORAGE_KEYS.MESSAGES_PREFIX}${chatId}`
       );
       return stored ? (JSON.parse(stored) as Message[]) : [];
     } catch {
@@ -252,14 +252,22 @@ export class LocalStorageMigrator {
           isError: message.isError,
         };
         return { role, content: JSON.stringify(toolResultData) };
+      } else if (message.type === "file_reference") {
+        // Convert file reference to JSON representation
+        const fileRefData = {
+          type: "file_reference",
+          paths: message.paths, // ✅ Changed to paths array
+          display_text: message.displayText,
+        };
+        return { role, content: JSON.stringify(fileRefData) };
       }
     }
 
     // Handle regular content
     const content =
-      typeof message.content === "string"
+      "content" in message && typeof message.content === "string"
         ? message.content
-        : ((message.content as any)?.text ?? JSON.stringify(message.content));
+        : ((message as any).content?.text ?? JSON.stringify(message));
     return { role, content };
   }
 
@@ -289,12 +297,12 @@ export class LocalStorageMigrator {
         for (const msg of messages) {
           if (!msg.id || !msg.role) {
             errors.push(
-              `Chat ${chat.id} has invalid message: ${JSON.stringify(msg)}`,
+              `Chat ${chat.id} has invalid message: ${JSON.stringify(msg)}`
             );
           }
           if (!["user", "assistant", "system"].includes(msg.role)) {
             errors.push(
-              `Chat ${chat.id} has message with invalid role: ${msg.role}`,
+              `Chat ${chat.id} has message with invalid role: ${msg.role}`
             );
           }
         }

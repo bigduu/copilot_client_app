@@ -23,8 +23,8 @@ use tokio::sync::mpsc::Sender;
 use tool_system::{registry::ToolRegistry, ToolExecutor};
 use web_service::server::{app_config, AppState};
 use web_service::services::{
-    approval_manager::ApprovalManager, session_manager::ChatSessionManager,
-    system_prompt_enhancer::SystemPromptEnhancer, system_prompt_service::SystemPromptService,
+    approval_manager::ApprovalManager, event_broadcaster::EventBroadcaster,
+    session_manager::ChatSessionManager, system_prompt_service::SystemPromptService,
     template_variable_service::TemplateVariableService,
     user_preference_service::UserPreferenceService, workflow_service::WorkflowService,
 };
@@ -97,6 +97,11 @@ impl CopilotClientTrait for MockCopilotClient {
         }
         Ok(())
     }
+
+    async fn get_models(&self) -> Result<Vec<String>> {
+        // Return mock models for testing
+        Ok(vec!["gpt-4".to_string(), "gpt-3.5-turbo".to_string()])
+    }
 }
 
 async fn setup_test_environment() -> (
@@ -117,10 +122,6 @@ async fn setup_test_environment() -> (
     let template_variable_service = Arc::new(TemplateVariableService::new(PathBuf::from(
         "test_template_variables",
     )));
-    let system_prompt_enhancer = Arc::new(
-        SystemPromptEnhancer::with_default_config(Arc::new(ToolRegistry::new()))
-            .with_template_service(template_variable_service.clone()),
-    );
     let session_manager = Arc::new(ChatSessionManager::new(
         Arc::new(
             web_service::storage::file_provider::FileStorageProvider::new("test_conversations"),
@@ -134,10 +135,10 @@ async fn setup_test_environment() -> (
         "test_user_preferences",
     )));
     let workflow_service = Arc::new(WorkflowService::new(Arc::new(WorkflowRegistry::new())));
+    let event_broadcaster = Arc::new(EventBroadcaster::new());
 
     let app_state = actix_web::web::Data::new(AppState {
         system_prompt_service,
-        system_prompt_enhancer,
         session_manager,
         copilot_client: copilot_client.clone(),
         tool_executor,
@@ -145,6 +146,7 @@ async fn setup_test_environment() -> (
         approval_manager,
         user_preference_service,
         workflow_service,
+        event_broadcaster,
     });
 
     let app =
@@ -161,13 +163,13 @@ async fn test_get_models() {
             id: "gpt-4".to_string(),
             object: "model".to_string(),
             created: 1677610602,
-            owned_by: "openai".to_string(),
+            owned_by: "github-copilot".to_string(),
         },
         Model {
             id: "gpt-3.5-turbo".to_string(),
             object: "model".to_string(),
             created: 1677610602,
-            owned_by: "openai".to_string(),
+            owned_by: "github-copilot".to_string(),
         },
     ];
     let response_body = ListModelsResponse {

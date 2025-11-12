@@ -29,6 +29,7 @@ import {
   getSortedDateKeys,
   getChatIdsByDate,
   getChatCountByDate,
+  getDateGroupKeyForChat,
 } from "../../utils/chatUtils";
 import { SystemSettingsModal } from "../SystemSettingsModal";
 import { ChatItem as ChatItemComponent } from "../ChatItem";
@@ -72,7 +73,7 @@ export const ChatSidebar: React.FC<{
 
   // Collapse/expand state management
   const [expandedDates, setExpandedDates] = useState<Set<string>>(
-    new Set(["Today"]), // Expand Today by default
+    new Set(["Today"]) // Expand Today by default
   );
   const footerRef = useRef<HTMLDivElement>(null);
   const screens = useBreakpoint();
@@ -118,6 +119,24 @@ export const ChatSidebar: React.FC<{
       setCollapsed(true);
     }
   }, [screens]);
+
+  // Auto-expand the date group containing the current chat
+  useEffect(() => {
+    if (currentChatId && chats.length > 0) {
+      const currentChat = chats.find((chat) => chat.id === currentChatId);
+      if (currentChat) {
+        const dateGroupKey = getDateGroupKeyForChat(currentChat);
+        setExpandedDates((prev) => {
+          if (!prev.has(dateGroupKey)) {
+            const newSet = new Set(prev);
+            newSet.add(dateGroupKey);
+            return newSet;
+          }
+          return prev;
+        });
+      }
+    }
+  }, [currentChatId, chats]);
 
   // Group chats by date
   const groupedChatsByDate = groupChatsByDate(chats);
@@ -364,7 +383,7 @@ export const ChatSidebar: React.FC<{
                 const isDateOpen = isDateExpanded(dateKey);
                 const totalChatsInDate = getChatCountByDate(
                   groupedChatsByDate,
-                  dateKey,
+                  dateKey
                 );
 
                 return (

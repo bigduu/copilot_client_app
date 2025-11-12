@@ -5,6 +5,7 @@
 pub mod append;
 pub mod create;
 pub mod delete;
+pub mod list;
 pub mod read;
 pub mod update;
 
@@ -12,5 +13,6 @@ pub mod update;
 pub use append::AppendFileTool;
 pub use create::CreateFileTool;
 pub use delete::DeleteFileTool;
+pub use list::ListDirectoryTool;
 pub use read::ReadFileTool;
 pub use update::UpdateFileTool;

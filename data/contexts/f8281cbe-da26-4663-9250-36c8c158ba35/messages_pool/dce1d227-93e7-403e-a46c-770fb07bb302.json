@@ -1,0 +1,254 @@
+{
+  "id": "dce1d227-93e7-403e-a46c-770fb07bb302",
+  "message": {
+    "role": "Assistant",
+    "content": [
+      {
+        "type": "text",
+        "text": "Hello! 👋 How can I assist you today? Whether it’s about software development, cloud architecture, or a financial technology challenge, feel free to ask!"
+      }
+    ],
+    "metadata": {
+      "created_at": "2025-11-12T15:43:06.755379Z",
+      "source": "a_i_generated",
+      "streaming": {
+        "chunks_count": 31,
+        "started_at": "2025-11-12T15:43:06.755377Z",
+        "completed_at": "2025-11-12T15:43:07.914124Z",
+        "total_duration_ms": 1159,
+        "average_chunk_interval_ms": 38.6
+      }
+    },
+    "message_type": "text",
+    "rich_type": {
+      "kind": "streaming_response",
+      "data": {
+        "content": "Hello! 👋 How can I assist you today? Whether it’s about software development, cloud architecture, or a financial technology challenge, feel free to ask!",
+        "chunks": [
+          {
+            "sequence": 1,
+            "delta": "Hello",
+            "timestamp": "2025-11-12T15:43:06.755845Z",
+            "accumulated_chars": 5
+          },
+          {
+            "sequence": 2,
+            "delta": "!",
+            "timestamp": "2025-11-12T15:43:06.755964Z",
+            "accumulated_chars": 6,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 3,
+            "delta": " 👋",
+            "timestamp": "2025-11-12T15:43:06.756119Z",
+            "accumulated_chars": 11,
+            "interval_ms": 1
+          },
+          {
+            "sequence": 4,
+            "delta": " How",
+            "timestamp": "2025-11-12T15:43:06.756651Z",
+            "accumulated_chars": 15,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 5,
+            "delta": " can",
+            "timestamp": "2025-11-12T15:43:06.756917Z",
+            "accumulated_chars": 19,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 6,
+            "delta": " I",
+            "timestamp": "2025-11-12T15:43:06.757105Z",
+            "accumulated_chars": 21,
+            "interval_ms": 1
+          },
+          {
+            "sequence": 7,
+            "delta": " assist",
+            "timestamp": "2025-11-12T15:43:06.757232Z",
+            "accumulated_chars": 28,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 8,
+            "delta": " you",
+            "timestamp": "2025-11-12T15:43:06.757566Z",
+            "accumulated_chars": 32,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 9,
+            "delta": " today",
+            "timestamp": "2025-11-12T15:43:06.757921Z",
+            "accumulated_chars": 38,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 10,
+            "delta": "?",
+            "timestamp": "2025-11-12T15:43:06.758274Z",
+            "accumulated_chars": 39,
+            "interval_ms": 1
+          },
+          {
+            "sequence": 11,
+            "delta": " Whether",
+            "timestamp": "2025-11-12T15:43:06.758372Z",
+            "accumulated_chars": 47,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 12,
+            "delta": " it",
+            "timestamp": "2025-11-12T15:43:06.758752Z",
+            "accumulated_chars": 50,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 13,
+            "delta": "’s",
+            "timestamp": "2025-11-12T15:43:06.758905Z",
+            "accumulated_chars": 54,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 14,
+            "delta": " about",
+            "timestamp": "2025-11-12T15:43:06.796124Z",
+            "accumulated_chars": 60,
+            "interval_ms": 38
+          },
+          {
+            "sequence": 15,
+            "delta": " software",
+            "timestamp": "2025-11-12T15:43:06.796317Z",
+            "accumulated_chars": 69,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 16,
+            "delta": " development",
+            "timestamp": "2025-11-12T15:43:06.796697Z",
+            "accumulated_chars": 81,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 17,
+            "delta": ",",
+            "timestamp": "2025-11-12T15:43:06.965371Z",
+            "accumulated_chars": 82,
+            "interval_ms": 169
+          },
+          {
+            "sequence": 18,
+            "delta": " cloud",
+            "timestamp": "2025-11-12T15:43:06.965510Z",
+            "accumulated_chars": 88,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 19,
+            "delta": " architecture",
+            "timestamp": "2025-11-12T15:43:06.965601Z",
+            "accumulated_chars": 101,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 20,
+            "delta": ",",
+            "timestamp": "2025-11-12T15:43:06.965771Z",
+            "accumulated_chars": 102,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 21,
+            "delta": " or",
+            "timestamp": "2025-11-12T15:43:06.965906Z",
+            "accumulated_chars": 105,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 22,
+            "delta": " a",
+            "timestamp": "2025-11-12T15:43:07.701528Z",
+            "accumulated_chars": 107,
+            "interval_ms": 736
+          },
+          {
+            "sequence": 23,
+            "delta": " financial",
+            "timestamp": "2025-11-12T15:43:07.701756Z",
+            "accumulated_chars": 117,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 24,
+            "delta": " technology",
+            "timestamp": "2025-11-12T15:43:07.701853Z",
+            "accumulated_chars": 128,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 25,
+            "delta": " challenge",
+            "timestamp": "2025-11-12T15:43:07.912665Z",
+            "accumulated_chars": 138,
+            "interval_ms": 211
+          },
+          {
+            "sequence": 26,
+            "delta": ",",
+            "timestamp": "2025-11-12T15:43:07.912769Z",
+            "accumulated_chars": 139,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 27,
+            "delta": " feel",
+            "timestamp": "2025-11-12T15:43:07.912835Z",
+            "accumulated_chars": 144,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 28,
+            "delta": " free",
+            "timestamp": "2025-11-12T15:43:07.912991Z",
+            "accumulated_chars": 149,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 29,
+            "delta": " to",
+            "timestamp": "2025-11-12T15:43:07.913178Z",
+            "accumulated_chars": 152,
+            "interval_ms": 1
+          },
+          {
+            "sequence": 30,
+            "delta": " ask",
+            "timestamp": "2025-11-12T15:43:07.913293Z",
+            "accumulated_chars": 156,
+            "interval_ms": 0
+          },
+          {
+            "sequence": 31,
+            "delta": "!",
+            "timestamp": "2025-11-12T15:43:07.913393Z",
+            "accumulated_chars": 157,
+            "interval_ms": 0
+          }
+        ],
+        "started_at": "2025-11-12T15:43:06.755377Z",
+        "completed_at": "2025-11-12T15:43:07.914124Z",
+        "total_duration_ms": 1159,
+        "model": "gpt-4",
+        "finish_reason": "stop"
+      }
+    }
+  },
+  "parent_id": "57c3eaa6-1765-49ea-ad76-30de67357262"
+}

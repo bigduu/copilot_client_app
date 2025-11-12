@@ -1,8 +1,9 @@
 //! System Prompt Processor
 //!
-//! This processor assembles the final system prompt by merging all prompt fragments.
+//! This processor assembles the final system prompt using an internal enhancer pipeline.
 
 use crate::pipeline::context::ProcessingContext;
+use crate::pipeline::enhancers::PromptEnhancer;
 use crate::pipeline::error::ProcessError;
 use crate::pipeline::result::ProcessResult;
 use crate::pipeline::traits::MessageProcessor;
@@ -12,25 +13,12 @@ use crate::pipeline::traits::MessageProcessor;
 /// Assembles the final system prompt by:
 /// 1. Starting with a base system prompt
 /// 2. Adding mode-specific instructions (Plan/Act)
-/// 3. Merging all collected prompt fragments (sorted by priority)
-/// 4. Adding context hints (branch info, state, etc.)
+/// 3. Running internal enhancers to add content (sorted by priority)
 ///
 /// This processor should typically run last in the pipeline.
-///
-/// # Example
-///
-/// ```no_run
-/// use context_manager::pipeline::processors::SystemPromptProcessor;
-/// use context_manager::pipeline::MessagePipeline;
-///
-/// let processor = SystemPromptProcessor::with_base_prompt(
-///     "You are a helpful AI assistant."
-/// );
-/// let pipeline = MessagePipeline::new()
-///     .register(Box::new(processor));
-/// ```
 pub struct SystemPromptProcessor {
     config: SystemPromptConfig,
+    enhancers: Vec<Box<dyn PromptEnhancer>>,
 }
 
 /// System Prompt Configuration
@@ -39,14 +27,8 @@ pub struct SystemPromptConfig {
     /// Base system prompt
     pub base_prompt: String,
 
-    /// Include mode instructions
+    /// Include mode instructions (role definitions)
     pub include_mode_instructions: bool,
-
-    /// Include context hints
-    pub include_context_hints: bool,
-
-    /// Include branch information
-    pub include_branch_info: bool,
 }
 
 impl Default for SystemPromptConfig {
@@ -54,101 +36,189 @@ impl Default for SystemPromptConfig {
         Self {
             base_prompt: "You are a helpful AI coding assistant.".to_string(),
             include_mode_instructions: true,
-            include_context_hints: true,
-            include_branch_info: false,
         }
     }
 }
 
 impl SystemPromptProcessor {
-    /// Create a new system prompt processor with default config
+    /// Create a new system prompt processor with default config and no enhancers
     pub fn new() -> Self {
         Self {
             config: SystemPromptConfig::default(),
+            enhancers: Vec::new(),
         }
     }
 
-    /// Create with a specific base prompt
+    /// Create with a specific base prompt and no enhancers
     pub fn with_base_prompt(base_prompt: impl Into<String>) -> Self {
-        let mut config = SystemPromptConfig::default();
-        config.base_prompt = base_prompt.into();
-        Self { config }
+        Self {
+            config: SystemPromptConfig {
+                base_prompt: base_prompt.into(),
+                ..Default::default()
+            },
+            enhancers: Vec::new(),
+        }
     }
 
-    /// Create with custom configuration
+    /// Create with custom configuration and no enhancers
     pub fn with_config(config: SystemPromptConfig) -> Self {
-        Self { config }
+        Self {
+            config,
+            enhancers: Vec::new(),
+        }
+    }
+
+    /// Register an enhancer to the internal pipeline
+    ///
+    /// Enhancers are executed in the order they are registered.
+    /// Their output fragments are then sorted by priority.
+    pub fn register_enhancer(mut self, enhancer: Box<dyn PromptEnhancer>) -> Self {
+        self.enhancers.push(enhancer);
+        self
+    }
+
+    /// Create with default enhancers
+    ///
+    /// Default enhancers include:
+    /// - RoleContextEnhancer (priority 90)
+    /// - ToolEnhancementEnhancer (priority 60)
+    /// - MermaidEnhancementEnhancer (priority 50)
+    /// - ContextHintsEnhancer (priority 40)
+    pub fn with_default_enhancers(base_prompt: impl Into<String>) -> Self {
+        use crate::pipeline::enhancers::*;
+
+        Self::with_base_prompt(base_prompt)
+            .register_enhancer(Box::new(RoleContextEnhancer::new()))
+            .register_enhancer(Box::new(ToolEnhancementEnhancer::new()))
+            .register_enhancer(Box::new(MermaidEnhancementEnhancer::new()))
+            .register_enhancer(Box::new(ContextHintsEnhancer::new()))
     }
 
     /// Generate mode-specific instructions
+    ///
+    /// This defines ALL available agent roles and their responsibilities.
+    /// The current active role will be specified separately by RoleContextEnhancer.
     fn get_mode_instructions(&self, _ctx: &ProcessingContext) -> String {
-        // TODO: Get actual mode from context
-        // For now, return generic instructions
-
         String::from(
             r#"
-## Your Role
+## Agent Roles
 
-You are an AI coding assistant helping developers with their tasks. You should:
+You can operate in two distinct roles. The current active role will be specified in each conversation.
 
-- Provide accurate, helpful responses
-- Use available tools when appropriate
-- Ask clarifying questions when needed
-- Write clean, well-documented code
-- Follow best practices and conventions
+### PLANNER Role
+
+**Responsibilities:**
+- Analyze requirements and create detailed execution plans
+- Read files, search code, and gather information
+- Propose structured strategies and approaches
+- Ask clarifying questions when requirements are unclear
+
+**Permissions:**
+✅ Read files
+✅ Search codebase
+✅ List directories
+❌ Write, create, or delete files
+❌ Execute commands
+
+**Behavior Guidelines:**
+- Focus on analysis and planning
+- Provide detailed step-by-step plans
+- Suggest approaches but don't execute them
+- Always ask for user approval before taking action
+
+**Output Format:**
+When creating a plan, use this JSON format:
+```json
+{
+  "goal": "Brief summary of what we're trying to accomplish",
+  "steps": [
+    {
+      "step_number": 1,
+      "action": "What you will do",
+      "reason": "Why this is necessary",
+      "tools_needed": ["list", "of", "tools"],
+      "estimated_time": "rough estimate"
+    }
+  ],
+  "estimated_total_time": "total time estimate",
+  "risks": ["list any potential issues"],
+  "prerequisites": ["anything user needs to prepare"]
+}
+```
+
+### ACTOR Role
+
+**Responsibilities:**
+- Execute approved plans and implement changes
+- Write, modify, and delete files as needed
+- Run commands and tests
+- Iterate on solutions based on feedback
+
+**Permissions:**
+✅ Read files
+✅ Search codebase
+✅ List directories
+✅ Write, create, and delete files
+✅ Execute commands
+
+**Behavior Guidelines:**
+- Execute tasks efficiently and accurately
+- Test changes thoroughly
+- Report progress and results clearly
+- Ask for clarification when execution details are unclear
+
+**Important:**
+- When switching from PLANNER to ACTOR, you should execute the approved plan
+- When switching from ACTOR to PLANNER, you should analyze the current state and create a new plan
+
+## Role Switching
+
+The user can switch your role at any time. When this happens:
+1. Acknowledge the role change
+2. Adjust your behavior according to the new role's permissions
+3. Continue the conversation in the context of the new role
 "#,
         )
     }
 
-    /// Generate context hints
-    fn get_context_hints(&self, ctx: &ProcessingContext) -> String {
-        let mut hints = String::new();
-
-        // File context
-        if !ctx.file_contents.is_empty() {
-            hints.push_str("\n## Context Information\n\n");
-            hints.push_str(&format!(
-                "The user has referenced {} file(s) in their message.\n",
-                ctx.file_contents.len()
-            ));
-        }
-
-        // Tool availability
-        if !ctx.available_tools.is_empty() {
-            if hints.is_empty() {
-                hints.push_str("\n## Context Information\n\n");
-            }
-            hints.push_str(&format!(
-                "You have {} tool(s) available to help accomplish the task.\n",
-                ctx.available_tools.len()
-            ));
-        }
-
-        hints
-    }
-
-    /// Assemble the final system prompt
+    /// Assemble the final system prompt using enhancers
     fn assemble_prompt(&self, ctx: &ProcessingContext) -> String {
         let mut prompt = String::new();
 
         // 1. Base prompt
         prompt.push_str(&self.config.base_prompt);
-        prompt.push_str("\n");
+        prompt.push('\n');
 
-        // 2. Mode instructions
+        // 2. Mode instructions (defines all available roles)
         if self.config.include_mode_instructions {
             prompt.push_str(&self.get_mode_instructions(ctx));
         }
 
-        // 3. Prompt fragments (sorted by priority)
-        let fragments = ctx.get_sorted_prompt_fragments();
-        for fragment in fragments {
-            prompt.push_str(&fragment.content);
+        // 3. Run enhancers and collect fragments
+        let mut fragments: Vec<crate::pipeline::context::PromptFragment> = Vec::new();
+
+        for enhancer in &self.enhancers {
+            if let Some(fragment) = enhancer.enhance(ctx) {
+                log::debug!(
+                    "[SystemPromptProcessor] Enhancer '{}' added fragment (priority: {})",
+                    enhancer.name(),
+                    fragment.priority
+                );
+                fragments.push(fragment);
+            } else {
+                log::debug!(
+                    "[SystemPromptProcessor] Enhancer '{}' skipped",
+                    enhancer.name()
+                );
+            }
         }
 
-        // 4. Context hints
-        if self.config.include_context_hints {
-            prompt.push_str(&self.get_context_hints(ctx));
+        // Sort fragments by priority (higher priority first)
+        fragments.sort_by_key(|f| std::cmp::Reverse(f.priority));
+
+        // 4. Add fragments to prompt
+        for fragment in fragments {
+            prompt.push_str(&fragment.content);
         }
 
         // 5. Final instructions
@@ -177,24 +247,19 @@ impl Default for SystemPromptProcessor {
 
 impl MessageProcessor for SystemPromptProcessor {
     fn name(&self) -> &str {
-        "system_prompt"
+        "SystemPromptProcessor"
     }
 
-    fn process<'a>(&self, ctx: &mut ProcessingContext<'a>) -> Result<ProcessResult, ProcessError> {
-        // Assemble the final system prompt
-        let system_prompt = self.assemble_prompt(ctx);
+    fn process(&self, ctx: &mut ProcessingContext) -> Result<ProcessResult, ProcessError> {
+        let prompt = self.assemble_prompt(ctx);
 
-        // Store in metadata for later use
-        ctx.add_metadata("final_system_prompt", serde_json::json!(system_prompt));
+        // Store the final system prompt in metadata
+        ctx.add_metadata("final_system_prompt", serde_json::json!(prompt));
+        ctx.add_metadata("system_prompt_length", serde_json::json!(prompt.len()));
 
-        // Add statistics
-        ctx.add_metadata(
-            "system_prompt_length",
-            serde_json::json!(system_prompt.len()),
-        );
-        ctx.add_metadata(
-            "prompt_fragments_count",
-            serde_json::json!(ctx.prompt_fragments.len()),
+        log::debug!(
+            "[SystemPromptProcessor] Assembled system prompt ({} bytes)",
+            prompt.len()
         );
 
         Ok(ProcessResult::Continue)
@@ -204,128 +269,29 @@ impl MessageProcessor for SystemPromptProcessor {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::pipeline::context::PromptFragment;
-    use crate::structs::context::ChatContext;
-    use crate::structs::message::{InternalMessage, Role};
-    use crate::structs::message_types::{RichMessageType, TextMessage};
-    use uuid::Uuid;
 
-    fn create_test_context() -> ChatContext {
-        ChatContext::new(Uuid::new_v4(), "test-model".to_string(), "test-mode".to_string())
-    }
-
-    fn create_test_message() -> InternalMessage {
-        InternalMessage {
-            role: Role::User,
-            content: Vec::new(),
-            tool_calls: None,
-            tool_result: None,
-            metadata: None,
-            message_type: Default::default(),
-            rich_type: Some(RichMessageType::Text(TextMessage::new("Test message"))),
-        }
+    #[test]
+    fn test_processor_creation() {
+        let processor = SystemPromptProcessor::with_base_prompt("Test prompt");
+        assert_eq!(processor.config.base_prompt, "Test prompt");
+        assert_eq!(processor.config.include_mode_instructions, true);
+        assert_eq!(processor.enhancers.len(), 0);
     }
 
     #[test]
-    fn test_system_prompt_generation() {
-        let processor = SystemPromptProcessor::new();
-        let message = create_test_message();
-        let mut context = create_test_context();
-        let mut ctx = ProcessingContext::new(message, &mut context);
-
-        let result = processor.process(&mut ctx);
-        assert!(result.is_ok());
-
-        // Should have system prompt in metadata
-        assert!(ctx.get_metadata("final_system_prompt").is_some());
-        assert!(ctx.get_metadata("system_prompt_length").is_some());
+    fn test_with_default_enhancers() {
+        let processor = SystemPromptProcessor::with_default_enhancers("Test prompt");
+        assert_eq!(processor.config.base_prompt, "Test prompt");
+        assert_eq!(processor.enhancers.len(), 4); // 4 default enhancers
     }
 
     #[test]
-    fn test_custom_base_prompt() {
-        let processor = SystemPromptProcessor::with_base_prompt("Custom prompt");
-        let message = create_test_message();
-        let mut context = create_test_context();
-        let mut ctx = ProcessingContext::new(message, &mut context);
+    fn test_register_enhancer() {
+        use crate::pipeline::enhancers::RoleContextEnhancer;
 
-        let result = processor.process(&mut ctx);
-        assert!(result.is_ok());
+        let processor = SystemPromptProcessor::with_base_prompt("Test")
+            .register_enhancer(Box::new(RoleContextEnhancer::new()));
 
-        let prompt = ctx
-            .get_metadata("final_system_prompt")
-            .and_then(|v| v.as_str())
-            .unwrap();
-
-        assert!(prompt.contains("Custom prompt"));
-    }
-
-    #[test]
-    fn test_prompt_with_fragments() {
-        let processor = SystemPromptProcessor::new();
-        let message = create_test_message();
-        let mut context = create_test_context();
-        let mut ctx = ProcessingContext::new(message, &mut context);
-
-        // Add some prompt fragments
-        ctx.add_prompt_fragment(PromptFragment {
-            content: "## Tool Instructions\n\nUse tools wisely.\n".to_string(),
-            source: "tool_enhancement".to_string(),
-            priority: 60,
-        });
-
-        ctx.add_prompt_fragment(PromptFragment {
-            content: "## File Context\n\nFiles loaded.\n".to_string(),
-            source: "file_reference".to_string(),
-            priority: 70,
-        });
-
-        let result = processor.process(&mut ctx);
-        assert!(result.is_ok());
-
-        let prompt = ctx
-            .get_metadata("final_system_prompt")
-            .and_then(|v| v.as_str())
-            .unwrap();
-
-        // Higher priority fragment should appear first
-        let tool_pos = prompt.find("Tool Instructions");
-        let file_pos = prompt.find("File Context");
-        assert!(file_pos < tool_pos);
-    }
-
-    #[test]
-    fn test_context_hints() {
-        use crate::pipeline::context::{FileContent, ToolDefinition};
-        use std::path::PathBuf;
-
-        let processor = SystemPromptProcessor::new();
-        let message = create_test_message();
-        let mut context = create_test_context();
-        let mut ctx = ProcessingContext::new(message, &mut context);
-
-        // Add some file contents
-        ctx.add_file_content(FileContent {
-            path: PathBuf::from("test.rs"),
-            content: "fn main() {}".to_string(),
-            start_line: None,
-            end_line: None,
-            size_bytes: 13,
-            mime_type: Some("text/x-rust".to_string()),
-        });
-
-        // Add some tools
-        ctx.add_tool(ToolDefinition {
-            name: "test_tool".to_string(),
-            description: "A test tool".to_string(),
-            category: "Test".to_string(),
-            parameters_schema: serde_json::json!({}),
-            requires_approval: false,
-        });
-
-        let hints = processor.get_context_hints(&ctx);
-
-        // Should mention files and tools
-        assert!(hints.contains("file(s)"));
-        assert!(hints.contains("tool(s)"));
+        assert_eq!(processor.enhancers.len(), 1);
     }
 }

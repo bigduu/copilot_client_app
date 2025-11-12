@@ -1,5 +1,4 @@
 import { useState, useEffect } from "react";
-import { useServiceMode } from "./useServiceMode";
 
 interface ServiceHealth {
   isHealthy: boolean;
@@ -7,18 +6,15 @@ interface ServiceHealth {
   lastChecked?: Date;
 }
 
+/**
+ * Hook to check the health of the backend web service
+ * Always checks HTTP API (Web mode only)
+ */
 export const useServiceHealth = () => {
   const [health, setHealth] = useState<ServiceHealth>({ isHealthy: true });
   const [isChecking, setIsChecking] = useState(false);
-  const { serviceMode } = useServiceMode();
 
   const checkHealth = async () => {
-    if (serviceMode === "tauri") {
-      // Tauri mode is always considered healthy since it's native
-      setHealth({ isHealthy: true, lastChecked: new Date() });
-      return;
-    }
-
     setIsChecking(true);
     try {
       // Check if the web service is responding
@@ -53,12 +49,10 @@ export const useServiceHealth = () => {
   useEffect(() => {
     checkHealth();
 
-    // Check health every 30 seconds when in OpenAI mode
-    if (serviceMode === "openai") {
-      const interval = setInterval(checkHealth, 30000);
-      return () => clearInterval(interval);
-    }
-  }, [serviceMode]);
+    // Check health every 30 seconds
+    const interval = setInterval(checkHealth, 30000);
+    return () => clearInterval(interval);
+  }, []);
 
   return {
     health,

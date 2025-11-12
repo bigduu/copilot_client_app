@@ -109,6 +109,14 @@ export interface UserMessage extends BaseMessage {
   images?: MessageImage[];
 }
 
+// User's File Reference Message
+export interface UserFileReferenceMessage extends BaseMessage {
+  role: "user";
+  type: "file_reference";
+  paths: string[]; // ✅ 改为数组，支持多文件/文件夹
+  displayText: string;
+}
+
 // 2. Assistant's Standard Text Response
 export interface AssistantTextMessage extends BaseMessage {
   role: "assistant";
@@ -158,6 +166,7 @@ export interface WorkflowResultMessage extends BaseMessage {
 // The complete, type-safe Message union
 export type Message =
   | UserMessage
+  | UserFileReferenceMessage
   | AssistantTextMessage
   | AssistantToolCallMessage
   | AssistantToolResultMessage
@@ -221,7 +230,7 @@ export interface ChatItem {
 // --- Utility functions and Type Guards ---
 
 export const isAssistantToolResultMessage = (
-  message: Message,
+  message: Message
 ): message is AssistantToolResultMessage => {
   return (
     message.role === "assistant" &&
@@ -231,7 +240,7 @@ export const isAssistantToolResultMessage = (
 };
 
 export const isAssistantToolCallMessage = (
-  message: Message,
+  message: Message
 ): message is AssistantToolCallMessage => {
   return (
     message.role === "assistant" &&
@@ -241,12 +250,22 @@ export const isAssistantToolCallMessage = (
 };
 
 export const isWorkflowResultMessage = (
-  message: Message,
+  message: Message
 ): message is WorkflowResultMessage => {
   return (
     message.role === "assistant" &&
     "type" in message &&
     message.type === "workflow_result"
+  );
+};
+
+export const isUserFileReferenceMessage = (
+  message: Message
+): message is UserFileReferenceMessage => {
+  return (
+    message.role === "user" &&
+    "type" in message &&
+    message.type === "file_reference"
   );
 };
 

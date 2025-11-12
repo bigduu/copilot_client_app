@@ -95,6 +95,23 @@ export const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (
       }));
 
       console.log(`[ChatSlice] Created chat in backend with ID: ${newChat.id}`);
+
+      // Update Session Manager to track this new chat as active
+      try {
+        const { SessionService } = await import(
+          "../../services/SessionService"
+        );
+        const sessionService = new SessionService();
+        await sessionService.setActiveContext(newChat.id);
+        console.log(
+          `[ChatSlice] Updated Session Manager with new chat: ${newChat.id}`
+        );
+      } catch (error) {
+        console.warn(
+          "[ChatSlice] Failed to update Session Manager for new chat:",
+          error
+        );
+      }
     } catch (error) {
       console.error("[ChatSlice] Failed to create chat in backend:", error);
       // Fallback to local-only chat (temporary, will not persist)
@@ -109,15 +126,45 @@ export const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (
         currentChatId: newChat.id,
         latestActiveChatId: newChat.id,
       }));
+
+      // Try to update Session Manager even for fallback chat
+      try {
+        const { SessionService } = await import(
+          "../../services/SessionService"
+        );
+        const sessionService = new SessionService();
+        await sessionService.setActiveContext(newChat.id);
+        console.log(
+          `[ChatSlice] Updated Session Manager with fallback chat: ${newChat.id}`
+        );
+      } catch (sessionError) {
+        console.warn(
+          "[ChatSlice] Failed to update Session Manager for fallback chat:",
+          sessionError
+        );
+      }
     }
   },
 
   selectChat: (chatId) => {
     set({ currentChatId: chatId, latestActiveChatId: chatId });
 
-    // Persist the latest active chat ID asynchronously without blocking the UI
+    // Persist to backend Session Manager asynchronously without blocking the UI
     void (async () => {
       try {
+        // Update Session Manager (primary source of truth)
+        const { SessionService } = await import(
+          "../../services/SessionService"
+        );
+        const sessionService = new SessionService();
+
+        if (chatId) {
+          await sessionService.setActiveContext(chatId);
+        } else {
+          await sessionService.clearActiveContext();
+        }
+
+        // Also update UserPreferences for backward compatibility
         const { UserPreferenceService } = await import(
           "../../services/UserPreferenceService"
         );
@@ -127,7 +174,7 @@ export const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (
         });
       } catch (error) {
         console.warn(
-          "[ChatSlice] Failed to persist last opened chat preference:",
+          "[ChatSlice] Failed to persist active chat to backend:",
           error
         );
       }
@@ -417,7 +464,8 @@ export const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (
 
           return {
             id: context.id,
-            title: context.active_branch_name || "Chat",
+            // Use backend title if available, otherwise display default name
+            title: context.title || "New Chat",
             createdAt: Date.now(),
             messages,
             config: {
@@ -439,12 +487,39 @@ export const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (
 
       if (chats.length > 0) {
         try {
+          // First, try to get active context from Session Manager (primary source)
+          const { SessionService } = await import(
+            "../../services/SessionService"
+          );
+          const sessionService = new SessionService();
+          const session = await sessionService.getSession();
+
+          console.log("[ChatSlice] Loaded session from backend:", session);
+
+          // Use active_context_id from session if available
+          let storedChatId = session.active_context_id ?? null;
+
+          // Fallback to UserPreferences if session doesn't have active context
+          if (!storedChatId) {
+            const { UserPreferenceService } = await import(
+              "../../services/UserPreferenceService"
+            );
+            const preferenceService = new UserPreferenceService();
+            const prefs = await preferenceService.getPreferences();
+            storedChatId = prefs?.last_opened_chat_id ?? null;
+
+            console.log(
+              "[ChatSlice] Fallback to UserPreferences:",
+              storedChatId
+            );
+          }
+
+          // Load auto_generate_titles preference
           const { UserPreferenceService } = await import(
             "../../services/UserPreferenceService"
           );
           const preferenceService = new UserPreferenceService();
           const prefs = await preferenceService.getPreferences();
-          const storedChatId = prefs?.last_opened_chat_id ?? null;
           if (typeof prefs?.auto_generate_titles === "boolean") {
             autoGenerateTitlesPref = prefs.auto_generate_titles;
           }
@@ -454,20 +529,44 @@ export const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (
             if (matchingChat) {
               preferredChatId = matchingChat.id;
               latestActiveChatId = matchingChat.id;
-            } else if (chats.length > 0) {
+
+              console.log("[ChatSlice] Restored active chat:", preferredChatId);
+            } else {
+              // Stored chat not found, use first chat and update backend
               preferredChatId = chats[0].id;
               latestActiveChatId = chats[0].id;
 
+              console.log(
+                "[ChatSlice] Stored chat not found, using first chat:",
+                preferredChatId
+              );
+
+              // Update both Session Manager and UserPreferences
+              await sessionService.setActiveContext(preferredChatId);
               await preferenceService.updatePreferences({
                 last_opened_chat_id: preferredChatId,
               });
             }
+          } else {
+            // No stored chat, use first chat
+            preferredChatId = chats[0].id;
+            latestActiveChatId = chats[0].id;
+
+            console.log(
+              "[ChatSlice] No stored chat, using first chat:",
+              preferredChatId
+            );
           }
         } catch (prefError) {
           console.warn(
-            "[ChatSlice] Failed to load last opened chat preference:",
+            "[ChatSlice] Failed to load session/preferences:",
             prefError
           );
+          // Fallback to first chat
+          if (chats.length > 0) {
+            preferredChatId = chats[0].id;
+            latestActiveChatId = chats[0].id;
+          }
         }
       }
 

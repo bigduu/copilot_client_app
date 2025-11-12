@@ -14,6 +14,7 @@ export interface ChatContextDTO {
     system_prompt_id?: string;
     agent_role: "planner" | "actor"; // Agent role (always present from backend)
     workspace_path?: string;
+    mermaid_diagrams: boolean; // Whether to enable Mermaid diagram enhancement
   };
   current_state: string;
   active_branch_name: string;
@@ -27,6 +28,10 @@ export interface ChatContextDTO {
     user_prompt?: string;
     message_count: number;
   }>;
+  // Optional title for this context. If undefined/null, frontend should display a default title.
+  title?: string;
+  // Whether to automatically generate a title after the first AI response.
+  auto_generate_title: boolean;
 }
 
 export interface MessageDTO {
@@ -78,6 +83,10 @@ export interface ContextSummaryDTO {
   current_state: string;
   active_branch_name: string;
   message_count: number;
+  // Optional title for this context. If undefined/null, frontend should display a default title.
+  title?: string;
+  // Whether to automatically generate a title after the first AI response.
+  auto_generate_title: boolean;
 }
 
 export interface WorkspaceFileEntry {
@@ -110,7 +119,7 @@ export interface ActionResponse {
 export class BackendContextService {
   private async request<T>(
     endpoint: string,
-    options?: RequestInit,
+    options?: RequestInit
   ): Promise<T> {
     try {
       const response = await fetch(`${API_BASE_URL}${endpoint}`, {
@@ -153,7 +162,7 @@ export class BackendContextService {
 
   async updateContext(
     id: string,
-    updates: Partial<ChatContextDTO>,
+    updates: Partial<ChatContextDTO>
   ): Promise<void> {
     await this.request<void>(`/contexts/${id}`, {
       method: "PUT",
@@ -169,7 +178,7 @@ export class BackendContextService {
 
   async listContexts(): Promise<Array<ContextSummaryDTO>> {
     const response = await this.request<{ contexts: ContextSummaryDTO[] }>(
-      "/contexts",
+      "/contexts"
     );
     return response.contexts || [];
   }
@@ -177,7 +186,7 @@ export class BackendContextService {
   // Message operations
   async getMessages(
     contextId: string,
-    params?: MessageQueryParams,
+    params?: MessageQueryParams
   ): Promise<{
     messages: MessageDTO[];
     total: number;
@@ -204,7 +213,7 @@ export class BackendContextService {
 
   async addMessage(
     contextId: string,
-    message: AddMessageRequest,
+    message: AddMessageRequest
   ): Promise<void> {
     await this.request<void>(`/contexts/${contextId}/messages`, {
       method: "POST",
@@ -214,7 +223,7 @@ export class BackendContextService {
 
   async approveTools(
     contextId: string,
-    req: ApproveToolsRequest,
+    req: ApproveToolsRequest
   ): Promise<void> {
     await this.request<void>(`/contexts/${contextId}/tools/approve`, {
       method: "POST",
@@ -228,7 +237,7 @@ export class BackendContextService {
       maxLength?: number;
       messageLimit?: number;
       fallbackTitle?: string;
-    },
+    }
   ): Promise<GenerateTitleResponse> {
     const payload = {
       max_length: options?.maxLength,
@@ -241,8 +250,24 @@ export class BackendContextService {
       {
         method: "POST",
         body: JSON.stringify(payload),
-      },
+      }
     );
+  }
+
+  /**
+   * Update context configuration (e.g., auto_generate_title, mermaid_diagrams)
+   */
+  async updateContextConfig(
+    contextId: string,
+    config: {
+      auto_generate_title?: boolean;
+      mermaid_diagrams?: boolean;
+    }
+  ): Promise<void> {
+    await this.request<void>(`/contexts/${contextId}/config`, {
+      method: "PATCH",
+      body: JSON.stringify(config),
+    });
   }
 
   // ============================================================================
@@ -256,148 +281,15 @@ export class BackendContextService {
    */
   async sendMessageAction(
     contextId: string,
-    content: string,
+    content: string
   ): Promise<ActionResponse> {
     return this.request<ActionResponse>(
       `/contexts/${contextId}/actions/send_message`,
       {
         method: "POST",
         body: JSON.stringify({ content }),
-      },
+      }
     );
-  }
-
-  /**
-   * Send a message with streaming response using SSE.
-   * This uses the /chat/{session_id}/stream endpoint for real-time token streaming.
-   *
-   * @deprecated This method is deprecated and will be removed in a future version.
-   *
-   * **Migration Path**:
-   * - Use `sendMessage()` (non-streaming) + `subscribeToContextEvents()` instead
-   * - The new Signal-Pull SSE architecture provides better reliability
-   *
-   * **Why deprecated**:
-   * - Old SSE implementation with full content streaming
-   * - Replaced by Signal-Pull architecture (metadata signals + REST content pull)
-   * - Cannot support incremental content pulling and sequence tracking
-   *
-   * **Removal timeline**: After Phase 10 migration is complete
-   *
-   * @param contextId - The context/session ID
-   * @param content - The message content
-   * @param onChunk - Callback for each content chunk
-   * @param onDone - Callback when stream is complete
-   * @param onError - Callback for errors
-   * @param onApprovalRequired - Callback when agent-initiated tool requires approval
-   *
-   * @see sendMessage
-   * @see subscribeToContextEvents
-   * @see getMessageContent
-   */
-  async sendMessageStream(
-    contextId: string,
-    content: string,
-    onChunk: (chunk: string) => void,
-    onDone: () => void,
-    onError: (error: string) => void,
-    onApprovalRequired?: (data: {
-      request_id: string;
-      session_id: string;
-      tool: string;
-      tool_description: string;
-      parameters: Record<string, any>;
-    }) => void,
-  ): Promise<void> {
-    console.warn(
-      "[BackendContextService] ⚠️ DEPRECATED: sendMessageStream() is deprecated. Use sendMessage() + subscribeToContextEvents() instead."
-    );
-
-    try {
-      // Use API_BASE_URL which already includes /v1, then add /chat path
-      const baseUrl = API_BASE_URL.replace("/v1", ""); // http://127.0.0.1:8080
-      const response = await fetch(`${baseUrl}/v1/chat/${contextId}/stream`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(content),
-      });
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      const reader = response.body?.getReader();
-      if (!reader) {
-        throw new Error("No response body");
-      }
-
-      const decoder = new TextDecoder();
-      let buffer = "";
-      let streamCompleted = false;
-
-      while (true) {
-        const { done, value } = await reader.read();
-
-        if (done) break;
-
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split("\n\n");
-        buffer = lines.pop() || ""; // Keep incomplete line in buffer
-
-        for (const line of lines) {
-          if (line.startsWith("data: ")) {
-            const data = line.slice(6); // Remove "data: " prefix
-            
-            // Check for [DONE] signal
-            if (data === "[DONE]") {
-              streamCompleted = true;
-              onDone();
-              return;
-            }
-            
-            try {
-              const parsed = JSON.parse(data);
-              if (parsed.type === "approval_required") {
-                // Agent-initiated tool call requires user approval
-                console.log("🔒 Agent tool approval required:", parsed);
-                if (onApprovalRequired) {
-                  onApprovalRequired({
-                    request_id: parsed.request_id,
-                    session_id: parsed.session_id,
-                    tool: parsed.tool,
-                    tool_description: parsed.tool_description,
-                    parameters: parsed.parameters,
-                  });
-                }
-                // Don't return here - wait for done signal
-              } else if (parsed.done) {
-                streamCompleted = true;
-                onDone();
-                return;
-              } else if (parsed.content) {
-                onChunk(parsed.content);
-              } else if (parsed.error) {
-                onError(parsed.error);
-                return;
-              }
-            } catch (e) {
-              console.error("Failed to parse SSE data:", data, e);
-            }
-          }
-        }
-      }
-
-      // Only call onDone if stream wasn't explicitly marked as done
-      if (!streamCompleted) {
-        onDone();
-      }
-    } catch (error) {
-      const errorMsg = error instanceof Error ? error.message : "Unknown error";
-      onError(errorMsg);
-      throw error;
-    }
   }
 
   /**
@@ -407,14 +299,14 @@ export class BackendContextService {
    */
   async approveToolsAction(
     contextId: string,
-    toolCallIds: string[],
+    toolCallIds: string[]
   ): Promise<ActionResponse> {
     return this.request<ActionResponse>(
       `/contexts/${contextId}/actions/approve_tools`,
       {
         method: "POST",
         body: JSON.stringify({ tool_call_ids: toolCallIds }),
-      },
+      }
     );
   }
 
@@ -426,7 +318,7 @@ export class BackendContextService {
     sessionId: string,
     requestId: string,
     approved: boolean,
-    reason?: string,
+    reason?: string
   ): Promise<{ status: string; message: string }> {
     return await this.request<{ status: string; message: string }>(
       `/chat/${sessionId}/approve-agent`,
@@ -437,7 +329,7 @@ export class BackendContextService {
           approved,
           reason,
         }),
-      },
+      }
     );
   }
 
@@ -457,7 +349,7 @@ export class BackendContextService {
    */
   async updateAgentRole(
     contextId: string,
-    role: "planner" | "actor",
+    role: "planner" | "actor"
   ): Promise<{
     success: boolean;
     context_id: string;
@@ -473,7 +365,7 @@ export class BackendContextService {
 
   async setWorkspacePath(
     contextId: string,
-    workspacePath: string,
+    workspacePath: string
   ): Promise<{ workspace_path?: string }> {
     return this.request(`/contexts/${contextId}/workspace`, {
       method: "PUT",
@@ -482,13 +374,13 @@ export class BackendContextService {
   }
 
   async getWorkspacePath(
-    contextId: string,
+    contextId: string
   ): Promise<{ workspace_path?: string }> {
     return this.request(`/contexts/${contextId}/workspace`);
   }
 
   async getWorkspaceFiles(
-    contextId: string,
+    contextId: string
   ): Promise<{ workspace_path: string; files: WorkspaceFileEntry[] }> {
     return this.request(`/contexts/${contextId}/workspace/files`);
   }
@@ -496,7 +388,7 @@ export class BackendContextService {
   // System prompt operations
   async createSystemPrompt(
     id: string,
-    content: string,
+    content: string
   ): Promise<{ id: string }> {
     return this.request<{ id: string }>("/system-prompts", {
       method: "POST",
@@ -523,7 +415,7 @@ export class BackendContextService {
 
   async listSystemPrompts(): Promise<SystemPromptDTO[]> {
     const response = await this.request<{ prompts: SystemPromptDTO[] }>(
-      "/system-prompts",
+      "/system-prompts"
     );
     return response.prompts || [];
   }
@@ -551,10 +443,10 @@ export class BackendContextService {
   subscribeToContextEvents(
     contextId: string,
     onEvent: (event: import("../types/sse").SignalEvent) => void,
-    onError?: (error: Error) => void,
+    onError?: (error: Error) => void
   ): () => void {
     const eventSource = new EventSource(
-      `${API_BASE_URL}/contexts/${contextId}/events`,
+      `${API_BASE_URL}/contexts/${contextId}/events`
     );
 
     // Listen for "signal" events (backend sends named events)
@@ -617,17 +509,21 @@ export class BackendContextService {
   async getMessageContent(
     contextId: string,
     messageId: string,
-    fromSequence?: number,
+    fromSequence?: number
   ): Promise<import("../types/sse").MessageContentResponse> {
-    const url = fromSequence !== undefined
-      ? `/contexts/${contextId}/messages/${messageId}/streaming-chunks?from_sequence=${fromSequence}`
-      : `/contexts/${contextId}/messages/${messageId}/streaming-chunks`;
+    const url =
+      fromSequence !== undefined
+        ? `/contexts/${contextId}/messages/${messageId}/streaming-chunks?from_sequence=${fromSequence}`
+        : `/contexts/${contextId}/messages/${messageId}/streaming-chunks`;
 
     console.log(`[SSE] Pulling content from sequence ${fromSequence ?? 0}`);
 
-    const response = await this.request<import("../types/sse").MessageContentResponse>(url);
+    const response =
+      await this.request<import("../types/sse").MessageContentResponse>(url);
 
-    console.log(`[SSE] Content received: current_sequence=${response.current_sequence}, chunks=${response.chunks.length}, has_more=${response.has_more}`);
+    console.log(
+      `[SSE] Content received: current_sequence=${response.current_sequence}, chunks=${response.chunks.length}, has_more=${response.has_more}`
+    );
 
     return response;
   }
@@ -638,13 +534,34 @@ export class BackendContextService {
    * After calling this, subscribe to SSE events to receive updates.
    *
    * @param contextId - The context ID
-   * @param content - The message content
+   * @param content - The message content (can be plain text or JSON string for structured messages)
    */
-  async sendMessage(
-    contextId: string,
-    content: string,
-  ): Promise<void> {
+  async sendMessage(contextId: string, content: string): Promise<void> {
     console.log(`[SSE] Sending message to context ${contextId}`);
+
+    // Try to parse content as JSON to detect structured messages (file_reference, workflow, etc.)
+    let payload: any;
+    try {
+      const parsed = JSON.parse(content);
+      // If it's a structured message with a type field, use it directly as payload
+      if (parsed.type && typeof parsed.type === "string") {
+        payload = parsed;
+      } else {
+        // Not a structured message, treat as plain text
+        payload = {
+          type: "text",
+          content,
+          display: null,
+        };
+      }
+    } catch (e) {
+      // Not JSON, treat as plain text
+      payload = {
+        type: "text",
+        content,
+        display: null,
+      };
+    }
 
     await this.request<void>(`/contexts/${contextId}/actions/send_message`, {
       method: "POST",
@@ -652,11 +569,7 @@ export class BackendContextService {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        payload: {
-          type: "text",
-          content,
-          display: null,
-        },
+        payload,
         client_metadata: {},
       }),
     });

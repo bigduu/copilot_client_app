@@ -44,9 +44,7 @@ pub enum MessagePayload {
         display: Option<String>,
     },
     FileReference {
-        path: String,
-        #[serde(default)]
-        range: Option<FileRange>,
+        paths: Vec<String>, // ✅ Changed to Vec<String> to support multiple files/folders
         #[serde(default)]
         display_text: Option<String>,
     },

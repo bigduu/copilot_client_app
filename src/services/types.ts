@@ -81,5 +81,3 @@ export interface UtilityService {
    */
   invoke<T = any>(command: string, args?: Record<string, any>): Promise<T>;
 }
-
-export type ServiceMode = "tauri" | "openai";
