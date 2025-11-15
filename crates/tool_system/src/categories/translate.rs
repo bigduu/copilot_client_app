@@ -3,7 +3,6 @@
 //! A non-strict category for translation between Chinese and English
 
 use crate::{
-    registry::macros::auto_register_category,
     types::{Category, CategoryId, CategoryMetadata},
 };
 
@@ -118,5 +117,4 @@ Remember: You are a translation tool with technical and financial expertise, not
     }
 }
 
-// Auto-register the category
-auto_register_category!(TranslateCategory);
+// Category registration handled by category system

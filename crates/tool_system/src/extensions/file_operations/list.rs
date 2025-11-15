@@ -1,5 +1,5 @@
 use crate::{
-    registry::macros::auto_register_tool,
+    impl_tool_factory,
     types::{
         DisplayPreference, Parameter, Tool, ToolArguments, ToolDefinition, ToolError,
         ToolPermission, ToolType,
@@ -47,6 +47,7 @@ impl Tool for ListDirectoryTool {
                 },
             ],
             requires_approval: false,
+            category: crate::types::tool_category::ToolCategory::SearchAndDiscovery,
             tool_type: ToolType::AIParameterParsing,
             parameter_regex: None,
             custom_prompt: None,
@@ -160,5 +161,4 @@ async fn list_directory_recursive(
     Ok(())
 }
 
-// Auto-register the tool
-auto_register_tool!(ListDirectoryTool);
+impl_tool_factory!(ListDirectoryTool);

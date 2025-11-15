@@ -239,7 +239,24 @@ const ChatItemComponent: React.FC<ChatItemProps> = ({
   );
 };
 
-export const ChatItem = memo(ChatItemComponent);
+// Custom comparison function to ensure re-render when title changes
+const arePropsEqual = (
+  prevProps: ChatItemProps,
+  nextProps: ChatItemProps
+): boolean => {
+  // Return true if props are equal (skip re-render)
+  // Return false if props are different (re-render)
+  return (
+    prevProps.chat.id === nextProps.chat.id &&
+    prevProps.chat.title === nextProps.chat.title &&
+    prevProps.chat.pinned === nextProps.chat.pinned &&
+    prevProps.isSelected === nextProps.isSelected &&
+    prevProps.isGeneratingTitle === nextProps.isGeneratingTitle &&
+    prevProps.titleGenerationError === nextProps.titleGenerationError
+  );
+};
+
+export const ChatItem = memo(ChatItemComponent, arePropsEqual);
 ChatItem.displayName = "ChatItem";
 
 export default ChatItem;

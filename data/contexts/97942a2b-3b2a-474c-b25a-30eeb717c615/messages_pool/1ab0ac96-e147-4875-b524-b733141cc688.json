@@ -1,0 +1,15 @@
+{
+  "id": "1ab0ac96-e147-4875-b524-b733141cc688",
+  "message": {
+    "role": "User",
+    "content": [
+      {
+        "type": "text",
+        "text": "tell me a long stroy"
+      }
+    ],
+    "metadata": null,
+    "message_type": "text"
+  },
+  "parent_id": "0b150fe0-48d5-4b08-a38e-0a709e9eec3e"
+}

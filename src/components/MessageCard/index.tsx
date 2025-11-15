@@ -491,6 +491,12 @@ const MessageCardComponent: React.FC<MessageCardProps> = ({
 
   // Route to FileReferenceCard for file reference messages
   if (isUserFileReferenceMessage(message)) {
+    console.log(
+      "[MessageCard] Rendering FileReferenceCard for message:",
+      message.id,
+      "paths:",
+      message.paths
+    );
     return (
       <div
         style={{

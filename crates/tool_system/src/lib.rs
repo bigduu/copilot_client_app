@@ -2,7 +2,6 @@ pub mod categories;
 pub mod examples;
 pub mod executor;
 pub mod extensions;
-pub mod internal;
 pub mod prompt_formatter;
 pub mod registry;
 pub mod types;

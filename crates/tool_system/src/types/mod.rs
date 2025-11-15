@@ -7,6 +7,7 @@ pub mod arguments;
 pub mod category;
 pub mod common;
 pub mod tool;
+pub mod tool_category;
 
 // Re-export all types for convenience
 pub use arguments::*;

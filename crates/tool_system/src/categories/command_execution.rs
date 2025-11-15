@@ -3,7 +3,6 @@
 //! Contains tools related to system command execution
 
 use crate::{
-    registry::macros::auto_register_category,
     types::{Category, CategoryId, CategoryMetadata},
 };
 
@@ -62,5 +61,4 @@ impl Category for CommandExecutionCategory {
     }
 }
 
-// Auto-register the category
-auto_register_category!(CommandExecutionCategory);
+// Category registration handled by category system

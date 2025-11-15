@@ -263,6 +263,31 @@ export const ChatView: React.FC = () => {
     messageType?: MessageDTO["message_type"];
   };
 
+  /**
+   * Helper function to check if a message should be hidden from display.
+   * Messages with display_preference: "Hidden" should not be shown in the UI.
+   */
+  const shouldHideMessage = useCallback((item: Message | MessageDTO): boolean => {
+    // Check if it's a tool result message with Hidden display preference (Message type)
+    if ("type" in item && item.type === "tool_result") {
+      const toolResultMsg = item as any;
+      if (toolResultMsg.result?.display_preference === "Hidden") {
+        return true;
+      }
+    }
+
+    // Check MessageDTO with tool_result field
+    if ("tool_result" in item && item.tool_result) {
+      const dto = item as any;
+      // display_preference is inside tool_result.result object
+      if (dto.tool_result?.result?.display_preference === "Hidden") {
+        return true;
+      }
+    }
+
+    return false;
+  }, []);
+
   const convertRenderableEntry = useCallback(
     (
       entry: RenderableEntry
@@ -306,12 +331,23 @@ export const ChatView: React.FC = () => {
 
     const filtered = source.filter((item) => {
       const role = (item as Message).role ?? (item as MessageDTO).role;
-      return (
-        role === "user" ||
-        role === "assistant" ||
-        role === "system" ||
-        role === "tool"
-      );
+
+      // Filter out non-chat roles
+      if (
+        role !== "user" &&
+        role !== "assistant" &&
+        role !== "system" &&
+        role !== "tool"
+      ) {
+        return false;
+      }
+
+      // Filter out messages with display_preference: "Hidden"
+      if (shouldHideMessage(item)) {
+        return false;
+      }
+
+      return true;
     });
 
     const hasSystemMessage = filtered.some((item) => {
@@ -355,7 +391,7 @@ export const ChatView: React.FC = () => {
     }
 
     return entries;
-  }, [backendMessages, currentMessages, hasSystemPrompt, systemPromptMessage]);
+  }, [backendMessages, currentMessages, hasSystemPrompt, systemPromptMessage, shouldHideMessage]);
 
   const rowVirtualizer = useVirtualizer({
     count: renderableMessages.length,
@@ -413,17 +449,23 @@ export const ChatView: React.FC = () => {
   const handleMessagesScroll = useCallback(() => {
     const el = messagesListRef.current;
     if (!el) return;
-    const threshold = 40;
-    const atBottom =
-      el.scrollHeight - el.scrollTop - el.clientHeight < threshold;
+
+    // Calculate distance from bottom
+    const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+
+    // Use a smaller threshold (5px) to more accurately detect "at bottom"
+    const nearBottomThreshold = 5;
+    const atBottom = distanceFromBottom < nearBottomThreshold;
 
     // Update scroll-to-bottom button visibility
     setShowScrollToBottom(!atBottom);
 
-    // Track if user has manually scrolled up
-    if (!atBottom) {
+    // Only mark as "manually scrolled up" if user scrolled significantly (>100px from bottom)
+    // This prevents accidental small scrolls from disabling auto-scroll
+    const significantScrollThreshold = 100;
+    if (distanceFromBottom > significantScrollThreshold) {
       userHasScrolledUpRef.current = true;
-    } else {
+    } else if (atBottom) {
       // User scrolled back to bottom, reset the flag
       userHasScrolledUpRef.current = false;
     }
@@ -431,8 +473,12 @@ export const ChatView: React.FC = () => {
 
   const scrollToBottom = useCallback(() => {
     if (renderableMessages.length === 0) return;
-    rowVirtualizer.scrollToIndex(renderableMessages.length - 1, {
-      align: "end",
+
+    // Use requestAnimationFrame to ensure DOM has updated before scrolling
+    requestAnimationFrame(() => {
+      rowVirtualizer.scrollToIndex(renderableMessages.length - 1, {
+        align: "end",
+      });
     });
   }, [renderableMessages.length, rowVirtualizer]);
 

@@ -156,6 +156,9 @@ export const useChatManager = () => {
         const context = await backendService.getContext(chatId);
         const savedTitle = context.title || candidate;
 
+        console.log(
+          `[useChatManager] Updating chat ${chatId} title to: "${savedTitle}"`
+        );
         updateChat(chatId, { title: savedTitle });
         if (!isAuto || savedTitle.toLowerCase() !== "new chat") {
           autoTitleGeneratedRef.current.add(chatId);

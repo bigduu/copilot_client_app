@@ -1,5 +1,5 @@
 use crate::{
-    registry::macros::auto_register_tool,
+    impl_tool_factory,
     types::{
         DisplayPreference, Parameter, Tool, ToolArguments, ToolDefinition, ToolError,
         ToolPermission, ToolType,
@@ -41,6 +41,7 @@ impl Tool for SimpleSearchTool {
                 required: true,
             }],
             requires_approval: false,
+            category: crate::types::tool_category::ToolCategory::SearchAndDiscovery,
             tool_type: ToolType::RegexParameterExtraction,
             parameter_regex: Some(r"^/search\s+(.+)$".to_string()),
             custom_prompt: Some(
@@ -151,5 +152,4 @@ fn search_in_directory(
     Ok(())
 }
 
-// Auto-register the tool
-auto_register_tool!(SimpleSearchTool);
+impl_tool_factory!(SimpleSearchTool);

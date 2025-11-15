@@ -1,0 +1,32 @@
+{
+  "id": "c4052e7b-7943-4cf1-b49e-4b2652acb2fb",
+  "parent_id": null,
+  "config": {
+    "model_id": "gpt-4",
+    "mode": "chat",
+    "parameters": {},
+    "system_prompt_id": "general_assistant",
+    "agent_role": "actor",
+    "workspace_path": "/Users/bigduu",
+    "mermaid_diagrams": true
+  },
+  "title": "New Chat",
+  "auto_generate_title": true,
+  "message_pool": {},
+  "branches": {
+    "main": {
+      "name": "main",
+      "message_ids": [
+        "27ca61a1-d8b6-4c78-81f7-94fe0528125c",
+        "9eed396d-c697-45bf-a0fb-f0c1c2e9de86",
+        "267b1ff4-745f-4c6e-ba56-4f89d8e4df82",
+        "75824c24-92d2-481f-93fa-0cae8ad801be",
+        "60e435ba-216d-49e8-8c92-8af9505d713e"
+      ],
+      "system_prompt": null,
+      "user_prompt": null
+    }
+  },
+  "active_branch_name": "main",
+  "current_state": "idle"
+}

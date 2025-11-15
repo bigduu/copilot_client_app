@@ -1,5 +1,5 @@
 use crate::{
-    registry::macros::auto_register_tool,
+    impl_tool_factory,
     types::{
         DisplayPreference, Parameter, Tool, ToolArguments, ToolDefinition, ToolError,
         ToolPermission, ToolType,
@@ -46,6 +46,7 @@ impl Tool for AppendFileTool {
                 },
             ],
             requires_approval: true,
+            category: crate::types::tool_category::ToolCategory::FileWriting,
             tool_type: ToolType::AIParameterParsing,
             parameter_regex: None,
             custom_prompt: None,
@@ -102,5 +103,4 @@ impl Tool for AppendFileTool {
     }
 }
 
-// Auto-register the tool
-auto_register_tool!(AppendFileTool);
+impl_tool_factory!(AppendFileTool);

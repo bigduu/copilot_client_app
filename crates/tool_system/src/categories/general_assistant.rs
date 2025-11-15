@@ -3,7 +3,6 @@
 //! Contains general AI assistant tools
 
 use crate::{
-    registry::macros::auto_register_category,
     types::{Category, CategoryId, CategoryMetadata},
 };
 
@@ -99,5 +98,4 @@ You combine architect-level strategic thinking with hands-on development experti
     }
 }
 
-// Auto-register the category
-auto_register_category!(GeneralAssistantCategory);
+// Category registration handled by category system

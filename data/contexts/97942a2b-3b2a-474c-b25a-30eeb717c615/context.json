@@ -1,0 +1,34 @@
+{
+  "id": "97942a2b-3b2a-474c-b25a-30eeb717c615",
+  "parent_id": null,
+  "config": {
+    "model_id": "gpt-4",
+    "mode": "chat",
+    "parameters": {},
+    "system_prompt_id": "general_assistant",
+    "agent_role": "actor",
+    "workspace_path": "/Users/bigduu",
+    "mermaid_diagrams": true
+  },
+  "title": "Software Development and Fintech Assistance",
+  "auto_generate_title": true,
+  "message_pool": {},
+  "branches": {
+    "main": {
+      "name": "main",
+      "message_ids": [
+        "fb7c9900-1274-41e3-b777-5f630ec1f54e",
+        "0b150fe0-48d5-4b08-a38e-0a709e9eec3e",
+        "1ab0ac96-e147-4875-b524-b733141cc688",
+        "32452fa0-3bce-4b9f-9da2-4cc91ff67693",
+        "9d21652c-a0a8-47b1-91e6-1878723b0305",
+        "ee1f31d3-9ff1-40a4-afd1-8c432f59e078",
+        "7c2869a9-771f-4221-9b4e-aa968c1b54ef"
+      ],
+      "system_prompt": null,
+      "user_prompt": null
+    }
+  },
+  "active_branch_name": "main",
+  "current_state": "idle"
+}

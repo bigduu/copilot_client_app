@@ -10,15 +10,14 @@ pub mod categories;
 pub mod compat;
 pub mod examples;
 pub mod extensions;
-pub mod internal;
 pub mod manager;
 pub mod registry;
 pub mod types;
 
 // Import all extensions and categories to trigger registration
-use crate::extension_system::categories as _categories;
-use crate::extension_system::examples as _examples;
-use crate::extension_system::extensions as _extensions;
+use crate::categories as _categories;
+use crate::examples as _examples;
+use crate::extensions as _extensions;
 
 // Re-export the main interface
 pub use manager::ToolsManager;

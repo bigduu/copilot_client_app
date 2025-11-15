@@ -4,7 +4,6 @@ use async_trait::async_trait;
 use serde_json::json;
 
 use crate::{
-    registry::macros::auto_register_tool,
     types::{
         DisplayPreference, Tool, ToolArguments, ToolDefinition, ToolError, ToolPermission, ToolType,
     },
@@ -36,6 +35,7 @@ impl Tool for DemoTool {
                 .to_string(),
             parameters: vec![], // No parameters needed for this simple tool
             requires_approval: false,
+            category: Default::default(),
             tool_type: ToolType::RegexParameterExtraction,
             parameter_regex: None,
             custom_prompt: None,
@@ -77,4 +77,4 @@ impl Tool for DemoTool {
     }
 }
 
-auto_register_tool!(DemoTool);
+// Example tool - registration handled by example system

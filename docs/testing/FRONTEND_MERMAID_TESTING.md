@@ -353,7 +353,7 @@ Tested on:
 ## Next Steps
 
 After manual testing, consider:
-1. Writing automated E2E tests with Playwright/Cypress
+1. Writing automated E2E tests with a suitable testing framework
 2. Adding unit tests for `handleMermaidToggle`
 3. Testing with different network conditions (slow 3G, offline)
 4. Testing with multiple concurrent users

@@ -1,5 +1,5 @@
 use crate::{
-    registry::macros::auto_register_tool,
+    impl_tool_factory,
     types::{
         DisplayPreference, Parameter, Tool, ToolArguments, ToolDefinition, ToolError,
         ToolPermission, ToolType,
@@ -53,6 +53,7 @@ impl Tool for ReadFileTool {
                 },
             ],
             requires_approval: false,
+            category: crate::types::tool_category::ToolCategory::FileReading,
             tool_type: ToolType::AIParameterParsing,
             parameter_regex: None,
             custom_prompt: None,
@@ -124,5 +125,4 @@ impl Tool for ReadFileTool {
     }
 }
 
-// Auto-register the tool
-auto_register_tool!(ReadFileTool);
+impl_tool_factory!(ReadFileTool);

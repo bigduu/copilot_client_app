@@ -6,6 +6,7 @@ use std::fmt::Debug;
 use thiserror::Error;
 
 use super::{Parameter, ToolArguments, ToolType};
+use super::tool_category::ToolCategory;
 
 /// Permission types required for tool execution.
 /// These should match the Permission enum in context_manager.
@@ -49,6 +50,8 @@ pub struct ToolDefinition {
     pub parameters: Vec<Parameter>,
     #[serde(default = "default_requires_approval")]
     pub requires_approval: bool,
+    #[serde(default)]
+    pub category: ToolCategory,
     pub tool_type: ToolType,
     pub parameter_regex: Option<String>,
     pub custom_prompt: Option<String>,

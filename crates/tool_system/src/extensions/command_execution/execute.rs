@@ -1,5 +1,4 @@
 use crate::{
-    registry::macros::auto_register_tool,
     types::{
         DisplayPreference, Parameter, Tool, ToolArguments, ToolDefinition, ToolError,
         ToolPermission, ToolType,
@@ -40,6 +39,7 @@ impl Tool for ExecuteCommandTool {
                 required: true,
             }],
             requires_approval: true,
+            category: crate::types::tool_category::ToolCategory::CommandExecution,
             tool_type: ToolType::AIParameterParsing,
             parameter_regex: None,
             custom_prompt: Some(r#"You are a command parameter parser. Your task is to extract the shell command from user input.
@@ -109,5 +109,4 @@ Command:"#.to_string()),
     }
 }
 
-// Auto-register the tool
-auto_register_tool!(ExecuteCommandTool);
+// Tool is registered explicitly in crates/tool_system/src/registry/registration.rs

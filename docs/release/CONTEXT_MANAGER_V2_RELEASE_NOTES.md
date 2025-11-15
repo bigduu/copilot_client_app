@@ -288,7 +288,7 @@ See [API Documentation](../api/CONTEXT_MANAGER_API.md) for complete API referenc
 
 ### Updated Documentation
 
-- [README](../../README.md)
+- [README](../README.md)
 - [Development Guide](../development/README.md)
 - [Testing Guide](../testing/README.md)
 

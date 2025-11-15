@@ -22,7 +22,7 @@ use std::{
     sync::{Arc, Mutex},
 };
 use tokio::sync::mpsc::Sender;
-use tool_system::{registry::ToolRegistry, ToolExecutor};
+use tool_system::{registry::create_default_tool_registry, ToolExecutor};
 use uuid::Uuid;
 use web_service::server::{app_config, AppState};
 use web_service::services::{
@@ -148,7 +148,7 @@ async fn setup_test_app() -> impl Service<Request, Response = ServiceResponse, E
         ),
         10,
     ));
-    let tool_registry = Arc::new(Mutex::new(ToolRegistry::new()));
+    let tool_registry = Arc::new(Mutex::new(create_default_tool_registry()));
     let tool_executor = Arc::new(ToolExecutor::new(tool_registry));
     let approval_manager = Arc::new(ApprovalManager::new());
     let user_preference_service = Arc::new(UserPreferenceService::new(PathBuf::from(

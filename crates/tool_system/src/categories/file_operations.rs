@@ -3,7 +3,6 @@
 //! Contains all file-related tools: read, create, delete, update, search, etc.
 
 use crate::{
-    registry::macros::auto_register_category,
     types::{Category, CategoryId, CategoryMetadata},
 };
 
@@ -68,5 +67,4 @@ impl Category for FileOperationsCategory {
     }
 }
 
-// Auto-register the category
-auto_register_category!(FileOperationsCategory);
+// Category registration handled by category system

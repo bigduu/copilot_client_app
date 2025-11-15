@@ -1,0 +1,19 @@
+{
+  "id": "9d21652c-a0a8-47b1-91e6-1878723b0305",
+  "message": {
+    "role": "User",
+    "content": [
+      {
+        "type": "text",
+        "text": "@com.visualstudio.code.tunnel.plist"
+      }
+    ],
+    "metadata": {
+      "extra": {
+        "display_text": "@com.visualstudio.code.tunnel.plist"
+      }
+    },
+    "message_type": "text"
+  },
+  "parent_id": "32452fa0-3bce-4b9f-9da2-4cc91ff67693"
+}

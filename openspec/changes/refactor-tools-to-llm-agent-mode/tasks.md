@@ -364,6 +364,13 @@
 - Added structured error feedback to LLM for retry guidance
 - Added comprehensive logging for agent loop debugging
 
+### Tool Registration Fix (Critical Bug Fix)
+
+- **Fixed missing tool registration in server initialization**: Updated `crates/web_service/src/server.rs` to use `create_default_tool_registry()` instead of empty `ToolRegistry::new()`
+- **Fixed missing tool registration in test files**: Updated test files to use `create_default_tool_registry()` for proper tool availability during testing
+- **Root cause**: The "Tool 'read_file' not found" error occurred because the tool registry was never populated with tools during server startup
+- **Impact**: This fix ensures all registered tools (including read_file, create_file, etc.) are available for LLM agent execution
+
 ## Next Steps
 
 Based on priority, the recommended next steps are:

@@ -7,7 +7,6 @@ use async_trait::async_trait;
 use serde_json::json;
 
 use crate::{
-    registry::macros::auto_register_tool,
     types::{
         DisplayPreference, Parameter, Tool, ToolArguments, ToolDefinition, ToolError,
         ToolPermission, ToolType,
@@ -43,6 +42,7 @@ impl Tool for SimpleTool {
             description: "A simple tool with no constructor parameters".to_string(),
             parameters: vec![],
             requires_approval: false,
+            category: Default::default(),
             tool_type: ToolType::AIParameterParsing,
             parameter_regex: None,
             custom_prompt: None,
@@ -58,8 +58,7 @@ impl Tool for SimpleTool {
     }
 }
 
-// Register using the original macro
-auto_register_tool!(SimpleTool);
+// Example tool - registration handled by example system
 
 // ============================================================================
 // Example 2: Tool with configuration parameters
@@ -94,6 +93,7 @@ impl Tool for ConfigurableTool {
                 required: true,
             }],
             requires_approval: false,
+            category: Default::default(),
             tool_type: ToolType::AIParameterParsing,
             parameter_regex: None,
             custom_prompt: None,
@@ -124,4 +124,4 @@ impl Tool for ConfigurableTool {
     }
 }
 
-auto_register_tool!(ConfigurableTool);
+// Example tool - registration handled by example system

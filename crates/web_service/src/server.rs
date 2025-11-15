@@ -21,7 +21,7 @@ use crate::services::{
 use crate::storage::message_pool_provider::MessagePoolStorageProvider;
 use copilot_client::{config::Config, CopilotClient, CopilotClientTrait};
 use session_manager::{FileSessionStorage, MultiUserSessionManager};
-use tool_system::{registry::ToolRegistry, ToolExecutor};
+use tool_system::{registry::create_default_tool_registry, ToolExecutor};
 use workflow_system::WorkflowRegistry;
 
 /// Application state (Phase 2.0 - Pipeline-based)
@@ -64,7 +64,7 @@ pub fn app_config(cfg: &mut web::ServiceConfig) {
 pub async fn run(app_data_dir: PathBuf, port: u16) -> Result<(), String> {
     info!("Starting web service...");
 
-    let tool_registry = Arc::new(Mutex::new(ToolRegistry::new()));
+    let tool_registry = Arc::new(Mutex::new(create_default_tool_registry()));
     let tool_executor = Arc::new(ToolExecutor::new(tool_registry.clone()));
     let tool_service = ToolService::new(tool_registry.clone(), tool_executor.clone());
     let tool_service_data = web::Data::new(tool_service);
@@ -175,7 +175,7 @@ impl WebService {
 
         let (shutdown_tx, mut shutdown_rx) = oneshot::channel::<()>();
 
-        let tool_registry = Arc::new(Mutex::new(ToolRegistry::new()));
+        let tool_registry = Arc::new(Mutex::new(create_default_tool_registry()));
         let tool_executor = Arc::new(ToolExecutor::new(tool_registry.clone()));
         let tool_service = ToolService::new(tool_registry.clone(), tool_executor.clone());
         let tool_service_data = web::Data::new(tool_service);

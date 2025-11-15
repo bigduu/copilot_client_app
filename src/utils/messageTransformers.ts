@@ -80,7 +80,18 @@ export const transformMessageDTOToMessage = (dto: MessageDTO): Message => {
     // Check if this is a file reference message (structured JSON format)
     try {
       const parsed = JSON.parse(baseContent);
+      console.log(
+        "[messageTransformers] Parsed user message JSON:",
+        parsed,
+        "type:",
+        parsed.type
+      );
+
       if (parsed.type === "file_reference" && parsed.paths) {
+        console.log(
+          "[messageTransformers] Creating UserFileReferenceMessage with paths:",
+          parsed.paths
+        );
         const fileRefMessage: UserFileReferenceMessage = {
           id: dto.id,
           role: "user",
@@ -93,6 +104,10 @@ export const transformMessageDTOToMessage = (dto: MessageDTO): Message => {
       }
       // Backward compatibility: support old single path format
       if (parsed.type === "file_reference" && parsed.path) {
+        console.log(
+          "[messageTransformers] Creating UserFileReferenceMessage with single path:",
+          parsed.path
+        );
         const fileRefMessage: UserFileReferenceMessage = {
           id: dto.id,
           role: "user",
@@ -104,7 +119,11 @@ export const transformMessageDTOToMessage = (dto: MessageDTO): Message => {
         return fileRefMessage;
       }
     } catch (e) {
-      // Not JSON or not a file reference, treat as regular message
+      // Not JSON or not a file reference, try @ detection
+      console.log(
+        "[messageTransformers] JSON parse failed for user message, trying @ detection. Content:",
+        baseContent.substring(0, 100)
+      );
     }
 
     // Check if content looks like a file reference (starts with @)
@@ -114,6 +133,10 @@ export const transformMessageDTOToMessage = (dto: MessageDTO): Message => {
       const fileMatches = Array.from(baseContent.matchAll(/@([^\s]+)/g));
       if (fileMatches.length > 0) {
         const paths = fileMatches.map((match) => match[1]);
+        console.log(
+          "[messageTransformers] Detected @ file references, creating UserFileReferenceMessage with paths:",
+          paths
+        );
 
         // Try to construct file reference message
         // Note: We don't have the full path from backend, so we use the filename
@@ -225,11 +248,29 @@ export const transformMessageDTOToMessage = (dto: MessageDTO): Message => {
   }
 
   if (roleLower === "tool") {
+    // For tool messages, check if we have meaningful content
+    // If baseContent contains image references like "#2", the actual tool result
+    // should be in tool_result field or we need to handle it specially
+    let toolContent = baseContent;
+
+    // If content looks like an image reference (e.g., "#2", "[Image #2]"),
+    // it means the tool result wasn't properly sent as text
+    if (/^\s*#?\d+\s*$/.test(baseContent) || baseContent.includes('[Image #')) {
+      // Try to get content from tool_result if available
+      const toolResultData: any = dto.tool_result || {};
+      if (toolResultData.result) {
+        toolContent = stringifyResultValue(toolResultData.result);
+      } else {
+        // Fallback: indicate tool execution completed but content unavailable
+        toolContent = "Tool executed successfully (result content not available in message format)";
+      }
+    }
+
     const message: AssistantTextMessage = {
       id: dto.id,
       role: "assistant",
       type: "text",
-      content: `[Tool Result]\n${baseContent}`,
+      content: `[Tool Result]\n${toolContent}`,
       createdAt: createTimestamp(),
     };
     return message;

@@ -1,0 +1,15 @@
+{
+  "id": "fb7c9900-1274-41e3-b777-5f630ec1f54e",
+  "message": {
+    "role": "User",
+    "content": [
+      {
+        "type": "text",
+        "text": "hi"
+      }
+    ],
+    "metadata": null,
+    "message_type": "text"
+  },
+  "parent_id": null
+}

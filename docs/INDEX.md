@@ -46,6 +46,33 @@
 | Mermaid 示例 | Mermaid 图表使用示例 | [`tools/MERMAID_EXAMPLES.md`](./tools/MERMAID_EXAMPLES.md) |
 | 工具使用指南 | 工具使用和最佳实践 | [`tools/README.md`](./tools/README.md) |
 
+### 📋 项目管理
+| 文档 | 描述 | 路径 |
+|------|------|------|
+| Agent 指令 | AI助手工作指令 | [`project-management/AGENTS.md`](./project-management/AGENTS.md) |
+| Claude 指令 | Claude专用指南 | [`project-management/CLAUDE.md`](./project-management/CLAUDE.md) |
+
+### 🔧 技术文档
+| 文档 | 描述 | 路径 |
+|------|------|------|
+| 废弃清单 | 已废弃API和替代方案 | [`technical-docs/DEPRECATIONS.md`](./technical-docs/DEPRECATIONS.md) |
+| 流式API迁移 | 流式API升级指南 | [`technical-docs/STREAM_API_MIGRATION.md`](./technical-docs/STREAM_API_MIGRATION.md) |
+
+### 📊 实现报告
+| 文档 | 描述 | 路径 |
+|------|------|------|
+| 完整实现 | 增强上下文代理工具实现 | [`implementation-reports/IMPLEMENTATION_COMPLETE.md`](./implementation-reports/IMPLEMENTATION_COMPLETE.md) |
+| 文件引用代理模式 | 文件引用代理实现计划 | [`implementation-reports/IMPLEMENTATION_PLAN_FILE_REFERENCE_AGENT_MODE.md`](./implementation-reports/IMPLEMENTATION_PLAN_FILE_REFERENCE_AGENT_MODE.md) |
+| 自动标题实现 | 自动标题功能实现总结 | [`implementation-reports/IMPLEMENTATION_SUMMARY_AUTO_TITLE.md`](./implementation-reports/IMPLEMENTATION_SUMMARY_AUTO_TITLE.md) |
+| 文件引用实现 | 文件引用功能实现总结 | [`implementation-reports/IMPLEMENTATION_SUMMARY_FILE_REFERENCE.md`](./implementation-reports/IMPLEMENTATION_SUMMARY_FILE_REFERENCE.md) |
+
+### 🧪 测试报告
+| 文档 | 描述 | 路径 |
+|------|------|------|
+| 测试指南 | 测试策略和最佳实践 | [`testing/README.md`](./testing/README.md) |
+| 前端测试总结 | 前端测试覆盖和结果 | [`testing/FRONTEND_TESTS_SUMMARY.md`](./testing/FRONTEND_TESTS_SUMMARY.md) |
+| 文件引用后端测试 | 文件引用后端测试总结 | [`testing/FILE_REFERENCE_BACKEND_TESTS_SUMMARY.md`](./testing/FILE_REFERENCE_BACKEND_TESTS_SUMMARY.md) |
+
 ### 📊 项目报告
 | 文档 | 描述 | 路径 |
 |------|------|------|
