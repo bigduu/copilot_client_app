@@ -279,8 +279,8 @@ export const ChatView: React.FC = () => {
     // Check MessageDTO with tool_result field
     if ("tool_result" in item && item.tool_result) {
       const dto = item as any;
-      // display_preference is inside tool_result.result object
-      if (dto.tool_result?.result?.display_preference === "Hidden") {
+      // display_preference is now at the tool_result DTO level
+      if (dto.tool_result?.display_preference === "Hidden") {
         return true;
       }
     }

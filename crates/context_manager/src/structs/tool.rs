@@ -26,6 +26,10 @@ pub struct ToolCallRequest {
 pub struct ToolCallResult {
     pub request_id: String, // Corresponds to ToolCallRequest.id
     pub result: serde_json::Value,
+
+    /// How the tool result should be displayed in the UI
+    #[serde(default = "DisplayPreference::default")]
+    pub display_preference: DisplayPreference,
 }
 
 /// The lifecycle status of a tool call request.

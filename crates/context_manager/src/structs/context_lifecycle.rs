@@ -10,7 +10,7 @@ use crate::structs::message::{
 use crate::structs::message_types::{RichMessageType, StreamingResponseMsg};
 use crate::structs::metadata::{MessageMetadata, MessageSource, StreamingMetadata};
 use crate::structs::state::ContextState;
-use crate::structs::tool::ToolCallResult;
+use crate::structs::tool::{ToolCallResult, DisplayPreference};
 use chrono::Utc;
 use eventsource_stream::{Event as SseEvent, EventStreamError};
 use futures::stream::{self, BoxStream};
@@ -785,7 +785,7 @@ impl ChatContext {
             .execute_tool(self.id, &tool_name, arguments.clone(), request_id)
             .await
         {
-            Ok(mut result) => {
+            Ok(result) => {
                 updates.push(self.record_auto_loop_progress());
 
                 let mut execution_update = self.complete_tool_execution();
@@ -804,12 +804,22 @@ impl ChatContext {
 
                 updates.push(self.complete_auto_loop());
 
-                // ✅ Set display_preference to Hidden for read_file and list_directory tools
-                if tool_name == "read_file" || tool_name == "list_directory" {
-                    if let Some(obj) = result.as_object_mut() {
-                        obj.insert("display_preference".to_string(), json!("Hidden"));
-                    }
-                }
+                // ✅ Determine display preference for read_file and list_directory tools
+                let display_preference = if tool_name == "read_file" || tool_name == "list_directory" {
+                    tracing::debug!(
+                        context_id = %self.id,
+                        tool_name = %tool_name,
+                        "process_auto_tool_step: setting display_preference to Hidden"
+                    );
+                    DisplayPreference::Hidden
+                } else {
+                    tracing::debug!(
+                        context_id = %self.id,
+                        tool_name = %tool_name,
+                        "process_auto_tool_step: using default display_preference"
+                    );
+                    DisplayPreference::Default
+                };
 
                 let message_text = format_tool_output(&result);
                 let final_message = InternalMessage {
@@ -818,6 +828,7 @@ impl ChatContext {
                     tool_result: Some(ToolCallResult {
                         request_id: tool_name.clone(),
                         result,
+                        display_preference,
                     }),
                     message_type: MessageType::ToolResult,
                     ..Default::default()
@@ -897,6 +908,13 @@ impl ChatContext {
                     "tool": tool_name,
                 });
 
+                // Determine display preference even for errors (read_file and list_directory should be Hidden)
+                let display_preference = if tool_name == "read_file" || tool_name == "list_directory" {
+                    DisplayPreference::Hidden
+                } else {
+                    DisplayPreference::Default
+                };
+
                 let error_text = format_tool_output(&error_payload);
                 let final_message = InternalMessage {
                     role: Role::Tool,
@@ -904,6 +922,7 @@ impl ChatContext {
                     tool_result: Some(ToolCallResult {
                         request_id: tool_name.clone(),
                         result: error_payload.clone(),
+                        display_preference,
                     }),
                     message_type: MessageType::ToolResult,
                     ..Default::default()

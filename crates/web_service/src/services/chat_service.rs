@@ -9,6 +9,7 @@ use bytes::Bytes;
 use context_manager::{
     ChatContext, ChatEvent, ContextState, ContextUpdate, IncomingMessage, IncomingTextMessage,
     MessageMetadata, MessageTextSnapshot, MessageType, Role, ToolCallRequest, ToolCallResult,
+    structs::tool::DisplayPreference,
 };
 use copilot_client::CopilotClientTrait;
 use futures_util::StreamExt;
@@ -424,6 +425,7 @@ impl<T: StorageProvider + 'static> ChatService<T> {
                 Some(ToolCallResult {
                     request_id: tool_name.to_string(),
                     result: result.clone(),
+                    display_preference: DisplayPreference::Default,
                 }),
             );
 
@@ -1604,10 +1606,7 @@ mod tests {
             .tool_result
             .as_ref()
             .expect("tool result present");
-        assert_eq!(
-            tool_result.result.get("display_preference"),
-            Some(&json!("Hidden"))
-        );
+        assert_eq!(tool_result.display_preference, DisplayPreference::Hidden);
 
         drop(context_guard);
     }
@@ -1668,10 +1667,7 @@ mod tests {
                 .tool_result
                 .as_ref()
                 .expect("tool result present");
-            assert_eq!(
-                tool_result.result.get("display_preference"),
-                Some(&json!("Hidden"))
-            );
+            assert_eq!(tool_result.display_preference, DisplayPreference::Hidden);
         }
 
         drop(context_guard);
@@ -1730,10 +1726,7 @@ mod tests {
             .tool_result
             .as_ref()
             .expect("tool result present");
-        assert_eq!(
-            tool_result.result.get("display_preference"),
-            Some(&json!("Hidden"))
-        );
+        assert_eq!(tool_result.display_preference, DisplayPreference::Hidden);
 
         drop(context_guard);
     }
@@ -1795,10 +1788,7 @@ mod tests {
                 .tool_result
                 .as_ref()
                 .expect("tool result present");
-            assert_eq!(
-                tool_result.result.get("display_preference"),
-                Some(&json!("Hidden"))
-            );
+            assert_eq!(tool_result.display_preference, DisplayPreference::Hidden);
         }
 
         drop(context_guard);

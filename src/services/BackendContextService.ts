@@ -53,6 +53,7 @@ export interface MessageDTO {
   tool_result?: {
     request_id: string;
     result: any;
+    display_preference?: string; // Display preference for tool results (Hidden, Collapsible, Default)
   };
 }
 

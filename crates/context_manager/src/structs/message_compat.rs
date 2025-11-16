@@ -210,6 +210,7 @@ impl FromRichMessage for InternalMessage {
                 tool_result: Some(ToolCallResult {
                     request_id: tool_res.request_id.clone(),
                     result: tool_res.result.clone(),
+                    display_preference: DisplayPreference::Default,
                 }),
                 metadata: None,
                 message_type: MessageType::ToolResult,
@@ -263,6 +264,7 @@ impl FromRichMessage for InternalMessage {
                     tool_result: Some(ToolCallResult {
                         request_id: mcp_res.request_id.clone(),
                         result: wrapped_result,
+                        display_preference: DisplayPreference::Default,
                     }),
                     metadata: None,
                     message_type: MessageType::ToolResult,

@@ -89,6 +89,10 @@ pub struct ToolCallRequestDTO {
 pub struct ToolCallResultDTO {
     pub request_id: String,
     pub result: serde_json::Value,
+
+    /// How the tool result should be displayed in the UI
+    #[serde(default)]
+    pub display_preference: Option<String>, // Option to maintain backward compatibility
 }
 
 /// Adapter functions to convert Context Manager types to DTOs
@@ -225,6 +229,7 @@ impl From<context_manager::structs::tool::ToolCallResult> for ToolCallResultDTO 
         ToolCallResultDTO {
             request_id: result.request_id,
             result: result.result,
+            display_preference: Some(format!("{:?}", result.display_preference)),
         }
     }
 }
