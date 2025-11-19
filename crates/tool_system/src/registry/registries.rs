@@ -139,6 +139,9 @@ impl ToolRegistry {
     /// Returns only tools whose required permissions are a subset of the allowed permissions.
     /// Also filters out tools marked with `hide_in_selector: true`.
     ///
+    /// **Note**: This method is intended for UI tool selectors. For AI tool access,
+    /// use `filter_tools_for_ai` instead, which doesn't filter out hidden tools.
+    ///
     /// # Arguments
     ///
     /// * `allowed_permissions` - The list of permissions available to the user/agent
@@ -161,6 +164,34 @@ impl ToolRegistry {
                 // Also exclude tools that are marked as hidden
                 let not_hidden = !def.hide_in_selector;
                 has_permissions && not_hidden
+            })
+            .collect()
+    }
+
+    /// Filters tools for AI access based on allowed permissions
+    ///
+    /// Returns only tools whose required permissions are a subset of the allowed permissions.
+    /// **Unlike `filter_tools_by_permissions`, this does NOT filter out hidden tools**,
+    /// since `hide_in_selector` is a UI-only flag and shouldn't restrict AI tool access.
+    ///
+    /// # Arguments
+    ///
+    /// * `allowed_permissions` - The list of permissions available to the agent
+    ///
+    /// # Returns
+    ///
+    /// A vector of tool definitions for tools that the AI can access
+    pub fn filter_tools_for_ai(
+        &self,
+        allowed_permissions: &[ToolPermission],
+    ) -> Vec<ToolDefinition> {
+        self.list_tool_definitions()
+            .into_iter()
+            .filter(|def| {
+                // Tool is allowed if all its required permissions are in the allowed set
+                def.required_permissions
+                    .iter()
+                    .all(|perm| allowed_permissions.contains(perm))
             })
             .collect()
     }

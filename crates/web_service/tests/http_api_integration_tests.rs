@@ -140,6 +140,7 @@ async fn setup_test_app() -> impl Service<Request, Response = ServiceResponse, E
     let template_variable_service = Arc::new(TemplateVariableService::new(PathBuf::from(
         "test_template_variables",
     )));
+    let tool_registry = Arc::new(Mutex::new(create_default_tool_registry()));
     let session_manager = Arc::new(ChatSessionManager::new(
         Arc::new(
             web_service::storage::message_pool_provider::MessagePoolStorageProvider::new(
@@ -147,8 +148,8 @@ async fn setup_test_app() -> impl Service<Request, Response = ServiceResponse, E
             ),
         ),
         10,
+        tool_registry.clone(),
     ));
-    let tool_registry = Arc::new(Mutex::new(create_default_tool_registry()));
     let tool_executor = Arc::new(ToolExecutor::new(tool_registry));
     let approval_manager = Arc::new(ApprovalManager::new());
     let user_preference_service = Arc::new(UserPreferenceService::new(PathBuf::from(
@@ -167,6 +168,7 @@ async fn setup_test_app() -> impl Service<Request, Response = ServiceResponse, E
         user_preference_service,
         workflow_service,
         event_broadcaster,
+        app_data_dir: temp_dir.path().to_path_buf(),
     });
 
     test::init_service(App::new().app_data(app_state.clone()).configure(app_config)).await

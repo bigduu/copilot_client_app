@@ -12,6 +12,7 @@ import {
   PictureOutlined,
   CloseOutlined,
   StopOutlined,
+  FileTextOutlined,
 } from "@ant-design/icons";
 
 const { Text } = Typography;
@@ -70,6 +71,7 @@ interface MessageInputProps {
   onAttachmentsAdded?: (files: ProcessedFile[]) => void;
   onWorkflowCommandChange?: (info: WorkflowCommandInfo) => void;
   onFileReferenceChange?: (info: FileReferenceInfo) => void;
+  onFileReferenceButtonClick?: () => void;
   maxCharCount?: number;
 }
 
@@ -88,6 +90,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
   onAttachmentsAdded,
   onWorkflowCommandChange,
   onFileReferenceChange,
+  onFileReferenceButtonClick,
   maxCharCount = 8000,
 }) => {
   const {
@@ -459,6 +462,25 @@ export const MessageInput: React.FC<MessageInputProps> = ({
                   title="Add images"
                 />
               </>
+            )}
+
+            {/* File Reference Button */}
+            {onFileReferenceButtonClick && (
+              <Button
+                type="text"
+                icon={<FileTextOutlined />}
+                onClick={onFileReferenceButtonClick}
+                disabled={disabled || isStreaming}
+                size="small"
+                style={{
+                  minWidth: "auto",
+                  padding: "4px",
+                  height: 32,
+                  width: 32,
+                  color: token.colorTextSecondary,
+                }}
+                title="Reference workspace files (@)"
+              />
             )}
           </div>
 

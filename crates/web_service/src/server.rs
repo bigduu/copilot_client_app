@@ -10,7 +10,7 @@ use tokio::sync::oneshot;
 use crate::controllers::{
     chat_controller, context_controller, openai_controller, session_controller, system_controller,
     system_prompt_controller, template_variable_controller, user_preference_controller,
-    workflow_controller,
+    workflow_controller, workspace_controller,
 };
 use crate::services::{
     approval_manager::ApprovalManager, event_broadcaster::EventBroadcaster,
@@ -38,6 +38,7 @@ pub struct AppState {
     pub user_preference_service: Arc<UserPreferenceService>,
     pub workflow_service: Arc<WorkflowService>,
     pub event_broadcaster: Arc<EventBroadcaster>,
+    pub app_data_dir: PathBuf,
 }
 
 const DEFAULT_WORKER_COUNT: usize = 10;
@@ -57,7 +58,8 @@ pub fn app_config(cfg: &mut web::ServiceConfig) {
             .configure(system_prompt_controller::config)
             .configure(template_variable_controller::config)
             .configure(workflow_controller::config)
-            .configure(user_preference_controller::config),
+            .configure(user_preference_controller::config)
+            .configure(workspace_controller::config),
     );
 }
 
@@ -76,7 +78,11 @@ pub async fn run(app_data_dir: PathBuf, port: u16) -> Result<(), String> {
 
     // Use MessagePoolStorageProvider for separated storage (context metadata + individual message files)
     let storage_provider = Arc::new(MessagePoolStorageProvider::new(app_data_dir.join("data")));
-    let session_manager = Arc::new(ChatSessionManager::new(storage_provider, 100)); // Cache up to 100 sessions
+    let session_manager = Arc::new(ChatSessionManager::new(
+        storage_provider,
+        100,
+        tool_registry.clone(),
+    )); // Cache up to 100 sessions
 
     let system_prompt_service = Arc::new(SystemPromptService::new(app_data_dir.clone()));
     // Load existing system prompts from storage
@@ -123,6 +129,7 @@ pub async fn run(app_data_dir: PathBuf, port: u16) -> Result<(), String> {
         user_preference_service: user_preference_service.clone(),
         workflow_service: workflow_service.clone(),
         event_broadcaster,
+        app_data_dir: app_data_dir.clone(),
     });
 
     let server = HttpServer::new(move || {
@@ -189,7 +196,11 @@ impl WebService {
         let storage_provider = Arc::new(MessagePoolStorageProvider::new(
             self.app_data_dir.join("data"),
         ));
-        let session_manager = Arc::new(ChatSessionManager::new(storage_provider, 100));
+        let session_manager = Arc::new(ChatSessionManager::new(
+            storage_provider,
+            100,
+            tool_registry.clone(),
+        ));
 
         let system_prompt_service = Arc::new(SystemPromptService::new(self.app_data_dir.clone()));
         // Load existing system prompts from storage
@@ -233,6 +244,7 @@ impl WebService {
             user_preference_service: user_preference_service.clone(),
             workflow_service: workflow_service.clone(),
             event_broadcaster,
+            app_data_dir: self.app_data_dir.clone(),
         });
 
         let server = HttpServer::new(move || {

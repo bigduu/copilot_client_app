@@ -27,6 +27,8 @@ async-stream = "0.3"
 actix-web-lab = "0.20"
 futures-util = "0.3"
 bytes = "1"
+dirs = "5.0"
+rfd = "0.15.4"
 
 async-trait = "0.1.1"
 

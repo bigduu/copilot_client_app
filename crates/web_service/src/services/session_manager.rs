@@ -1,10 +1,12 @@
 use crate::error::AppError;
 use crate::storage::provider::StorageProvider;
 use context_manager::structs::context::ChatContext;
+use context_manager::structs::system_prompt_snapshot::SystemPromptSnapshot;
 use lru::LruCache;
 use std::num::NonZeroUsize;
-use std::sync::Arc;
-use tokio::sync::{Mutex, RwLock};
+use std::sync::{Arc, Mutex as StdMutex};
+use tokio::sync::{Mutex as TokioMutex, RwLock};
+use tool_system::registry::ToolRegistry;
 use tracing;
 use uuid::Uuid;
 
@@ -17,15 +19,128 @@ use uuid::Uuid;
 pub struct ChatSessionManager<T: StorageProvider> {
     storage: Arc<T>,
     /// LRU cache of active contexts. Each context is protected by RwLock for concurrent reads.
-    cache: Mutex<LruCache<Uuid, Arc<RwLock<ChatContext>>>>,
+    cache: TokioMutex<LruCache<Uuid, Arc<RwLock<ChatContext>>>>,
+    /// Tool registry for injecting available tools into contexts
+    tool_registry: Arc<StdMutex<ToolRegistry>>,
 }
 
 impl<T: StorageProvider> ChatSessionManager<T> {
-    pub fn new(storage: Arc<T>, cache_size: usize) -> Self {
+    pub fn new(
+        storage: Arc<T>,
+        cache_size: usize,
+        tool_registry: Arc<StdMutex<ToolRegistry>>,
+    ) -> Self {
         Self {
             storage,
-            cache: Mutex::new(LruCache::new(NonZeroUsize::new(cache_size).unwrap())),
+            cache: TokioMutex::new(LruCache::new(NonZeroUsize::new(cache_size).unwrap())),
+            tool_registry,
         }
+    }
+
+    /// Convert tool_system ToolDefinition to context_manager ToolDefinition
+    fn convert_tool_definitions(
+        &self,
+        tool_defs: Vec<tool_system::types::ToolDefinition>,
+    ) -> Vec<context_manager::pipeline::context::ToolDefinition> {
+        tool_defs
+            .into_iter()
+            .map(|def| {
+                // Convert parameters Vec<Parameter> to JSON Schema
+                let parameters_schema = if def.parameters.is_empty() {
+                    serde_json::json!({
+                        "type": "object",
+                        "properties": {},
+                        "required": []
+                    })
+                } else {
+                    let mut properties = serde_json::Map::new();
+                    let mut required = Vec::new();
+
+                    for param in &def.parameters {
+                        let mut param_schema = serde_json::Map::new();
+                        // Default to string type since Parameter doesn't have type info
+                        param_schema.insert("type".to_string(), serde_json::json!("string"));
+                        param_schema.insert(
+                            "description".to_string(),
+                            serde_json::json!(param.description),
+                        );
+
+                        properties
+                            .insert(param.name.clone(), serde_json::Value::Object(param_schema));
+
+                        if param.required {
+                            required.push(param.name.clone());
+                        }
+                    }
+
+                    serde_json::json!({
+                        "type": "object",
+                        "properties": properties,
+                        "required": required
+                    })
+                };
+
+                // Convert ToolCategory enum to string
+                let category_str = format!("{:?}", def.category);
+
+                context_manager::pipeline::context::ToolDefinition {
+                    name: def.name,
+                    description: def.description,
+                    category: category_str,
+                    parameters_schema,
+                    requires_approval: def.requires_approval,
+                }
+            })
+            .collect()
+    }
+
+    /// Convert context_manager Permission to tool_system ToolPermission
+    fn convert_permissions(
+        permissions: Vec<context_manager::structs::context_agent::Permission>,
+    ) -> Vec<tool_system::types::ToolPermission> {
+        permissions
+            .into_iter()
+            .map(|perm| match perm {
+                context_manager::structs::context_agent::Permission::ReadFiles => {
+                    tool_system::types::ToolPermission::ReadFiles
+                }
+                context_manager::structs::context_agent::Permission::WriteFiles => {
+                    tool_system::types::ToolPermission::WriteFiles
+                }
+                context_manager::structs::context_agent::Permission::CreateFiles => {
+                    tool_system::types::ToolPermission::CreateFiles
+                }
+                context_manager::structs::context_agent::Permission::DeleteFiles => {
+                    tool_system::types::ToolPermission::DeleteFiles
+                }
+                context_manager::structs::context_agent::Permission::ExecuteCommands => {
+                    tool_system::types::ToolPermission::ExecuteCommands
+                }
+            })
+            .collect()
+    }
+
+    /// Inject available tools into a context based on agent role and permissions
+    async fn inject_tools(&self, ctx: &mut ChatContext) {
+        let tool_registry = self.tool_registry.lock().unwrap();
+
+        // Get agent permissions based on role
+        let permissions = ctx.config.agent_role.permissions();
+        let tool_permissions = Self::convert_permissions(permissions);
+
+        // Filter tools by permissions (includes hidden tools for AI use)
+        let tool_defs = tool_registry.filter_tools_for_ai(&tool_permissions);
+
+        // Convert and inject tools
+        let converted_tools = self.convert_tool_definitions(tool_defs);
+        ctx.available_tools = converted_tools;
+
+        tracing::debug!(
+            context_id = %ctx.id,
+            tool_count = ctx.available_tools.len(),
+            agent_role = ?ctx.config.agent_role,
+            "SessionManager: Injected tools into context"
+        );
     }
 
     pub async fn create_session(
@@ -46,6 +161,10 @@ impl<T: StorageProvider> ChatSessionManager<T> {
         if let Some(tid) = trace_id.clone() {
             ctx.set_trace_id(tid);
         }
+
+        // Inject available tools based on agent role
+        self.inject_tools(&mut ctx).await;
+
         let context = Arc::new(RwLock::new(ctx));
 
         {
@@ -110,9 +229,15 @@ impl<T: StorageProvider> ChatSessionManager<T> {
         }; // Cache lock released here
 
         if let Some(context) = cached_context {
-            // Attach trace_id to cached context (requires write lock)
-            if let Some(tid) = trace_id {
-                context.write().await.set_trace_id(tid);
+            // Re-inject tools for cached context (tools are not persisted)
+            {
+                let mut ctx = context.write().await;
+                self.inject_tools(&mut ctx).await;
+
+                // Attach trace_id to cached context
+                if let Some(tid) = trace_id {
+                    ctx.set_trace_id(tid);
+                }
             }
             return Ok(Some(context));
         }
@@ -136,6 +261,10 @@ impl<T: StorageProvider> ChatSessionManager<T> {
             if let Some(tid) = trace_id.clone() {
                 context.set_trace_id(tid);
             }
+
+            // Inject available tools (tools are not persisted, need to be injected at runtime)
+            self.inject_tools(&mut context).await;
+
             let context = Arc::new(RwLock::new(context));
 
             // Single cache lock operation for inserting
@@ -231,6 +360,17 @@ impl<T: StorageProvider> ChatSessionManager<T> {
             "SessionManager: Context deleted, removed from cache"
         );
 
+        Ok(())
+    }
+
+    pub async fn save_system_prompt_snapshot(
+        &self,
+        context_id: Uuid,
+        snapshot: &SystemPromptSnapshot,
+    ) -> Result<(), AppError> {
+        self.storage
+            .save_system_prompt_snapshot(context_id, snapshot)
+            .await?;
         Ok(())
     }
 }

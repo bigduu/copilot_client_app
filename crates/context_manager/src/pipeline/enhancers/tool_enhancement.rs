@@ -120,15 +120,12 @@ impl ToolEnhancementEnhancer {
                         let required = obj
                             .get("required")
                             .and_then(|r| r.as_array())
-                            .map(|arr| {
-                                arr.iter()
-                                    .any(|v| v.as_str() == Some(param_name.as_str()))
-                            })
+                            .map(|arr| arr.iter().any(|v| v.as_str() == Some(param_name.as_str())))
                             .unwrap_or(false);
 
                         let required_str = if required { " (required)" } else { "" };
                         prompt.push_str(&format!(
-                            "- `{}` ({}){}", 
+                            "- `{}` ({}){}",
                             param_name, param_type, required_str
                         ));
 
@@ -148,73 +145,29 @@ impl ToolEnhancementEnhancer {
         }
     }
 
-    /// Get available tools (mock implementation - should integrate with tool_system)
-    fn get_available_tools(&self, _ctx: &ProcessingContext) -> Vec<ToolDefinition> {
-        // TODO: Integrate with actual tool registry
-        // For now, return mock tools for demonstration
+    /// Get available tools from ChatContext
+    ///
+    /// This method reads the tool definitions that were injected into ChatContext
+    /// at runtime by the SessionManager. The tools are filtered based on the agent's
+    /// role and permissions.
+    fn get_available_tools(&self, ctx: &ProcessingContext) -> Vec<ToolDefinition> {
+        // Read tools from ChatContext (populated by SessionManager from ToolRegistry)
+        let tools = &ctx.chat_context.available_tools;
 
-        vec![
-            ToolDefinition {
-                name: "read_file".to_string(),
-                description: "Read content from a file in the workspace".to_string(),
-                category: "File System".to_string(),
-                parameters_schema: serde_json::json!({
-                    "type": "object",
-                    "properties": {
-                        "path": {
-                            "type": "string",
-                            "description": "Path to the file relative to workspace root"
-                        },
-                        "line_range": {
-                            "type": "string",
-                            "description": "Optional line range (e.g., '10-20')"
-                        }
-                    },
-                    "required": ["path"]
-                }),
-                requires_approval: false,
-            },
-            ToolDefinition {
-                name: "write_file".to_string(),
-                description: "Write content to a file in the workspace".to_string(),
-                category: "File System".to_string(),
-                parameters_schema: serde_json::json!({
-                    "type": "object",
-                    "properties": {
-                        "path": {
-                            "type": "string",
-                            "description": "Path to the file"
-                        },
-                        "content": {
-                            "type": "string",
-                            "description": "Content to write"
-                        }
-                    },
-                    "required": ["path", "content"]
-                }),
-                requires_approval: true,
-            },
-            ToolDefinition {
-                name: "codebase_search".to_string(),
-                description: "Search for code in the workspace using semantic search".to_string(),
-                category: "Code Analysis".to_string(),
-                parameters_schema: serde_json::json!({
-                    "type": "object",
-                    "properties": {
-                        "query": {
-                            "type": "string",
-                            "description": "Search query"
-                        },
-                        "file_pattern": {
-                            "type": "string",
-                            "description": "Optional file pattern to filter results"
-                        }
-                    },
-                    "required": ["query"]
-                }),
-                requires_approval: false,
-            },
-        ]
+        if tools.is_empty() {
+            log::warn!(
+                "[ToolEnhancementEnhancer] No tools available in ChatContext. \
+                This usually means SessionManager did not populate available_tools. \
+                Tools will not be injected into the system prompt."
+            );
+        } else {
+            log::debug!(
+                "[ToolEnhancementEnhancer] Found {} tools in ChatContext",
+                tools.len()
+            );
+        }
+
+        tools.clone()
     }
 }
 
@@ -239,8 +192,7 @@ impl PromptEnhancer for ToolEnhancementEnhancer {
         }
 
         // Limit tools if configured
-        let tools_to_include = if self.config.max_tools > 0 && tools.len() > self.config.max_tools
-        {
+        let tools_to_include = if self.config.max_tools > 0 && tools.len() > self.config.max_tools {
             &tools[..self.config.max_tools]
         } else {
             &tools
@@ -265,4 +217,3 @@ impl PromptEnhancer for ToolEnhancementEnhancer {
         }
     }
 }
-

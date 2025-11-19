@@ -577,6 +577,130 @@ export class BackendContextService {
 
     console.log(`[SSE] Message sent successfully`);
   }
+
+  // Enhanced workspace management methods
+
+  /**
+   * Set workspace path with validation and recent workspace tracking
+   */
+  async setWorkspacePathEnhanced(
+    contextId: string,
+    workspacePath: string
+  ): Promise<{ workspace_path?: string; validation_result?: any }> {
+    try {
+      // First validate the workspace path
+      const validationResponse = await this.request("/workspace/validate", {
+        method: "POST",
+        body: JSON.stringify({ path: workspacePath }),
+      });
+
+      const validationResult = validationResponse as any;
+
+      // Only set the workspace path if validation passes or user chooses to proceed
+      const setResponse = await this.setWorkspacePath(contextId, workspacePath);
+
+      // Add to recent workspaces if valid
+      if (validationResult?.is_valid) {
+        try {
+          await this.request("/workspace/recent", {
+            method: "POST",
+            body: JSON.stringify({
+              path: workspacePath,
+              metadata: {
+                workspace_name: validationResult.workspace_name,
+              }
+            }),
+          });
+        } catch (error) {
+          console.warn("Failed to add workspace to recent list:", error);
+          // Don't fail the whole operation if recent workspace tracking fails
+        }
+      }
+
+      return {
+        workspace_path: setResponse.workspace_path,
+        validation_result: validationResult,
+      };
+    } catch (error) {
+      console.error(`Failed to set enhanced workspace path for context ${contextId}:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get recent workspaces with enhanced context information
+   */
+  async getRecentWorkspaces(): Promise<any[]> {
+    try {
+      const response = await this.request("/workspace/recent") as any[];
+      return response || [];
+    } catch (error) {
+      console.error("Failed to get recent workspaces:", error);
+      return [];
+    }
+  }
+
+  /**
+   * Get workspace suggestions for context
+   */
+  async getWorkspaceSuggestions(): Promise<any[]> {
+    try {
+      const response = await this.request("/workspace/suggestions") as any;
+      return response?.suggestions || [];
+    } catch (error) {
+      console.error("Failed to get workspace suggestions:", error);
+      return [];
+    }
+  }
+
+  /**
+   * Validate workspace path with detailed information
+   */
+  async validateWorkspacePath(path: string): Promise<any> {
+    try {
+      return await this.request("/workspace/validate", {
+        method: "POST",
+        body: JSON.stringify({ path }),
+      });
+    } catch (error) {
+      console.error(`Failed to validate workspace path '${path}':`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get workspace health status
+   */
+  async getWorkspaceHealthStatus(): Promise<{
+    available: boolean;
+    error?: string;
+  }> {
+    try {
+      await this.request("/workspace/recent");
+      return { available: true };
+    } catch (error) {
+      return {
+        available: false,
+        error: error instanceof Error ? error.message : "Unknown error",
+      };
+    }
+  }
+
+  /**
+   * Sync workspace settings across contexts
+   */
+  async syncWorkspaceSettings(workspacePath: string): Promise<void> {
+    try {
+      // This could be expanded to sync other workspace-related settings
+      await this.request("/workspace/sync", {
+        method: "POST",
+        body: JSON.stringify({ path: workspacePath }),
+      });
+    } catch (error) {
+      console.error("Failed to sync workspace settings:", error);
+      // Don't throw - this is a non-critical operation
+    }
+  }
 }
 
 export const backendContextService = new BackendContextService();

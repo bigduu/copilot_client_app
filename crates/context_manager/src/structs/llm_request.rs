@@ -26,6 +26,9 @@ pub struct PreparedLlmRequest {
     ///
     /// If present, this should be used instead of manually enhancing the prompt.
     pub enhanced_system_prompt: Option<String>,
+
+    /// Available tools for this context (populated at runtime)
+    pub available_tools: Vec<crate::pipeline::context::ToolDefinition>,
 }
 
 impl PreparedLlmRequest {
@@ -49,6 +52,7 @@ impl PreparedLlmRequest {
             messages,
             total_messages: snapshot.total_messages,
             enhanced_system_prompt: None, // Will be set by prepare_llm_request if Pipeline is used
+            available_tools: Vec::new(),  // Will be populated from ChatContext
         }
     }
 }
@@ -83,6 +87,9 @@ impl ChatContext {
         if let Some(enhanced_prompt) = self.build_enhanced_system_prompt().await {
             prepared.enhanced_system_prompt = Some(enhanced_prompt);
         }
+
+        // Copy available tools from ChatContext
+        prepared.available_tools = self.available_tools.clone();
 
         prepared
     }

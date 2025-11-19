@@ -1,0 +1,15 @@
+.folder-browser {
+  /* Main container styling */
+}
+
+.folder-browser .ant-list-item:hover {
+  background: #f0f0f0;
+}
+
+.folder-browser .ant-breadcrumb span {
+  transition: color 0.2s;
+}
+
+.folder-browser .ant-breadcrumb span:hover {
+  color: #1890ff;
+}

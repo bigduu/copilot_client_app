@@ -2,6 +2,7 @@ use crate::error::Result;
 use async_trait::async_trait;
 use context_manager::structs::context::ChatContext;
 use context_manager::structs::message::MessageNode;
+use context_manager::structs::system_prompt_snapshot::SystemPromptSnapshot;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use tokio::fs;
@@ -311,6 +312,61 @@ impl StorageProvider for MessagePoolStorageProvider {
 
         Ok(())
     }
+
+    async fn save_system_prompt_snapshot(
+        &self,
+        context_id: Uuid,
+        snapshot: &SystemPromptSnapshot,
+    ) -> Result<()> {
+        let context_dir = self.get_context_dir(context_id);
+        let snapshot_path = context_dir.join("system_prompt.json");
+
+        // Ensure context directory exists
+        if !context_dir.exists() {
+            fs::create_dir_all(&context_dir).await?;
+        }
+
+        // Serialize and write snapshot
+        let json = serde_json::to_string_pretty(snapshot)?;
+        fs::write(&snapshot_path, json).await?;
+
+        tracing::debug!(
+            context_id = %context_id,
+            version = snapshot.version,
+            tool_count = snapshot.stats.tool_count,
+            prompt_length = snapshot.stats.total_length,
+            "MessagePoolStorage: Saved system prompt snapshot"
+        );
+
+        Ok(())
+    }
+
+    async fn load_system_prompt_snapshot(
+        &self,
+        context_id: Uuid,
+    ) -> Result<Option<SystemPromptSnapshot>> {
+        let context_dir = self.get_context_dir(context_id);
+        let snapshot_path = context_dir.join("system_prompt.json");
+
+        if !snapshot_path.exists() {
+            tracing::debug!(
+                context_id = %context_id,
+                "MessagePoolStorage: System prompt snapshot does not exist"
+            );
+            return Ok(None);
+        }
+
+        let json = fs::read_to_string(&snapshot_path).await?;
+        let snapshot: SystemPromptSnapshot = serde_json::from_str(&json)?;
+
+        tracing::debug!(
+            context_id = %context_id,
+            version = snapshot.version,
+            "MessagePoolStorage: Loaded system prompt snapshot"
+        );
+
+        Ok(Some(snapshot))
+    }
 }
 
 #[cfg(test)]
@@ -394,5 +450,127 @@ mod tests {
         // Delete and verify
         provider.delete_context(context.id).await.unwrap();
         assert!(!provider.get_context_dir(context.id).exists());
+    }
+
+    #[tokio::test]
+    async fn test_save_and_load_system_prompt_snapshot() {
+        use context_manager::structs::context_agent::AgentRole;
+        use context_manager::structs::system_prompt_snapshot::{
+            PromptSource, SystemPromptSnapshot,
+        };
+
+        let temp_dir = TempDir::new().unwrap();
+        let provider = MessagePoolStorageProvider::new(temp_dir.path());
+
+        let context_id = Uuid::new_v4();
+        let snapshot = SystemPromptSnapshot::new(
+            1,
+            context_id,
+            AgentRole::Actor,
+            PromptSource::Default,
+            "You are a helpful AI assistant with access to tools.".to_string(),
+            vec![
+                "read_file".to_string(),
+                "write_file".to_string(),
+                "list_directory".to_string(),
+            ],
+        );
+
+        // Save snapshot
+        provider
+            .save_system_prompt_snapshot(context_id, &snapshot)
+            .await
+            .unwrap();
+
+        // Verify file exists
+        let snapshot_path = provider
+            .get_context_dir(context_id)
+            .join("system_prompt.json");
+        assert!(snapshot_path.exists());
+
+        // Load snapshot
+        let loaded = provider
+            .load_system_prompt_snapshot(context_id)
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(loaded.version, 1);
+        assert_eq!(loaded.context_id, context_id);
+        assert_eq!(loaded.stats.tool_count, 3);
+        assert_eq!(loaded.available_tools.len(), 3);
+        assert!(loaded.enhanced_prompt.contains("helpful AI assistant"));
+    }
+
+    #[tokio::test]
+    async fn test_load_nonexistent_snapshot() {
+        let temp_dir = TempDir::new().unwrap();
+        let provider = MessagePoolStorageProvider::new(temp_dir.path());
+
+        let context_id = Uuid::new_v4();
+        let result = provider
+            .load_system_prompt_snapshot(context_id)
+            .await
+            .unwrap();
+        assert!(result.is_none());
+    }
+
+    #[tokio::test]
+    async fn test_snapshot_with_different_sources() {
+        use context_manager::structs::context_agent::AgentRole;
+        use context_manager::structs::system_prompt_snapshot::{
+            PromptSource, SystemPromptSnapshot,
+        };
+
+        let temp_dir = TempDir::new().unwrap();
+        let provider = MessagePoolStorageProvider::new(temp_dir.path());
+
+        // Test with Service source
+        let context_id1 = Uuid::new_v4();
+        let snapshot1 = SystemPromptSnapshot::new(
+            1,
+            context_id1,
+            AgentRole::Planner,
+            PromptSource::Service {
+                prompt_id: "default".to_string(),
+            },
+            "Test prompt from service".to_string(),
+            vec!["read_file".to_string()],
+        );
+        provider
+            .save_system_prompt_snapshot(context_id1, &snapshot1)
+            .await
+            .unwrap();
+
+        // Test with Branch source
+        let context_id2 = Uuid::new_v4();
+        let snapshot2 = SystemPromptSnapshot::new(
+            2,
+            context_id2,
+            AgentRole::Actor,
+            PromptSource::Branch {
+                branch_name: "feature-branch".to_string(),
+            },
+            "Test prompt from branch".to_string(),
+            vec!["write_file".to_string()],
+        );
+        provider
+            .save_system_prompt_snapshot(context_id2, &snapshot2)
+            .await
+            .unwrap();
+
+        // Verify both can be loaded
+        let loaded1 = provider
+            .load_system_prompt_snapshot(context_id1)
+            .await
+            .unwrap()
+            .unwrap();
+        let loaded2 = provider
+            .load_system_prompt_snapshot(context_id2)
+            .await
+            .unwrap()
+            .unwrap();
+
+        assert_eq!(loaded1.version, 1);
+        assert_eq!(loaded2.version, 2);
     }
 }

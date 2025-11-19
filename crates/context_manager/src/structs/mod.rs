@@ -12,4 +12,5 @@ pub mod message_helpers; // New: Helper functions for message construction
 pub mod message_types; // New: Rich internal message types
 pub mod metadata;
 pub mod state;
+pub mod system_prompt_snapshot; // New: System prompt snapshot for debugging
 pub mod tool;

@@ -6,7 +6,8 @@ use context_manager::{
 use tokio::sync::RwLock;
 
 use copilot_client::api::models::{
-    ChatCompletionRequest, ChatMessage, Content, FunctionCall, Role as ClientRole,
+    ChatCompletionRequest, ChatMessage, Content, FunctionCall, FunctionDefinition,
+    Role as ClientRole, Tool,
 };
 
 use crate::error::AppError;
@@ -103,11 +104,35 @@ impl LlmRequestBuilder {
             log::info!("System prompt injected into messages");
         }
 
+        // Convert available tools to API format
+        let tools: Option<Vec<Tool>> = if prepared.available_tools.is_empty() {
+            None
+        } else {
+            Some(
+                prepared
+                    .available_tools
+                    .iter()
+                    .map(|tool_def| Tool {
+                        tool_type: "function".to_string(),
+                        function: FunctionDefinition {
+                            name: tool_def.name.clone(),
+                            description: Some(tool_def.description.clone()),
+                            parameters: tool_def.parameters_schema.clone(),
+                        },
+                    })
+                    .collect(),
+            )
+        };
+
+        if let Some(ref tools_list) = tools {
+            log::info!("Sending {} tools to LLM", tools_list.len());
+        }
+
         let request = ChatCompletionRequest {
             model: prepared.model_id.clone(),
             messages: chat_messages,
             stream: None,
-            tools: None,
+            tools,
             tool_choice: None,
             ..Default::default()
         };

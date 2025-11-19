@@ -1,6 +1,7 @@
 use crate::error::Result;
 use async_trait::async_trait;
 use context_manager::structs::context::ChatContext;
+use context_manager::structs::system_prompt_snapshot::SystemPromptSnapshot;
 use std::path::{Path, PathBuf};
 use tokio::fs;
 use tracing;
@@ -183,5 +184,23 @@ impl StorageProvider for FileStorageProvider {
             );
         }
         Ok(())
+    }
+
+    async fn save_system_prompt_snapshot(
+        &self,
+        _context_id: Uuid,
+        _snapshot: &SystemPromptSnapshot,
+    ) -> Result<()> {
+        // FileStorageProvider is deprecated, stub implementation
+        tracing::warn!("save_system_prompt_snapshot called on deprecated FileStorageProvider");
+        Ok(())
+    }
+
+    async fn load_system_prompt_snapshot(
+        &self,
+        _context_id: Uuid,
+    ) -> Result<Option<SystemPromptSnapshot>> {
+        // FileStorageProvider is deprecated, stub implementation
+        Ok(None)
     }
 }

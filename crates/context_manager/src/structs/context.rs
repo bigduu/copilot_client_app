@@ -51,6 +51,12 @@ pub struct ChatContext {
     /// Runtime sequence counters for streaming / 非流式 SSE 通知。
     #[serde(skip)]
     pub stream_sequences: HashMap<Uuid, u64>,
+
+    /// Runtime-injected tool definitions available for this context.
+    /// These are filtered based on agent role and permissions.
+    /// Not serialized - populated at runtime from ToolRegistry.
+    #[serde(skip)]
+    pub available_tools: Vec<crate::pipeline::context::ToolDefinition>,
 }
 
 const fn default_auto_generate_title() -> bool {
@@ -92,6 +98,7 @@ impl ChatContext {
             trace_id: None,
             tool_execution: ToolExecutionContext::default(),
             stream_sequences: HashMap::new(),
+            available_tools: Vec::new(), // Will be populated at runtime by SessionManager
         }
     }
 }

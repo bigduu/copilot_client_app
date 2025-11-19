@@ -372,21 +372,20 @@ export const InputContainer: React.FC<InputContainerProps> = ({
 
   const handleFileReferenceSelect = useCallback(
     (file: WorkspaceFileEntry) => {
+      // 检查是否有 @ 符号，如果有则替换，如果没有则添加到末尾
       const atIndex = content.lastIndexOf("@");
-      if (atIndex < 0) return;
+      let newContent: string;
 
-      const before = content.slice(0, atIndex);
-      const after = content.slice(atIndex + 1);
-      const tokenMatch = after.match(/^[^\s]*/);
-      const remainder = tokenMatch ? after.slice(tokenMatch[0].length) : after;
-      const normalizedRemainder =
-        remainder.length === 0
-          ? " "
-          : remainder.startsWith(" ")
-            ? remainder
-            : ` ${remainder}`;
+      if (atIndex >= 0 && content.substring(atIndex).match(/^@[a-zA-Z0-9._\-\/\\]*$/)) {
+        // 如果输入框以 @token 结尾，则替换它
+        const before = content.slice(0, atIndex);
+        newContent = `${before}@${file.name} `;
+      } else {
+        // 如果没有 @token，则在末尾添加 @文件名
+        newContent = content.trim() ? `${content.trim()} @${file.name} ` : `@${file.name} `;
+      }
 
-      setContent(`${before}@${file.name}${normalizedRemainder}`);
+      setContent(newContent);
 
       // Store the file reference mapping
       setFileReferences((prev) => {
@@ -404,6 +403,34 @@ export const InputContainer: React.FC<InputContainerProps> = ({
   const handleFileSelectorCancel = useCallback(() => {
     setShowFileSelector(false);
   }, []);
+
+  const handleFileReferenceButtonClick = useCallback(() => {
+    if (!currentChatId || !currentChat) {
+      return;
+    }
+
+    const workspacePath = currentChat.config.workspacePath;
+
+    if (!workspacePath) {
+      // 如果没有设置 workspace，显示设置对话框
+      setWorkspacePathInput("");
+      setIsWorkspaceModalVisible(true);
+      setShowFileSelector(false);
+      return;
+    }
+
+    // 如果有 workspace，直接显示文件选择器
+    setFileSearchText("");
+    setShowFileSelector(true);
+
+    // 加载 workspace 文件列表（如果需要）
+    if (
+      lastWorkspacePathRef.current !== workspacePath ||
+      workspaceFiles.length === 0
+    ) {
+      fetchWorkspaceFiles(currentChatId, workspacePath);
+    }
+  }, [currentChat, currentChatId, fetchWorkspaceFiles, workspaceFiles.length]);
 
   const handleWorkspaceModalCancel = useCallback(() => {
     setIsWorkspaceModalVisible(false);
@@ -566,6 +593,7 @@ export const InputContainer: React.FC<InputContainerProps> = ({
         onAttachmentsAdded={handleAttachmentsAdded}
         onWorkflowCommandChange={handleWorkflowCommandChange}
         onFileReferenceChange={handleFileReferenceChange}
+        onFileReferenceButtonClick={handleFileReferenceButtonClick}
         maxCharCount={8000}
         interaction={{
           isStreaming,

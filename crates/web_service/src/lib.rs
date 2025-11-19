@@ -7,6 +7,7 @@ pub mod models;
 pub mod server;
 pub mod services;
 pub mod storage;
+pub mod workspace_service;
 
 use std::sync::Arc;
 use tokio::sync::Mutex;
