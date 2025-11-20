@@ -330,6 +330,25 @@ impl<T: StorageProvider> ChatSessionManager<T> {
         Ok(())
     }
 
+    /// Auto-save context only if dirty. This is a convenience method that handles
+    /// the RwLock and dirty checking, consolidating duplicate implementations.
+    ///
+    /// This method replaces all individual `auto_save_context` implementations
+    /// scattered across chat_service, agent_loop_runner, etc.
+    pub async fn auto_save_if_dirty(
+        &self,
+        context: &Arc<RwLock<ChatContext>>,
+    ) -> Result<(), AppError> {
+        let mut context_lock = context.write().await;
+
+        if !context_lock.is_dirty() {
+            return Ok(());
+        }
+
+        self.save_context(&mut context_lock).await?;
+        Ok(())
+    }
+
     pub async fn list_contexts(&self) -> Result<Vec<Uuid>, AppError> {
         tracing::debug!("SessionManager: Listing all contexts");
         let contexts = self.storage.list_contexts().await?;

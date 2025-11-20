@@ -306,7 +306,7 @@ impl<T: StorageProvider + 'static> ChatService<T> {
         // 1. Add user message
         let incoming = build_incoming_text_message(display_text, Some(display_text), metadata);
         self.apply_incoming_message(context, incoming).await?;
-        self.auto_save_context(context).await?;
+        self.session_manager.auto_save_if_dirty(context).await?;
 
         let runtime =
             ContextToolRuntime::new(self.tool_executor.clone(), self.approval_manager.clone());
@@ -351,7 +351,7 @@ impl<T: StorageProvider + 'static> ChatService<T> {
             }
         }
 
-        self.auto_save_context(context).await?;
+        self.session_manager.auto_save_if_dirty(context).await?;
 
         // ✅ Return Ok(()) to allow AI call to proceed
         Ok(())
@@ -367,7 +367,7 @@ impl<T: StorageProvider + 'static> ChatService<T> {
     ) -> Result<FinalizedMessage, AppError> {
         let incoming = build_incoming_text_message(display_text, Some(display_text), metadata);
         self.apply_incoming_message(context, incoming).await?;
-        self.auto_save_context(context).await?;
+        self.session_manager.auto_save_if_dirty(context).await?;
 
         let execution_result = self
             .workflow_service
@@ -429,7 +429,7 @@ impl<T: StorageProvider + 'static> ChatService<T> {
             (message_id, content, sequence)
         };
 
-        self.auto_save_context(context).await?;
+        self.session_manager.auto_save_if_dirty(context).await?;
 
         Ok(FinalizedMessage {
             message_id,
@@ -448,7 +448,7 @@ impl<T: StorageProvider + 'static> ChatService<T> {
     ) -> Result<FinalizedMessage, AppError> {
         let incoming = build_incoming_text_message(display_text, Some(display_text), metadata);
         self.apply_incoming_message(context, incoming).await?;
-        self.auto_save_context(context).await?;
+        self.session_manager.auto_save_if_dirty(context).await?;
 
         let tool_result_text = stringify_tool_output(&result);
 
@@ -489,7 +489,7 @@ impl<T: StorageProvider + 'static> ChatService<T> {
             (message_id, content, sequence)
         };
 
-        self.auto_save_context(context).await?;
+        self.session_manager.auto_save_if_dirty(context).await?;
 
         Ok(FinalizedMessage {
             message_id,
@@ -646,7 +646,7 @@ impl<T: StorageProvider + 'static> ChatService<T> {
                     &request.client_metadata,
                 );
                 self.apply_incoming_message(&context, incoming).await?;
-                self.auto_save_context(&context).await?;
+                self.session_manager.auto_save_if_dirty(&context).await?;
             }
         }
 
@@ -729,7 +729,7 @@ impl<T: StorageProvider + 'static> ChatService<T> {
                         );
                     }
 
-                    self.auto_save_context(&context).await?;
+                    self.session_manager.auto_save_if_dirty(&context).await?;
                     return Err(AppError::InternalError(anyhow::anyhow!(error_msg)));
                 }
 
@@ -934,7 +934,7 @@ impl<T: StorageProvider + 'static> ChatService<T> {
 
                 // Auto-save
                 log::info!("Auto-saving after processing response");
-                self.auto_save_context(&context).await?;
+                self.session_manager.auto_save_if_dirty(&context).await?;
                 log::info!("Auto-save completed");
 
                 log::info!("=== ChatService::process_message END ===");
@@ -966,7 +966,7 @@ impl<T: StorageProvider + 'static> ChatService<T> {
                     );
                 }
 
-                self.auto_save_context(&context).await?;
+                self.session_manager.auto_save_if_dirty(&context).await?;
                 Err(AppError::InternalError(anyhow::anyhow!(error_msg)))
             }
         }
@@ -1077,7 +1077,7 @@ impl<T: StorageProvider + 'static> ChatService<T> {
                 }
             }
 
-            self.auto_save_context(&context).await?;
+            self.session_manager.auto_save_if_dirty(&context).await?;
         }
 
         let sse_response =
@@ -1261,29 +1261,8 @@ impl<T: StorageProvider + 'static> ChatService<T> {
                 .unwrap_or_else(|| "Tool approvals handled automatically.".to_string())
         };
 
-        self.auto_save_context(&context).await?;
+        self.session_manager.auto_save_if_dirty(&context).await?;
         Ok(ServiceResponse::FinalMessage(final_message))
-    }
-
-    /// Auto-save helper that saves context if dirty
-    async fn auto_save_context(
-        &self,
-        context: &Arc<tokio::sync::RwLock<ChatContext>>,
-    ) -> Result<(), AppError> {
-        let mut context_lock = context.write().await;
-        let trace_id = context_lock.get_trace_id().map(|s| s.to_string());
-        let context_id = context_lock.id;
-        let is_dirty = context_lock.is_dirty();
-
-        tracing::debug!(
-            trace_id = ?trace_id,
-            context_id = %context_id,
-            is_dirty = is_dirty,
-            "ChatService: auto_save_context check"
-        );
-
-        self.session_manager.save_context(&mut context_lock).await?;
-        Ok(())
     }
 }
 
@@ -1941,7 +1920,7 @@ mod tests {
         // since they don't build LLM requests. This test verifies the storage
         // interface works correctly. For actual system prompt persistence testing,
         // we would need integration tests with a mock LLM client.
-        
+
         // Verify that the storage provider's save method can be called
         // (even though workflow messages don't trigger it)
         let snapshot_result = storage
@@ -1950,6 +1929,9 @@ mod tests {
             .expect("load should not error");
 
         // Workflow messages don't save system prompts, so this should be None
-        assert!(snapshot_result.is_none(), "Workflow messages should not save system prompt snapshots");
+        assert!(
+            snapshot_result.is_none(),
+            "Workflow messages should not save system prompt snapshots"
+        );
     }
 }

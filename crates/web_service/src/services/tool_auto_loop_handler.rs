@@ -101,13 +101,10 @@ impl<T: StorageProvider + 'static> ToolAutoLoopHandler<T> {
                 .await
                 .map_err(|err| err.to_string())?;
 
-            if ctx_lock.is_dirty() {
-                self.session_manager
-                    .save_context(&mut ctx_lock)
-                    .await
-                    .map_err(|err| format!("Failed to save context: {}", err))?;
-                ctx_lock.clear_dirty();
-            }
+            self.session_manager
+                .auto_save_if_dirty(&context)
+                .await
+                .map_err(|err| format!("Failed to auto-save context: {}", err))?;
 
             result
         };
@@ -159,7 +156,7 @@ impl<T: StorageProvider + 'static> ToolAutoLoopHandler<T> {
                 has_tool_calls: false,
             });
 
-            if let Err(err) = self.session_manager.save_context(&mut context_lock).await {
+            if let Err(err) = self.session_manager.auto_save_if_dirty(&context).await {
                 log::error!("Failed to save context after streaming: {}", err);
             } else {
                 context_lock.clear_dirty();

@@ -139,7 +139,7 @@ impl<T: StorageProvider> AgentLoopRunner<T> {
                 let result = context_lock
                     .process_auto_tool_step(
                         &runtime,
-                                    tool_name.clone(),
+                        tool_name.clone(),
                         current_tool_call.parameters.clone(),
                         current_tool_call.terminate,
                         approved_request,
@@ -218,22 +218,22 @@ impl<T: StorageProvider> AgentLoopRunner<T> {
             }
 
             if let Some(error_msg) = failure_error {
-                        agent_state.record_tool_failure(&tool_name);
+                agent_state.record_tool_failure(&tool_name);
 
                 if let Some(pending_request) = approved_request {
                     approval_request_id = Some(pending_request);
-                        }
+                }
 
-                        if !self.agent_service.should_continue(&agent_state)? {
-                            log::error!("Agent loop stopping after tool execution failures");
-                            return Ok(ServiceResponse::FinalMessage(format!(
-                                "Tool execution failed after {} retries: {}",
-                                agent_state.tool_execution_failures, error_msg
-                            )));
-                        }
+                if !self.agent_service.should_continue(&agent_state)? {
+                    log::error!("Agent loop stopping after tool execution failures");
+                    return Ok(ServiceResponse::FinalMessage(format!(
+                        "Tool execution failed after {} retries: {}",
+                        agent_state.tool_execution_failures, error_msg
+                    )));
+                }
 
-                        continue;
-                    }
+                continue;
+            }
 
             agent_state.reset_tool_failures();
 
@@ -272,7 +272,7 @@ impl<T: StorageProvider> AgentLoopRunner<T> {
                     });
                 }
 
-                self.auto_save_context(&context).await?;
+                self.session_manager.auto_save_if_dirty(&context).await?;
                 return Ok(ServiceResponse::FinalMessage(final_message));
             }
 
@@ -353,7 +353,7 @@ impl<T: StorageProvider> AgentLoopRunner<T> {
                     });
                 }
 
-                self.auto_save_context(&context).await?;
+                self.session_manager.auto_save_if_dirty(&context).await?;
                 return Ok(ServiceResponse::FinalMessage(response_text));
             }
         }
@@ -378,14 +378,7 @@ impl<T: StorageProvider> AgentLoopRunner<T> {
                 has_tool_calls: false,
             });
         }
-        self.auto_save_context(&context).await?;
+        self.session_manager.auto_save_if_dirty(&context).await?;
         Ok(ServiceResponse::FinalMessage(final_message))
-    }
-
-    async fn auto_save_context(&self, context: &Arc<RwLock<ChatContext>>) -> Result<(), AppError> {
-        self.session_manager
-            .save_context(&mut *context.write().await)
-            .await
-            .map_err(|e| AppError::InternalError(anyhow::anyhow!(e.to_string())))
     }
 }
