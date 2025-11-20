@@ -845,8 +845,6 @@ impl<T: StorageProvider + 'static> ChatService<T> {
                         let mut ctx = context.write().await;
                         // Finalize the streaming response with rich chunk tracking
                         ctx.finalize_streaming_response(message_id, Some("stop".to_string()), None);
-                        // Also call finish_streaming_response for FSM state transitions
-                        let _ = ctx.finish_streaming_response(message_id);
                         log::info!("FSM: Finished streaming response");
 
                         let text = ctx.message_pool.get(&message_id).map(|node| {

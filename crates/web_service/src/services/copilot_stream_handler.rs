@@ -60,30 +60,12 @@ pub fn spawn_stream_task<T: StorageProvider + 'static>(
                                             .load_context(conversation_id, None)
                                             .await
                                         {
-                                            let (message_id, initial_updates) = {
+                                            let message_id = {
                                                 let mut ctx_lock = ctx.write().await;
-                                                // begin_streaming_response already handles state transition
-                                                // to StreamingLLMResponse, no need for manual handle_event
-                                                ctx_lock.begin_streaming_response()
+                                                // Use new streaming API
+                                                ctx_lock.begin_streaming_llm_response(None)
                                             };
                                             assistant_message_id = Some(message_id);
-                                            for update in initial_updates {
-                                                let mut sanitized = update.clone();
-                                                sanitized.message_update = None;
-                                                if send_context_update(&tx, &sanitized)
-                                                    .await
-                                                    .is_err()
-                                                {
-                                                    log::warn!(
-                                                        "Client disconnected while streaming context update"
-                                                    );
-                                                    client_disconnected = true;
-                                                    break;
-                                                }
-                                            }
-                                            if client_disconnected {
-                                                break;
-                                            }
                                         }
                                     }
 
@@ -92,18 +74,16 @@ pub fn spawn_stream_task<T: StorageProvider + 'static>(
                                             .load_context(conversation_id, None)
                                             .await
                                         {
-                                            let update_opt = {
+                                            let sequence_opt = {
                                                 let mut ctx_lock = ctx.write().await;
-                                                let update = ctx_lock.apply_streaming_delta(
+                                                // Use new streaming API - append_streaming_chunk
+                                                ctx_lock.append_streaming_chunk(
                                                     message_id,
                                                     content_str.clone(),
-                                                );
-                                                ctx_lock.handle_event(
-                                                    ChatEvent::LLMStreamChunkReceived,
-                                                );
-                                                update
+                                                )
                                             };
-                                            if let Some((update, sequence)) = update_opt {
+
+                                            if let Some(sequence) = sequence_opt {
                                                 last_sequence = sequence;
 
                                                 if send_content_signal(
@@ -119,19 +99,6 @@ pub fn spawn_stream_task<T: StorageProvider + 'static>(
                                                 {
                                                     log::warn!(
                                                         "Client disconnected while streaming content metadata"
-                                                    );
-                                                    client_disconnected = true;
-                                                    break;
-                                                }
-
-                                                let mut sanitized = update;
-                                                sanitized.message_update = None;
-                                                if send_context_update(&tx, &sanitized)
-                                                    .await
-                                                    .is_err()
-                                                {
-                                                    log::warn!(
-                                                        "Client disconnected while streaming context update"
                                                     );
                                                     client_disconnected = true;
                                                     break;
@@ -292,30 +259,18 @@ pub fn spawn_stream_task<T: StorageProvider + 'static>(
 
         if let Some(message_id) = assistant_message_id {
             if let Ok(Some(ctx)) = session_manager.load_context(conversation_id, None).await {
-                let (final_updates, final_sequence) = {
+                let final_sequence = {
                     let mut ctx_lock = ctx.write().await;
                     ctx_lock.handle_event(ChatEvent::LLMStreamEnded);
-                    let updates = ctx_lock.finish_streaming_response(message_id);
-                    let sequence = ctx_lock
+                    // Use new API
+                    ctx_lock.finalize_streaming_response(
+                        message_id,
+                        Some("complete".to_string()),
+                        None,
+                    );
+                    ctx_lock
                         .message_sequence(message_id)
-                        .unwrap_or(last_sequence);
-                    (updates, sequence)
-                };
-
-                for update in final_updates {
-                    let mut sanitized = update.clone();
-                    sanitized.message_update = None;
-
-                    if send_context_update(&tx, &sanitized).await.is_err() {
-                        log::warn!("Client disconnected while sending final streaming update");
-                        return;
-                    }
-                }
-
-                let final_seq = if final_sequence == 0 {
-                    last_sequence
-                } else {
-                    final_sequence
+                        .unwrap_or(last_sequence)
                 };
 
                 if let Err(_) = send_content_signal(
@@ -323,7 +278,7 @@ pub fn spawn_stream_task<T: StorageProvider + 'static>(
                     "content_final",
                     conversation_id,
                     message_id,
-                    final_seq,
+                    final_sequence,
                     true,
                 )
                 .await

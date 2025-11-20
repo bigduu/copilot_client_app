@@ -4,17 +4,13 @@ use crate::message_pipeline::MessagePipeline;
 use crate::structs::context::ChatContext;
 use crate::structs::events::{ContextUpdate, MessageUpdate};
 use crate::structs::message::{
-    ContentPart, IncomingMessage, IncomingTextMessage, InternalMessage, MessageContentSlice,
-    MessageTextSnapshot, MessageType, Role,
+    ContentPart, ContentPart, IncomingMessage, IncomingMessage, IncomingTextMessage,
+    IncomingTextMessage, InternalMessage, MessageContentSlice, MessageContentSlice,
+    MessageTextSnapshot, MessageTextSnapshot, MessageType, Role,
 };
-use crate::structs::message_types::{RichMessageType, StreamingResponseMsg};
-use crate::structs::metadata::{MessageMetadata, MessageSource, StreamingMetadata};
 use crate::structs::state::ContextState;
-use crate::structs::tool::{ToolCallResult, DisplayPreference};
 use chrono::Utc;
-use eventsource_stream::{Event as SseEvent, EventStreamError};
-use futures::stream::{self, BoxStream};
-use futures::{Stream, StreamExt};
+use futures::StreamExt;
 use serde_json::json;
 use std::collections::HashMap;
 use uuid::Uuid;
@@ -63,51 +59,6 @@ impl ChatContext {
     ) -> Result<BoxStream<'static, ContextUpdate>, ContextError> {
         let pipeline = MessagePipeline::default();
         pipeline.process(self, &message)
-    }
-
-    pub fn stream_llm_response<I, S>(&mut self, chunks: I) -> BoxStream<'static, ContextUpdate>
-    where
-        I: IntoIterator<Item = S>,
-        S: Into<String>,
-    {
-        let (message_id, mut updates) = self.begin_streaming_response();
-
-        for chunk in chunks.into_iter() {
-            if let Some((update, _sequence)) = self.apply_streaming_delta(message_id, chunk.into())
-            {
-                updates.push(update);
-            }
-        }
-
-        updates.extend(self.finish_streaming_response(message_id));
-
-        stream::iter(updates).boxed()
-    }
-
-    pub async fn stream_llm_response_from_events<S, E>(
-        &mut self,
-        mut events: S,
-    ) -> Result<BoxStream<'static, ContextUpdate>, ContextError>
-    where
-        S: Stream<Item = Result<SseEvent, EventStreamError<E>>> + Unpin,
-        E: std::fmt::Display,
-    {
-        let mut chunks = Vec::new();
-
-        while let Some(event_result) = events.next().await {
-            let event =
-                event_result.map_err(|err| ContextError::StreamingError(err.to_string()))?;
-
-            if event.data == "[DONE]" {
-                break;
-            }
-
-            if !event.data.is_empty() {
-                chunks.push(event.data.clone());
-            }
-        }
-
-        Ok(self.stream_llm_response(chunks))
     }
 
     /// Transition to AwaitingLLMResponse state before sending request to LLM.
@@ -159,142 +110,6 @@ impl ChatContext {
         });
 
         updates
-    }
-
-    pub fn begin_streaming_response(&mut self) -> (Uuid, Vec<ContextUpdate>) {
-        let mut updates = Vec::new();
-
-        let previous_state = Some(self.current_state.clone());
-        self.current_state = ContextState::StreamingLLMResponse;
-        updates.push(ContextUpdate {
-            context_id: self.id,
-            current_state: self.current_state.clone(),
-            previous_state,
-            message_update: None,
-            timestamp: Utc::now(),
-            metadata: HashMap::new(),
-        });
-
-        let branch_name = self.active_branch_name.clone();
-        let assistant_message = InternalMessage {
-            role: Role::Assistant,
-            content: vec![ContentPart::text_owned(String::new())],
-            message_type: MessageType::Text,
-            ..Default::default()
-        };
-        let assistant_id = self.add_message_to_branch(&branch_name, assistant_message);
-
-        self.stream_sequences.insert(assistant_id, 0);
-
-        updates.push(ContextUpdate {
-            context_id: self.id,
-            current_state: self.current_state.clone(),
-            previous_state: None,
-            message_update: Some(MessageUpdate::Created {
-                message_id: assistant_id,
-                role: Role::Assistant,
-                message_type: MessageType::Text,
-            }),
-            timestamp: Utc::now(),
-            metadata: HashMap::new(),
-        });
-
-        (assistant_id, updates)
-    }
-
-    pub fn apply_streaming_delta<S>(
-        &mut self,
-        message_id: Uuid,
-        delta: S,
-    ) -> Option<(ContextUpdate, u64)>
-    where
-        S: Into<String>,
-    {
-        let delta = delta.into();
-        if delta.is_empty() {
-            return None;
-        }
-
-        if let Some(node) = self.message_pool.get_mut(&message_id) {
-            match node.message.content.first_mut() {
-                Some(ContentPart::Text { text }) => text.push_str(&delta),
-                _ => {
-                    node.message.content = vec![ContentPart::text_owned(delta.clone())];
-                }
-            }
-
-            let accumulated = node
-                .message
-                .content
-                .first()
-                .and_then(|part| part.text_content())
-                .unwrap_or_default()
-                .to_string();
-
-            let sequence = self.next_sequence(message_id);
-
-            Some((
-                ContextUpdate {
-                    context_id: self.id,
-                    current_state: self.current_state.clone(),
-                    previous_state: None,
-                    message_update: Some(MessageUpdate::ContentDelta {
-                        message_id,
-                        delta,
-                        accumulated,
-                    }),
-                    timestamp: Utc::now(),
-                    metadata: HashMap::new(),
-                },
-                sequence,
-            ))
-        } else {
-            None
-        }
-    }
-
-    pub fn finish_streaming_response(&mut self, message_id: Uuid) -> Vec<ContextUpdate> {
-        let mut updates = Vec::new();
-
-        let previous_state = self.current_state.clone();
-        self.current_state = ContextState::ProcessingLLMResponse;
-
-        if let Some(final_message) = self
-            .message_pool
-            .get(&message_id)
-            .map(|node| node.message.clone())
-        {
-            updates.push(ContextUpdate {
-                context_id: self.id,
-                current_state: self.current_state.clone(),
-                previous_state: Some(previous_state),
-                message_update: Some(MessageUpdate::Completed {
-                    message_id,
-                    final_message,
-                }),
-                timestamp: Utc::now(),
-                metadata: HashMap::new(),
-            });
-        }
-
-        let previous_state = self.current_state.clone();
-        self.current_state = ContextState::Idle;
-        updates.push(ContextUpdate {
-            context_id: self.id,
-            current_state: self.current_state.clone(),
-            previous_state: Some(previous_state),
-            message_update: None,
-            timestamp: Utc::now(),
-            metadata: HashMap::new(),
-        });
-
-        updates
-    }
-
-    fn next_sequence(&mut self, message_id: Uuid) -> u64 {
-        let seq_entry = self.stream_sequences.entry(message_id).or_insert(0);
-        *seq_entry += 1;
-        *seq_entry
     }
 
     pub fn ensure_sequence_at_least(&mut self, message_id: Uuid, minimum: u64) -> u64 {
@@ -805,21 +620,22 @@ impl ChatContext {
                 updates.push(self.complete_auto_loop());
 
                 // ✅ Determine display preference for read_file and list_directory tools
-                let display_preference = if tool_name == "read_file" || tool_name == "list_directory" {
-                    tracing::debug!(
-                        context_id = %self.id,
-                        tool_name = %tool_name,
-                        "process_auto_tool_step: setting display_preference to Hidden"
-                    );
-                    DisplayPreference::Hidden
-                } else {
-                    tracing::debug!(
-                        context_id = %self.id,
-                        tool_name = %tool_name,
-                        "process_auto_tool_step: using default display_preference"
-                    );
-                    DisplayPreference::Default
-                };
+                let display_preference =
+                    if tool_name == "read_file" || tool_name == "list_directory" {
+                        tracing::debug!(
+                            context_id = %self.id,
+                            tool_name = %tool_name,
+                            "process_auto_tool_step: setting display_preference to Hidden"
+                        );
+                        DisplayPreference::Hidden
+                    } else {
+                        tracing::debug!(
+                            context_id = %self.id,
+                            tool_name = %tool_name,
+                            "process_auto_tool_step: using default display_preference"
+                        );
+                        DisplayPreference::Default
+                    };
 
                 let message_text = format_tool_output(&result);
                 let final_message = InternalMessage {
@@ -909,11 +725,12 @@ impl ChatContext {
                 });
 
                 // Determine display preference even for errors (read_file and list_directory should be Hidden)
-                let display_preference = if tool_name == "read_file" || tool_name == "list_directory" {
-                    DisplayPreference::Hidden
-                } else {
-                    DisplayPreference::Default
-                };
+                let display_preference =
+                    if tool_name == "read_file" || tool_name == "list_directory" {
+                        DisplayPreference::Hidden
+                    } else {
+                        DisplayPreference::Default
+                    };
 
                 let error_text = format_tool_output(&error_payload);
                 let final_message = InternalMessage {
@@ -974,24 +791,6 @@ impl ChatContext {
         }
 
         Ok(updates)
-    }
-}
-
-pub struct StreamingResponseBuilder<'a> {
-    context: &'a mut ChatContext,
-}
-
-impl<'a> StreamingResponseBuilder<'a> {
-    pub fn new(context: &'a mut ChatContext) -> Self {
-        Self { context }
-    }
-
-    pub fn build_with_chunks<I, S>(self, chunks: I) -> BoxStream<'static, ContextUpdate>
-    where
-        I: IntoIterator<Item = S>,
-        S: Into<String>,
-    {
-        self.context.stream_llm_response(chunks)
     }
 }
 
