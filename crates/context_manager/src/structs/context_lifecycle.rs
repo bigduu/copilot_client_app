@@ -4,13 +4,16 @@ use crate::message_pipeline::MessagePipeline;
 use crate::structs::context::ChatContext;
 use crate::structs::events::{ContextUpdate, MessageUpdate};
 use crate::structs::message::{
-    ContentPart, ContentPart, IncomingMessage, IncomingMessage, IncomingTextMessage,
-    IncomingTextMessage, InternalMessage, MessageContentSlice, MessageContentSlice,
-    MessageTextSnapshot, MessageTextSnapshot, MessageType, Role,
+    ContentPart, IncomingMessage, IncomingTextMessage, InternalMessage, MessageContentSlice,
+    MessageTextSnapshot, MessageType, Role,
 };
+use crate::structs::message_types::{RichMessageType, StreamingResponseMsg};
+use crate::structs::metadata::{MessageMetadata, MessageSource, StreamingMetadata};
 use crate::structs::state::ContextState;
+use crate::structs::tool::{DisplayPreference, ToolCallResult};
 use chrono::Utc;
 use futures::StreamExt;
+use futures::stream::{self, BoxStream};
 use serde_json::json;
 use std::collections::HashMap;
 use uuid::Uuid;
