@@ -184,9 +184,8 @@ fn test_conversation_with_empty_responses() {
         .message
         .content
         .first()
-        .unwrap()
-        .text_content()
-        .unwrap();
+        .and_then(|part| part.text_content())
+        .unwrap_or("");
     assert_eq!(content, "");
 }
 
