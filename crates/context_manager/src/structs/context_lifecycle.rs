@@ -882,6 +882,9 @@ impl ChatContext {
             // Also update the legacy content field for backward compatibility
             node.message.content = vec![ContentPart::text(&streaming_msg.content)];
 
+            // Update stream_sequences to match chunks count for compatibility with message_sequence()
+            self.stream_sequences.insert(message_id, sequence);
+
             // Drop the mutable borrow before calling mark_dirty
             let _ = node;
             self.mark_dirty();

@@ -97,9 +97,11 @@ fn test_streaming_sequence_tracking() {
     let mut context = ChatContext::new(Uuid::new_v4(), "gpt-4".to_string(), "default".to_string());
 
     let message_id = context.begin_streaming_llm_response(None);
+    // Initially no chunks: sequence = 0
     assert_eq!(context.message_sequence(message_id), Some(0));
 
     context.append_streaming_chunk(message_id, "hello".to_string());
+    // After appending 1 chunk: chunks.len() = 1
     assert_eq!(context.message_sequence(message_id), Some(1));
 
     let snapshot = context
