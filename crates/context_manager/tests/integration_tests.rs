@@ -76,8 +76,9 @@ fn test_complete_user_assistant_cycle() {
         context.append_streaming_chunk(assistant_msg_id, format!("{} ", chunk));
     }
 
-    // Step 4: Complete streaming using NEW API
+    // Step 4: Complete streaming using NEW API  
     context.finalize_streaming_response(assistant_msg_id, Some("stop".to_string()), None);
+    context.handle_event(ChatEvent::LLMResponseProcessed { has_tool_calls: false });
     assert_eq!(context.current_state, ContextState::Idle);
 
     // Verify final state
@@ -122,6 +123,7 @@ fn test_multiple_conversation_turns() {
     let asst_msg_1 = context.begin_streaming_llm_response(None);
     context.append_streaming_chunk(asst_msg_1, "Hi there!".to_string());
     context.finalize_streaming_response(asst_msg_1, Some("stop".to_string()), None);
+    context.handle_event(ChatEvent::LLMResponseProcessed { has_tool_calls: false });
 
     // Turn 2
     context.handle_event(ChatEvent::UserMessageSent);
@@ -130,6 +132,7 @@ fn test_multiple_conversation_turns() {
     let asst_msg_2 = context.begin_streaming_llm_response(None);
     context.append_streaming_chunk(asst_msg_2, "I'm doing well, thanks!".to_string());
     context.finalize_streaming_response(asst_msg_2, Some("stop".to_string()), None);
+    context.handle_event(ChatEvent::LLMResponseProcessed { has_tool_calls: false });
 
     // Turn 3
     context.handle_event(ChatEvent::UserMessageSent);
@@ -138,6 +141,7 @@ fn test_multiple_conversation_turns() {
     let asst_msg_3 = context.begin_streaming_llm_response(None);
     context.append_streaming_chunk(asst_msg_3, "Goodbye! Have a great day!".to_string());
     context.finalize_streaming_response(asst_msg_3, Some("stop".to_string()), None);
+    context.handle_event(ChatEvent::LLMResponseProcessed { has_tool_calls: false });
 
     // Verify: should have 6 messages (3 user + 3 assistant)
     let branch = context.get_active_branch().unwrap();
@@ -170,6 +174,7 @@ fn test_conversation_with_empty_responses() {
     // Don't add any content (empty response)
 
     context.finalize_streaming_response(asst_msg, Some("stop".to_string()), None);
+    context.handle_event(ChatEvent::LLMResponseProcessed { has_tool_calls: false });
 
     // Should still work and return to Idle
     assert_eq!(context.current_state, ContextState::Idle);
@@ -213,6 +218,7 @@ fn test_error_recovery_after_llm_failure() {
     let msg_id = context.begin_streaming_llm_response(None);
     context.append_streaming_chunk(msg_id, "Success on retry".to_string());
     context.finalize_streaming_response(msg_id, Some("stop".to_string()), None);
+    context.handle_event(ChatEvent::LLMResponseProcessed { has_tool_calls: false });
 
     assert_eq!(context.current_state, ContextState::Idle);
 }

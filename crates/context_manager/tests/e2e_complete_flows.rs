@@ -40,6 +40,12 @@ fn simulate_streaming_response(context: &mut ChatContext, text: &str) -> Uuid {
     }
 
     context.finalize_streaming_response(msg_id, Some("stop".to_string()), None);
+
+    // New API: need to manually transition to Idle after finalize
+    context.handle_event(context_manager::ChatEvent::LLMResponseProcessed {
+        has_tool_calls: false,
+    });
+
     msg_id
 }
 
