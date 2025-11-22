@@ -4,10 +4,8 @@ use context_manager::{
     ChatContext, ContentPart, ContextError, ContextState, IncomingMessage, InternalMessage,
     MessageType, MessageUpdate, PreparedLlmRequest, Role, SystemPrompt,
 };
-use eventsource_stream::{Event, EventStreamError};
 use futures::{StreamExt, executor::block_on};
 use serde_json::json;
-use std::convert::Infallible;
 use uuid::Uuid;
 
 #[test]
@@ -88,105 +86,20 @@ fn test_send_message_rejects_empty_content() {
     assert!(matches!(result, Err(ContextError::EmptyMessageContent)));
 }
 
-#[test]
-fn test_stream_llm_response_produces_deltas() {
-    let mut context = ChatContext::new(Uuid::new_v4(), "gpt-4".to_string(), "default".to_string());
+// Test removed: stream_llm_response wrapper method was deleted
+// New streaming API has its own comprehensive test coverage in streaming_tests.rs
 
-    let chunks = vec!["Hello".to_string(), " World".to_string()];
-    let updates: Vec<_> = block_on(context.stream_llm_response(chunks).collect());
-
-    assert!(updates.len() >= 5);
-    assert_eq!(updates[0].current_state, ContextState::StreamingLLMResponse);
-
-    let delta_count = updates
-        .iter()
-        .filter(|update| {
-            matches!(
-                update.message_update,
-                Some(MessageUpdate::ContentDelta { .. })
-            )
-        })
-        .count();
-    assert_eq!(delta_count, 2);
-
-    let completion = updates
-        .iter()
-        .find_map(|update| match &update.message_update {
-            Some(MessageUpdate::Completed { final_message, .. }) => Some(final_message.clone()),
-            _ => None,
-        })
-        .expect("completion update");
-
-    let final_text = completion
-        .content
-        .first()
-        .and_then(|part| part.text_content())
-        .expect("assistant content");
-    assert_eq!(final_text, "Hello World");
-
-    assert_eq!(context.current_state, ContextState::Idle);
-}
-
-#[test]
-fn test_stream_llm_response_from_events() {
-    let mut context = ChatContext::new(Uuid::new_v4(), "gpt-4".to_string(), "default".to_string());
-
-    let events: Vec<Result<Event, EventStreamError<Infallible>>> = vec![
-        Ok(Event {
-            data: "Partial".to_string(),
-            ..Default::default()
-        }),
-        Ok(Event {
-            data: " Response".to_string(),
-            ..Default::default()
-        }),
-        Ok(Event {
-            data: "[DONE]".to_string(),
-            ..Default::default()
-        }),
-    ];
-
-    let stream = block_on(context.stream_llm_response_from_events(futures::stream::iter(events)))
-        .expect("streamed updates");
-    let updates: Vec<_> = block_on(stream.collect());
-
-    let delta_count = updates
-        .iter()
-        .filter(|update| {
-            matches!(
-                update.message_update,
-                Some(MessageUpdate::ContentDelta { .. })
-            )
-        })
-        .count();
-    assert_eq!(delta_count, 2);
-
-    let completion = updates
-        .iter()
-        .find_map(|update| match &update.message_update {
-            Some(MessageUpdate::Completed { final_message, .. }) => Some(final_message.clone()),
-            _ => None,
-        })
-        .expect("completion update");
-
-    let content = completion
-        .content
-        .first()
-        .and_then(|part| part.text_content())
-        .expect("assistant content");
-    assert_eq!(content, "Partial Response");
-}
+// Test removed: stream_llm_response_from_events wrapper method was deleted
+// New streaming API has its own comprehensive test coverage in streaming_tests.rs
 
 #[test]
 fn test_streaming_sequence_tracking() {
     let mut context = ChatContext::new(Uuid::new_v4(), "gpt-4".to_string(), "default".to_string());
 
-    let (message_id, _) = context.begin_streaming_response();
+    let message_id = context.begin_streaming_llm_response(None);
     assert_eq!(context.message_sequence(message_id), Some(0));
 
-    context
-        .apply_streaming_delta(message_id, "hello")
-        .expect("delta update returned");
+    context.append_streaming_chunk(message_id, "hello".to_string());
     assert_eq!(context.message_sequence(message_id), Some(1));
 
     let snapshot = context
@@ -355,7 +268,7 @@ fn test_complete_tool_execution_transitions_state() {
 #[test]
 fn test_abort_streaming_response_transitions_to_failed() {
     let mut context = ChatContext::new(Uuid::new_v4(), "gpt-4".to_string(), "default".to_string());
-    let (message_id, _initial) = context.begin_streaming_response();
+    let message_id = context.begin_streaming_llm_response(None);
 
     let updates = context.abort_streaming_response(message_id, "network error");
     if let ContextState::Failed { error_message, .. } = &context.current_state {

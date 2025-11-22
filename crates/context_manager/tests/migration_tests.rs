@@ -223,10 +223,10 @@ fn test_migration_api_backward_compatibility() {
     context.transition_to_awaiting_llm();
     println!("  ✓ transition_to_awaiting_llm API compatible");
 
-    // 4. Streaming operations
-    let (stream_msg_id, _) = context.begin_streaming_response();
-    context.apply_streaming_delta(stream_msg_id, "test".to_string());
-    context.finish_streaming_response(stream_msg_id);
+    // 4. Streaming operations (using NEW API)
+    let stream_msg_id = context.begin_streaming_llm_response(None);
+    context.append_streaming_chunk(stream_msg_id, "test".to_string());
+    context.finalize_streaming_response(stream_msg_id, Some("stop".to_string()), None);
     println!("  ✓ Streaming APIs compatible");
 
     println!("✅ API backward compatibility test passed!");
