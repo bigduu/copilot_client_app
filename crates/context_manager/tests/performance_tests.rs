@@ -299,14 +299,14 @@ fn test_performance_streaming() {
         add_user_message(&mut context, &format!("Request {}", response_num));
 
         context.transition_to_awaiting_llm();
-        let (msg_id, _) = context.begin_streaming_response();
+        let msg_id = context.begin_streaming_llm_response(None);
 
         // Stream 100 chunks
         for chunk_num in 0..100 {
-            context.apply_streaming_delta(msg_id, format!("chunk_{} ", chunk_num));
+            context.append_streaming_chunk(msg_id, format!("chunk_{} ", chunk_num));
         }
 
-        context.finish_streaming_response(msg_id);
+        context.finalize_streaming_response(msg_id, Some("stop".to_string()), None);
         context.handle_event(ChatEvent::LLMResponseProcessed {
             has_tool_calls: false,
         });

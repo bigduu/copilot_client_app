@@ -18,6 +18,7 @@ pub struct ToolAutoLoopHandler<T: StorageProvider> {
     session_manager: Arc<ChatSessionManager<T>>,
     agent_service: Arc<AgentService>,
     tool_executor: Arc<ToolExecutor>,
+    tool_coordinator: crate::services::tool_coordinator::ToolCoordinator<T>,
     approval_manager: Arc<ApprovalManager>,
     conversation_id: Uuid,
     event_tx: mpsc::Sender<sse::Event>,
@@ -33,10 +34,16 @@ impl<T: StorageProvider + 'static> ToolAutoLoopHandler<T> {
         conversation_id: Uuid,
         event_tx: mpsc::Sender<sse::Event>,
     ) -> Self {
+        let tool_coordinator = crate::services::tool_coordinator::ToolCoordinator::new(
+            tool_executor.clone(),
+            approval_manager.clone(),
+            session_manager.clone(),
+        );
         Self {
             session_manager,
             agent_service,
             tool_executor,
+            tool_coordinator,
             approval_manager,
             conversation_id,
             event_tx,
@@ -76,11 +83,6 @@ impl<T: StorageProvider + 'static> ToolAutoLoopHandler<T> {
     }
 
     async fn process_tool_call(&self, tool_call: ToolCall) -> Result<(), String> {
-        let runtime = super::context_tool_runtime::ContextToolRuntime::new(
-            self.tool_executor.clone(),
-            self.approval_manager.clone(),
-        );
-
         let context = self
             .session_manager
             .load_context(self.conversation_id, None)
@@ -88,29 +90,22 @@ impl<T: StorageProvider + 'static> ToolAutoLoopHandler<T> {
             .map_err(|err| format!("Failed to load context: {}", err))?
             .ok_or_else(|| "Context not found".to_string())?;
 
-        let updates = {
-            let mut ctx_lock = context.write().await;
-            let result = ctx_lock
-                .process_auto_tool_step(
-                    &runtime,
-                    tool_call.tool.clone(),
-                    tool_call.parameters.clone(),
-                    tool_call.terminate,
-                    None,
-                )
-                .await
-                .map_err(|err| err.to_string())?;
-
-            if ctx_lock.is_dirty() {
-                self.session_manager
-                    .save_context(&mut ctx_lock)
-                    .await
-                    .map_err(|err| format!("Failed to save context: {}", err))?;
-                ctx_lock.clear_dirty();
-            }
-
-            result
+        let options = crate::services::tool_coordinator::ToolExecutionOptions {
+            request_id: None,
+            terminate: tool_call.terminate,
+            display_preference: None,
         };
+
+        let updates = self
+            .tool_coordinator
+            .execute_tool(
+                &context,
+                tool_call.tool.clone(),
+                tool_call.parameters.clone(),
+                options,
+            )
+            .await
+            .map_err(|err| err.to_string())?;
 
         for update in updates {
             if send_context_update(&self.event_tx, &update).await.is_err() {
@@ -159,7 +154,7 @@ impl<T: StorageProvider + 'static> ToolAutoLoopHandler<T> {
                 has_tool_calls: false,
             });
 
-            if let Err(err) = self.session_manager.save_context(&mut context_lock).await {
+            if let Err(err) = self.session_manager.auto_save_if_dirty(&context).await {
                 log::error!("Failed to save context after streaming: {}", err);
             } else {
                 context_lock.clear_dirty();

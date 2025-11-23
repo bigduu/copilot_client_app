@@ -26,11 +26,12 @@ use uuid::Uuid;
 use super::agent_loop_runner::AgentLoopRunner;
 use super::agent_service::AgentService;
 use super::approval_manager::ApprovalManager;
-use super::context_tool_runtime::ContextToolRuntime;
+use super::message_builder;
 use super::copilot_stream_handler;
 use super::llm_request_builder::LlmRequestBuilder;
 use super::llm_utils::{detect_message_type, send_context_update};
 use super::session_manager::ChatSessionManager;
+use super::sse_response_builder;
 use super::system_prompt_service::SystemPromptService;
 
 #[derive(Debug, Serialize)]
@@ -61,6 +62,7 @@ pub struct ChatService<T: StorageProvider> {
     conversation_id: Uuid,
     copilot_client: Arc<dyn CopilotClientTrait>,
     tool_executor: Arc<ToolExecutor>,
+    tool_coordinator: crate::services::tool_coordinator::ToolCoordinator<T>,
     system_prompt_service: Arc<SystemPromptService>,
     agent_service: Arc<AgentService>,
     approval_manager: Arc<ApprovalManager>,
@@ -68,98 +70,7 @@ pub struct ChatService<T: StorageProvider> {
     event_broadcaster: Option<Arc<crate::services::EventBroadcaster>>,
 }
 
-fn stringify_tool_output(value: &serde_json::Value) -> String {
-    if let Some(content) = value.get("content").and_then(|v| v.as_str()) {
-        return content.to_string();
-    }
-
-    if let Some(message) = value.get("message").and_then(|v| v.as_str()) {
-        return message.to_string();
-    }
-
-    serde_json::to_string_pretty(value).unwrap_or_else(|_| value.to_string())
-}
-
-// Helper function to convert internal Role to client Role
-fn describe_payload(payload: &MessagePayload) -> &'static str {
-    match payload {
-        MessagePayload::Text { .. } => "text",
-        MessagePayload::FileReference { .. } => "file_reference",
-        MessagePayload::Workflow { .. } => "workflow",
-        MessagePayload::ToolResult { .. } => "tool_result",
-    }
-}
-
-fn compute_display_text(request: &SendMessageRequest) -> String {
-    if let Some(display_text) = &request.client_metadata.display_text {
-        return display_text.clone();
-    }
-
-    match &request.payload {
-        MessagePayload::Text { content, display } => {
-            display.clone().unwrap_or_else(|| content.clone())
-        }
-        MessagePayload::FileReference {
-            paths,
-            display_text,
-            ..
-        } => display_text
-            .clone()
-            .unwrap_or_else(|| format!("读取文件 {:?}", paths)),
-        MessagePayload::Workflow {
-            workflow,
-            display_text,
-            ..
-        } => display_text
-            .clone()
-            .unwrap_or_else(|| format!("执行工作流 {}", workflow)),
-        MessagePayload::ToolResult {
-            tool_name,
-            display_text,
-            ..
-        } => display_text
-            .clone()
-            .unwrap_or_else(|| format!("工具 {} 的执行结果", tool_name)),
-    }
-}
-
-fn convert_client_metadata(metadata: &ClientMessageMetadata) -> Option<MessageMetadata> {
-    let mut extra = metadata.extra.clone();
-
-    if let Some(trace_id) = &metadata.trace_id {
-        extra
-            .entry("trace_id".to_string())
-            .or_insert_with(|| json!(trace_id));
-    }
-
-    if extra.is_empty() {
-        None
-    } else {
-        Some(MessageMetadata {
-            extra: Some(extra),
-            ..Default::default()
-        })
-    }
-}
-
-fn build_incoming_text_message(
-    content: &str,
-    payload_display: Option<&str>,
-    metadata: &ClientMessageMetadata,
-) -> IncomingMessage {
-    let display_text = metadata
-        .display_text
-        .clone()
-        .or_else(|| payload_display.map(|value| value.to_string()));
-
-    let mut message = IncomingTextMessage::with_display_text(content.to_string(), display_text);
-
-    if let Some(meta) = convert_client_metadata(metadata) {
-        message.metadata = Some(meta);
-    }
-
-    IncomingMessage::Text(message)
-}
+// Helper functions moved to message_builder module
 
 impl<T: StorageProvider + 'static> ChatService<T> {
     /// Create a new ChatService (Phase 2.0 - Pipeline-based)
@@ -176,13 +87,20 @@ impl<T: StorageProvider + 'static> ChatService<T> {
         approval_manager: Arc<ApprovalManager>,
         workflow_service: Arc<WorkflowService>,
     ) -> Self {
+        let agent_service = Arc::new(AgentService::with_default_config());
+        let tool_coordinator = crate::services::tool_coordinator::ToolCoordinator::new(
+            tool_executor.clone(),
+            approval_manager.clone(),
+            session_manager.clone(),
+        );
         Self {
             session_manager,
             conversation_id,
             copilot_client,
             tool_executor,
+            tool_coordinator,
             system_prompt_service,
-            agent_service: Arc::new(AgentService::with_default_config()),
+            agent_service,
             approval_manager,
             workflow_service,
             event_broadcaster: None,
@@ -303,15 +221,14 @@ impl<T: StorageProvider + 'static> ChatService<T> {
         display_text: &str,
         metadata: &ClientMessageMetadata,
     ) -> Result<(), AppError> {
+        use crate::services::tool_coordinator::ToolExecutionOptions;
+
         // 1. Add user message
-        let incoming = build_incoming_text_message(display_text, Some(display_text), metadata);
+        let incoming = message_builder::build_incoming_text_message(display_text, Some(display_text), metadata);
         self.apply_incoming_message(context, incoming).await?;
-        self.auto_save_context(context).await?;
+        self.session_manager.auto_save_if_dirty(context).await?;
 
-        let runtime =
-            ContextToolRuntime::new(self.tool_executor.clone(), self.approval_manager.clone());
-
-        // 2. Process each path
+        // 2. Process each path using ToolCoordinator
         for path in paths {
             let path_obj = std::path::Path::new(path);
 
@@ -321,37 +238,39 @@ impl<T: StorageProvider + 'static> ChatService<T> {
                 arguments.insert("path".to_string(), json!(path));
                 arguments.insert("depth".to_string(), json!(1));
 
-                let mut context_lock = context.write().await;
-                context_lock
-                    .process_auto_tool_step(
-                        &runtime,
+                let options = ToolExecutionOptions {
+                    display_preference: Some(DisplayPreference::Hidden),
+                    ..Default::default()
+                };
+
+                self.tool_coordinator
+                    .execute_tool(
+                        context,
                         "list_directory".to_string(),
                         serde_json::Value::Object(arguments),
-                        false,
-                        None,
+                        options,
                     )
-                    .await
-                    .map_err(|err| AppError::InternalError(anyhow::anyhow!(err.to_string())))?;
+                    .await?;
             } else {
                 // File: use read_file tool
                 let mut arguments = serde_json::Map::new();
                 arguments.insert("path".to_string(), json!(path));
 
-                let mut context_lock = context.write().await;
-                context_lock
-                    .process_auto_tool_step(
-                        &runtime,
+                let options = ToolExecutionOptions {
+                    display_preference: Some(DisplayPreference::Hidden),
+                    ..Default::default()
+                };
+
+                self.tool_coordinator
+                    .execute_tool(
+                        context,
                         "read_file".to_string(),
                         serde_json::Value::Object(arguments),
-                        false,
-                        None,
+                        options,
                     )
-                    .await
-                    .map_err(|err| AppError::InternalError(anyhow::anyhow!(err.to_string())))?;
+                    .await?;
             }
         }
-
-        self.auto_save_context(context).await?;
 
         // ✅ Return Ok(()) to allow AI call to proceed
         Ok(())
@@ -365,9 +284,9 @@ impl<T: StorageProvider + 'static> ChatService<T> {
         display_text: &str,
         metadata: &ClientMessageMetadata,
     ) -> Result<FinalizedMessage, AppError> {
-        let incoming = build_incoming_text_message(display_text, Some(display_text), metadata);
+        let incoming = message_builder::build_incoming_text_message(display_text, Some(display_text), metadata);
         self.apply_incoming_message(context, incoming).await?;
-        self.auto_save_context(context).await?;
+        self.session_manager.auto_save_if_dirty(context).await?;
 
         let execution_result = self
             .workflow_service
@@ -376,7 +295,7 @@ impl<T: StorageProvider + 'static> ChatService<T> {
 
         let (assistant_text, metadata_payload) = match execution_result {
             Ok(result) => {
-                let assistant_text = stringify_tool_output(&result);
+                let assistant_text = message_builder::stringify_tool_output(&result);
                 let payload = json!({
                     "workflow_name": workflow,
                     "parameters": parameters,
@@ -429,7 +348,7 @@ impl<T: StorageProvider + 'static> ChatService<T> {
             (message_id, content, sequence)
         };
 
-        self.auto_save_context(context).await?;
+        self.session_manager.auto_save_if_dirty(context).await?;
 
         Ok(FinalizedMessage {
             message_id,
@@ -446,11 +365,11 @@ impl<T: StorageProvider + 'static> ChatService<T> {
         display_text: &str,
         metadata: &ClientMessageMetadata,
     ) -> Result<FinalizedMessage, AppError> {
-        let incoming = build_incoming_text_message(display_text, Some(display_text), metadata);
+        let incoming = message_builder::build_incoming_text_message(display_text, Some(display_text), metadata);
         self.apply_incoming_message(context, incoming).await?;
-        self.auto_save_context(context).await?;
+        self.session_manager.auto_save_if_dirty(context).await?;
 
-        let tool_result_text = stringify_tool_output(&result);
+        let tool_result_text = message_builder::stringify_tool_output(&result);
 
         let (message_id, summary, sequence) = {
             let mut context_lock = context.write().await;
@@ -489,7 +408,7 @@ impl<T: StorageProvider + 'static> ChatService<T> {
             (message_id, content, sequence)
         };
 
-        self.auto_save_context(context).await?;
+        self.session_manager.auto_save_if_dirty(context).await?;
 
         Ok(FinalizedMessage {
             message_id,
@@ -498,58 +417,14 @@ impl<T: StorageProvider + 'static> ChatService<T> {
         })
     }
 
-    async fn build_message_signal_sse(
-        context_id: Uuid,
-        message_id: Uuid,
-        sequence: u64,
-    ) -> Result<
-        sse::Sse<InfallibleStream<tokio_stream::wrappers::ReceiverStream<sse::Event>>>,
-        AppError,
-    > {
-        let (tx, rx) = mpsc::channel::<sse::Event>(4);
-
-        let payload = json!({
-            "context_id": context_id,
-            "message_id": message_id,
-            "sequence": sequence,
-            "is_final": true,
-        });
-
-        let content_event = sse::Data::new_json(payload)
-            .map(|data| sse::Event::Data(data.event("content_final")))
-            .map_err(|err| {
-                AppError::InternalError(anyhow::anyhow!(format!(
-                    "Failed to serialise content_final payload: {}",
-                    err
-                )))
-            })?;
-
-        if tx.send(content_event).await.is_err() {
-            return Err(AppError::InternalError(anyhow::anyhow!(
-                "Failed to emit content_final event"
-            )));
-        }
-
-        if let Ok(done_event) = sse::Data::new_json(json!({ "done": true })) {
-            let _ = tx.send(sse::Event::Data(done_event.event("done"))).await;
-        }
-        let _ = tx.send(sse::Event::Data(sse::Data::new("[DONE]"))).await;
-
-        drop(tx);
-
-        Ok(sse::Sse::from_infallible_receiver(rx).with_keep_alive(Duration::from_secs(15)))
-    }
-
-    pub async fn process_message(
-        &mut self,
-        request: SendMessageRequest,
-    ) -> Result<ServiceResponse, AppError> {
-        log::info!("=== ChatService::process_message START ===");
-        log::info!("Conversation ID: {}", self.conversation_id);
-        log::info!("Payload type: {}", describe_payload(&request.payload));
-
-        let context = self
-            .session_manager
+    // ===== Helper methods for process_message =====
+    
+    /// Load context for incoming request
+    async fn load_context_for_request(
+        &self,
+        request: &SendMessageRequest,
+    ) -> Result<Arc<tokio::sync::RwLock<ChatContext>>, AppError> {
+        self.session_manager
             .load_context(
                 self.conversation_id,
                 request.client_metadata.trace_id.clone(),
@@ -558,11 +433,112 @@ impl<T: StorageProvider + 'static> ChatService<T> {
             .ok_or_else(|| {
                 log::error!("Session not found: {}", self.conversation_id);
                 AppError::NotFound("Session".to_string())
-            })?;
+            })
+    }
 
+    /// Handle request payload - returns Some(response) for early-return payloads (Workflow, ToolResult)
+    /// Returns None for Text/FileReference which should continue to LLM
+    async fn handle_request_payload(
+        &mut self,
+        context: &Arc<tokio::sync::RwLock<ChatContext>>,
+        payload: &MessagePayload,
+        display_text: &str,
+        metadata: &ClientMessageMetadata,
+    ) -> Result<Option<ServiceResponse>, AppError> {
+        match payload {
+            MessagePayload::FileReference { paths, .. } => {
+                // Execute file reference but don't return - let AI call proceed
+                self.execute_file_reference(context, paths, display_text, metadata)
+                    .await?;
+                Ok(None) // Continue to LLM
+            }
+            MessagePayload::Workflow {
+                workflow,
+                parameters,
+                ..
+            } => {
+                let finalized = self
+                    .execute_workflow(context, workflow, parameters, display_text, metadata)
+                    .await?;
+
+                // Send SSE event
+                self.send_sse_event(
+                    crate::controllers::context_controller::SignalEvent::MessageCompleted {
+                        context_id: self.conversation_id.to_string(),
+                        message_id: finalized.message_id.to_string(),
+                        final_sequence: finalized.sequence,
+                        timestamp: chrono::Utc::now().to_rfc3339(),
+                    },
+                )
+                .await;
+
+                Ok(Some(ServiceResponse::FinalMessage(finalized.summary)))
+            }
+            MessagePayload::ToolResult {
+                tool_name, result, ..
+            } => {
+                let finalized = self
+                    .record_tool_result_message(context, tool_name, result.clone(), display_text, metadata)
+                    .await?;
+                Ok(Some(ServiceResponse::FinalMessage(finalized.summary)))
+            }
+            MessagePayload::Text { content, display } => {
+                let incoming = message_builder::build_incoming_text_message(
+                    content,
+                    display.as_deref(),
+                    metadata,
+                );
+                self.apply_incoming_message(context, incoming).await?;
+                self.session_manager.auto_save_if_dirty(context).await?;
+                Ok(None) // Continue to LLM
+            }
+        }
+    }
+
+    /// Handle LLM error by updating context and creating error message
+    async fn handle_llm_error(
+        &self,
+        context: &Arc<tokio::sync::RwLock<ChatContext>>,
+        error_msg: String,
+    ) -> AppError {
+        let mut context_lock = context.write().await;
+        let _updates = context_lock.handle_llm_error(error_msg.clone());
+
+        let mut extra = HashMap::new();
+        extra.insert("error".to_string(), json!(error_msg));
+        let metadata = MessageMetadata {
+            extra: Some(extra),
+            ..Default::default()
+        };
+
+        context_lock.append_text_message_with_metadata(
+            Role::Assistant,
+            MessageType::Text,
+            format!("I ran into a problem talking to the model: {}", error_msg),
+            Some(metadata),
+            None,
+        );
+        drop(context_lock);
+
+        let _ = self.session_manager.auto_save_if_dirty(context).await;
+        AppError::InternalError(anyhow::anyhow!(error_msg))
+    }
+
+    // build_message_signal_sse moved to sse_response_builder module
+
+    pub async fn process_message(
+        &mut self,
+        request: SendMessageRequest,
+    ) -> Result<ServiceResponse, AppError> {
+        log::info!("=== ChatService::process_message START ===");
+        log::info!("Conversation ID: {}", self.conversation_id);
+        log::info!("Payload type: {}", message_builder::describe_payload(&request.payload));
+
+        // Load context using helper
+        let context = self.load_context_for_request(&request).await?;
         log::info!("Context loaded successfully");
 
-        let display_text = compute_display_text(&request);
+        let display_text = message_builder::compute_display_text(&request);
 
         {
             let context_lock = context.read().await;
@@ -583,73 +559,16 @@ impl<T: StorageProvider + 'static> ChatService<T> {
             log::info!("Message pool size: {}", context_lock.message_pool.len());
         }
 
-        match &request.payload {
-            MessagePayload::FileReference { paths, .. } => {
-                // ✅ Execute file reference but don't return - let AI call proceed
-                self.execute_file_reference(
-                    &context,
-                    paths,
-                    &display_text,
-                    &request.client_metadata,
-                )
-                .await?;
-                // ✅ Don't return - continue to LLM call below
-            }
-            MessagePayload::Workflow {
-                workflow,
-                parameters,
-                ..
-            } => {
-                let finalized = self
-                    .execute_workflow(
-                        &context,
-                        workflow,
-                        parameters,
-                        &display_text,
-                        &request.client_metadata,
-                    )
-                    .await?;
-
-                // Send SSE event to notify frontend
-                self.send_sse_event(
-                    crate::controllers::context_controller::SignalEvent::MessageCompleted {
-                        context_id: self.conversation_id.to_string(),
-                        message_id: finalized.message_id.to_string(),
-                        final_sequence: finalized.sequence,
-                        timestamp: chrono::Utc::now().to_rfc3339(),
-                    },
-                )
-                .await;
-
-                log::info!("=== ChatService::process_message END (structured workflow) ===");
-                return Ok(ServiceResponse::FinalMessage(finalized.summary));
-            }
-            MessagePayload::ToolResult {
-                tool_name, result, ..
-            } => {
-                let finalized = self
-                    .record_tool_result_message(
-                        &context,
-                        tool_name,
-                        result.clone(),
-                        &display_text,
-                        &request.client_metadata,
-                    )
-                    .await?;
-                log::info!("=== ChatService::process_message END (structured tool result) ===");
-                return Ok(ServiceResponse::FinalMessage(finalized.summary));
-            }
-            MessagePayload::Text { content, display } => {
-                let incoming = build_incoming_text_message(
-                    content,
-                    display.as_deref(),
-                    &request.client_metadata,
-                );
-                self.apply_incoming_message(&context, incoming).await?;
-                self.auto_save_context(&context).await?;
-            }
+        // Handle payload using helper - returns early for Workflow/ToolResult
+        if let Some(response) = self
+            .handle_request_payload(&context, &request.payload, &display_text, &request.client_metadata)
+            .await?
+        {
+            log::info!("=== ChatService::process_message END (early return from payload handler) ===");
+            return Ok(response);
         }
 
+        // Continue with LLM call for Text/FileReference payloads
         let llm_request = self.llm_request_builder().build(&context).await?;
 
         // Save system prompt snapshot
@@ -708,29 +627,8 @@ impl<T: StorageProvider + 'static> ChatService<T> {
                     };
                     error!("{}", error_msg);
 
-                    {
-                        let mut context_lock = context.write().await;
-                        // Use context_manager's error handling method
-                        let _updates = context_lock.handle_llm_error(error_msg.clone());
-
-                        let mut extra = HashMap::new();
-                        extra.insert("error".to_string(), json!(error_msg));
-                        let metadata = MessageMetadata {
-                            extra: Some(extra),
-                            ..Default::default()
-                        };
-
-                        context_lock.append_text_message_with_metadata(
-                            Role::Assistant,
-                            MessageType::Text,
-                            format!("I ran into a problem talking to the model: {}", error_msg),
-                            Some(metadata),
-                            None,
-                        );
-                    }
-
-                    self.auto_save_context(&context).await?;
-                    return Err(AppError::InternalError(anyhow::anyhow!(error_msg)));
+                    // Use helper for error handling
+                    return Err(self.handle_llm_error(&context, error_msg).await);
                 }
 
                 let mut full_text = String::new();
@@ -845,8 +743,6 @@ impl<T: StorageProvider + 'static> ChatService<T> {
                         let mut ctx = context.write().await;
                         // Finalize the streaming response with rich chunk tracking
                         ctx.finalize_streaming_response(message_id, Some("stop".to_string()), None);
-                        // Also call finish_streaming_response for FSM state transitions
-                        let _ = ctx.finish_streaming_response(message_id);
                         log::info!("FSM: Finished streaming response");
 
                         let text = ctx.message_pool.get(&message_id).map(|node| {
@@ -934,7 +830,7 @@ impl<T: StorageProvider + 'static> ChatService<T> {
 
                 // Auto-save
                 log::info!("Auto-saving after processing response");
-                self.auto_save_context(&context).await?;
+                self.session_manager.auto_save_if_dirty(&context).await?;
                 log::info!("Auto-save completed");
 
                 log::info!("=== ChatService::process_message END ===");
@@ -966,7 +862,7 @@ impl<T: StorageProvider + 'static> ChatService<T> {
                     );
                 }
 
-                self.auto_save_context(&context).await?;
+                self.session_manager.auto_save_if_dirty(&context).await?;
                 Err(AppError::InternalError(anyhow::anyhow!(error_msg)))
             }
         }
@@ -982,90 +878,52 @@ impl<T: StorageProvider + 'static> ChatService<T> {
     > {
         log::info!("=== ChatService::process_message_stream START ===");
         log::info!("Conversation ID: {}", self.conversation_id);
-        log::info!("Payload type: {}", describe_payload(&request.payload));
+        log::info!("Payload type: {}", message_builder::describe_payload(&request.payload));
 
-        let context = self
-            .session_manager
-            .load_context(
-                self.conversation_id,
-                request.client_metadata.trace_id.clone(),
-            )
-            .await?
-            .ok_or_else(|| {
-                log::error!("Session not found: {}", self.conversation_id);
-                AppError::NotFound("Session".to_string())
-            })?;
-
+        // Load context using helper
+        let context = self.load_context_for_request(&request).await?;
         log::info!("Context loaded successfully");
 
-        let display_text = compute_display_text(&request);
-
-        match &request.payload {
-            MessagePayload::FileReference { paths, .. } => {
-                // ✅ Execute file reference but don't return - let AI streaming proceed
-                self.execute_file_reference(
-                    &context,
-                    paths,
-                    &display_text,
-                    &request.client_metadata,
-                )
-                .await?;
-                // ✅ Don't return - continue to LLM streaming below
-            }
-            MessagePayload::Workflow {
-                workflow,
-                parameters,
-                ..
-            } => {
-                let finalized = self
-                    .execute_workflow(
-                        &context,
-                        workflow,
-                        parameters,
-                        &display_text,
-                        &request.client_metadata,
-                    )
-                    .await?;
-                log::info!("=== ChatService::process_message_stream END (structured workflow) ===");
-                return Self::build_message_signal_sse(
-                    self.conversation_id,
-                    finalized.message_id,
-                    finalized.sequence,
-                )
-                .await;
-            }
-            MessagePayload::ToolResult {
-                tool_name, result, ..
-            } => {
-                let finalized = self
-                    .record_tool_result_message(
-                        &context,
-                        tool_name,
-                        result.clone(),
-                        &display_text,
-                        &request.client_metadata,
-                    )
-                    .await?;
-                log::info!(
-                    "=== ChatService::process_message_stream END (structured tool result) ==="
-                );
-                return Self::build_message_signal_sse(
-                    self.conversation_id,
-                    finalized.message_id,
-                    finalized.sequence,
-                )
-                .await;
-            }
-            MessagePayload::Text { .. } => {
-                // Channel setup deferred until after match
-            }
-        }
+        let display_text = message_builder::compute_display_text(&request);
 
         let (event_tx, event_rx) = mpsc::channel::<sse::Event>(100);
 
+        // Handle payload using helper - returns early for Workflow/ToolResult
+        if let Some(_response) = self
+            .handle_request_payload(&context, &request.payload, &display_text, &request.client_metadata)
+            .await?
+        {
+            // For streaming endpoint, Workflow/ToolResult return Signal-Pull SSE
+            let context_id = {
+                let ctx = context.read().await;
+                ctx.id
+            };
+            
+            match &request.payload {
+                MessagePayload::Workflow { .. } => {
+                    log::info!("=== ChatService::process_message_stream END (structured workflow) ===");
+                    // Return signal for workflow completion
+                    return sse_response_builder::build_message_signal_sse(
+                        context_id,
+                        Uuid::new_v4(), // This should be the actual message_id from the response
+                        0,
+                    );
+                }
+                MessagePayload::ToolResult { .. } => {
+                    log::info!("=== ChatService::process_message_stream END (structured tool result) ===");
+                    return sse_response_builder::build_message_signal_sse(
+                        context_id,
+                        Uuid::new_v4(),
+                        0,
+                    );
+                }
+                _ => unreachable!("handle_request_payload only returns Some for Workflow/ToolResult"),
+            }
+        }
+
         if let MessagePayload::Text { content, display } = &request.payload {
             let incoming =
-                build_incoming_text_message(content, display.as_deref(), &request.client_metadata);
+                message_builder::build_incoming_text_message(content, display.as_deref(), &request.client_metadata);
             let updates = self.apply_incoming_message(&context, incoming).await?;
 
             for update in updates {
@@ -1077,7 +935,7 @@ impl<T: StorageProvider + 'static> ChatService<T> {
                 }
             }
 
-            self.auto_save_context(&context).await?;
+            self.session_manager.auto_save_if_dirty(&context).await?;
         }
 
         let sse_response =
@@ -1261,29 +1119,8 @@ impl<T: StorageProvider + 'static> ChatService<T> {
                 .unwrap_or_else(|| "Tool approvals handled automatically.".to_string())
         };
 
-        self.auto_save_context(&context).await?;
+        self.session_manager.auto_save_if_dirty(&context).await?;
         Ok(ServiceResponse::FinalMessage(final_message))
-    }
-
-    /// Auto-save helper that saves context if dirty
-    async fn auto_save_context(
-        &self,
-        context: &Arc<tokio::sync::RwLock<ChatContext>>,
-    ) -> Result<(), AppError> {
-        let mut context_lock = context.write().await;
-        let trace_id = context_lock.get_trace_id().map(|s| s.to_string());
-        let context_id = context_lock.id;
-        let is_dirty = context_lock.is_dirty();
-
-        tracing::debug!(
-            trace_id = ?trace_id,
-            context_id = %context_id,
-            is_dirty = is_dirty,
-            "ChatService: auto_save_context check"
-        );
-
-        self.session_manager.save_context(&mut context_lock).await?;
-        Ok(())
     }
 }
 
@@ -1941,7 +1778,7 @@ mod tests {
         // since they don't build LLM requests. This test verifies the storage
         // interface works correctly. For actual system prompt persistence testing,
         // we would need integration tests with a mock LLM client.
-        
+
         // Verify that the storage provider's save method can be called
         // (even though workflow messages don't trigger it)
         let snapshot_result = storage
@@ -1950,6 +1787,9 @@ mod tests {
             .expect("load should not error");
 
         // Workflow messages don't save system prompts, so this should be None
-        assert!(snapshot_result.is_none(), "Workflow messages should not save system prompt snapshots");
+        assert!(
+            snapshot_result.is_none(),
+            "Workflow messages should not save system prompt snapshots"
+        );
     }
 }

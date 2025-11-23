@@ -16,7 +16,7 @@ pub use message_pipeline::{MessagePipeline, MessageProcessor, ProcessResult};
 pub use structs::branch::{Branch, SystemPrompt};
 pub use structs::context::{ChatConfig, ChatContext};
 pub use structs::context_agent::{AgentRole, Permission};
-pub use structs::context_lifecycle::StreamingResponseBuilder;
+
 pub use structs::context_snapshot::{BranchSnapshot, LlmContextSnapshot};
 pub use structs::events::{ContextUpdate, MessageUpdate};
 pub use structs::llm_request::PreparedLlmRequest;

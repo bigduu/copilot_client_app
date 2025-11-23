@@ -8,8 +8,8 @@
 //! - Branch operations
 
 use context_manager::{
-    ChatContext, ChatEvent, ContentPart, ContextState, InternalMessage,
-    MessageMetadata, MessageType, Role,
+    ChatContext, ChatEvent, ContentPart, ContextState, InternalMessage, MessageMetadata,
+    MessageType, Role,
 };
 use std::collections::HashMap;
 use uuid::Uuid;
@@ -66,18 +66,19 @@ fn test_complete_user_assistant_cycle() {
     assert_eq!(updates.len(), 1);
     assert_eq!(context.current_state, ContextState::AwaitingLLMResponse);
 
-    // Step 3: Simulate LLM streaming response
-    let (assistant_msg_id, _) = context.begin_streaming_response();
+    // Step 3: Simulate LLM streaming response using NEW API
+    let assistant_msg_id = context.begin_streaming_llm_response(None);
     assert_eq!(context.current_state, ContextState::StreamingLLMResponse);
 
-    // Simulate streaming chunks
+    // Simulate streaming chunks using NEW API
     let response_text = "Rust is a systems programming language.";
     for chunk in response_text.split_whitespace() {
-        context.apply_streaming_delta(assistant_msg_id, format!("{} ", chunk));
+        context.append_streaming_chunk(assistant_msg_id, format!("{} ", chunk));
     }
 
-    // Step 4: Complete streaming
-    context.finish_streaming_response(assistant_msg_id);
+    // Step 4: Complete streaming using NEW API  
+    context.finalize_streaming_response(assistant_msg_id, Some("stop".to_string()), None);
+    context.handle_event(ChatEvent::LLMResponseProcessed { has_tool_calls: false });
     assert_eq!(context.current_state, ContextState::Idle);
 
     // Verify final state
@@ -119,25 +120,28 @@ fn test_multiple_conversation_turns() {
     context.handle_event(ChatEvent::UserMessageSent);
     let _user_msg_1 = add_user_message(&mut context, "Hello");
     context.transition_to_awaiting_llm();
-    let (asst_msg_1, _) = context.begin_streaming_response();
-    context.apply_streaming_delta(asst_msg_1, "Hi there!");
-    context.finish_streaming_response(asst_msg_1);
+    let asst_msg_1 = context.begin_streaming_llm_response(None);
+    context.append_streaming_chunk(asst_msg_1, "Hi there!".to_string());
+    context.finalize_streaming_response(asst_msg_1, Some("stop".to_string()), None);
+    context.handle_event(ChatEvent::LLMResponseProcessed { has_tool_calls: false });
 
     // Turn 2
     context.handle_event(ChatEvent::UserMessageSent);
     let _user_msg_2 = add_user_message(&mut context, "How are you?");
     context.transition_to_awaiting_llm();
-    let (asst_msg_2, _) = context.begin_streaming_response();
-    context.apply_streaming_delta(asst_msg_2, "I'm doing well, thanks!");
-    context.finish_streaming_response(asst_msg_2);
+    let asst_msg_2 = context.begin_streaming_llm_response(None);
+    context.append_streaming_chunk(asst_msg_2, "I'm doing well, thanks!".to_string());
+    context.finalize_streaming_response(asst_msg_2, Some("stop".to_string()), None);
+    context.handle_event(ChatEvent::LLMResponseProcessed { has_tool_calls: false });
 
     // Turn 3
     context.handle_event(ChatEvent::UserMessageSent);
     let _user_msg_3 = add_user_message(&mut context, "Goodbye");
     context.transition_to_awaiting_llm();
-    let (asst_msg_3, _) = context.begin_streaming_response();
-    context.apply_streaming_delta(asst_msg_3, "Goodbye! Have a great day!");
-    context.finish_streaming_response(asst_msg_3);
+    let asst_msg_3 = context.begin_streaming_llm_response(None);
+    context.append_streaming_chunk(asst_msg_3, "Goodbye! Have a great day!".to_string());
+    context.finalize_streaming_response(asst_msg_3, Some("stop".to_string()), None);
+    context.handle_event(ChatEvent::LLMResponseProcessed { has_tool_calls: false });
 
     // Verify: should have 6 messages (3 user + 3 assistant)
     let branch = context.get_active_branch().unwrap();
@@ -165,11 +169,12 @@ fn test_conversation_with_empty_responses() {
     let _user_msg = add_user_message(&mut context, "Test");
 
     context.transition_to_awaiting_llm();
-    let (asst_msg, _) = context.begin_streaming_response();
+    let asst_msg = context.begin_streaming_llm_response(None);
 
     // Don't add any content (empty response)
 
-    context.finish_streaming_response(asst_msg);
+    context.finalize_streaming_response(asst_msg, Some("stop".to_string()), None);
+    context.handle_event(ChatEvent::LLMResponseProcessed { has_tool_calls: false });
 
     // Should still work and return to Idle
     assert_eq!(context.current_state, ContextState::Idle);
@@ -179,9 +184,8 @@ fn test_conversation_with_empty_responses() {
         .message
         .content
         .first()
-        .unwrap()
-        .text_content()
-        .unwrap();
+        .and_then(|part| part.text_content())
+        .unwrap_or("");
     assert_eq!(content, "");
 }
 
@@ -210,9 +214,10 @@ fn test_error_recovery_after_llm_failure() {
     context.handle_event(ChatEvent::UserMessageSent);
     add_user_message(&mut context, "Retry: Test question");
     context.transition_to_awaiting_llm();
-    let (msg_id, _) = context.begin_streaming_response();
-    context.apply_streaming_delta(msg_id, "Success on retry");
-    context.finish_streaming_response(msg_id);
+    let msg_id = context.begin_streaming_llm_response(None);
+    context.append_streaming_chunk(msg_id, "Success on retry".to_string());
+    context.finalize_streaming_response(msg_id, Some("stop".to_string()), None);
+    context.handle_event(ChatEvent::LLMResponseProcessed { has_tool_calls: false });
 
     assert_eq!(context.current_state, ContextState::Idle);
 }
@@ -225,11 +230,11 @@ fn test_error_during_streaming() {
     add_user_message(&mut context, "Tell me a story");
 
     context.transition_to_awaiting_llm();
-    let (msg_id, _) = context.begin_streaming_response();
+    let msg_id = context.begin_streaming_llm_response(None);
 
     // Receive some chunks
-    context.apply_streaming_delta(msg_id, "Once upon a time");
-    context.apply_streaming_delta(msg_id, ", there was");
+    context.append_streaming_chunk(msg_id, "Once upon a time".to_string());
+    context.append_streaming_chunk(msg_id, ", there was".to_string());
 
     // Error occurs mid-stream
     context.handle_llm_error("Stream interrupted".to_string());
@@ -268,7 +273,10 @@ fn test_tool_call_approval_workflow() {
 
     // Should now be in AwaitingToolApproval state
     match &context.current_state {
-        ContextState::AwaitingToolApproval { pending_requests, tool_names } => {
+        ContextState::AwaitingToolApproval {
+            pending_requests,
+            tool_names,
+        } => {
             assert_eq!(pending_requests, &vec![request_id]);
             assert_eq!(tool_names, &vec!["read_file".to_string()]);
         }
@@ -326,7 +334,7 @@ fn test_tool_auto_loop_workflow() {
     context.current_state = ContextState::ProcessingToolResults;
 
     // Enter auto-loop
-    context.handle_event(ChatEvent::ToolAutoLoopStarted { 
+    context.handle_event(ChatEvent::ToolAutoLoopStarted {
         depth: 1,
         tools_executed: 1,
     });
@@ -429,7 +437,10 @@ fn test_messages_preserve_metadata() {
     assert!(preserved_meta.extra.is_some());
 
     let preserved_extra = preserved_meta.extra.as_ref().unwrap();
-    assert_eq!(preserved_extra.get("source"), Some(&serde_json::json!("test")));
+    assert_eq!(
+        preserved_extra.get("source"),
+        Some(&serde_json::json!("test"))
+    );
     assert_eq!(
         preserved_extra.get("priority"),
         Some(&serde_json::json!("high"))
@@ -480,14 +491,16 @@ fn test_large_conversation_performance() {
     // Verify we can still access messages
     let last_msg_id = branch.message_ids.last().unwrap();
     let last_node = context.message_pool.get(last_msg_id).unwrap();
-    assert!(last_node
-        .message
-        .content
-        .first()
-        .unwrap()
-        .text_content()
-        .unwrap()
-        .contains("response 99"));
+    assert!(
+        last_node
+            .message
+            .content
+            .first()
+            .unwrap()
+            .text_content()
+            .unwrap()
+            .contains("response 99")
+    );
 }
 
 #[test]
@@ -502,8 +515,7 @@ fn test_context_serialization_deserialization() {
     let serialized = serde_json::to_string(&context).expect("Should serialize");
 
     // Deserialize
-    let deserialized: ChatContext =
-        serde_json::from_str(&serialized).expect("Should deserialize");
+    let deserialized: ChatContext = serde_json::from_str(&serialized).expect("Should deserialize");
 
     // Verify equality
     assert_eq!(deserialized.id, context.id);
@@ -514,4 +526,3 @@ fn test_context_serialization_deserialization() {
     );
     assert_eq!(deserialized.message_pool.len(), context.message_pool.len());
 }
-

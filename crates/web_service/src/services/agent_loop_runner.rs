@@ -18,7 +18,7 @@ use copilot_client::api::models::{ChatCompletionResponse, Content as ClientConte
 use copilot_client::CopilotClientTrait;
 
 use super::chat_service::ServiceResponse;
-use super::context_tool_runtime::ContextToolRuntime;
+
 
 enum AgentLoopOrigin {
     StreamingResponse { llm_response: String },
@@ -44,6 +44,7 @@ pub struct AgentLoopRunner<T: StorageProvider> {
     session_manager: Arc<ChatSessionManager<T>>,
     conversation_id: Uuid,
     tool_executor: Arc<ToolExecutor>,
+    tool_coordinator: crate::services::tool_coordinator::ToolCoordinator<T>,
     approval_manager: Arc<ApprovalManager>,
     agent_service: Arc<AgentService>,
     copilot_client: Arc<dyn CopilotClientTrait>,
@@ -60,10 +61,16 @@ impl<T: StorageProvider> AgentLoopRunner<T> {
         copilot_client: Arc<dyn CopilotClientTrait>,
         request_builder: LlmRequestBuilder,
     ) -> Self {
+        let tool_coordinator = crate::services::tool_coordinator::ToolCoordinator::new(
+            tool_executor.clone(),
+            approval_manager.clone(),
+            session_manager.clone(),
+        );
         Self {
             session_manager,
             conversation_id,
             tool_executor,
+            tool_coordinator,
             approval_manager,
             agent_service,
             copilot_client,
@@ -120,9 +127,6 @@ impl<T: StorageProvider> AgentLoopRunner<T> {
         let mut agent_state = AgentLoopState::new();
         let mut current_tool_call = tool_call;
 
-        let runtime =
-            ContextToolRuntime::new(self.tool_executor.clone(), self.approval_manager.clone());
-
         loop {
             agent_state.iteration += 1;
 
@@ -134,29 +138,21 @@ impl<T: StorageProvider> AgentLoopRunner<T> {
             let tool_name = current_tool_call.tool.clone();
             let approved_request = approval_request_id.take();
 
-            let execution_updates = {
-                let mut context_lock = context.write().await;
-                let result = context_lock
-                    .process_auto_tool_step(
-                        &runtime,
-                                    tool_name.clone(),
-                        current_tool_call.parameters.clone(),
-                        current_tool_call.terminate,
-                        approved_request,
-                    )
-                    .await
-                    .map_err(|err| AppError::InternalError(anyhow::anyhow!(err.to_string())))?;
-
-                if context_lock.is_dirty() {
-                    self.session_manager
-                        .save_context(&mut context_lock)
-                        .await
-                        .map_err(|e| AppError::InternalError(anyhow::anyhow!(e.to_string())))?;
-                    context_lock.clear_dirty();
-                }
-
-                result
+            let options = crate::services::tool_coordinator::ToolExecutionOptions {
+                request_id: approved_request,
+                terminate: current_tool_call.terminate,
+                display_preference: None,
             };
+
+            let execution_updates = self
+                .tool_coordinator
+                .execute_tool(
+                    &context,
+                    tool_name.clone(),
+                    current_tool_call.parameters.clone(),
+                    options,
+                )
+                .await?;
 
             let mut approval_info: Option<(Uuid, String, serde_json::Value)> = None;
             let mut failure_error: Option<String> = None;
@@ -218,22 +214,22 @@ impl<T: StorageProvider> AgentLoopRunner<T> {
             }
 
             if let Some(error_msg) = failure_error {
-                        agent_state.record_tool_failure(&tool_name);
+                agent_state.record_tool_failure(&tool_name);
 
                 if let Some(pending_request) = approved_request {
                     approval_request_id = Some(pending_request);
-                        }
+                }
 
-                        if !self.agent_service.should_continue(&agent_state)? {
-                            log::error!("Agent loop stopping after tool execution failures");
-                            return Ok(ServiceResponse::FinalMessage(format!(
-                                "Tool execution failed after {} retries: {}",
-                                agent_state.tool_execution_failures, error_msg
-                            )));
-                        }
+                if !self.agent_service.should_continue(&agent_state)? {
+                    log::error!("Agent loop stopping after tool execution failures");
+                    return Ok(ServiceResponse::FinalMessage(format!(
+                        "Tool execution failed after {} retries: {}",
+                        agent_state.tool_execution_failures, error_msg
+                    )));
+                }
 
-                        continue;
-                    }
+                continue;
+            }
 
             agent_state.reset_tool_failures();
 
@@ -272,7 +268,7 @@ impl<T: StorageProvider> AgentLoopRunner<T> {
                     });
                 }
 
-                self.auto_save_context(&context).await?;
+                self.session_manager.auto_save_if_dirty(&context).await?;
                 return Ok(ServiceResponse::FinalMessage(final_message));
             }
 
@@ -353,7 +349,7 @@ impl<T: StorageProvider> AgentLoopRunner<T> {
                     });
                 }
 
-                self.auto_save_context(&context).await?;
+                self.session_manager.auto_save_if_dirty(&context).await?;
                 return Ok(ServiceResponse::FinalMessage(response_text));
             }
         }
@@ -378,14 +374,7 @@ impl<T: StorageProvider> AgentLoopRunner<T> {
                 has_tool_calls: false,
             });
         }
-        self.auto_save_context(&context).await?;
+        self.session_manager.auto_save_if_dirty(&context).await?;
         Ok(ServiceResponse::FinalMessage(final_message))
-    }
-
-    async fn auto_save_context(&self, context: &Arc<RwLock<ChatContext>>) -> Result<(), AppError> {
-        self.session_manager
-            .save_context(&mut *context.write().await)
-            .await
-            .map_err(|e| AppError::InternalError(anyhow::anyhow!(e.to_string())))
     }
 }

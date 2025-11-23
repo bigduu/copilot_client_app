@@ -9,6 +9,7 @@ members = [
     "crates/web_service_standalone",
     "crates/context_manager",
     "crates/session_manager",
+    "crates/storage_manager",
 ]
 resolver = "2"
 default-members = ["src-tauri"]
