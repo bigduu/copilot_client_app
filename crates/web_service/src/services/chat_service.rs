@@ -61,6 +61,7 @@ pub struct ChatService<T: StorageProvider> {
     conversation_id: Uuid,
     copilot_client: Arc<dyn CopilotClientTrait>,
     tool_executor: Arc<ToolExecutor>,
+    tool_coordinator: crate::services::tool_coordinator::ToolCoordinator<T>,
     system_prompt_service: Arc<SystemPromptService>,
     agent_service: Arc<AgentService>,
     approval_manager: Arc<ApprovalManager>,
@@ -176,13 +177,20 @@ impl<T: StorageProvider + 'static> ChatService<T> {
         approval_manager: Arc<ApprovalManager>,
         workflow_service: Arc<WorkflowService>,
     ) -> Self {
+        let agent_service = Arc::new(AgentService::with_default_config());
+        let tool_coordinator = crate::services::tool_coordinator::ToolCoordinator::new(
+            tool_executor.clone(),
+            approval_manager.clone(),
+            session_manager.clone(),
+        );
         Self {
             session_manager,
             conversation_id,
             copilot_client,
             tool_executor,
+            tool_coordinator,
             system_prompt_service,
-            agent_service: Arc::new(AgentService::with_default_config()),
+            agent_service,
             approval_manager,
             workflow_service,
             event_broadcaster: None,
@@ -303,15 +311,14 @@ impl<T: StorageProvider + 'static> ChatService<T> {
         display_text: &str,
         metadata: &ClientMessageMetadata,
     ) -> Result<(), AppError> {
+        use crate::services::tool_coordinator::ToolExecutionOptions;
+
         // 1. Add user message
         let incoming = build_incoming_text_message(display_text, Some(display_text), metadata);
         self.apply_incoming_message(context, incoming).await?;
         self.session_manager.auto_save_if_dirty(context).await?;
 
-        let runtime =
-            ContextToolRuntime::new(self.tool_executor.clone(), self.approval_manager.clone());
-
-        // 2. Process each path
+        // 2. Process each path using ToolCoordinator
         for path in paths {
             let path_obj = std::path::Path::new(path);
 
@@ -321,37 +328,39 @@ impl<T: StorageProvider + 'static> ChatService<T> {
                 arguments.insert("path".to_string(), json!(path));
                 arguments.insert("depth".to_string(), json!(1));
 
-                let mut context_lock = context.write().await;
-                context_lock
-                    .process_auto_tool_step(
-                        &runtime,
+                let options = ToolExecutionOptions {
+                    display_preference: Some(DisplayPreference::Hidden),
+                    ..Default::default()
+                };
+
+                self.tool_coordinator
+                    .execute_tool(
+                        context,
                         "list_directory".to_string(),
                         serde_json::Value::Object(arguments),
-                        false,
-                        None,
+                        options,
                     )
-                    .await
-                    .map_err(|err| AppError::InternalError(anyhow::anyhow!(err.to_string())))?;
+                    .await?;
             } else {
                 // File: use read_file tool
                 let mut arguments = serde_json::Map::new();
                 arguments.insert("path".to_string(), json!(path));
 
-                let mut context_lock = context.write().await;
-                context_lock
-                    .process_auto_tool_step(
-                        &runtime,
+                let options = ToolExecutionOptions {
+                    display_preference: Some(DisplayPreference::Hidden),
+                    ..Default::default()
+                };
+
+                self.tool_coordinator
+                    .execute_tool(
+                        context,
                         "read_file".to_string(),
                         serde_json::Value::Object(arguments),
-                        false,
-                        None,
+                        options,
                     )
-                    .await
-                    .map_err(|err| AppError::InternalError(anyhow::anyhow!(err.to_string())))?;
+                    .await?;
             }
         }
-
-        self.session_manager.auto_save_if_dirty(context).await?;
 
         // ✅ Return Ok(()) to allow AI call to proceed
         Ok(())
