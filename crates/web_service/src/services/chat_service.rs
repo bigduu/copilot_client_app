@@ -26,7 +26,7 @@ use uuid::Uuid;
 use super::agent_loop_runner::AgentLoopRunner;
 use super::agent_service::AgentService;
 use super::approval_manager::ApprovalManager;
-
+use super::message_builder;
 use super::copilot_stream_handler;
 use super::llm_request_builder::LlmRequestBuilder;
 use super::llm_utils::{detect_message_type, send_context_update};
@@ -69,98 +69,7 @@ pub struct ChatService<T: StorageProvider> {
     event_broadcaster: Option<Arc<crate::services::EventBroadcaster>>,
 }
 
-fn stringify_tool_output(value: &serde_json::Value) -> String {
-    if let Some(content) = value.get("content").and_then(|v| v.as_str()) {
-        return content.to_string();
-    }
-
-    if let Some(message) = value.get("message").and_then(|v| v.as_str()) {
-        return message.to_string();
-    }
-
-    serde_json::to_string_pretty(value).unwrap_or_else(|_| value.to_string())
-}
-
-// Helper function to convert internal Role to client Role
-fn describe_payload(payload: &MessagePayload) -> &'static str {
-    match payload {
-        MessagePayload::Text { .. } => "text",
-        MessagePayload::FileReference { .. } => "file_reference",
-        MessagePayload::Workflow { .. } => "workflow",
-        MessagePayload::ToolResult { .. } => "tool_result",
-    }
-}
-
-fn compute_display_text(request: &SendMessageRequest) -> String {
-    if let Some(display_text) = &request.client_metadata.display_text {
-        return display_text.clone();
-    }
-
-    match &request.payload {
-        MessagePayload::Text { content, display } => {
-            display.clone().unwrap_or_else(|| content.clone())
-        }
-        MessagePayload::FileReference {
-            paths,
-            display_text,
-            ..
-        } => display_text
-            .clone()
-            .unwrap_or_else(|| format!("读取文件 {:?}", paths)),
-        MessagePayload::Workflow {
-            workflow,
-            display_text,
-            ..
-        } => display_text
-            .clone()
-            .unwrap_or_else(|| format!("执行工作流 {}", workflow)),
-        MessagePayload::ToolResult {
-            tool_name,
-            display_text,
-            ..
-        } => display_text
-            .clone()
-            .unwrap_or_else(|| format!("工具 {} 的执行结果", tool_name)),
-    }
-}
-
-fn convert_client_metadata(metadata: &ClientMessageMetadata) -> Option<MessageMetadata> {
-    let mut extra = metadata.extra.clone();
-
-    if let Some(trace_id) = &metadata.trace_id {
-        extra
-            .entry("trace_id".to_string())
-            .or_insert_with(|| json!(trace_id));
-    }
-
-    if extra.is_empty() {
-        None
-    } else {
-        Some(MessageMetadata {
-            extra: Some(extra),
-            ..Default::default()
-        })
-    }
-}
-
-fn build_incoming_text_message(
-    content: &str,
-    payload_display: Option<&str>,
-    metadata: &ClientMessageMetadata,
-) -> IncomingMessage {
-    let display_text = metadata
-        .display_text
-        .clone()
-        .or_else(|| payload_display.map(|value| value.to_string()));
-
-    let mut message = IncomingTextMessage::with_display_text(content.to_string(), display_text);
-
-    if let Some(meta) = convert_client_metadata(metadata) {
-        message.metadata = Some(meta);
-    }
-
-    IncomingMessage::Text(message)
-}
+// Helper functions moved to message_builder module
 
 impl<T: StorageProvider + 'static> ChatService<T> {
     /// Create a new ChatService (Phase 2.0 - Pipeline-based)
@@ -314,7 +223,7 @@ impl<T: StorageProvider + 'static> ChatService<T> {
         use crate::services::tool_coordinator::ToolExecutionOptions;
 
         // 1. Add user message
-        let incoming = build_incoming_text_message(display_text, Some(display_text), metadata);
+        let incoming = message_builder::build_incoming_text_message(display_text, Some(display_text), metadata);
         self.apply_incoming_message(context, incoming).await?;
         self.session_manager.auto_save_if_dirty(context).await?;
 
@@ -374,7 +283,7 @@ impl<T: StorageProvider + 'static> ChatService<T> {
         display_text: &str,
         metadata: &ClientMessageMetadata,
     ) -> Result<FinalizedMessage, AppError> {
-        let incoming = build_incoming_text_message(display_text, Some(display_text), metadata);
+        let incoming = message_builder::build_incoming_text_message(display_text, Some(display_text), metadata);
         self.apply_incoming_message(context, incoming).await?;
         self.session_manager.auto_save_if_dirty(context).await?;
 
@@ -385,7 +294,7 @@ impl<T: StorageProvider + 'static> ChatService<T> {
 
         let (assistant_text, metadata_payload) = match execution_result {
             Ok(result) => {
-                let assistant_text = stringify_tool_output(&result);
+                let assistant_text = message_builder::stringify_tool_output(&result);
                 let payload = json!({
                     "workflow_name": workflow,
                     "parameters": parameters,
@@ -455,11 +364,11 @@ impl<T: StorageProvider + 'static> ChatService<T> {
         display_text: &str,
         metadata: &ClientMessageMetadata,
     ) -> Result<FinalizedMessage, AppError> {
-        let incoming = build_incoming_text_message(display_text, Some(display_text), metadata);
+        let incoming = message_builder::build_incoming_text_message(display_text, Some(display_text), metadata);
         self.apply_incoming_message(context, incoming).await?;
         self.session_manager.auto_save_if_dirty(context).await?;
 
-        let tool_result_text = stringify_tool_output(&result);
+        let tool_result_text = message_builder::stringify_tool_output(&result);
 
         let (message_id, summary, sequence) = {
             let mut context_lock = context.write().await;
@@ -555,7 +464,7 @@ impl<T: StorageProvider + 'static> ChatService<T> {
     ) -> Result<ServiceResponse, AppError> {
         log::info!("=== ChatService::process_message START ===");
         log::info!("Conversation ID: {}", self.conversation_id);
-        log::info!("Payload type: {}", describe_payload(&request.payload));
+        log::info!("Payload type: {}", message_builder::describe_payload(&request.payload));
 
         let context = self
             .session_manager
@@ -571,7 +480,7 @@ impl<T: StorageProvider + 'static> ChatService<T> {
 
         log::info!("Context loaded successfully");
 
-        let display_text = compute_display_text(&request);
+        let display_text = message_builder::compute_display_text(&request);
 
         {
             let context_lock = context.read().await;
@@ -649,7 +558,7 @@ impl<T: StorageProvider + 'static> ChatService<T> {
                 return Ok(ServiceResponse::FinalMessage(finalized.summary));
             }
             MessagePayload::Text { content, display } => {
-                let incoming = build_incoming_text_message(
+                let incoming = message_builder::build_incoming_text_message(
                     content,
                     display.as_deref(),
                     &request.client_metadata,
@@ -989,7 +898,7 @@ impl<T: StorageProvider + 'static> ChatService<T> {
     > {
         log::info!("=== ChatService::process_message_stream START ===");
         log::info!("Conversation ID: {}", self.conversation_id);
-        log::info!("Payload type: {}", describe_payload(&request.payload));
+        log::info!("Payload type: {}", message_builder::describe_payload(&request.payload));
 
         let context = self
             .session_manager
@@ -1005,7 +914,7 @@ impl<T: StorageProvider + 'static> ChatService<T> {
 
         log::info!("Context loaded successfully");
 
-        let display_text = compute_display_text(&request);
+        let display_text = message_builder::compute_display_text(&request);
 
         match &request.payload {
             MessagePayload::FileReference { paths, .. } => {
@@ -1072,7 +981,7 @@ impl<T: StorageProvider + 'static> ChatService<T> {
 
         if let MessagePayload::Text { content, display } = &request.payload {
             let incoming =
-                build_incoming_text_message(content, display.as_deref(), &request.client_metadata);
+                message_builder::build_incoming_text_message(content, display.as_deref(), &request.client_metadata);
             let updates = self.apply_incoming_message(&context, incoming).await?;
 
             for update in updates {

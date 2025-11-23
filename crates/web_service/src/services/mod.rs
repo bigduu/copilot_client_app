@@ -7,6 +7,7 @@ pub mod copilot_stream_handler;
 pub mod event_broadcaster;
 pub mod llm_request_builder;
 pub mod llm_utils;
+pub mod message_builder;
 pub mod session_manager;
 pub mod system_prompt_service;
 pub mod template_variable_service;
