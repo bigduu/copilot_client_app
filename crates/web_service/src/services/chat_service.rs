@@ -417,6 +417,113 @@ impl<T: StorageProvider + 'static> ChatService<T> {
         })
     }
 
+    // ===== Helper methods for process_message =====
+    
+    /// Load context for incoming request
+    async fn load_context_for_request(
+        &self,
+        request: &SendMessageRequest,
+    ) -> Result<Arc<tokio::sync::RwLock<ChatContext>>, AppError> {
+        self.session_manager
+            .load_context(
+                self.conversation_id,
+                request.client_metadata.trace_id.clone(),
+            )
+            .await?
+            .ok_or_else(|| {
+                log::error!("Session not found: {}", self.conversation_id);
+                AppError::NotFound("Session".to_string())
+            })
+    }
+
+    /// Handle request payload - returns Some(response) for early-return payloads (Workflow, ToolResult)
+    /// Returns None for Text/FileReference which should continue to LLM
+    async fn handle_request_payload(
+        &mut self,
+        context: &Arc<tokio::sync::RwLock<ChatContext>>,
+        payload: &MessagePayload,
+        display_text: &str,
+        metadata: &ClientMessageMetadata,
+    ) -> Result<Option<ServiceResponse>, AppError> {
+        match payload {
+            MessagePayload::FileReference { paths, .. } => {
+                // Execute file reference but don't return - let AI call proceed
+                self.execute_file_reference(context, paths, display_text, metadata)
+                    .await?;
+                Ok(None) // Continue to LLM
+            }
+            MessagePayload::Workflow {
+                workflow,
+                parameters,
+                ..
+            } => {
+                let finalized = self
+                    .execute_workflow(context, workflow, parameters, display_text, metadata)
+                    .await?;
+
+                // Send SSE event
+                self.send_sse_event(
+                    crate::controllers::context_controller::SignalEvent::MessageCompleted {
+                        context_id: self.conversation_id.to_string(),
+                        message_id: finalized.message_id.to_string(),
+                        final_sequence: finalized.sequence,
+                        timestamp: chrono::Utc::now().to_rfc3339(),
+                    },
+                )
+                .await;
+
+                Ok(Some(ServiceResponse::FinalMessage(finalized.summary)))
+            }
+            MessagePayload::ToolResult {
+                tool_name, result, ..
+            } => {
+                let finalized = self
+                    .record_tool_result_message(context, tool_name, result.clone(), display_text, metadata)
+                    .await?;
+                Ok(Some(ServiceResponse::FinalMessage(finalized.summary)))
+            }
+            MessagePayload::Text { content, display } => {
+                let incoming = message_builder::build_incoming_text_message(
+                    content,
+                    display.as_deref(),
+                    metadata,
+                );
+                self.apply_incoming_message(context, incoming).await?;
+                self.session_manager.auto_save_if_dirty(context).await?;
+                Ok(None) // Continue to LLM
+            }
+        }
+    }
+
+    /// Handle LLM error by updating context and creating error message
+    async fn handle_llm_error(
+        &self,
+        context: &Arc<tokio::sync::RwLock<ChatContext>>,
+        error_msg: String,
+    ) -> AppError {
+        let mut context_lock = context.write().await;
+        let _updates = context_lock.handle_llm_error(error_msg.clone());
+
+        let mut extra = HashMap::new();
+        extra.insert("error".to_string(), json!(error_msg));
+        let metadata = MessageMetadata {
+            extra: Some(extra),
+            ..Default::default()
+        };
+
+        context_lock.append_text_message_with_metadata(
+            Role::Assistant,
+            MessageType::Text,
+            format!("I ran into a problem talking to the model: {}", error_msg),
+            Some(metadata),
+            None,
+        );
+        drop(context_lock);
+
+        let _ = self.session_manager.auto_save_if_dirty(context).await;
+        AppError::InternalError(anyhow::anyhow!(error_msg))
+    }
+
     // build_message_signal_sse moved to sse_response_builder module
 
     pub async fn process_message(
@@ -427,18 +534,8 @@ impl<T: StorageProvider + 'static> ChatService<T> {
         log::info!("Conversation ID: {}", self.conversation_id);
         log::info!("Payload type: {}", message_builder::describe_payload(&request.payload));
 
-        let context = self
-            .session_manager
-            .load_context(
-                self.conversation_id,
-                request.client_metadata.trace_id.clone(),
-            )
-            .await?
-            .ok_or_else(|| {
-                log::error!("Session not found: {}", self.conversation_id);
-                AppError::NotFound("Session".to_string())
-            })?;
-
+        // Load context using helper
+        let context = self.load_context_for_request(&request).await?;
         log::info!("Context loaded successfully");
 
         let display_text = message_builder::compute_display_text(&request);
@@ -462,73 +559,16 @@ impl<T: StorageProvider + 'static> ChatService<T> {
             log::info!("Message pool size: {}", context_lock.message_pool.len());
         }
 
-        match &request.payload {
-            MessagePayload::FileReference { paths, .. } => {
-                // ✅ Execute file reference but don't return - let AI call proceed
-                self.execute_file_reference(
-                    &context,
-                    paths,
-                    &display_text,
-                    &request.client_metadata,
-                )
-                .await?;
-                // ✅ Don't return - continue to LLM call below
-            }
-            MessagePayload::Workflow {
-                workflow,
-                parameters,
-                ..
-            } => {
-                let finalized = self
-                    .execute_workflow(
-                        &context,
-                        workflow,
-                        parameters,
-                        &display_text,
-                        &request.client_metadata,
-                    )
-                    .await?;
-
-                // Send SSE event to notify frontend
-                self.send_sse_event(
-                    crate::controllers::context_controller::SignalEvent::MessageCompleted {
-                        context_id: self.conversation_id.to_string(),
-                        message_id: finalized.message_id.to_string(),
-                        final_sequence: finalized.sequence,
-                        timestamp: chrono::Utc::now().to_rfc3339(),
-                    },
-                )
-                .await;
-
-                log::info!("=== ChatService::process_message END (structured workflow) ===");
-                return Ok(ServiceResponse::FinalMessage(finalized.summary));
-            }
-            MessagePayload::ToolResult {
-                tool_name, result, ..
-            } => {
-                let finalized = self
-                    .record_tool_result_message(
-                        &context,
-                        tool_name,
-                        result.clone(),
-                        &display_text,
-                        &request.client_metadata,
-                    )
-                    .await?;
-                log::info!("=== ChatService::process_message END (structured tool result) ===");
-                return Ok(ServiceResponse::FinalMessage(finalized.summary));
-            }
-            MessagePayload::Text { content, display } => {
-                let incoming = message_builder::build_incoming_text_message(
-                    content,
-                    display.as_deref(),
-                    &request.client_metadata,
-                );
-                self.apply_incoming_message(&context, incoming).await?;
-                self.session_manager.auto_save_if_dirty(&context).await?;
-            }
+        // Handle payload using helper - returns early for Workflow/ToolResult
+        if let Some(response) = self
+            .handle_request_payload(&context, &request.payload, &display_text, &request.client_metadata)
+            .await?
+        {
+            log::info!("=== ChatService::process_message END (early return from payload handler) ===");
+            return Ok(response);
         }
 
+        // Continue with LLM call for Text/FileReference payloads
         let llm_request = self.llm_request_builder().build(&context).await?;
 
         // Save system prompt snapshot
@@ -587,29 +627,8 @@ impl<T: StorageProvider + 'static> ChatService<T> {
                     };
                     error!("{}", error_msg);
 
-                    {
-                        let mut context_lock = context.write().await;
-                        // Use context_manager's error handling method
-                        let _updates = context_lock.handle_llm_error(error_msg.clone());
-
-                        let mut extra = HashMap::new();
-                        extra.insert("error".to_string(), json!(error_msg));
-                        let metadata = MessageMetadata {
-                            extra: Some(extra),
-                            ..Default::default()
-                        };
-
-                        context_lock.append_text_message_with_metadata(
-                            Role::Assistant,
-                            MessageType::Text,
-                            format!("I ran into a problem talking to the model: {}", error_msg),
-                            Some(metadata),
-                            None,
-                        );
-                    }
-
-                    self.session_manager.auto_save_if_dirty(&context).await?;
-                    return Err(AppError::InternalError(anyhow::anyhow!(error_msg)));
+                    // Use helper for error handling
+                    return Err(self.handle_llm_error(&context, error_msg).await);
                 }
 
                 let mut full_text = String::new();
