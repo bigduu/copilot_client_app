@@ -26,7 +26,7 @@ use uuid::Uuid;
 use super::agent_loop_runner::AgentLoopRunner;
 use super::agent_service::AgentService;
 use super::approval_manager::ApprovalManager;
-use super::context_tool_runtime::ContextToolRuntime;
+
 use super::copilot_stream_handler;
 use super::llm_request_builder::LlmRequestBuilder;
 use super::llm_utils::{detect_message_type, send_context_update};

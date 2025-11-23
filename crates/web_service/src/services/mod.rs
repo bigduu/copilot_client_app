@@ -2,7 +2,7 @@ pub mod agent_loop_runner;
 pub mod agent_service;
 pub mod approval_manager;
 pub mod chat_service;
-pub mod context_tool_runtime;
+
 pub mod copilot_stream_handler;
 pub mod event_broadcaster;
 pub mod llm_request_builder;
