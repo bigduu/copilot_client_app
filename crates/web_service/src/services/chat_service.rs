@@ -31,6 +31,7 @@ use super::copilot_stream_handler;
 use super::llm_request_builder::LlmRequestBuilder;
 use super::llm_utils::{detect_message_type, send_context_update};
 use super::session_manager::ChatSessionManager;
+use super::sse_response_builder;
 use super::system_prompt_service::SystemPromptService;
 
 #[derive(Debug, Serialize)]
@@ -416,47 +417,7 @@ impl<T: StorageProvider + 'static> ChatService<T> {
         })
     }
 
-    async fn build_message_signal_sse(
-        context_id: Uuid,
-        message_id: Uuid,
-        sequence: u64,
-    ) -> Result<
-        sse::Sse<InfallibleStream<tokio_stream::wrappers::ReceiverStream<sse::Event>>>,
-        AppError,
-    > {
-        let (tx, rx) = mpsc::channel::<sse::Event>(4);
-
-        let payload = json!({
-            "context_id": context_id,
-            "message_id": message_id,
-            "sequence": sequence,
-            "is_final": true,
-        });
-
-        let content_event = sse::Data::new_json(payload)
-            .map(|data| sse::Event::Data(data.event("content_final")))
-            .map_err(|err| {
-                AppError::InternalError(anyhow::anyhow!(format!(
-                    "Failed to serialise content_final payload: {}",
-                    err
-                )))
-            })?;
-
-        if tx.send(content_event).await.is_err() {
-            return Err(AppError::InternalError(anyhow::anyhow!(
-                "Failed to emit content_final event"
-            )));
-        }
-
-        if let Ok(done_event) = sse::Data::new_json(json!({ "done": true })) {
-            let _ = tx.send(sse::Event::Data(done_event.event("done"))).await;
-        }
-        let _ = tx.send(sse::Event::Data(sse::Data::new("[DONE]"))).await;
-
-        drop(tx);
-
-        Ok(sse::Sse::from_infallible_receiver(rx).with_keep_alive(Duration::from_secs(15)))
-    }
+    // build_message_signal_sse moved to sse_response_builder module
 
     pub async fn process_message(
         &mut self,
@@ -943,12 +904,11 @@ impl<T: StorageProvider + 'static> ChatService<T> {
                     )
                     .await?;
                 log::info!("=== ChatService::process_message_stream END (structured workflow) ===");
-                return Self::build_message_signal_sse(
+                return sse_response_builder::build_message_signal_sse(
                     self.conversation_id,
                     finalized.message_id,
                     finalized.sequence,
                 )
-                .await;
             }
             MessagePayload::ToolResult {
                 tool_name, result, ..
@@ -965,12 +925,11 @@ impl<T: StorageProvider + 'static> ChatService<T> {
                 log::info!(
                     "=== ChatService::process_message_stream END (structured tool result) ==="
                 );
-                return Self::build_message_signal_sse(
+                return sse_response_builder::build_message_signal_sse(
                     self.conversation_id,
                     finalized.message_id,
                     finalized.sequence,
                 )
-                .await;
             }
             MessagePayload::Text { .. } => {
                 // Channel setup deferred until after match
