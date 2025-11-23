@@ -880,82 +880,46 @@ impl<T: StorageProvider + 'static> ChatService<T> {
         log::info!("Conversation ID: {}", self.conversation_id);
         log::info!("Payload type: {}", message_builder::describe_payload(&request.payload));
 
-        let context = self
-            .session_manager
-            .load_context(
-                self.conversation_id,
-                request.client_metadata.trace_id.clone(),
-            )
-            .await?
-            .ok_or_else(|| {
-                log::error!("Session not found: {}", self.conversation_id);
-                AppError::NotFound("Session".to_string())
-            })?;
-
+        // Load context using helper
+        let context = self.load_context_for_request(&request).await?;
         log::info!("Context loaded successfully");
 
         let display_text = message_builder::compute_display_text(&request);
 
-        match &request.payload {
-            MessagePayload::FileReference { paths, .. } => {
-                // ✅ Execute file reference but don't return - let AI streaming proceed
-                self.execute_file_reference(
-                    &context,
-                    paths,
-                    &display_text,
-                    &request.client_metadata,
-                )
-                .await?;
-                // ✅ Don't return - continue to LLM streaming below
-            }
-            MessagePayload::Workflow {
-                workflow,
-                parameters,
-                ..
-            } => {
-                let finalized = self
-                    .execute_workflow(
-                        &context,
-                        workflow,
-                        parameters,
-                        &display_text,
-                        &request.client_metadata,
-                    )
-                    .await?;
-                log::info!("=== ChatService::process_message_stream END (structured workflow) ===");
-                return sse_response_builder::build_message_signal_sse(
-                    self.conversation_id,
-                    finalized.message_id,
-                    finalized.sequence,
-                )
-            }
-            MessagePayload::ToolResult {
-                tool_name, result, ..
-            } => {
-                let finalized = self
-                    .record_tool_result_message(
-                        &context,
-                        tool_name,
-                        result.clone(),
-                        &display_text,
-                        &request.client_metadata,
-                    )
-                    .await?;
-                log::info!(
-                    "=== ChatService::process_message_stream END (structured tool result) ==="
-                );
-                return sse_response_builder::build_message_signal_sse(
-                    self.conversation_id,
-                    finalized.message_id,
-                    finalized.sequence,
-                )
-            }
-            MessagePayload::Text { .. } => {
-                // Channel setup deferred until after match
+        let (event_tx, event_rx) = mpsc::channel::<sse::Event>(100);
+
+        // Handle payload using helper - returns early for Workflow/ToolResult
+        if let Some(_response) = self
+            .handle_request_payload(&context, &request.payload, &display_text, &request.client_metadata)
+            .await?
+        {
+            // For streaming endpoint, Workflow/ToolResult return Signal-Pull SSE
+            let context_id = {
+                let ctx = context.read().await;
+                ctx.id
+            };
+            
+            match &request.payload {
+                MessagePayload::Workflow { .. } => {
+                    log::info!("=== ChatService::process_message_stream END (structured workflow) ===");
+                    // Return signal for workflow completion
+                    return sse_response_builder::build_message_signal_sse(
+                        context_id,
+                        Uuid::new_v4(), // This should be the actual message_id from the response
+                        0,
+                    );
+                }
+                MessagePayload::ToolResult { .. } => {
+                    log::info!("=== ChatService::process_message_stream END (structured tool result) ===");
+                    return sse_response_builder::build_message_signal_sse(
+                        context_id,
+                        Uuid::new_v4(),
+                        0,
+                    );
+                }
+                _ => unreachable!("handle_request_payload only returns Some for Workflow/ToolResult"),
             }
         }
-
-        let (event_tx, event_rx) = mpsc::channel::<sse::Event>(100);
 
         if let MessagePayload::Text { content, display } = &request.payload {
             let incoming =
