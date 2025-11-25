@@ -19,6 +19,7 @@ use tokio::sync::RwLock;
 pub async fn generate_title(
     app_state: &AppState,
     context: &Arc<RwLock<context_manager::structs::context::ChatContext>>,
+    context_id: uuid::Uuid,
     params: TitleGenerationParams,
 ) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
     // 1. Extract conversation summary
@@ -43,8 +44,8 @@ pub async fn generate_title(
     // 5. Sanitize title
     let sanitized = helpers::sanitize_title(&raw_title, params.max_length, &params.fallback_title);
 
-    // 6. Save to context
-    save_title_to_context(context, &sanitized).await?;
+    // 6. Save to context and broadcast SSE event
+    save_title_to_context(app_state, context, context_id, &sanitized).await?;
 
     Ok(sanitized)
 }
@@ -154,11 +155,39 @@ async fn generate_via_llm(
 
 /// Save generated title to context
 async fn save_title_to_context(
+    app_state: &AppState,
     context: &Arc<RwLock<context_manager::structs::context::ChatContext>>,
+    context_id: uuid::Uuid,
     title: &str,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    let mut ctx = context.write().await;
-    ctx.title = Some(title.to_string());
-    ctx.mark_dirty(); // Trigger auto-save
+    {
+        let mut ctx = context.write().await;
+        ctx.title = Some(title.to_string());
+        ctx.mark_dirty(); // Trigger auto-save
+    } // Release write lock before broadcasting
+    
+    // Broadcast SSE event to notify connected clients of title update
+    use crate::controllers::context::streaming::SignalEvent;
+    use actix_web_lab::sse;
+    
+    let event = SignalEvent::TitleUpdated {
+        context_id: context_id.to_string(),
+        title: title.to_string(),
+        timestamp: chrono::Utc::now().to_rfc3339(),
+    };
+    
+    if let Ok(data) = sse::Data::new_json(&event) {
+        app_state.event_broadcaster.broadcast(
+            context_id,
+            sse::Event::Data(data.event("signal")),
+        ).await;
+        
+        tracing::debug!(
+            context_id = %context_id,
+            title = %title,
+            "Broadcasted title_updated SSE event"
+        );
+    }
+    
     Ok(())
 }

@@ -61,6 +61,11 @@ pub enum SignalEvent {
         final_sequence: u64,
         timestamp: String,
     },
+    TitleUpdated {
+        context_id: String,
+        title: String,
+        timestamp: String,
+    },
     Heartbeat {
         timestamp: String,
     },
@@ -73,6 +78,7 @@ impl SignalEvent {
             SignalEvent::StateChanged { context_id, .. } => context_id,
             SignalEvent::ContentDelta { context_id, .. } => context_id,
             SignalEvent::MessageCompleted { context_id, .. } => context_id,
+            SignalEvent::TitleUpdated { context_id, .. } => context_id,
             SignalEvent::MessageCreated { .. } | SignalEvent::Heartbeat { .. } => "",
         }
     }

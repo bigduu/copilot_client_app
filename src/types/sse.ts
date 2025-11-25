@@ -13,6 +13,7 @@ export type SignalEvent =
   | MessageCreatedEvent
   | ContentDeltaEvent
   | MessageCompletedEvent
+  | TitleUpdatedEvent
   | HeartbeatEvent;
 
 /**
@@ -54,6 +55,16 @@ export interface MessageCompletedEvent {
   context_id: string;
   message_id: string;
   final_sequence: number;
+  timestamp: string;
+}
+
+/**
+ * Chat title has been updated (auto-generated or manually)
+ */
+export interface TitleUpdatedEvent {
+  type: "title_updated";
+  context_id: string;
+  title: string;
   timestamp: string;
 }
 

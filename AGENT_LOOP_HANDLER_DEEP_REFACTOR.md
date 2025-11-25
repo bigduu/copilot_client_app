@@ -16,7 +16,7 @@
 ├── process_message() (193行) ❌ 包含完整 LLM 处理
 ├── process_message_stream() (190行) ❌ 包含完整 SSE 流处理
 └── 辅助方法 (106行)
-```
+``mut `
 
 ### **核心问题**
 1. ❌ **process_message** - 内联了所有 LLM 调用和流处理逻辑

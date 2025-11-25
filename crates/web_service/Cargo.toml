@@ -31,6 +31,12 @@ dirs = "5.0"
 rfd = "0.15.4"
 
 async-trait = "0.1.1"
+reqwest = { version = "0.12", features = [
+    "json",
+    "stream",
+    "gzip",
+    "rustls-tls",
+] }
 
 context_manager = { path = "../context_manager" }
 session_manager = { path = "../session_manager" }

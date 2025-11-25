@@ -68,7 +68,7 @@ pub async fn generate_context_title(
     };
 
     // Generate title (core logic - no duplication!)
-    match generator::generate_title(&app_state, &context, generation_params).await {
+    match generator::generate_title(&app_state, &context, context_id, generation_params).await {
         Ok(title) => Ok(HttpResponse::Ok().json(GenerateTitleResponse { title })),
         Err(err) => {
             error!(
@@ -137,7 +137,7 @@ pub async fn auto_generate_title_if_needed(
 
     // Use the same generation logic (no duplication!)
     let params = types::TitleGenerationParams::default();
-    match generator::generate_title(app_state, &context, params).await {
+    match generator::generate_title(app_state, &context, context_id, params).await {
         Ok(title) => {
             tracing::info!(
                 context_id = %context_id,
