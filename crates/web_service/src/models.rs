@@ -121,3 +121,22 @@ pub struct ToolExecutionResult {
     pub result: String,
     pub display_preference: DisplayPreference,
 }
+
+#[derive(Debug, Serialize)]
+pub struct FinalizedMessage {
+    pub message_id: Uuid,
+    pub sequence: u64,
+    pub summary: String,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(tag = "type", content = "data", rename_all = "snake_case")]
+pub enum ServiceResponse {
+    FinalMessage(String),
+    AwaitingToolApproval(Vec<String>),
+    AwaitingAgentApproval {
+        reason: String,
+        context_id: Uuid,
+        request_id: Uuid,
+    },
+}

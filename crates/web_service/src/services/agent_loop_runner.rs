@@ -19,7 +19,6 @@ use copilot_client::CopilotClientTrait;
 
 use super::chat_service::ServiceResponse;
 
-
 enum AgentLoopOrigin {
     StreamingResponse { llm_response: String },
     ApprovedContinuation { llm_response: String },
@@ -203,13 +202,14 @@ impl<T: StorageProvider> AgentLoopRunner<T> {
                 }
             }
 
-            if let Some((request_id, description, parameters)) = approval_info {
+            if let Some((request_id, description, _parameters)) = approval_info {
                 return Ok(ServiceResponse::AwaitingAgentApproval {
                     request_id,
-                    session_id: self.conversation_id,
-                    tool_name: tool_name.clone(),
-                    tool_description: description,
-                    parameters,
+                    context_id: self.conversation_id,
+                    reason: format!(
+                        "Agent-initiated tool call '{}' requires approval: {}",
+                        tool_name, description
+                    ),
                 });
             }
 

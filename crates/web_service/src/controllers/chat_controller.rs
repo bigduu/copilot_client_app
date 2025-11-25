@@ -42,15 +42,14 @@ pub async fn send_message(
     body: web::Json<SendMessageRequestBody>,
     app_state: Data<AppState>,
 ) -> Result<HttpResponse> {
-    let mut chat_service = ChatService::new(
-        app_state.session_manager.clone(),
-        *session_id,
-        app_state.copilot_client.clone(),
-        app_state.tool_executor.clone(),
-        app_state.system_prompt_service.clone(),
-        app_state.approval_manager.clone(),
-        app_state.workflow_service.clone(),
-    );
+    let mut chat_service = ChatService::builder(app_state.session_manager.clone(), *session_id)
+        .with_copilot_client(app_state.copilot_client.clone())
+        .with_tool_executor(app_state.tool_executor.clone())
+        .with_system_prompt_service(app_state.system_prompt_service.clone())
+        .with_approval_manager(app_state.approval_manager.clone())
+        .with_workflow_service(app_state.workflow_service.clone())
+        .build()
+        .map_err(|e| actix_web::error::ErrorInternalServerError(e.to_string()))?;
     let request = SendMessageRequest::from_parts(*session_id, body.into_inner());
     match chat_service.process_message(request).await {
         Ok(response) => Ok(HttpResponse::Ok().json(response)),
@@ -67,15 +66,14 @@ pub async fn send_message_stream(
 ) -> Result<HttpResponse> {
     info!("Streaming message for session: {}", session_id);
 
-    let mut chat_service = ChatService::new(
-        app_state.session_manager.clone(),
-        *session_id,
-        app_state.copilot_client.clone(),
-        app_state.tool_executor.clone(),
-        app_state.system_prompt_service.clone(),
-        app_state.approval_manager.clone(),
-        app_state.workflow_service.clone(),
-    );
+    let mut chat_service = ChatService::builder(app_state.session_manager.clone(), *session_id)
+        .with_copilot_client(app_state.copilot_client.clone())
+        .with_tool_executor(app_state.tool_executor.clone())
+        .with_system_prompt_service(app_state.system_prompt_service.clone())
+        .with_approval_manager(app_state.approval_manager.clone())
+        .with_workflow_service(app_state.workflow_service.clone())
+        .build()
+        .map_err(|e| actix_web::error::ErrorInternalServerError(e.to_string()))?;
 
     let request = SendMessageRequest::from_parts(*session_id, body.into_inner());
 
@@ -97,15 +95,14 @@ pub async fn approve_tools(
     approved_tool_calls: web::Json<Vec<String>>,
     app_state: Data<AppState>,
 ) -> Result<HttpResponse> {
-    let mut chat_service = ChatService::new(
-        app_state.session_manager.clone(),
-        *session_id,
-        app_state.copilot_client.clone(),
-        app_state.tool_executor.clone(),
-        app_state.system_prompt_service.clone(),
-        app_state.approval_manager.clone(),
-        app_state.workflow_service.clone(),
-    );
+    let mut chat_service = ChatService::builder(app_state.session_manager.clone(), *session_id)
+        .with_copilot_client(app_state.copilot_client.clone())
+        .with_tool_executor(app_state.tool_executor.clone())
+        .with_system_prompt_service(app_state.system_prompt_service.clone())
+        .with_approval_manager(app_state.approval_manager.clone())
+        .with_workflow_service(app_state.workflow_service.clone())
+        .build()
+        .map_err(|e| actix_web::error::ErrorInternalServerError(e.to_string()))?;
     match chat_service
         .approve_tool_calls(approved_tool_calls.into_inner())
         .await
@@ -128,15 +125,14 @@ pub async fn approve_agent_tool_call(
     approval: web::Json<AgentApprovalRequest>,
     app_state: Data<AppState>,
 ) -> Result<HttpResponse> {
-    let mut chat_service = ChatService::new(
-        app_state.session_manager.clone(),
-        *session_id,
-        app_state.copilot_client.clone(),
-        app_state.tool_executor.clone(),
-        app_state.system_prompt_service.clone(),
-        app_state.approval_manager.clone(),
-        app_state.workflow_service.clone(),
-    );
+    let mut chat_service = ChatService::builder(app_state.session_manager.clone(), *session_id)
+        .with_copilot_client(app_state.copilot_client.clone())
+        .with_tool_executor(app_state.tool_executor.clone())
+        .with_system_prompt_service(app_state.system_prompt_service.clone())
+        .with_approval_manager(app_state.approval_manager.clone())
+        .with_workflow_service(app_state.workflow_service.clone())
+        .build()
+        .map_err(|e| actix_web::error::ErrorInternalServerError(e.to_string()))?;
 
     match chat_service
         .continue_agent_loop_after_approval(

@@ -1,3 +1,4 @@
+pub mod agent_loop_handler;
 pub mod agent_loop_runner;
 pub mod agent_service;
 pub mod approval_manager;
@@ -8,6 +9,7 @@ pub mod event_broadcaster;
 pub mod llm_request_builder;
 pub mod llm_utils;
 pub mod message_builder;
+pub mod message_processing;
 pub mod session_manager;
 pub mod sse_response_builder;
 pub mod system_prompt_service;
@@ -17,6 +19,7 @@ pub mod tool_coordinator;
 pub mod tool_service;
 pub mod user_preference_service;
 pub mod workflow_service;
+pub mod workspace_service;
 
 pub use agent_service::{AgentService, ToolCall};
 pub use chat_service::ChatService;
@@ -24,3 +27,4 @@ pub use event_broadcaster::EventBroadcaster;
 pub use session_manager::ChatSessionManager;
 pub use user_preference_service::{UserPreferenceService, UserPreferenceUpdate, UserPreferences};
 pub use workflow_service::WorkflowService;
+pub use workspace_service::WorkspaceService;

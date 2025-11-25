@@ -7,7 +7,9 @@ pub mod models;
 pub mod server;
 pub mod services;
 pub mod storage;
-pub mod workspace_service;
+
+// Re-export commonly used services for backward compatibility
+pub use services::workspace_service;
 
 use std::sync::Arc;
 use tokio::sync::Mutex;

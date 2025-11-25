@@ -10,7 +10,8 @@ use serde_json::{json, Value};
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::RwLock;
-use tool_system::{types::ToolArguments, ToolExecutor};
+use tool_system::types::ToolArguments;
+pub use tool_system::ToolExecutor;
 use uuid::Uuid;
 
 /// Options for tool execution
@@ -45,6 +46,16 @@ pub struct ToolCoordinator<T: StorageProvider> {
     executor: Arc<ToolExecutor>,
     approval_manager: Arc<ApprovalManager>,
     session_manager: Arc<ChatSessionManager<T>>,
+}
+
+impl<T: StorageProvider> Clone for ToolCoordinator<T> {
+    fn clone(&self) -> Self {
+        Self {
+            executor: self.executor.clone(),
+            approval_manager: self.approval_manager.clone(),
+            session_manager: self.session_manager.clone(),
+        }
+    }
 }
 
 impl<T: StorageProvider> ToolCoordinator<T> {
@@ -288,7 +299,7 @@ mod tests {
     fn test_format_tool_output_string() {
         let value = json!("Hello, World!");
         assert_eq!(
-            ToolCoordinator::<crate::storage::FileSystemStorage>::format_tool_output(&value),
+            ToolCoordinator::<crate::storage::message_pool_provider::MessagePoolStorageProvider>::format_tool_output(&value),
             "Hello, World!"
         );
     }
@@ -296,7 +307,9 @@ mod tests {
     #[test]
     fn test_format_tool_output_object() {
         let value = json!({"key": "value"});
-        let output = ToolCoordinator::<crate::storage::FileSystemStorage>::format_tool_output(&value);
+        let output = ToolCoordinator::<
+            crate::storage::message_pool_provider::MessagePoolStorageProvider,
+        >::format_tool_output(&value);
         assert!(output.contains("key"));
         assert!(output.contains("value"));
     }

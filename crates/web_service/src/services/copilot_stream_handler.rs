@@ -2,9 +2,10 @@ use std::sync::Arc;
 
 use actix_web_lab::sse;
 use bytes::Bytes;
-use context_manager::ChatEvent;
+use context_manager::{ChatContext, ChatEvent};
+use copilot_client::api::models::ChatCompletionStreamChunk;
 use serde_json::json;
-use tokio::sync::mpsc;
+use tokio::sync::{mpsc, RwLock};
 use tokio::task::JoinHandle;
 use tool_system::ToolExecutor;
 use uuid::Uuid;
@@ -15,6 +16,37 @@ use crate::services::llm_utils::send_context_update;
 use crate::services::session_manager::ChatSessionManager;
 use crate::services::tool_auto_loop_handler::{send_content_signal, ToolAutoLoopHandler};
 use crate::storage::StorageProvider;
+
+/// Handle a single stream chunk and update the context
+pub async fn handle_stream_chunk(
+    context: &Arc<RwLock<ChatContext>>,
+    chunk: ChatCompletionStreamChunk,
+    full_text: &mut String,
+    assistant_message_id: &mut Option<Uuid>,
+) -> anyhow::Result<()> {
+    if let Some(choice) = chunk.choices.first() {
+        if let Some(content) = &choice.delta.content {
+            let content_str = content.clone();
+            full_text.push_str(&content_str);
+
+            // Start streaming response if not already started
+            if assistant_message_id.is_none() {
+                let message_id = {
+                    let mut ctx_lock = context.write().await;
+                    ctx_lock.begin_streaming_llm_response(None)
+                };
+                *assistant_message_id = Some(message_id);
+            }
+
+            // Append chunk to the streaming message
+            if let Some(message_id) = assistant_message_id {
+                let mut ctx_lock = context.write().await;
+                ctx_lock.append_streaming_chunk(*message_id, content_str.clone());
+            }
+        }
+    }
+    Ok(())
+}
 
 pub fn spawn_stream_task<T: StorageProvider + 'static>(
     mut chunk_rx: mpsc::Receiver<anyhow::Result<Bytes>>,

@@ -1,5 +1,5 @@
 use crate::server::AppState;
-use crate::workspace_service::{AddRecentRequest, ValidatePathRequest, WorkspaceService};
+use crate::services::workspace_service::{AddRecentRequest, ValidatePathRequest, WorkspaceService};
 use actix_web::{web, web::Data, web::Json, HttpResponse};
 use log::error;
 
