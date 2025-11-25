@@ -1,7 +1,6 @@
 //! Context lifecycle types and DTOs
 
 use serde::{Deserialize, Serialize};
-use uuid::Uuid;
 
 // ============================================================================
 // Request Types

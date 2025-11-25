@@ -57,15 +57,11 @@ pub async fn create_system_prompt(
 
 /// Get all system prompts
 pub async fn list_system_prompts(service: Data<SystemPromptService>) -> Result<HttpResponse> {
-    match service.list_prompts().await {
-        prompts => {
-            let dtos: Vec<SystemPromptDTO> = prompts
-                .into_iter()
-                .map(|p| SystemPromptDTO::from(p))
-                .collect();
+    let prompts = service.list_prompts().await;
+    {
+        let dtos: Vec<SystemPromptDTO> = prompts.into_iter().map(SystemPromptDTO::from).collect();
 
-            Ok(HttpResponse::Ok().json(ListSystemPromptsResponse { prompts: dtos }))
-        }
+        Ok(HttpResponse::Ok().json(ListSystemPromptsResponse { prompts: dtos }))
     }
 }
 

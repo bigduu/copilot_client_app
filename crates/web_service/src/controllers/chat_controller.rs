@@ -42,7 +42,7 @@ pub async fn send_message(
     body: web::Json<SendMessageRequestBody>,
     app_state: Data<AppState>,
 ) -> Result<HttpResponse> {
-    let mut chat_service = ChatService::builder(app_state.session_manager.clone(), *session_id)
+    let chat_service = ChatService::builder(app_state.session_manager.clone(), *session_id)
         .with_copilot_client(app_state.copilot_client.clone())
         .with_tool_executor(app_state.tool_executor.clone())
         .with_system_prompt_service(app_state.system_prompt_service.clone())
@@ -66,7 +66,7 @@ pub async fn send_message_stream(
 ) -> Result<HttpResponse> {
     info!("Streaming message for session: {}", session_id);
 
-    let mut chat_service = ChatService::builder(app_state.session_manager.clone(), *session_id)
+    let chat_service = ChatService::builder(app_state.session_manager.clone(), *session_id)
         .with_copilot_client(app_state.copilot_client.clone())
         .with_tool_executor(app_state.tool_executor.clone())
         .with_system_prompt_service(app_state.system_prompt_service.clone())
@@ -95,7 +95,7 @@ pub async fn approve_tools(
     approved_tool_calls: web::Json<Vec<String>>,
     app_state: Data<AppState>,
 ) -> Result<HttpResponse> {
-    let mut chat_service = ChatService::builder(app_state.session_manager.clone(), *session_id)
+    let chat_service = ChatService::builder(app_state.session_manager.clone(), *session_id)
         .with_copilot_client(app_state.copilot_client.clone())
         .with_tool_executor(app_state.tool_executor.clone())
         .with_system_prompt_service(app_state.system_prompt_service.clone())
@@ -125,7 +125,7 @@ pub async fn approve_agent_tool_call(
     approval: web::Json<AgentApprovalRequest>,
     app_state: Data<AppState>,
 ) -> Result<HttpResponse> {
-    let mut chat_service = ChatService::builder(app_state.session_manager.clone(), *session_id)
+    let chat_service = ChatService::builder(app_state.session_manager.clone(), *session_id)
         .with_copilot_client(app_state.copilot_client.clone())
         .with_tool_executor(app_state.tool_executor.clone())
         .with_system_prompt_service(app_state.system_prompt_service.clone())

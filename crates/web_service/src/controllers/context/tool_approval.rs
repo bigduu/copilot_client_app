@@ -73,10 +73,7 @@ pub async fn approve_context_tools(
                 }
 
                 // Save context
-                app_state
-                    .session_manager
-                    .save_context(&mut *ctx_guard)
-                    .await
+                app_state.session_manager.save_context(&mut ctx_guard).await
             }; // Lock released here
 
             match result {

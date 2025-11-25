@@ -50,7 +50,7 @@ pub async fn create_context(
 
                     app_state
                         .session_manager
-                        .save_context(&mut *session_guard)
+                        .save_context(&mut session_guard)
                         .await
                         .map_err(|e| {
                             error!("Failed to save context with system prompt: {}", e);
@@ -69,7 +69,7 @@ pub async fn create_context(
 
                     app_state
                         .session_manager
-                        .save_context(&mut *session_guard)
+                        .save_context(&mut session_guard)
                         .await
                         .map_err(|e| {
                             error!("Failed to save context with workspace path: {}", e);

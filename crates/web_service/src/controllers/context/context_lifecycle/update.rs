@@ -93,10 +93,7 @@ pub async fn update_context(
                 let mut ctx_guard = context.write().await;
                 ctx_guard.config.system_prompt_id = req.config.system_prompt_id.clone();
                 ctx_guard.mark_dirty();
-                app_state
-                    .session_manager
-                    .save_context(&mut *ctx_guard)
-                    .await
+                app_state.session_manager.save_context(&mut ctx_guard).await
             }; // Lock released here
 
             match result {

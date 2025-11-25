@@ -185,16 +185,14 @@ pub async fn list_workspace_files(
                     match fs::read_dir(path_obj) {
                         Ok(entries) => {
                             let mut files = Vec::new();
-                            for entry_result in entries {
-                                if let Ok(entry) = entry_result {
-                                    if let Ok(metadata) = entry.metadata() {
-                                        if let Some(name) = entry.file_name().to_str() {
-                                            files.push(WorkspaceFileEntry {
-                                                name: name.to_string(),
-                                                path: entry.path().to_string_lossy().to_string(),
-                                                is_directory: metadata.is_dir(),
-                                            });
-                                        }
+                            for entry in entries.flatten() {
+                                if let Ok(metadata) = entry.metadata() {
+                                    if let Some(name) = entry.file_name().to_str() {
+                                        files.push(WorkspaceFileEntry {
+                                            name: name.to_string(),
+                                            path: entry.path().to_string_lossy().to_string(),
+                                            is_directory: metadata.is_dir(),
+                                        });
                                     }
                                 }
                             }
