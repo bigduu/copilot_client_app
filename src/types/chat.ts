@@ -127,6 +127,18 @@ export interface AssistantTextMessage extends BaseMessage {
   finishReason?: "stop" | "length" | "error";
   tokenUsage?: { promptTokens: number; completionTokens: number };
   latency?: { firstTokenMs: number; totalDurationMs: number };
+  metadata?: {
+    usage?: {
+      prompt_tokens: number;
+      completion_tokens: number;
+      total_tokens: number;
+    };
+    // Agent continuation metadata
+    should_continue?: boolean;
+    continue_reason?: string;
+    continuation_count?: number;
+    [key: string]: any;
+  };
 }
 
 // 3. Assistant's Request to Call a Tool
@@ -163,6 +175,12 @@ export interface WorkflowResultMessage extends BaseMessage {
   content: string;
 }
 
+export interface AssistantTodoListMessage extends BaseMessage {
+  role: "assistant";
+  type: "todo_list";
+  todoList: import("./sse").TodoListMsg;
+}
+
 // The complete, type-safe Message union
 export type Message =
   | UserMessage
@@ -170,6 +188,7 @@ export type Message =
   | AssistantTextMessage
   | AssistantToolCallMessage
   | AssistantToolResultMessage
+  | AssistantTodoListMessage
   | WorkflowResultMessage
   | SystemMessage;
 
@@ -266,6 +285,16 @@ export const isUserFileReferenceMessage = (
     message.role === "user" &&
     "type" in message &&
     message.type === "file_reference"
+  );
+};
+
+export const isTodoListMessage = (
+  message: Message
+): message is AssistantTodoListMessage => {
+  return (
+    message.role === "assistant" &&
+    "type" in message &&
+    message.type === "todo_list"
   );
 };
 

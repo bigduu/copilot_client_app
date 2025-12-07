@@ -105,6 +105,7 @@ impl MessageProcessor for ValidationProcessor {
                 }
                 Ok(Some(ProcessResult::Continue))
             }
+            IncomingMessage::Rich(_) => Ok(Some(ProcessResult::Continue)),
         }
     }
 }
@@ -128,6 +129,7 @@ impl MessageProcessor for TextMessageProcessor {
                 let updates = context.handle_text_message(payload)?;
                 Ok(Some(ProcessResult::Complete { updates }))
             }
+            IncomingMessage::Rich(_) => Ok(None),
         }
     }
 }

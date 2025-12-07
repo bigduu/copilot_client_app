@@ -7296,6 +7296,7 @@ dependencies = [
  "lru",
  "mcp_client",
  "parking_lot",
+ "regex",
  "reqwest",
  "rfd",
  "serde",

@@ -25,6 +25,7 @@ import {
   isAssistantToolResultMessage,
   isWorkflowResultMessage,
   isUserFileReferenceMessage,
+  isTodoListMessage,
   Message,
   PlanMessage,
   QuestionMessage,
@@ -35,6 +36,8 @@ import { useBackendContext } from "../../hooks/useBackendContext";
 import ToolResultCard from "../ToolResultCard";
 import WorkflowResultCard from "../WorkflowResultCard";
 import FileReferenceCard from "../FileReferenceCard";
+import TodoListDisplay from "../TodoListDisplay";
+import { TodoListMsg } from "../../types/sse";
 import { format } from "date-fns";
 
 const { Text } = Typography;
@@ -486,6 +489,13 @@ const MessageCardComponent: React.FC<MessageCardProps> = ({
         disabled={isLoading || false}
         timestamp={formattedTimestamp ?? undefined}
       />
+    );
+  }
+
+  // Route to TodoListDisplay for TODO list messages
+  if (isTodoListMessage(message)) {
+    return (
+      <TodoListDisplay todoList={message.todoList} />
     );
   }
 

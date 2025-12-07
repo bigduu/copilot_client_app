@@ -25,10 +25,9 @@
 
 use crate::{
     error::AppError,
-    models::{MessagePayload, SendMessageRequest, ServiceResponse},
+    models::{SendMessageRequest, ServiceResponse},
     services::{
-        agent_loop_runner::AgentLoopRunner,
-        copilot_stream_handler, message_builder,
+        agent_loop_runner::AgentLoopRunner, message_builder,
         message_processing::{
             FileReferenceHandler, TextMessageHandler, ToolResultHandler, WorkflowHandler,
         },
@@ -39,13 +38,9 @@ use crate::{
     storage::StorageProvider,
 };
 use anyhow::Result;
-use bytes::Bytes;
-use context_manager::ContextUpdate;
 use copilot_client::CopilotClientTrait;
-use futures_util::StreamExt;
-use log::{error, info};
+use log::info;
 use std::sync::Arc;
-use tokio::sync::mpsc;
 use uuid::Uuid;
 
 use super::llm_request_builder::LlmRequestBuilder;
@@ -60,7 +55,6 @@ mod stream_processor; // NEW: SSE stream processing
 mod utils;
 
 // Import utilities
-use utils::send_context_update;
 
 /// Handles the main agent loop and message processing
 ///

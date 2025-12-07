@@ -18,6 +18,7 @@ pub mod tool_auto_loop_handler;
 pub mod tool_coordinator;
 pub mod tool_service;
 pub mod user_preference_service;
+pub mod workflow_manager_service;
 pub mod workflow_service;
 pub mod workspace_service;
 

@@ -25,7 +25,6 @@ pub mod types; // Shared types across domains (if needed)
 mod workspace; // Domain: Workspace management
 
 // Re-export shared types
-pub use types::*;
 
 // Re-export all handlers and types from domain modules
 pub use actions::*;

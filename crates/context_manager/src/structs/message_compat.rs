@@ -293,8 +293,28 @@ impl FromRichMessage for InternalMessage {
             }
 
             RichMessageType::WorkflowExecution(workflow) => {
+                // Prompt Injection:
+                // We format this Rich Message into strict instructions for the AI.
+                // The AI sees this content as the User's message.
                 let content_text = format!(
-                    "Workflow: {}\nStatus: {:?}\nProgress: {}/{} steps\nCurrent: {:?}",
+                    "*** SYSTEM INSTRUCTION: WORKFLOW EXECUTION ***\n\
+                    You are about to execute the workflow '{}'.\n\
+                    \n\
+                    Step 1: PLAN\n\
+                    - You MUST first generate a Markdown Todo List for this workflow.\n\
+                    - Use the format: `- [ ] step description`\n\
+                    - Do NOT use numbered lists (1. 2. 3.).\n\
+                    - STOP after generating the plan. Do NOT execute step 1 yet.\n\
+                    - Output marker: `<!-- AGENT_CONTINUE: plan approved, starting step 1 -->`\n\
+                    \n\
+                    Step 2: EXECUTE\n\
+                    - After the user continues, execute ONE step at a time.\n\
+                    - Mark completed steps as `- [x]`.\n\
+                    - Output marker: `<!-- AGENT_CONTINUE: proceeding to step X -->`\n\
+                    \n\
+                    Follow this process strictly.\n\
+                    \n\
+                    workflow status: {:?}\nprogress: {}/{} steps\ncurrent step: {:?}",
                     workflow.workflow_name,
                     workflow.status,
                     workflow.completed_steps,
@@ -309,7 +329,7 @@ impl FromRichMessage for InternalMessage {
                     tool_result: None,
                     metadata: None,
                     message_type: MessageType::Text,
-                    rich_type: None,
+                    rich_type: Some(RichMessageType::WorkflowExecution(workflow.clone())),
                 }
             }
 
@@ -346,6 +366,32 @@ impl FromRichMessage for InternalMessage {
                 InternalMessage {
                     role,
                     content: vec![ContentPart::text(&streaming_msg.content)],
+                    tool_calls: None,
+                    tool_result: None,
+                    metadata: None,
+                    message_type: MessageType::Text,
+                    rich_type: None,
+                }
+            }
+
+            RichMessageType::TodoList(todo_list) => {
+                let content_text = format!(
+                    "# {}\n\nTODO List ({} items, Status: {:?})\n\nProgress: {}%\n\nItems:\n{}",
+                    todo_list.title,
+                    todo_list.items.len(),
+                    todo_list.status,
+                    todo_list.completion_percentage(),
+                    todo_list
+                        .items
+                        .iter()
+                        .map(|item| format!("[{:?}] {}", item.status, item.description))
+                        .collect::<Vec<_>>()
+                        .join("\n")
+                );
+
+                InternalMessage {
+                    role,
+                    content: vec![ContentPart::text(&content_text)],
                     tool_calls: None,
                     tool_result: None,
                     metadata: None,

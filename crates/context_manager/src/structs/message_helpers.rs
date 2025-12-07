@@ -15,10 +15,10 @@ impl InternalMessage {
     pub fn from_rich(role: Role, rich_type: RichMessageType) -> Self {
         // Create base message using the compatibility layer
         let mut message = Self::from_rich_message_type(&rich_type, role);
-        
+
         // Add the rich_type field
         message.rich_type = Some(rich_type);
-        
+
         message
     }
 
@@ -112,13 +112,19 @@ impl InternalMessage {
                     }
                 }
                 RichMessageType::ProjectStructure(proj) => {
-                    format!("Project Structure: {} ({:?})", proj.root_path.display(), proj.structure_type)
+                    format!(
+                        "Project Structure: {} ({:?})",
+                        proj.root_path.display(),
+                        proj.structure_type
+                    )
                 }
                 RichMessageType::ToolRequest(req) => {
                     let tool_names: Vec<_> = req.calls.iter().map(|c| c.name.as_str()).collect();
                     format!("Tool Request: {}", tool_names.join(", "))
                 }
-                RichMessageType::ToolResult(res) => format!("Tool Result: {} ({:?})", res.request_id, res.status),
+                RichMessageType::ToolResult(res) => {
+                    format!("Tool Result: {} ({:?})", res.request_id, res.status)
+                }
                 RichMessageType::MCPToolRequest(mcp) => {
                     format!("MCP Tool: {}::{}", mcp.server_name, mcp.tool_name)
                 }
@@ -127,7 +133,10 @@ impl InternalMessage {
                 }
                 RichMessageType::MCPResource(mcp) => format!("MCP Resource: {}", mcp.resource_uri),
                 RichMessageType::WorkflowExecution(wf) => {
-                    format!("Workflow: {} ({:?}, {}/{})", wf.workflow_name, wf.status, wf.completed_steps, wf.total_steps)
+                    format!(
+                        "Workflow: {} ({:?}, {}/{})",
+                        wf.workflow_name, wf.status, wf.completed_steps, wf.total_steps
+                    )
                 }
                 RichMessageType::SystemControl(sys) => format!("System: {:?}", sys.control_type),
                 RichMessageType::Processing(proc) => format!("Processing: {:?}", proc.stage),
@@ -137,7 +146,20 @@ impl InternalMessage {
                     } else {
                         streaming.content.clone()
                     };
-                    format!("Streaming Response: {} ({} chunks)", preview, streaming.chunks.len())
+                    format!(
+                        "Streaming Response: {} ({} chunks)",
+                        preview,
+                        streaming.chunks.len()
+                    )
+                }
+                RichMessageType::TodoList(todo_list) => {
+                    format!(
+                        "TODO: {} ({} items, {:.0}% complete, {:?})",
+                        todo_list.title,
+                        todo_list.items.len(),
+                        todo_list.completion_percentage(),
+                        todo_list.status
+                    )
                 }
             }
         } else {
@@ -167,7 +189,7 @@ mod tests {
 
         assert_eq!(msg.role, Role::User);
         assert!(msg.rich_type.is_some());
-        
+
         match msg.rich_type.unwrap() {
             RichMessageType::Text(text) => {
                 assert_eq!(text.content, "Hello, world!");
@@ -178,11 +200,12 @@ mod tests {
 
     #[test]
     fn test_file_reference_constructor() {
-        let msg = InternalMessage::file_reference(Role::User, "src/main.rs".to_string(), Some((10, 20)));
+        let msg =
+            InternalMessage::file_reference(Role::User, "src/main.rs".to_string(), Some((10, 20)));
 
         assert_eq!(msg.role, Role::User);
         assert!(msg.rich_type.is_some());
-        
+
         match msg.rich_type.unwrap() {
             RichMessageType::FileReference(file_ref) => {
                 assert_eq!(file_ref.path, "src/main.rs");
@@ -204,7 +227,7 @@ mod tests {
 
         assert_eq!(msg.role, Role::Assistant);
         assert!(msg.rich_type.is_some());
-        
+
         match msg.rich_type.unwrap() {
             RichMessageType::ToolRequest(tool_req) => {
                 assert_eq!(tool_req.calls.len(), 1);
@@ -242,7 +265,7 @@ mod tests {
 
         let rich = msg.get_rich_type();
         assert!(rich.is_some());
-        
+
         match rich.unwrap() {
             RichMessageType::Text(text) => {
                 assert_eq!(text.content, "Legacy message");
@@ -255,7 +278,7 @@ mod tests {
     fn test_describe_text_message() {
         let msg = InternalMessage::text(Role::User, "Hello, world!");
         let description = msg.describe();
-        
+
         assert!(description.contains("Text"));
         assert!(description.contains("Hello, world!"));
     }
@@ -277,7 +300,7 @@ mod tests {
 
         let msg = InternalMessage::tool_request(Role::Assistant, calls);
         let description = msg.describe();
-        
+
         assert!(description.contains("Tool Request"));
         assert!(description.contains("read_file"));
         assert!(description.contains("write_file"));
@@ -288,10 +311,9 @@ mod tests {
         let long_text = "a".repeat(100);
         let msg = InternalMessage::text(Role::User, &long_text);
         let description = msg.describe();
-        
+
         // Should be truncated
         assert!(description.len() < 100);
         assert!(description.contains("..."));
     }
 }
-

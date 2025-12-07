@@ -3,7 +3,7 @@
 //! This module handles Server-Sent Events streaming logic
 //! that was previously embedded in mod.rs.
 
-use super::{error_handling, initialization, message_intake, utils};
+use super::{initialization, message_intake, utils};
 use crate::{
     error::AppError,
     models::{MessagePayload, SendMessageRequest},

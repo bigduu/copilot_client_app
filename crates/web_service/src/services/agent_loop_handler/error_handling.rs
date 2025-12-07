@@ -1,18 +1,14 @@
 //! Error handling phase - LLM errors and SSE notifications
 
 use crate::{
-    controllers::context::streaming::SignalEvent,
     error::AppError,
     services::{session_manager::ChatSessionManager, EventBroadcaster},
     storage::StorageProvider,
 };
-use actix_web_lab::sse;
-use anyhow::Result;
 use context_manager::{ChatContext, MessageMetadata, MessageType, Role};
-use log::error;
 use serde_json::json;
 use std::{collections::HashMap, sync::Arc};
-use tokio::sync::{mpsc, RwLock};
+use tokio::sync::RwLock;
 use uuid::Uuid;
 
 /// Send SSE event for signal-pull updates

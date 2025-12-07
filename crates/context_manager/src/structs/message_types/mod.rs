@@ -14,6 +14,7 @@ pub mod project;
 pub mod streaming;
 pub mod system;
 pub mod text;
+pub mod todo_list;
 pub mod tools;
 pub mod workflow;
 
@@ -28,6 +29,7 @@ pub use project::{
 pub use streaming::{StreamChunk, StreamingResponseMsg};
 pub use system::{ControlType, ProcessingMessage, ProcessingStage, SystemMessage};
 pub use text::{TextFormatting, TextMessage};
+pub use todo_list::{TodoItem, TodoItemStatus, TodoListMsg, TodoListStatus};
 pub use tools::{
     ApprovalStatus, ErrorDetail, ExecutionStatus, ToolCall, ToolRequestMessage, ToolResultMessage,
 };
@@ -73,6 +75,9 @@ pub enum RichMessageType {
 
     /// Workflow execution status (NEW)
     WorkflowExecution(WorkflowExecMsg),
+
+    /// TODO list for multi-step task tracking (NEW)
+    TodoList(TodoListMsg),
 
     /// System control message
     SystemControl(SystemMessage),

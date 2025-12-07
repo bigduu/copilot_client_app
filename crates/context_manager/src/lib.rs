@@ -2,6 +2,7 @@
 //! and multi-branch conversations with LLMs.
 
 // Declare the modules
+pub mod context_operations;
 pub mod error;
 pub mod fsm;
 pub mod message_pipeline;

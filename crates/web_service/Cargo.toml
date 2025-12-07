@@ -44,6 +44,7 @@ tool_system = { path = "../tool_system" }
 workflow_system = { path = "../workflow_system" }
 mcp_client = { path = "../mcp_client" }
 copilot_client = { path = "../copilot_client" }
+regex = "1.12.2"
 
 [dev-dependencies]
 actix-http = "3.0"

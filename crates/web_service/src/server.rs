@@ -10,13 +10,14 @@ use tokio::sync::oneshot;
 use crate::controllers::{
     chat_controller, context_controller, openai_controller, session_controller, system_controller,
     system_prompt_controller, template_variable_controller, user_preference_controller,
-    workflow_controller, workspace_controller,
+    workflow_controller, workflow_manager_controller, workspace_controller,
 };
 use crate::services::{
     approval_manager::ApprovalManager, event_broadcaster::EventBroadcaster,
     session_manager::ChatSessionManager, system_prompt_service::SystemPromptService,
     template_variable_service::TemplateVariableService, tool_service::ToolService,
-    user_preference_service::UserPreferenceService, workflow_service::WorkflowService,
+    user_preference_service::UserPreferenceService,
+    workflow_manager_service::WorkflowManagerService, workflow_service::WorkflowService,
 };
 use crate::storage::message_pool_provider::MessagePoolStorageProvider;
 use copilot_client::{config::Config, CopilotClient, CopilotClientTrait};
@@ -37,6 +38,7 @@ pub struct AppState {
     pub approval_manager: Arc<ApprovalManager>,
     pub user_preference_service: Arc<UserPreferenceService>,
     pub workflow_service: Arc<WorkflowService>,
+    pub workflow_manager_service: Arc<WorkflowManagerService>,
     pub event_broadcaster: Arc<EventBroadcaster>,
     pub app_data_dir: PathBuf,
 }
@@ -58,6 +60,7 @@ pub fn app_config(cfg: &mut web::ServiceConfig) {
             .configure(system_prompt_controller::config)
             .configure(template_variable_controller::config)
             .configure(workflow_controller::config)
+            .configure(workflow_manager_controller::config)
             .configure(user_preference_controller::config)
             .configure(workspace_controller::config),
     );
@@ -75,6 +78,15 @@ pub async fn run(app_data_dir: PathBuf, port: u16) -> Result<(), String> {
     let workflow_registry = Arc::new(WorkflowRegistry::new());
     let workflow_service = Arc::new(WorkflowService::new(workflow_registry));
     let workflow_service_data = web::Data::from(workflow_service.clone());
+
+    // Initialize workflow manager (markdown file-based workflows)
+    let global_workflows_path = app_data_dir.join("workflows");
+    let workflow_manager_service = Arc::new(WorkflowManagerService::new(global_workflows_path));
+    // Initialize default workflow templates
+    if let Err(e) = workflow_manager_service.initialize_default_workflows() {
+        error!("Failed to initialize default workflows: {}", e);
+    }
+    let workflow_manager_data = web::Data::from(workflow_manager_service.clone());
 
     // Use MessagePoolStorageProvider for separated storage (context metadata + individual message files)
     let storage_provider = Arc::new(MessagePoolStorageProvider::new(app_data_dir.join("data")));
@@ -128,6 +140,7 @@ pub async fn run(app_data_dir: PathBuf, port: u16) -> Result<(), String> {
         approval_manager: approval_manager.clone(),
         user_preference_service: user_preference_service.clone(),
         workflow_service: workflow_service.clone(),
+        workflow_manager_service: workflow_manager_service.clone(),
         event_broadcaster,
         app_data_dir: app_data_dir.clone(),
     });
@@ -139,6 +152,7 @@ pub async fn run(app_data_dir: PathBuf, port: u16) -> Result<(), String> {
             .app_data(system_prompt_data.clone())
             .app_data(template_variable_data.clone())
             .app_data(workflow_service_data.clone())
+            .app_data(workflow_manager_data.clone())
             .app_data(user_session_manager_data.clone())
             // CORS only - no middleware for testing
             .wrap(Cors::permissive())
@@ -192,6 +206,14 @@ impl WebService {
         let workflow_service = Arc::new(WorkflowService::new(workflow_registry));
         let workflow_service_data = web::Data::from(workflow_service.clone());
 
+        // Initialize workflow manager (markdown file-based workflows)
+        let global_workflows_path = self.app_data_dir.join("workflows");
+        let workflow_manager_service = Arc::new(WorkflowManagerService::new(global_workflows_path));
+        if let Err(e) = workflow_manager_service.initialize_default_workflows() {
+            error!("Failed to initialize default workflows: {}", e);
+        }
+        let workflow_manager_data = web::Data::from(workflow_manager_service.clone());
+
         // Use MessagePoolStorageProvider for separated storage (context metadata + individual message files)
         let storage_provider = Arc::new(MessagePoolStorageProvider::new(
             self.app_data_dir.join("data"),
@@ -243,6 +265,7 @@ impl WebService {
             approval_manager: approval_manager.clone(),
             user_preference_service: user_preference_service.clone(),
             workflow_service: workflow_service.clone(),
+            workflow_manager_service: workflow_manager_service.clone(),
             event_broadcaster,
             app_data_dir: self.app_data_dir.clone(),
         });
@@ -254,6 +277,7 @@ impl WebService {
                 .app_data(system_prompt_data_for_start.clone())
                 .app_data(template_variable_data_for_start.clone())
                 .app_data(workflow_service_data.clone())
+                .app_data(workflow_manager_data.clone())
                 // CORS must be first (wraps last, executes first on response)
                 .wrap(Cors::permissive())
                 .wrap(Logger::default())

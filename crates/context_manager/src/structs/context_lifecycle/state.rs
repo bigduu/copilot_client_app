@@ -274,8 +274,15 @@ impl ChatContext {
         &mut self,
         message: IncomingMessage,
     ) -> Result<BoxStream<'static, ContextUpdate>, ContextError> {
-        let pipeline = MessagePipeline::default();
-        pipeline.process(self, &message)
+        match message {
+            IncomingMessage::Text(text_msg) => self.handle_text_message(&text_msg),
+            IncomingMessage::Rich(rich_msg) => {
+                use crate::structs::message_compat::FromRichMessage;
+                // Convert Rich -> Internal (Triggers Prompt Injection for Workflows)
+                let internal = InternalMessage::from_rich_message_type(&rich_msg, Role::User);
+                self.process_internal_message(internal)
+            }
+        }
     }
 
     pub(crate) fn handle_text_message(
@@ -285,19 +292,6 @@ impl ChatContext {
         if payload.content.trim().is_empty() {
             return Err(ContextError::EmptyMessageContent);
         }
-
-        let mut updates = Vec::new();
-
-        let previous_state = Some(self.current_state.clone());
-        self.current_state = ContextState::ProcessingUserMessage;
-        updates.push(ContextUpdate {
-            context_id: self.id,
-            current_state: self.current_state.clone(),
-            previous_state,
-            message_update: None,
-            timestamp: Utc::now(),
-            metadata: HashMap::new(),
-        });
 
         let mut user_message = InternalMessage {
             role: Role::User,
@@ -323,8 +317,28 @@ impl ChatContext {
                 .extra = Some(extra);
         }
 
+        self.process_internal_message(user_message)
+    }
+
+    fn process_internal_message(
+        &mut self,
+        message: InternalMessage,
+    ) -> Result<BoxStream<'static, ContextUpdate>, ContextError> {
+        let mut updates = Vec::new();
+
+        let previous_state = Some(self.current_state.clone());
+        self.current_state = ContextState::ProcessingUserMessage;
+        updates.push(ContextUpdate {
+            context_id: self.id,
+            current_state: self.current_state.clone(),
+            previous_state,
+            message_update: None,
+            timestamp: Utc::now(),
+            metadata: HashMap::new(),
+        });
+
         let branch_name = self.active_branch_name.clone();
-        let message_id = self.add_message_to_branch(&branch_name, user_message.clone());
+        let message_id = self.add_message_to_branch(&branch_name, message.clone());
 
         updates.push(ContextUpdate {
             context_id: self.id,
@@ -332,8 +346,8 @@ impl ChatContext {
             previous_state: None,
             message_update: Some(MessageUpdate::Created {
                 message_id,
-                role: Role::User,
-                message_type: MessageType::Text,
+                role: message.role.clone(),
+                message_type: message.message_type.clone(),
             }),
             timestamp: Utc::now(),
             metadata: HashMap::new(),
@@ -343,7 +357,7 @@ impl ChatContext {
             .message_pool
             .get(&message_id)
             .map(|node| node.message.clone())
-            .unwrap_or(user_message);
+            .unwrap_or(message);
 
         let previous_state = self.current_state.clone();
         self.current_state = ContextState::Idle;

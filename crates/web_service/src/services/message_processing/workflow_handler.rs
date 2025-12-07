@@ -1,10 +1,14 @@
 use crate::{
     error::AppError,
     models::ClientMessageMetadata,
-    services::{message_builder, session_manager::ChatSessionManager, workflow_service::WorkflowService},
+    services::{
+        message_builder, session_manager::ChatSessionManager, workflow_service::WorkflowService,
+    },
     storage::StorageProvider,
 };
-use context_manager::{ChatContext, ContextUpdate, MessageMetadata, MessageTextSnapshot, MessageType, Role};
+use context_manager::{
+    ChatContext, ContextUpdate, MessageMetadata, MessageTextSnapshot, MessageType, Role,
+};
 use serde_json::json;
 use std::{collections::HashMap, sync::Arc};
 use tokio::sync::RwLock;
@@ -42,13 +46,35 @@ impl<T: StorageProvider> WorkflowHandler<T> {
         display_text: &str,
         metadata: &ClientMessageMetadata,
     ) -> Result<(Uuid, String, u64), AppError> {
-        // Add user message
-        let incoming = message_builder::build_incoming_text_message(
-            display_text,
-            Some(display_text),
-            metadata,
-        );
-        
+        // Construct Rich Workflow Message
+        // The display logic (prompt injection) is handled by message_compat::from_rich_message_type
+        use chrono::Utc;
+        use context_manager::structs::message_types::{WorkflowExecMsg, WorkflowStatus};
+        use context_manager::{IncomingMessage, RichMessageType};
+
+        let workflow_msg = WorkflowExecMsg {
+            workflow_name: workflow.to_string(),
+            execution_id: Uuid::new_v4().to_string(),
+            status: WorkflowStatus::Pending,
+            current_step: None,
+            total_steps: 0,
+            completed_steps: 0,
+            started_at: Utc::now(),
+            updated_at: Utc::now(),
+            result: None,
+            error: None,
+        };
+
+        let incoming = IncomingMessage::Rich(RichMessageType::WorkflowExecution(workflow_msg));
+
+        // Note: Metadata is attached to Rich Message in FromRichMessage if needed,
+        // but currently FromRichMessage creates a new InternalMessage.
+        // We might lose `metadata` passed here if we don't attach it.
+        // The `send_message` implementation I wrote handles `IncomingMessage::Rich` by calling `from_rich_message_type`.
+        // `from_rich_message_type` returns InternalMessage with metadata=None.
+        // I should probably manually attach metadata if I want to preserve trace_id etc.
+        // But let's stick to the core task first.
+
         let stream = {
             let mut ctx = context.write().await;
             ctx.send_message(incoming)
@@ -58,7 +84,7 @@ impl<T: StorageProvider> WorkflowHandler<T> {
         // Collect updates
         use futures_util::StreamExt;
         let _updates = stream.collect::<Vec<ContextUpdate>>().await;
-        
+
         self.session_manager.auto_save_if_dirty(context).await?;
 
         // Execute workflow

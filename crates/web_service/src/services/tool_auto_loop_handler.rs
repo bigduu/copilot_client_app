@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use actix_web_lab::sse;
+use context_manager::structs::message_types::{RichMessageType, TodoListMsg};
 use context_manager::{ChatEvent, ContextUpdate, MessageUpdate};
 use serde_json::json;
 use tokio::sync::mpsc;
@@ -60,6 +61,7 @@ impl<T: StorageProvider + 'static> ToolAutoLoopHandler<T> {
             return;
         }
 
+        // 1. Check for tool calls (existing logic)
         if let Some(tool_call) = self
             .agent_service
             .parse_tool_call_from_response(full_text)
@@ -78,6 +80,17 @@ impl<T: StorageProvider + 'static> ToolAutoLoopHandler<T> {
             return;
         }
 
+        // 2. Check for agent continuation (NEW)
+        if let Some(reason) = self.parse_agent_continue(full_text) {
+            tracing::info!("Agent continuation requested: {}", reason);
+            if let Err(err) = self.continue_agent_loop(reason).await {
+                self.emit_error(format!("Continuation failed: {}", err))
+                    .await;
+            }
+            return;
+        }
+
+        // 3. Regular completion - update metadata
         self.update_message_metadata(full_text, assistant_message_id)
             .await;
     }
@@ -147,6 +160,23 @@ impl<T: StorageProvider + 'static> ToolAutoLoopHandler<T> {
             if let Some(message_id) = assistant_message_id {
                 if let Some(node) = context_lock.message_pool.get_mut(&message_id) {
                     node.message.message_type = detect_message_type(full_text);
+
+                    // Detect and parse Todo List from Markdown
+                    // This allows the frontend to render the TodoListDisplay component
+                    if let Some((title, items)) = self.parse_todo_list_from_text(full_text) {
+                        tracing::info!(
+                            "Detected Todo List in message {}: {} items",
+                            message_id,
+                            items.len()
+                        );
+                        // Create structured TodoListMsg
+                        let todo_list_msg = TodoListMsg::new(
+                            title, items, None, // Optional description
+                            message_id,
+                        );
+                        // Attach to message as RichType
+                        node.message.rich_type = Some(RichMessageType::TodoList(todo_list_msg));
+                    }
                 }
             }
 
@@ -160,6 +190,180 @@ impl<T: StorageProvider + 'static> ToolAutoLoopHandler<T> {
                 context_lock.clear_dirty();
             }
         }
+    }
+
+    /// Parse markdown Todo list from text
+    /// Returns (Title, Vec<Description>)
+    fn parse_todo_list_from_text(&self, text: &str) -> Option<(String, Vec<String>)> {
+        // Must contain at least one todo item marker
+        if !text.contains("- [ ]") && !text.contains("- [x]") && !text.contains("- [/]") {
+            return None;
+        }
+
+        let mut title = "Todo List".to_string();
+        let mut items = Vec::new();
+
+        // Regex for capturing items: "- [status] description"
+        // Matches "- [ ]", "- [x]", "- [/]"
+        let item_re = regex::Regex::new(r"^\s*-\s*\[([ x/])\]\s+(.+)").ok()?;
+
+        // Regex for detecting Title (Header 1 or 2)
+        // Matches "# Title" or "## Title"
+        let title_re = regex::Regex::new(r"^\s*#{1,2}\s+(.+)").ok()?;
+
+        let mut found_items = false;
+
+        for line in text.lines() {
+            let trimmed = line.trim();
+
+            // Capture Title (only use the first one found before items)
+            if !found_items {
+                if let Some(cap) = title_re.captures(trimmed) {
+                    if let Some(m) = cap.get(1) {
+                        title = m.as_str().trim().to_string();
+                    }
+                }
+            }
+
+            // Capture Items
+            if let Some(cap) = item_re.captures(trimmed) {
+                if let Some(desc) = cap.get(2) {
+                    items.push(desc.as_str().trim().to_string());
+                    found_items = true;
+                }
+            }
+        }
+
+        if items.is_empty() {
+            return None;
+        }
+
+        Some((title, items))
+    }
+
+    /// Parse agent continuation marker from response
+    /// Format: <!-- AGENT_CONTINUE: reason -->
+    fn parse_agent_continue(&self, text: &str) -> Option<String> {
+        // Match <!-- AGENT_CONTINUE: reason -->
+        let re = regex::Regex::new(r"<!--\s*AGENT_CONTINUE:\s*(.+?)\s*-->").ok()?;
+        re.captures(text)
+            .and_then(|cap| cap.get(1))
+            .map(|m| m.as_str().trim().to_string())
+    }
+
+    /// Continue agent loop - Frontend-driven with persistent tracking
+    ///
+    /// Tracks continuation in context for reliability across sessions.
+    async fn continue_agent_loop(&self, reason: String) -> Result<(), String> {
+        tracing::info!("Agent continuation requested: {}", reason);
+
+        const MAX_CONTINUATIONS: u32 = 10;
+
+        // Load context and check/update continuation counter
+        if let Ok(Some(context)) = self
+            .session_manager
+            .load_context(self.conversation_id, None)
+            .await
+        {
+            let mut context_lock = context.write().await;
+
+            // Check limit
+            if context_lock.continuation_count >= MAX_CONTINUATIONS {
+                tracing::warn!(
+                    "Maximum continuation limit ({}) reached for context {}",
+                    MAX_CONTINUATIONS,
+                    self.conversation_id
+                );
+
+                // Emit warning event
+                if let Ok(data) = sse::Data::new_json(json!({
+                    "type": "continuation_limit_reached",
+                    "count": context_lock.continuation_count,
+                    "reasons": context_lock.continuation_reasons,
+                })) {
+                    let _ = self
+                        .event_tx
+                        .send(sse::Event::Data(data.event("warning")))
+                        .await;
+                }
+
+                return Err(format!(
+                    "Maximum continuation limit ({}) reached",
+                    MAX_CONTINUATIONS
+                ));
+            }
+
+            // Increment counter and record reason
+            context_lock.continuation_count += 1;
+            context_lock.continuation_reasons.push(reason.clone());
+            let current_count = context_lock.continuation_count;
+
+            tracing::info!(
+                "Continuation count: {}/{} for context {}",
+                current_count,
+                MAX_CONTINUATIONS,
+                self.conversation_id
+            );
+
+            // Find last message and add metadata
+            let last_message_id = context_lock
+                .branches
+                .get(&context_lock.active_branch_name)
+                .and_then(|branch| branch.message_ids.last())
+                .copied();
+
+            if let Some(message_id) = last_message_id {
+                if let Some(node) = context_lock.message_pool.get_mut(&message_id) {
+                    use serde_json::json;
+                    use std::collections::HashMap;
+
+                    // Add or update message metadata
+                    if node.message.metadata.is_none() {
+                        node.message.metadata = Some(context_manager::MessageMetadata::default());
+                    }
+
+                    if let Some(ref mut metadata) = node.message.metadata {
+                        if metadata.extra.is_none() {
+                            metadata.extra = Some(HashMap::new());
+                        }
+
+                        if let Some(ref mut extra) = metadata.extra {
+                            extra.insert("should_continue".to_string(), json!(true));
+                            extra.insert("continue_reason".to_string(), json!(reason.clone()));
+                            extra.insert("continuation_count".to_string(), json!(current_count));
+                        }
+                    }
+
+                    tracing::info!(
+                        "Added continuation metadata to message {}: {} (count: {})",
+                        message_id,
+                        reason,
+                        current_count
+                    );
+                }
+            }
+
+            // Save context with updated counter
+            if let Err(err) = self.session_manager.auto_save_if_dirty(&context).await {
+                tracing::error!("Failed to save context after continuation: {}", err);
+            } else {
+                context_lock.clear_dirty();
+            }
+        }
+
+        // Emit SSE event
+        if let Ok(data) = sse::Data::new_json(json!({
+            "type": "agent_continue",
+            "reason": reason.clone(),
+            "session_id": self.conversation_id,
+        })) {
+            let _ = self
+                .event_tx
+                .send(sse::Event::Data(data.event("agent_continue")))
+                .await;
+        }
+
+        Ok(())
     }
 
     async fn emit_tool_events(&self, update: &ContextUpdate) {

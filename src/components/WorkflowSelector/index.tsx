@@ -1,19 +1,19 @@
 import React, { useEffect, useState, useRef } from "react";
-import { theme } from "antd";
+import { theme, Spin } from "antd";
 import {
-  WorkflowDefinition,
-  WorkflowService,
-} from "../../services/WorkflowService";
+  WorkflowManagerService,
+  WorkflowMetadata,
+} from "../../services/WorkflowManagerService";
+import { useChatController } from "../../contexts/ChatControllerContext";
 
 const { useToken } = theme;
 
 interface WorkflowSelectorProps {
   visible: boolean;
-  onSelect: (workflowName: string) => void;
+  onSelect: (workflow: { name: string; content: string }) => void;
   onCancel: () => void;
   searchText: string;
   onAutoComplete?: (workflowName: string) => void;
-  categoryFilter?: string; // Optional category filter
 }
 
 const WorkflowSelector: React.FC<WorkflowSelectorProps> = ({
@@ -22,26 +22,30 @@ const WorkflowSelector: React.FC<WorkflowSelectorProps> = ({
   onCancel,
   searchText,
   onAutoComplete,
-  categoryFilter,
 }) => {
-  const [workflows, setWorkflows] = useState<WorkflowDefinition[]>([]);
+  const [workflows, setWorkflows] = useState<WorkflowMetadata[]>([]);
   const [filteredWorkflows, setFilteredWorkflows] = useState<
-    WorkflowDefinition[]
+    WorkflowMetadata[]
   >([]);
   const [selectedIndex, setSelectedIndex] = useState(0);
+  const [isLoading, setIsLoading] = useState(false);
   const { token } = useToken();
   const containerRef = useRef<HTMLDivElement>(null);
   const selectedItemRef = useRef<HTMLDivElement>(null);
+  const { currentChat } = useChatController();
 
   // Fetch workflows when component becomes visible
   useEffect(() => {
     if (visible) {
-      const workflowService = WorkflowService.getInstance();
+      const workflowService = WorkflowManagerService.getInstance();
 
       const fetchWorkflows = async () => {
+        setIsLoading(true);
         try {
-          const fetchedWorkflows =
-            await workflowService.getAvailableWorkflows();
+          const workspacePath = currentChat?.config.workspacePath;
+          const fetchedWorkflows = await workflowService.listWorkflows(
+            workspacePath
+          );
           console.log(
             "[WorkflowSelector] Fetched workflows:",
             fetchedWorkflows,
@@ -51,31 +55,24 @@ const WorkflowSelector: React.FC<WorkflowSelectorProps> = ({
         } catch (error) {
           console.error("[WorkflowSelector] Failed to fetch workflows:", error);
           setWorkflows([]);
+        } finally {
+          setIsLoading(false);
         }
       };
 
       fetchWorkflows();
     }
-  }, [visible]);
+  }, [visible, currentChat?.config.workspacePath]);
 
-  // Filter workflows based on search text and category
+  // Filter workflows based on search text
   useEffect(() => {
-    let filtered = workflows.filter(
-      (workflow) =>
-        workflow.name.toLowerCase().includes(searchText.toLowerCase()) ||
-        workflow.description.toLowerCase().includes(searchText.toLowerCase()),
+    const filtered = workflows.filter((workflow) =>
+      workflow.name.toLowerCase().includes(searchText.toLowerCase())
     );
-
-    // Apply category filter if specified
-    if (categoryFilter) {
-      filtered = filtered.filter(
-        (workflow) => workflow.category === categoryFilter,
-      );
-    }
 
     setFilteredWorkflows(filtered);
     setSelectedIndex(0);
-  }, [workflows, searchText, categoryFilter]);
+  }, [workflows, searchText]);
 
   // Auto-scroll to keep selected item visible
   useEffect(() => {
@@ -96,6 +93,30 @@ const WorkflowSelector: React.FC<WorkflowSelectorProps> = ({
       }
     }
   }, [selectedIndex, filteredWorkflows]);
+
+  // Handle workflow selection (fetch content and call onSelect)
+  const handleWorkflowSelect = async (workflowName: string) => {
+    try {
+      const workflowService = WorkflowManagerService.getInstance();
+      const workspacePath = currentChat?.config.workspacePath;
+      const workflow = await workflowService.getWorkflow(
+        workflowName,
+        workspacePath
+      );
+
+      onSelect({
+        name: workflow.name,
+        content: workflow.content,
+      });
+    } catch (error) {
+      console.error(
+        `[WorkflowSelector] Failed to load workflow '${workflowName}':`,
+        error
+      );
+      // Still call onSelect with empty content to close selector
+      onSelect({ name: workflowName, content: "" });
+    }
+  };
 
   // Handle keyboard navigation
   useEffect(() => {
@@ -125,7 +146,7 @@ const WorkflowSelector: React.FC<WorkflowSelectorProps> = ({
           event.preventDefault();
           event.stopPropagation();
           if (filteredWorkflows[selectedIndex]) {
-            onSelect(filteredWorkflows[selectedIndex].name);
+            handleWorkflowSelect(filteredWorkflows[selectedIndex].name);
           }
           break;
         case " ": // Space key for auto-completion
@@ -156,13 +177,37 @@ const WorkflowSelector: React.FC<WorkflowSelectorProps> = ({
     visible,
     filteredWorkflows,
     selectedIndex,
-    onSelect,
     onCancel,
     onAutoComplete,
+    currentChat?.config.workspacePath,
   ]);
 
   if (!visible) {
     return null;
+  }
+
+  // Show loading state
+  if (isLoading) {
+    return (
+      <div
+        style={{
+          position: "absolute",
+          bottom: "100%",
+          left: 0,
+          right: 0,
+          background: token.colorBgContainer,
+          border: `1px solid ${token.colorBorderSecondary}`,
+          borderRadius: token.borderRadiusSM,
+          boxShadow: token.boxShadowSecondary,
+          padding: `${token.paddingSM}px ${token.paddingMD}px`,
+          zIndex: 1000,
+          marginBottom: token.marginXS,
+          textAlign: "center",
+        }}
+      >
+        <Spin size="small" /> Loading workflows...
+      </div>
+    );
   }
 
   // Show "no workflows found" message if search doesn't match anything
@@ -185,7 +230,9 @@ const WorkflowSelector: React.FC<WorkflowSelectorProps> = ({
           color: token.colorTextSecondary,
         }}
       >
-        No workflows found matching "{searchText}"
+        {searchText
+          ? `No workflows found matching "${searchText}"`
+          : "No workflows available. Create one to get started!"}
       </div>
     );
   }
@@ -236,7 +283,7 @@ const WorkflowSelector: React.FC<WorkflowSelectorProps> = ({
               index === selectedIndex ? token.colorPrimaryBg : "transparent",
             transition: "background-color 0.2s",
           }}
-          onClick={() => onSelect(workflow.name)}
+          onClick={() => handleWorkflowSelect(workflow.name)}
           onMouseEnter={() => setSelectedIndex(index)}
         >
           <div
@@ -256,19 +303,17 @@ const WorkflowSelector: React.FC<WorkflowSelectorProps> = ({
             >
               /{workflow.name}
             </div>
-            {workflow.category && (
-              <div
-                style={{
-                  fontSize: token.fontSizeSM,
-                  color: token.colorTextTertiary,
-                  background: token.colorFillQuaternary,
-                  padding: `2px ${token.paddingXXS}px`,
-                  borderRadius: token.borderRadiusXS,
-                }}
-              >
-                {workflow.category}
-              </div>
-            )}
+            <div
+              style={{
+                fontSize: token.fontSizeSM,
+                color: token.colorTextTertiary,
+                background: token.colorFillQuaternary,
+                padding: `2px ${token.paddingXXS}px`,
+                borderRadius: token.borderRadiusXS,
+              }}
+            >
+              {workflow.source === "workspace" ? "📁 Workspace" : "🌐 Global"}
+            </div>
           </div>
           <div
             style={{
@@ -278,19 +323,8 @@ const WorkflowSelector: React.FC<WorkflowSelectorProps> = ({
               lineHeight: 1.4,
             }}
           >
-            {workflow.description}
+            {workflow.filename} • {(workflow.size / 1024).toFixed(1)} KB
           </div>
-          {workflow.parameters.length > 0 && (
-            <div
-              style={{
-                marginTop: token.marginXXS,
-                fontSize: token.fontSizeSM,
-                color: token.colorTextTertiary,
-              }}
-            >
-              Parameters: {workflow.parameters.map((p) => p.name).join(", ")}
-            </div>
-          )}
         </div>
       ))}
     </div>
@@ -298,11 +332,3 @@ const WorkflowSelector: React.FC<WorkflowSelectorProps> = ({
 };
 
 export default WorkflowSelector;
-
-
-
-
-
-
-
-

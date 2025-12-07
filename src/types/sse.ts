@@ -14,7 +14,28 @@ export type SignalEvent =
   | ContentDeltaEvent
   | MessageCompletedEvent
   | TitleUpdatedEvent
-  | HeartbeatEvent;
+  | TodoListUpdatedEvent
+  | HeartbeatEvent
+  | AgentContinueEvent
+  | ContinuationLimitReachedEvent;
+
+/**
+ * Agent requested continuation of the current task
+ */
+export interface AgentContinueEvent {
+  type: "agent_continue";
+  session_id: string;
+  reason: string;
+}
+
+/**
+ * Maximum number of automatic continuations reached
+ */
+export interface ContinuationLimitReachedEvent {
+  type: "continuation_limit_reached";
+  count: number;
+  reasons: string[];
+}
 
 /**
  * Context state has changed (e.g., Idle → StreamingLLMResponse)
@@ -100,4 +121,61 @@ export interface ToolApprovalRequestEvent {
   tool: string;
   tool_description: string;
   parameters: Record<string, any>;
+}
+
+/**
+ * TODO List Types for AI-driven task tracking
+ */
+
+/**
+ * Status of an individual TODO item
+ */
+export type TodoItemStatus =
+  | "pending"
+  | "in_progress"
+  | "completed"
+  | "skipped"
+  | "failed";
+
+/**
+ * Status of the overall TODO list
+ */
+export type TodoListStatus = "active" | "completed" | "abandoned";
+
+/**
+ * Individual item in a TODO list
+ */
+export interface TodoItem {
+  id: string;
+  description: string;
+  status: TodoItemStatus;
+  order: number;
+  metadata?: Record<string, any>;
+  created_at: string;
+  updated_at: string;
+}
+
+/**
+ * TODO list message for tracking multi-step tasks
+ */
+export interface TodoListMsg {
+  list_id: string;
+  message_id: string;
+  title: string;
+  description?: string;
+  items: TodoItem[];
+  status: TodoListStatus;
+  created_at: string;
+  updated_at: string;
+}
+
+/**
+ * TODO list update event (when status changes)
+ */
+export interface TodoListUpdatedEvent {
+  type: "todo_list_updated";
+  context_id: string;
+  list_id: string;
+  message_id: string;
+  timestamp: string;
 }

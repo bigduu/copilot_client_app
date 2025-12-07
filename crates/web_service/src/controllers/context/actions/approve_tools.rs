@@ -24,7 +24,7 @@ pub async fn approve_tools_action(
     info!("Action: Approving tools for context {}", context_id);
 
     // Create a chat service for this context
-    let mut chat_service = crate::services::chat_service::ChatService::builder(
+    let chat_service = crate::services::chat_service::ChatService::builder(
         app_state.session_manager.clone(),
         context_id,
     )

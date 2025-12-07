@@ -2,16 +2,15 @@
 
 use crate::{
     error::AppError,
-    models::{ClientMessageMetadata, SendMessageRequest},
-    services::{session_manager::ChatSessionManager, system_prompt_service::SystemPromptService},
+    models::SendMessageRequest,
+    services::session_manager::ChatSessionManager,
     storage::StorageProvider,
 };
-use anyhow::{Context, Result};
+use anyhow::Result;
 use context_manager::{
     structs::system_prompt_snapshot::{PromptSource, SystemPromptSnapshot},
-    ChatContext, ContextUpdate,
+    ChatContext,
 };
-use log::{error, info};
 use std::sync::Arc;
 use tokio::sync::RwLock;
 use uuid::Uuid;

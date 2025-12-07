@@ -3,12 +3,9 @@
 use crate::{
     error::AppError,
     models::{ClientMessageMetadata, FinalizedMessage, MessagePayload, ServiceResponse},
-    services::{
-        message_processing::{
+    services::message_processing::{
             FileReferenceHandler, TextMessageHandler, ToolResultHandler, WorkflowHandler,
         },
-        session_manager::ChatSessionManager,
-    },
     storage::StorageProvider,
 };
 use context_manager::ChatContext;
@@ -111,16 +108,38 @@ pub(super) async fn handle_request_payload<T: StorageProvider>(
             parameters,
             ..
         } => {
-            let finalized = execute_workflow(
-                workflow_handler,
-                context,
-                workflow,
-                parameters,
-                display_text,
-                metadata,
-            )
-            .await?;
-            Ok(Some(ServiceResponse::FinalMessage(finalized.summary)))
+            // For markdown workflows (new system), treat as text message
+            // The workflow content should be in display_text
+            // Let LLM process the workflow instructions
+            if parameters.is_empty() {
+                // New markdown workflow system - pass workflow content to LLM
+                tracing::info!(
+                    "Processing markdown workflow '{}' as text message",
+                    workflow
+                );
+                handle_text_message(
+                    text_message_handler,
+                    context,
+                    display_text, // Use display_text which contains workflow content
+                    Some(display_text),
+                    metadata,
+                )
+                .await?;
+                Ok(None) // Continue to agent loop
+            } else {
+                // Old workflow system with parameters - execute workflow
+                tracing::info!("Executing legacy workflow '{}' with parameters", workflow);
+                let finalized = execute_workflow(
+                    workflow_handler,
+                    context,
+                    workflow,
+                    parameters,
+                    display_text,
+                    metadata,
+                )
+                .await?;
+                Ok(Some(ServiceResponse::FinalMessage(finalized.summary)))
+            }
         }
         MessagePayload::ToolResult {
             tool_name, result, ..

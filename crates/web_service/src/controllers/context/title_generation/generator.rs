@@ -6,8 +6,7 @@ use crate::{
     server::AppState,
 };
 use copilot_client::api::models::{
-    ChatCompletionRequest, ChatCompletionResponse, ChatMessage, Content,
-    ContentPart as ClientContentPart, Role as ClientRole,
+    ChatCompletionRequest, ChatCompletionResponse, ChatMessage, Content, Role as ClientRole,
 };
 use std::sync::Arc;
 use tokio::sync::RwLock;

@@ -7,7 +7,7 @@ import type {
 } from "../../types/chat";
 import type { ImageFile } from "../../utils/imageUtils";
 import { transformMessageDTOToMessage } from "../../utils/messageTransformers";
-import type { UseChatState } from "./types";
+
 
 /**
  * Hook for SSE streaming and message sending
@@ -243,6 +243,21 @@ export function useChatSSEStreaming(
                 // Keep-alive, no action needed
                 break;
 
+              case "agent_continue":
+                console.log(
+                  `[useChatSSEStreaming] Agent continuation requested: "${event.reason}"`
+                );
+                // Optionally show a toast or status indicator
+                appMessage.loading(`Continuing: ${event.reason}...`, 1);
+                break;
+
+              case "continuation_limit_reached":
+                console.warn(
+                  `[useChatSSEStreaming] Continuation limit reached: ${event.count}`
+                );
+                 appMessage.warning("Maximum auto-continuation limit reached.");
+                break;
+
               default:
                 console.warn(
                   "[useChatSSEStreaming] Unknown SSE event type:",
@@ -251,14 +266,15 @@ export function useChatSSEStreaming(
             }
           },
           (error) => {
-            console.error("[useChatSSEStreaming] SSE error:", error);
-            appMessage.error("Connection error. Please try again.");
+             // ... existing error handling ...
+             console.error("[useChatSSEStreaming] SSE error:", error);
+             appMessage.error("Connection error. Please try again.");
 
-            // Cleanup on error
-            if (sseUnsubscribeRef.current) {
-              sseUnsubscribeRef.current();
-              sseUnsubscribeRef.current = null;
-            }
+             // Cleanup on error
+             if (sseUnsubscribeRef.current) {
+               sseUnsubscribeRef.current();
+               sseUnsubscribeRef.current = null;
+             }
           }
         );
 
@@ -286,6 +302,33 @@ export function useChatSSEStreaming(
     },
     [deps, modal, appMessage]
   );
+
+  // Auto-continuation effect
+  // Watch messages for "should_continue" metadata
+  const lastMessage = deps.currentChat?.messages[deps.currentChat.messages.length - 1];
+  
+  useEffect(() => {
+    if (!lastMessage || lastMessage.role !== 'assistant' || !lastMessage.metadata?.should_continue) {
+        return;
+    }
+
+    // Check if we are already streaming/processing (naive check: is the message ID the one we just processed?)
+    // Actually, we want to trigger ONLY if the message is "complete" (i.e. not streaming).
+    // The "message_completed" event handles the fetching of the final message.
+    // If we rely on `deps.currentChat.messages` update, it should be safe.
+    
+    // We add a delay to avoid race conditions and provide UI feedback time
+    const timer = setTimeout(() => {
+        console.log(
+            `[useChatSSEStreaming] Auto-continuing triggered by metadata. Reason: ${lastMessage.metadata?.continue_reason}`
+        );
+        // Send explicit confirmation message to prompt the next step
+        const reason = lastMessage.metadata?.continue_reason || "next step";
+        sendMessage(`Continue: ${reason}`, []);
+    }, 800);
+
+    return () => clearTimeout(timer);
+  }, [lastMessage, sendMessage]);
 
   return {
     sendMessage,

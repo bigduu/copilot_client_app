@@ -141,6 +141,7 @@ impl IncomingTextMessage {
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum IncomingMessage {
     Text(IncomingTextMessage),
+    Rich(crate::structs::message_types::RichMessageType),
 }
 
 impl IncomingMessage {
@@ -148,15 +149,21 @@ impl IncomingMessage {
         IncomingMessage::Text(IncomingTextMessage::new(content.into()))
     }
 
+    pub fn rich(rich: crate::structs::message_types::RichMessageType) -> Self {
+        IncomingMessage::Rich(rich)
+    }
+
     pub fn kind(&self) -> &'static str {
         match self {
             IncomingMessage::Text(_) => "text",
+            IncomingMessage::Rich(_) => "rich",
         }
     }
 
     pub fn as_text(&self) -> Option<&IncomingTextMessage> {
         match self {
             IncomingMessage::Text(payload) => Some(payload),
+            IncomingMessage::Rich(_) => None,
         }
     }
 }

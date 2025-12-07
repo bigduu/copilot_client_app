@@ -14,6 +14,12 @@ pub struct ChatContext {
     pub parent_id: Option<Uuid>,
     pub config: ChatConfig,
 
+    /// Agent continuation tracking
+    /// Tracks how many times AGENT_CONTINUE has been used in current conversation
+    pub continuation_count: u32,
+    /// History of continuation reasons for debugging
+    pub continuation_reasons: Vec<String>,
+
     /// Optional title for this context. If None, frontend should display a default title.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub title: Option<String>,
@@ -99,6 +105,8 @@ impl ChatContext {
             tool_execution: ToolExecutionContext::default(),
             stream_sequences: HashMap::new(),
             available_tools: Vec::new(), // Will be populated at runtime by SessionManager
+            continuation_count: 0,
+            continuation_reasons: Vec::new(),
         }
     }
 }

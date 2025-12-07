@@ -10,9 +10,7 @@ use crate::structs::context::ChatContext;
 use crate::structs::message::{
     ContentPart, IncomingTextMessage, InternalMessage, MessageType, Role,
 };
-use crate::structs::metadata::MessageMetadata;
 use std::collections::HashMap;
-use uuid::Uuid;
 
 impl ChatContext {
     /// Build a message processing pipeline configured for this context

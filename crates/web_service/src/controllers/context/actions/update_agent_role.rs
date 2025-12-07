@@ -8,7 +8,7 @@ use actix_web::{
     HttpRequest, HttpResponse, Result,
 };
 use context_manager::AgentRole;
-use log::{error, info};
+use log::error;
 use tracing;
 use uuid::Uuid;
 
