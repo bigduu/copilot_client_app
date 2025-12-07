@@ -173,6 +173,69 @@ async fn process_llm_stream<T: StorageProvider>(
     // Auto-save
     session_manager.auto_save_if_dirty(context).await?;
 
+    // Check for accumulated tool calls
+    if tool_accumulator.has_tool_calls() {
+        let tool_calls = tool_accumulator.into_tool_calls();
+        info!(
+            "LLM Processor: Stream completed with {} tool call(s), adding to context",
+            tool_calls.len()
+        );
+        
+        // Convert copilot_client::ToolCall to context_manager::ToolCallRequest
+        let tool_call_requests: Vec<context_manager::ToolCallRequest> = tool_calls
+            .iter()
+            .map(|call| {
+                let arguments_json: serde_json::Value = serde_json::from_str(&call.function.arguments)
+                    .unwrap_or_else(|e| {
+                        error!("Failed to parse tool arguments as JSON: {}, using raw string", e);
+                        serde_json::Value::String(call.function.arguments.clone())
+                    });
+                
+                context_manager::ToolCallRequest {
+                    id: call.id.clone(),
+                    tool_name: call.function.name.clone(),
+                    arguments: tool_system::types::ToolArguments::Json(arguments_json),
+                    approval_status: context_manager::ApprovalStatus::Pending,
+                    display_preference: context_manager::DisplayPreference::Default,
+                    ui_hints: None,
+                }
+            })
+            .collect();
+        
+        // Add tool call message to context if we have a message_id
+        if let Some(message_id) = assistant_message_id {
+            let mut ctx = context.write().await;
+            
+            // Update the streaming message to include tool calls
+            if let Some(node) = ctx.message_pool.get_mut(&message_id) {
+                node.message.tool_calls = Some(tool_call_requests.clone());
+                info!("  Added {} tool calls to message {}", tool_call_requests.len(), message_id);
+            }
+            
+            // Finalize the streaming response with tool_calls finish reason
+            ctx.finalize_streaming_response(
+                message_id,
+                Some("tool_calls".to_string()),
+                None,
+            );
+            
+            // Transition FSM to indicate tool calls were received
+            ctx.handle_event(context_manager::ChatEvent::LLMFullResponseReceived);
+            ctx.handle_event(context_manager::ChatEvent::LLMResponseProcessed {
+                has_tool_calls: true,
+            });
+        }
+        
+        // Collect tool call IDs for the response
+        let tool_call_ids: Vec<String> = tool_call_requests.iter().map(|tc| tc.id.clone()).collect();
+        
+        // Auto-save
+        session_manager.auto_save_if_dirty(context).await?;
+        
+        info!("LLM Processor: Returning AwaitingToolApproval with {} tools", tool_call_ids.len());
+        return Ok(ServiceResponse::AwaitingToolApproval(tool_call_ids));
+    }
+
     info!("LLM Processor: Request completed successfully");
     Ok(ServiceResponse::FinalMessage(full_text))
 }
