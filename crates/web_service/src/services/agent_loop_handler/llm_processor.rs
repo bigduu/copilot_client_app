@@ -15,6 +15,8 @@ use bytes::Bytes;
 use context_manager::structs::context::ChatContext;
 use copilot_client::{api::models::ChatCompletionRequest, CopilotClientTrait};
 use log::{error, info};
+use actix_web_lab::sse;
+use serde_json::json;
 
 // Import reqwest types via re-export
 use reqwest::{Response, StatusCode};
@@ -229,6 +231,22 @@ async fn process_llm_stream<T: StorageProvider>(
         // Collect tool call IDs for the response
         let tool_call_ids: Vec<String> = tool_call_requests.iter().map(|tc| tc.id.clone()).collect();
         
+        // Broadcast tool approval event to SSE subscribers
+        if let Some(broadcaster) = event_broadcaster {
+            let context_id = {
+                let ctx = context.read().await;
+                ctx.id
+            };
+            
+            if let Ok(data) = sse::Data::new_json(json!({
+                "type": "tool_approval",
+                "tool_calls": tool_call_ids,
+            })) {
+                broadcaster.broadcast(context_id, sse::Event::Data(data.event("tool_approval"))).await;
+                info!("LLM Processor: Broadcasted tool_approval SSE event to context {}", context_id);
+            }
+        }
+
         // Auto-save
         session_manager.auto_save_if_dirty(context).await?;
         
