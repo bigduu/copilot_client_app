@@ -334,20 +334,67 @@ pub fn spawn_stream_task<T: StorageProvider + 'static>(
             }
         }
 
-        // Log accumulated tool calls
+        // Process accumulated tool calls
         if tool_accumulator.has_tool_calls() {
             let tool_calls = tool_accumulator.into_tool_calls();
             log::info!("Stream completed with {} tool call(s)", tool_calls.len());
-            for (i, call) in tool_calls.iter().enumerate() {
-                log::debug!(
-                    "  Tool call {}: {} - id={}, args={}",
-                    i + 1,
-                    call.function.name,
-                    call.id,
-                    call.function.arguments
-                );
+            
+            // Convert to ToolCallRequest format
+            let tool_call_requests: Vec<context_manager::ToolCallRequest> = tool_calls
+                .iter()
+                .map(|call| {
+                    let arguments_json: serde_json::Value = serde_json::from_str(&call.function.arguments)
+                        .unwrap_or_else(|e| {
+                            log::error!("Failed to parse tool arguments as JSON: {}, using raw string", e);
+                            serde_json::Value::String(call.function.arguments.clone())
+                        });
+                    
+                    context_manager::ToolCallRequest {
+                        id: call.id.clone(),
+                        tool_name: call.function.name.clone(),
+                        arguments: tool_system::types::ToolArguments::Json(arguments_json),
+                        approval_status: context_manager::ApprovalStatus::Pending,
+                        display_preference: context_manager::DisplayPreference::Default,
+                        ui_hints: None,
+                    }
+                })
+                .collect();
+            
+            // Add tool calls to context if we have a message_id
+            if let Some(message_id) = assistant_message_id {
+                if let Ok(Some(ctx)) = session_manager.load_context(conversation_id, None).await {
+                    let mut ctx_lock = ctx.write().await;
+                    
+                    // Update the streaming message to include tool calls
+                    if let Some(node) = ctx_lock.message_pool.get_mut(&message_id) {
+                        node.message.tool_calls = Some(tool_call_requests.clone());
+                        log::info!("  Added {} tool calls to message {}", tool_call_requests.len(), message_id);
+                    }
+                    
+                    // Finalize streaming with tool_calls finish reason
+                    ctx_lock.finalize_streaming_response(
+                        message_id,
+                        Some("tool_calls".to_string()),
+                        None,
+                    );
+                    
+                    // Transition FSM
+                    ctx_lock.handle_event(context_manager::ChatEvent::LLMFullResponseReceived);
+                    ctx_lock.handle_event(context_manager::ChatEvent::LLMResponseProcessed {
+                        has_tool_calls: true,
+                    });
+                }
             }
-            // TODO: Integrate with context_manager for tool execution
+            
+            // Send tool_approval SSE event to frontend
+            let tool_call_ids: Vec<String> = tool_call_requests.iter().map(|tc| tc.id.clone()).collect();
+            if let Ok(data) = sse::Data::new_json(json!({
+                "type": "tool_approval",
+                "tool_calls": tool_call_ids,
+            })) {
+                let _ = tx.send(sse::Event::Data(data.event("tool_approval"))).await;
+                log::info!("Sent tool_approval SSE event for {} tool(s)", tool_call_ids.len());
+            }
         }
 
         if !full_text.is_empty() {
