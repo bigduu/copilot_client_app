@@ -180,6 +180,34 @@ pub struct StreamChoice {
     pub finish_reason: Option<String>,
 }
 
+// Streaming-specific tool call structures
+// These allow partial data since the API sends tool calls incrementally across multiple chunks
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+pub struct StreamToolCall {
+    /// Index to identify which tool call this fragment belongs to
+    pub index: u32,
+    /// Tool call ID (only present in the first chunk)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub id: Option<String>,
+    /// Tool type (only present in the first chunk)
+    #[serde(rename = "type")]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tool_type: Option<String>,
+    /// Function call data (may be partial)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub function: Option<StreamFunctionCall>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+pub struct StreamFunctionCall {
+    /// Function name (only present in the first chunk)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
+    /// Arguments (sent incrementally across chunks)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub arguments: Option<String>,
+}
+
 #[derive(Debug, Serialize, Deserialize, Clone, Default, PartialEq)]
 pub struct StreamDelta {
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -187,5 +215,5 @@ pub struct StreamDelta {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub content: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub tool_calls: Option<Vec<ToolCall>>,
+    pub tool_calls: Option<Vec<StreamToolCall>>,
 }

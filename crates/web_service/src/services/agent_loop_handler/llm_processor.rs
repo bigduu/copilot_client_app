@@ -106,6 +106,7 @@ async fn process_llm_stream<T: StorageProvider>(
 ) -> Result<ServiceResponse, AppError> {
     let mut full_text = String::new();
     let mut assistant_message_id: Option<Uuid> = None;
+    let mut tool_accumulator = copilot_client::api::stream_tool_accumulator::StreamToolAccumulator::new();
 
     let (chunk_tx, mut chunk_rx) = mpsc::channel::<Result<Bytes>>(100);
     let copilot_client_clone = copilot_client.clone();
@@ -133,6 +134,7 @@ async fn process_llm_stream<T: StorageProvider>(
                         chunk,
                         &mut full_text,
                         &mut assistant_message_id,
+                        &mut tool_accumulator,
                     )
                     .await?;
                 }

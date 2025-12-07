@@ -23,6 +23,7 @@ pub async fn handle_stream_chunk(
     chunk: ChatCompletionStreamChunk,
     full_text: &mut String,
     assistant_message_id: &mut Option<Uuid>,
+    tool_accumulator: &mut copilot_client::api::stream_tool_accumulator::StreamToolAccumulator,
 ) -> anyhow::Result<()> {
     if let Some(choice) = chunk.choices.first() {
         if let Some(content) = &choice.delta.content {
@@ -43,6 +44,12 @@ pub async fn handle_stream_chunk(
                 let mut ctx_lock = context.write().await;
                 ctx_lock.append_streaming_chunk(*message_id, content_str.clone());
             }
+        }
+
+        // Process tool calls
+        if let Some(tool_calls) = &choice.delta.tool_calls {
+            tool_accumulator.process_chunk(tool_calls);
+            log::debug!("Accumulated {} tool call(s) from stream chunk", tool_calls.len());
         }
     }
     Ok(())
@@ -67,6 +74,7 @@ pub fn spawn_stream_task<T: StorageProvider + 'static>(
         let mut client_disconnected = false;
         let mut stream_failed = false;
         let mut last_sequence: u64 = 0;
+        let mut tool_accumulator = copilot_client::api::stream_tool_accumulator::StreamToolAccumulator::new();
 
         while let Some(chunk_result) = chunk_rx.recv().await {
             match chunk_result {
@@ -82,6 +90,12 @@ pub fn spawn_stream_task<T: StorageProvider + 'static>(
                     {
                         Ok(chunk) => {
                             if let Some(choice) = chunk.choices.first() {
+                                // Process tool calls
+                                if let Some(tool_calls) = &choice.delta.tool_calls {
+                                    tool_accumulator.process_chunk(tool_calls);
+                                    log::debug!("Accumulated {} tool call fragment(s)", tool_calls.len());
+                                }
+
                                 if let Some(content) = &choice.delta.content {
                                     let content_str = content.clone();
                                     full_text.push_str(&content_str);
@@ -318,6 +332,22 @@ pub fn spawn_stream_task<T: StorageProvider + 'static>(
                     return;
                 }
             }
+        }
+
+        // Log accumulated tool calls
+        if tool_accumulator.has_tool_calls() {
+            let tool_calls = tool_accumulator.into_tool_calls();
+            log::info!("Stream completed with {} tool call(s)", tool_calls.len());
+            for (i, call) in tool_calls.iter().enumerate() {
+                log::debug!(
+                    "  Tool call {}: {} - id={}, args={}",
+                    i + 1,
+                    call.function.name,
+                    call.id,
+                    call.function.arguments
+                );
+            }
+            // TODO: Integrate with context_manager for tool execution
         }
 
         if !full_text.is_empty() {
