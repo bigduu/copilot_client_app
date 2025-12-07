@@ -27,7 +27,8 @@ use crate::{
     error::AppError,
     models::{SendMessageRequest, ServiceResponse},
     services::{
-        agent_loop_runner::AgentLoopRunner, message_builder,
+        agent_loop_runner::AgentLoopRunner,
+        message_builder,
         message_processing::{
             FileReferenceHandler, TextMessageHandler, ToolResultHandler, WorkflowHandler,
         },
@@ -293,6 +294,7 @@ impl<T: StorageProvider + 'static> AgentLoopHandler<T> {
     ) -> Result<ServiceResponse, AppError> {
         approval_flow::approve_tool_calls(
             &self.session_manager,
+            &self.tool_executor,
             conversation_id,
             approved_tool_calls,
         )

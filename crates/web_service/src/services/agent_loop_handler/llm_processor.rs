@@ -10,16 +10,16 @@ use crate::{
     services::{copilot_stream_handler, session_manager::ChatSessionManager, EventBroadcaster},
     storage::StorageProvider,
 };
+use actix_web_lab::sse;
 use anyhow::Result;
 use bytes::Bytes;
+use chrono::Utc; // Added Utc for timestamp
 use context_manager::structs::context::ChatContext;
 use context_manager::{ContextUpdate, MessageUpdate};
-use std::collections::HashMap;
-use chrono::Utc; // Added Utc for timestamp
 use copilot_client::{api::models::ChatCompletionRequest, CopilotClientTrait};
 use log::{error, info};
-use actix_web_lab::sse;
 use serde_json::json;
+use std::collections::HashMap;
 
 // Import reqwest types via re-export
 use reqwest::{Response, StatusCode};
@@ -66,13 +66,13 @@ pub async fn process_llm_request<T: StorageProvider>(
                 let body_text = response.text().await.unwrap_or_default();
                 let error_msg = format_llm_error(status, &body_text);
                 error!("{}", error_msg);
-                
+
                 // Use context_manager's error handling
                 {
                     let mut ctx = context.write().await;
                     let _updates = ctx.handle_llm_error(error_msg.clone());
                 }
-                
+
                 return Err(AppError::InternalError(anyhow::anyhow!(error_msg)));
             }
 
@@ -88,14 +88,17 @@ pub async fn process_llm_request<T: StorageProvider>(
         }
         Err(e) => {
             error!("Failed to send request to LLM: {}", e);
-            
+
             // Use context_manager's error handling
             {
                 let mut ctx = context.write().await;
                 let _updates = ctx.handle_llm_error(e.to_string());
             }
-            
-            Err(AppError::InternalError(anyhow::anyhow!("LLM request failed: {}", e)))
+
+            Err(AppError::InternalError(anyhow::anyhow!(
+                "LLM request failed: {}",
+                e
+            )))
         }
     }
 }
@@ -111,7 +114,8 @@ async fn process_llm_stream<T: StorageProvider>(
 ) -> Result<ServiceResponse, AppError> {
     let mut full_text = String::new();
     let mut assistant_message_id: Option<Uuid> = None;
-    let mut tool_accumulator = copilot_client::api::stream_tool_accumulator::StreamToolAccumulator::new();
+    let mut tool_accumulator =
+        copilot_client::api::stream_tool_accumulator::StreamToolAccumulator::new();
 
     let (chunk_tx, mut chunk_rx) = mpsc::channel::<Result<Bytes>>(100);
     let copilot_client_clone = copilot_client.clone();
@@ -185,17 +189,20 @@ async fn process_llm_stream<T: StorageProvider>(
             "LLM Processor: Stream completed with {} tool call(s), adding to context",
             tool_calls.len()
         );
-        
+
         // Convert copilot_client::ToolCall to context_manager::ToolCallRequest
         let tool_call_requests: Vec<context_manager::ToolCallRequest> = tool_calls
             .iter()
             .map(|call| {
-                let arguments_json: serde_json::Value = serde_json::from_str(&call.function.arguments)
-                    .unwrap_or_else(|e| {
-                        error!("Failed to parse tool arguments as JSON: {}, using raw string", e);
+                let arguments_json: serde_json::Value =
+                    serde_json::from_str(&call.function.arguments).unwrap_or_else(|e| {
+                        error!(
+                            "Failed to parse tool arguments as JSON: {}, using raw string",
+                            e
+                        );
                         serde_json::Value::String(call.function.arguments.clone())
                     });
-                
+
                 context_manager::ToolCallRequest {
                     id: call.id.clone(),
                     tool_name: call.function.name.clone(),
@@ -206,79 +213,112 @@ async fn process_llm_stream<T: StorageProvider>(
                 }
             })
             .collect();
-        
-        // Add tool call message to context if we have a message_id
-        if let Some(message_id) = assistant_message_id {
+
+        // If no assistant message was created (tool-only response with no text),
+        // create one now so the tool_calls have a message to attach to
+        let message_id = if let Some(id) = assistant_message_id {
+            id
+        } else {
+            info!("LLM Processor: No text content received, creating assistant message for tool calls");
             let mut ctx = context.write().await;
-            
+            let id = ctx.begin_streaming_llm_response(None);
+            drop(ctx);
+            id
+        };
+
+        {
+            let mut ctx = context.write().await;
+
             // Update the streaming message to include tool calls
             if let Some(node) = ctx.message_pool.get_mut(&message_id) {
                 node.message.tool_calls = Some(tool_call_requests.clone());
-                info!("  Added {} tool calls to message {}", tool_call_requests.len(), message_id);
+                // Also set the message_type to ToolCall for proper rendering
+                node.message.message_type = context_manager::MessageType::ToolCall;
+                info!(
+                    "  Added {} tool calls to message {}",
+                    tool_call_requests.len(),
+                    message_id
+                );
             }
-            
+
             // Finalize the streaming response with tool_calls finish reason
-            ctx.finalize_streaming_response(
-                message_id,
-                Some("tool_calls".to_string()),
-                None,
-            );
-            
+            ctx.finalize_streaming_response(message_id, Some("tool_calls".to_string()), None);
+
             // Transition FSM to indicate tool calls were received
             ctx.handle_event(context_manager::ChatEvent::LLMFullResponseReceived);
             ctx.handle_event(context_manager::ChatEvent::LLMResponseProcessed {
                 has_tool_calls: true,
             });
         }
-        
+
         // Collect tool call IDs for the response
-        let tool_call_ids: Vec<String> = tool_call_requests.iter().map(|tc| tc.id.clone()).collect();
-        
+        let tool_call_ids: Vec<String> =
+            tool_call_requests.iter().map(|tc| tc.id.clone()).collect();
+
         // Broadcast tool approval event to SSE subscribers
         if let Some(broadcaster) = event_broadcaster {
             let (context_id, final_message, current_state) = {
                 let ctx = context.read().await;
-                let final_message = assistant_message_id
-                    .and_then(|id| ctx.message_pool.get(&id))
-                    .map(|n| n.message.clone());
+                let final_message = ctx.message_pool.get(&message_id).map(|n| n.message.clone());
                 (ctx.id, final_message, ctx.current_state.clone())
             };
-            
+
             // Broadcast MessageUpdate::Completed first
-            if let Some(message_id) = assistant_message_id {
-                if let Some(final_message) = final_message {
-                    let update = ContextUpdate {
-                        context_id,
-                        current_state,
-                        previous_state: None,
-                        message_update: Some(MessageUpdate::Completed {
-                            message_id,
-                            final_message,
-                        }),
-                        timestamp: Utc::now(),
-                        metadata: HashMap::new(),
-                    };
-                    
-                    if let Ok(data) = sse::Data::new_json(update) {
-                        broadcaster.broadcast(context_id, sse::Event::Data(data.event("context_update"))).await;
-                        info!("LLM Processor: Broadcasted MessageUpdate::Completed to context {}", context_id);
-                    }
+            if let Some(final_message) = final_message {
+                let update = ContextUpdate {
+                    context_id,
+                    current_state,
+                    previous_state: None,
+                    message_update: Some(MessageUpdate::Completed {
+                        message_id,
+                        final_message,
+                    }),
+                    timestamp: Utc::now(),
+                    metadata: HashMap::new(),
+                };
+
+                // Use "signal" event type so frontend can receive it
+                if let Ok(data) = sse::Data::new_json(update) {
+                    info!("LLM Processor: Broadcasting MessageUpdate::Completed to context {} (event type: signal)", context_id);
+                    broadcaster
+                        .broadcast(context_id, sse::Event::Data(data.event("signal")))
+                        .await;
+                    info!("LLM Processor: Broadcasted MessageUpdate::Completed successfully");
+                } else {
+                    error!("LLM Processor: Failed to serialize MessageUpdate::Completed for SSE");
                 }
             }
-            
-            if let Ok(data) = sse::Data::new_json(json!({
+
+            // IMPORTANT: Use "signal" event type (not "tool_approval") so frontend can receive it
+            // Frontend listens to SSE events via addEventListener("signal", ...)
+            let tool_approval_payload = json!({
                 "type": "tool_approval",
+                "context_id": context_id.to_string(),
                 "tool_calls": tool_call_ids,
-            })) {
-                broadcaster.broadcast(context_id, sse::Event::Data(data.event("tool_approval"))).await;
-                info!("LLM Processor: Broadcasted tool_approval SSE event to context {}", context_id);
+                "timestamp": chrono::Utc::now().to_rfc3339(),
+            });
+            info!(
+                "LLM Processor: Broadcasting tool_approval to context {} with payload: {:?}",
+                context_id, tool_approval_payload
+            );
+
+            if let Ok(data) = sse::Data::new_json(&tool_approval_payload) {
+                broadcaster
+                    .broadcast(context_id, sse::Event::Data(data.event("signal")))
+                    .await;
+                info!("LLM Processor: Broadcasted tool_approval SSE event successfully (event type: signal)");
+            } else {
+                error!("LLM Processor: Failed to serialize tool_approval for SSE");
             }
         }
 
         // Auto-save
         session_manager.auto_save_if_dirty(context).await?;
-        
-        info!("LLM Processor: Returning AwaitingToolApproval with {} tools", tool_call_ids.len());
+
+        info!(
+            "LLM Processor: Returning AwaitingToolApproval with {} tools",
+            tool_call_ids.len()
+        );
         return Ok(ServiceResponse::AwaitingToolApproval(tool_call_ids));
     }
 

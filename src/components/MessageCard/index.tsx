@@ -659,22 +659,107 @@ const MessageCardComponent: React.FC<MessageCardProps> = ({
                   );
                 })()
               ) : isAssistantToolCallMessage(message) ? (
-                // Case 2: Assistant Tool Call
+                // Case 2: Assistant Tool Call - with approve/reject buttons
                 <Space direction="vertical" style={{ width: "100%" }}>
                   {message.toolCalls.map((call) => (
                     <Card
                       key={call.toolCallId}
                       size="small"
-                      title={`Requesting Tool: ${call.toolName}`}
+                      title={
+                        <Space>
+                          <span>🔧 Requesting Tool: {call.toolName}</span>
+                        </Space>
+                      }
+                      style={{
+                        backgroundColor: token.colorInfoBg,
+                        borderColor: token.colorInfoBorder,
+                      }}
                     >
-                      <pre
-                        style={{
-                          whiteSpace: "pre-wrap",
-                          wordBreak: "break-all",
-                        }}
-                      >
-                        {JSON.stringify(call.parameters, null, 2)}
-                      </pre>
+                      <Space direction="vertical" style={{ width: "100%" }} size="middle">
+                        <div>
+                          <Text strong style={{ display: "block", marginBottom: 8 }}>
+                            Parameters:
+                          </Text>
+                          <pre
+                            style={{
+                              whiteSpace: "pre-wrap",
+                              wordBreak: "break-all",
+                              backgroundColor: token.colorBgContainer,
+                              padding: token.paddingSM,
+                              borderRadius: token.borderRadius,
+                              margin: 0,
+                            }}
+                          >
+                            {JSON.stringify(call.parameters, null, 2)}
+                          </pre>
+                        </div>
+                        <Space style={{ width: "100%", justifyContent: "center" }}>
+                          <button
+                            onClick={async () => {
+                              try {
+                                const { backendContextService } = await import("../../services/BackendContextService");
+                                await backendContextService.approveToolsAction(
+                                  currentContext?.id || "",
+                                  [call.toolCallId]
+                                );
+                                console.log("[MessageCard] Approved tool:", call.toolCallId);
+                                
+                                // Refresh messages from backend and update store directly (no page reload!)
+                                if (currentContext?.id) {
+                                  const response = await backendContextService.getMessages(currentContext.id);
+                                  console.log("[MessageCard] Refreshed messages after approval:", response.messages.length);
+                                  
+                                  // Transform DTO messages to frontend Message type
+                                  const { transformMessageDTOToMessage } = await import("../../utils/messageTransformers");
+                                  const transformedMessages = response.messages.map(transformMessageDTOToMessage);
+                                  
+                                  // Update Zustand store directly
+                                  const { useAppStore } = await import("../../store");
+                                  useAppStore.getState().setMessages(currentContext.id, transformedMessages);
+                                  console.log("[MessageCard] Updated store with", transformedMessages.length, "messages");
+                                }
+                              } catch (error) {
+                                console.error("[MessageCard] Failed to approve tool:", error);
+                              }
+                            }}
+                            style={{
+                              backgroundColor: token.colorSuccess,
+                              borderColor: token.colorSuccess,
+                              color: "white",
+                              padding: "4px 15px",
+                              borderRadius: token.borderRadius,
+                              border: "none",
+                              cursor: "pointer",
+                              display: "flex",
+                              alignItems: "center",
+                              gap: 4,
+                            }}
+                          >
+                            ✓ Approve
+                          </button>
+                          <button
+                            onClick={async () => {
+                              // For reject, we'd need a reject API - for now just log
+                              console.log("[MessageCard] Rejected tool:", call.toolCallId);
+                              // TODO: Implement reject API call
+                            }}
+                            style={{
+                              backgroundColor: token.colorError,
+                              borderColor: token.colorError,
+                              color: "white",
+                              padding: "4px 15px",
+                              borderRadius: token.borderRadius,
+                              border: "none",
+                              cursor: "pointer",
+                              display: "flex",
+                              alignItems: "center",
+                              gap: 4,
+                            }}
+                          >
+                            ✕ Reject
+                          </button>
+                        </Space>
+                      </Space>
                     </Card>
                   ))}
                 </Space>

@@ -17,7 +17,8 @@ export type SignalEvent =
   | TodoListUpdatedEvent
   | HeartbeatEvent
   | AgentContinueEvent
-  | ContinuationLimitReachedEvent;
+  | ContinuationLimitReachedEvent
+  | ToolApprovalEvent;
 
 /**
  * Agent requested continuation of the current task
@@ -35,6 +36,16 @@ export interface ContinuationLimitReachedEvent {
   type: "continuation_limit_reached";
   count: number;
   reasons: string[];
+}
+
+/**
+ * Tool approval required event - LLM requested tool execution that needs user approval
+ */
+export interface ToolApprovalEvent {
+  type: "tool_approval";
+  context_id: string;
+  tool_calls: string[]; // Array of tool call IDs
+  timestamp: string;
 }
 
 /**

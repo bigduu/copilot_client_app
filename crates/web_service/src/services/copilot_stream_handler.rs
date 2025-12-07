@@ -1,12 +1,12 @@
 use std::sync::Arc;
 
-use chrono::Utc;
-use std::collections::HashMap;
 use actix_web_lab::sse;
 use bytes::Bytes;
-use context_manager::{ChatContext, ChatEvent, MessageUpdate, ContextUpdate};
+use chrono::Utc;
+use context_manager::{ChatContext, ChatEvent, ContextUpdate, MessageUpdate};
 use copilot_client::api::models::ChatCompletionStreamChunk;
 use serde_json::json;
+use std::collections::HashMap;
 use tokio::sync::{mpsc, RwLock};
 use tokio::task::JoinHandle;
 use tool_system::ToolExecutor;
@@ -51,7 +51,10 @@ pub async fn handle_stream_chunk(
         // Process tool calls
         if let Some(tool_calls) = &choice.delta.tool_calls {
             tool_accumulator.process_chunk(tool_calls);
-            log::debug!("Accumulated {} tool call(s) from stream chunk", tool_calls.len());
+            log::debug!(
+                "Accumulated {} tool call(s) from stream chunk",
+                tool_calls.len()
+            );
         }
     }
     Ok(())
@@ -76,7 +79,8 @@ pub fn spawn_stream_task<T: StorageProvider + 'static>(
         let mut client_disconnected = false;
         let mut stream_failed = false;
         let mut last_sequence: u64 = 0;
-        let mut tool_accumulator = copilot_client::api::stream_tool_accumulator::StreamToolAccumulator::new();
+        let mut tool_accumulator =
+            copilot_client::api::stream_tool_accumulator::StreamToolAccumulator::new();
 
         while let Some(chunk_result) = chunk_rx.recv().await {
             match chunk_result {
@@ -95,7 +99,10 @@ pub fn spawn_stream_task<T: StorageProvider + 'static>(
                                 // Process tool calls
                                 if let Some(tool_calls) = &choice.delta.tool_calls {
                                     tool_accumulator.process_chunk(tool_calls);
-                                    log::debug!("Accumulated {} tool call fragment(s)", tool_calls.len());
+                                    log::debug!(
+                                        "Accumulated {} tool call fragment(s)",
+                                        tool_calls.len()
+                                    );
                                 }
 
                                 if let Some(content) = &choice.delta.content {
@@ -346,17 +353,20 @@ pub fn spawn_stream_task<T: StorageProvider + 'static>(
         if tool_accumulator.has_tool_calls() {
             let tool_calls = tool_accumulator.into_tool_calls();
             log::info!("Stream completed with {} tool call(s)", tool_calls.len());
-            
+
             // Convert to ToolCallRequest format
             let tool_call_requests: Vec<context_manager::ToolCallRequest> = tool_calls
                 .iter()
                 .map(|call| {
-                    let arguments_json: serde_json::Value = serde_json::from_str(&call.function.arguments)
-                        .unwrap_or_else(|e| {
-                            log::error!("Failed to parse tool arguments as JSON: {}, using raw string", e);
+                    let arguments_json: serde_json::Value =
+                        serde_json::from_str(&call.function.arguments).unwrap_or_else(|e| {
+                            log::error!(
+                                "Failed to parse tool arguments as JSON: {}, using raw string",
+                                e
+                            );
                             serde_json::Value::String(call.function.arguments.clone())
                         });
-                    
+
                     context_manager::ToolCallRequest {
                         id: call.id.clone(),
                         tool_name: call.function.name.clone(),
@@ -367,25 +377,29 @@ pub fn spawn_stream_task<T: StorageProvider + 'static>(
                     }
                 })
                 .collect();
-            
+
             // Add tool calls to context if we have a message_id
             if let Some(message_id) = assistant_message_id {
                 if let Ok(Some(ctx)) = session_manager.load_context(conversation_id, None).await {
                     let mut ctx_lock = ctx.write().await;
-                    
+
                     // Update the streaming message to include tool calls
                     if let Some(node) = ctx_lock.message_pool.get_mut(&message_id) {
                         node.message.tool_calls = Some(tool_call_requests.clone());
-                        log::info!("  Added {} tool calls to message {}", tool_call_requests.len(), message_id);
+                        log::info!(
+                            "  Added {} tool calls to message {}",
+                            tool_call_requests.len(),
+                            message_id
+                        );
                     }
-                    
+
                     // Finalize streaming with tool_calls finish reason
                     ctx_lock.finalize_streaming_response(
                         message_id,
                         Some("tool_calls".to_string()),
                         None,
                     );
-                    
+
                     // Transition FSM
                     ctx_lock.handle_event(context_manager::ChatEvent::LLMFullResponseReceived);
                     ctx_lock.handle_event(context_manager::ChatEvent::LLMResponseProcessed {
@@ -406,22 +420,38 @@ pub fn spawn_stream_task<T: StorageProvider + 'static>(
                             timestamp: Utc::now(),
                             metadata: HashMap::new(),
                         };
-                        
+
                         // We use tx directly here (inline SSE)
                         let _ = send_context_update(&tx, &update).await;
-                        log::info!("  Broadcasted MessageUpdate::Completed for message {}", message_id);
+                        log::info!(
+                            "  Broadcasted MessageUpdate::Completed for message {}",
+                            message_id
+                        );
                     }
                 }
             }
-            
+
             // Send tool_approval SSE event to frontend
-            let tool_call_ids: Vec<String> = tool_call_requests.iter().map(|tc| tc.id.clone()).collect();
-            if let Ok(data) = sse::Data::new_json(json!({
+            // IMPORTANT: Use "signal" event type (not "tool_approval") so frontend can receive it
+            // Frontend listens to SSE events via addEventListener("signal", ...)
+            let tool_call_ids: Vec<String> =
+                tool_call_requests.iter().map(|tc| tc.id.clone()).collect();
+            let tool_approval_payload = json!({
                 "type": "tool_approval",
+                "context_id": conversation_id.to_string(),
                 "tool_calls": tool_call_ids,
-            })) {
-                let _ = tx.send(sse::Event::Data(data.event("tool_approval"))).await;
-                log::info!("Sent tool_approval SSE event for {} tool(s)", tool_call_ids.len());
+                "timestamp": chrono::Utc::now().to_rfc3339(),
+            });
+            log::info!(
+                "copilot_stream_handler: Broadcasting tool_approval with payload: {:?}",
+                tool_approval_payload
+            );
+
+            if let Ok(data) = sse::Data::new_json(&tool_approval_payload) {
+                let _ = tx.send(sse::Event::Data(data.event("signal"))).await;
+                log::info!("copilot_stream_handler: Sent tool_approval SSE event (event type: signal) for {} tool(s)", tool_call_ids.len());
+            } else {
+                log::error!("copilot_stream_handler: Failed to serialize tool_approval for SSE");
             }
         }
 

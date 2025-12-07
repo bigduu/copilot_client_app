@@ -1,6 +1,6 @@
 {
   "user_id": "default_user",
-  "active_context_id": "c7422934-92c1-47bd-8462-3c20d9df41d7",
+  "active_context_id": "5f8e2548-04b7-40e3-94ca-1c5dc0e6281e",
   "open_contexts": [],
   "ui_state": {
     "sidebar_collapsed": false,
@@ -27,6 +27,6 @@
     "enable_shortcuts": true,
     "send_telemetry": false
   },
-  "last_updated": "2025-12-07T07:23:34.344390Z",
+  "last_updated": "2025-12-07T17:41:43.147724Z",
   "metadata": {}
 }

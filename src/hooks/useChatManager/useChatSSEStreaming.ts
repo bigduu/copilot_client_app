@@ -258,6 +258,32 @@ export function useChatSSEStreaming(
                  appMessage.warning("Maximum auto-continuation limit reached.");
                 break;
 
+              case "tool_approval":
+                console.log(
+                  `[useChatSSEStreaming] Tool approval required - context: ${(event as any).context_id}, tools: ${JSON.stringify((event as any).tool_calls)}`
+                );
+                
+                // Fetch updated messages from backend to get the actual tool call details
+                // This is needed because the optimistic UI created an empty assistant message
+                // but the backend has the actual message with tool_calls attached
+                try {
+                  const messages = await backendContextService.getMessages(chatId);
+                  const allMessages = messages.messages
+                    .map((msg: any) => transformMessageDTOToMessage(msg))
+                    .filter(Boolean);
+                  
+                  deps.setMessages(chatId, allMessages);
+                  console.log(
+                    `[useChatSSEStreaming] Tool approval: synced ${allMessages.length} messages from backend`
+                  );
+                } catch (error) {
+                  console.error(
+                    "[useChatSSEStreaming] Failed to fetch messages on tool_approval:",
+                    error
+                  );
+                }
+                break;
+
               default:
                 console.warn(
                   "[useChatSSEStreaming] Unknown SSE event type:",
