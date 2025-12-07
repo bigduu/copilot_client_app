@@ -58,7 +58,7 @@ impl LlmRequestBuilder {
         };
 
         // Determine final system prompt
-        // Priority: Pipeline enhanced > Branch prompt > SystemPromptService
+        // Priority: Pipeline enhanced > Branch prompt > SystemPromptService (enhanced)
         let final_prompt = if let Some(enhanced) = prepared.enhanced_system_prompt.as_ref() {
             log::info!(
                 "Using Pipeline-enhanced system prompt (length: {})",
@@ -69,10 +69,36 @@ impl LlmRequestBuilder {
             log::info!("Using branch system prompt (no Pipeline enhancement)");
             Some(prompt.content.clone())
         } else if let Some(prompt_id) = prepared.system_prompt_id.as_ref() {
+            // NEW: Enhance SystemPromptService prompts using Pipeline
             match self.system_prompt_service.get_prompt(prompt_id).await {
                 Some(prompt) => {
-                    log::info!("Using system prompt from service: {}", prompt_id);
-                    Some(prompt.content)
+                    log::info!(
+                        "Enhancing system prompt from service: {} (length: {})",
+                        prompt_id,
+                        prompt.content.len()
+                    );
+
+                    // Clone the content for fallback in case enhancement fails
+                    let base_content = prompt.content.clone();
+
+                    // Apply Pipeline enhancement (Mermaid, Tools, Role, etc.)
+                    match self.enhance_system_prompt(context, prompt.content).await {
+                        Ok(enhanced) => {
+                            log::info!(
+                                "Pipeline-enhanced SystemPromptService prompt (length: {})",
+                                enhanced.len()
+                            );
+                            Some(enhanced)
+                        }
+                        Err(e) => {
+                            log::warn!(
+                                "Failed to enhance system prompt from service: {}",
+                                e
+                            );
+                            // Fallback to non-enhanced prompt
+                            Some(base_content)
+                        }
+                    }
                 }
                 None => {
                     log::warn!("System prompt {} not found", prompt_id);
@@ -138,6 +164,60 @@ impl LlmRequestBuilder {
         };
 
         Ok(BuiltLlmRequest { prepared, request })
+    }
+
+    /// Enhance a system prompt using the Pipeline architecture
+    ///
+    /// This method applies all Pipeline enhancements to a base prompt:
+    /// - RoleContextEnhancer: Adds current agent role information
+    /// - ToolEnhancementEnhancer: Injects available tool definitions
+    /// - MermaidEnhancementEnhancer: Adds Mermaid diagram guidelines (if enabled)
+    /// - ContextHintsEnhancer: Adds context statistics and hints
+    ///
+    /// # Arguments
+    /// * `context` - The ChatContext to use for enhancement
+    /// * `base_prompt` - The base system prompt to enhance
+    ///
+    /// # Returns
+    /// * `Ok(String)` - The enhanced system prompt
+    /// * `Err(AppError)` - If enhancement fails
+    async fn enhance_system_prompt(
+        &self,
+        context: &Arc<RwLock<ChatContext>>,
+        base_prompt: String,
+    ) -> Result<String, AppError> {
+        use context_manager::pipeline::{
+            context::ProcessingContext,
+            processors::system_prompt::SystemPromptProcessor,
+            traits::MessageProcessor,
+        };
+
+        // Create a dummy message for ProcessingContext
+        let dummy_message = InternalMessage {
+            role: Role::User,
+            content: vec![ContentPart::text_owned("dummy".to_string())],
+            message_type: MessageType::Text,
+            ..Default::default()
+        };
+
+        // Create processing context
+        let mut context_lock = context.write().await;
+        let mut ctx = ProcessingContext::new(dummy_message, &mut *context_lock);
+
+        // Run SystemPromptProcessor with default enhancers
+        // This applies: RoleContext, ToolEnhancement, MermaidEnhancement, ContextHints
+        let processor = SystemPromptProcessor::with_default_enhancers(base_prompt);
+        processor.process(&mut ctx).map_err(|e| {
+            AppError::InternalError(anyhow::anyhow!("Prompt enhancement failed: {:?}", e))
+        })?;
+
+        // Extract enhanced prompt from metadata
+        ctx.get_metadata("final_system_prompt")
+            .and_then(|v| v.as_str())
+            .map(|s| s.to_string())
+            .ok_or_else(|| {
+                AppError::InternalError(anyhow::anyhow!("Failed to extract enhanced prompt"))
+            })
     }
 }
 
