@@ -19,7 +19,6 @@ pub struct ToolAutoLoopHandler<T: StorageProvider> {
     session_manager: Arc<ChatSessionManager<T>>,
     agent_service: Arc<AgentService>,
     tool_executor: Arc<ToolExecutor>,
-    tool_coordinator: crate::services::tool_coordinator::ToolCoordinator<T>,
     approval_manager: Arc<ApprovalManager>,
     conversation_id: Uuid,
     event_tx: mpsc::Sender<sse::Event>,
@@ -35,16 +34,10 @@ impl<T: StorageProvider + 'static> ToolAutoLoopHandler<T> {
         conversation_id: Uuid,
         event_tx: mpsc::Sender<sse::Event>,
     ) -> Self {
-        let tool_coordinator = crate::services::tool_coordinator::ToolCoordinator::new(
-            tool_executor.clone(),
-            approval_manager.clone(),
-            session_manager.clone(),
-        );
         Self {
             session_manager,
             agent_service,
             tool_executor,
-            tool_coordinator,
             approval_manager,
             conversation_id,
             event_tx,
@@ -96,29 +89,64 @@ impl<T: StorageProvider + 'static> ToolAutoLoopHandler<T> {
     }
 
     async fn process_tool_call(&self, tool_call: ToolCall) -> Result<(), String> {
-        let context = self
-            .session_manager
-            .load_context(self.conversation_id, None)
-            .await
-            .map_err(|err| format!("Failed to load context: {}", err))?
-            .ok_or_else(|| "Context not found".to_string())?;
+        let context = Arc::new(
+            self.session_manager
+                .load_context(self.conversation_id, None)
+                .await
+                .map_err(|err| format!("Failed to load context: {}", err))?
+                .ok_or_else(|| "Context not found".to_string())?,
+        );
 
-        let options = crate::services::tool_coordinator::ToolExecutionOptions {
-            request_id: None,
-            terminate: tool_call.terminate,
-            display_preference: None,
-        };
+        // Inline tool execution (was ToolCoordinator)
+        {
+            let mut ctx = context.write().await;
+            let depth = ctx.tool_execution.auto_loop_depth() + 1;
+            ctx.begin_auto_loop(depth);
+            ctx.begin_tool_execution(&tool_call.tool, 1, None);
+        }
 
-        let updates = self
-            .tool_coordinator
+        let result = self
+            .tool_executor
             .execute_tool(
-                &context,
-                tool_call.tool.clone(),
-                tool_call.parameters.clone(),
-                options,
+                &tool_call.tool,
+                tool_system::types::ToolArguments::Json(tool_call.parameters.clone()),
             )
-            .await
-            .map_err(|err| err.to_string())?;
+            .await;
+
+        let updates = match result {
+            Ok(value) => {
+                let mut updates = Vec::new();
+                {
+                    let mut ctx = context.write().await;
+                    updates.push(ctx.record_auto_loop_progress());
+                    
+                    let mut completion = ctx.complete_tool_execution();
+                    completion.metadata.insert("result".to_string(), value.clone());
+                    completion.metadata.insert("tool_name".to_string(), json!(tool_call.tool.clone()));
+                    updates.push(completion);
+                    
+                    updates.push(ctx.complete_auto_loop());
+                }
+                self.session_manager.auto_save_if_dirty(&context).await
+                    .map_err(|e| format!("Auto-save failed: {}", e))?;
+                updates
+            }
+            Err(e) => {
+                let mut updates = Vec::new();
+                {
+                    let mut ctx = context.write().await;
+                    updates.push(ctx.record_tool_execution_failure(
+                        &tool_call.tool,
+                        0,
+                        &e.to_string(),
+                        None,
+                    ));
+                }
+                self.session_manager.auto_save_if_dirty(&context).await
+                    .map_err(|err| format!("Auto-save failed: {}", err))?;
+                return Err(format!("Tool execution failed: {}", e));
+            }
+        };
 
         for update in updates {
             if send_context_update(&self.event_tx, &update).await.is_err() {

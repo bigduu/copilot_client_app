@@ -43,7 +43,6 @@ pub struct AgentLoopRunner<T: StorageProvider> {
     session_manager: Arc<ChatSessionManager<T>>,
     conversation_id: Uuid,
     tool_executor: Arc<ToolExecutor>,
-    tool_coordinator: crate::services::tool_coordinator::ToolCoordinator<T>,
     approval_manager: Arc<ApprovalManager>,
     agent_service: Arc<AgentService>,
     copilot_client: Arc<dyn CopilotClientTrait>,
@@ -60,16 +59,10 @@ impl<T: StorageProvider> AgentLoopRunner<T> {
         copilot_client: Arc<dyn CopilotClientTrait>,
         request_builder: LlmRequestBuilder,
     ) -> Self {
-        let tool_coordinator = crate::services::tool_coordinator::ToolCoordinator::new(
-            tool_executor.clone(),
-            approval_manager.clone(),
-            session_manager.clone(),
-        );
         Self {
             session_manager,
             conversation_id,
             tool_executor,
-            tool_coordinator,
             approval_manager,
             agent_service,
             copilot_client,
@@ -137,26 +130,104 @@ impl<T: StorageProvider> AgentLoopRunner<T> {
             let tool_name = current_tool_call.tool.clone();
             let approved_request = approval_request_id.take();
 
-            let options = crate::services::tool_coordinator::ToolExecutionOptions {
-                request_id: approved_request,
-                terminate: current_tool_call.terminate,
-                display_preference: None,
-            };
+            // ========================================
+            // INLINED TOOL EXECUTION (was ToolCoordinator)
+            // ========================================
+            let mut execution_updates = Vec::new();
 
-            let execution_updates = self
-                .tool_coordinator
+            // 1. Check approval if no request_id provided
+            if approved_request.is_none() {
+                if let Some(definition) = self.tool_executor.get_tool_definition(&tool_name) {
+                    if definition.requires_approval {
+                        // Request approval - record in context and return early
+                        let request_id = Uuid::new_v4();
+                        {
+                            let mut ctx = context.write().await;
+                            execution_updates.push(ctx.record_tool_approval_request(
+                                request_id,
+                                &tool_name,
+                            ));
+                            ctx.tool_execution_context_mut()
+                                .add_pending(request_id, tool_name.clone());
+                        }
+
+                        // Return early - waiting for approval
+                        // The actual approval flow is handled externally  
+                        return Ok(ServiceResponse::AwaitingAgentApproval {
+                            request_id,
+                            context_id: self.conversation_id,
+                            reason: format!("Agent-initiated tool call '{}' requires approval", tool_name),
+                        });
+                    }
+                }
+            }
+
+            // 2. Record tool execution start  
+            {
+                let mut ctx = context.write().await;
+                let depth = ctx.tool_execution.auto_loop_depth() + 1;
+                execution_updates.push(ctx.begin_auto_loop(depth));
+                execution_updates.push(ctx.begin_tool_execution(&tool_name, 1, approved_request));
+            }
+
+            // 3. Execute tool
+            let execution_result = self
+                .tool_executor
                 .execute_tool(
-                    &context,
-                    tool_name.clone(),
-                    current_tool_call.parameters.clone(),
-                    options,
+                    &tool_name,
+                    tool_system::types::ToolArguments::Json(current_tool_call.parameters.clone()),
                 )
-                .await?;
+                .await;
 
-            let mut approval_info: Option<(Uuid, String, serde_json::Value)> = None;
+            // Declare variables for tracking results
+            let mut approval_info: Option<(Uuid, String, serde_json::Value)> = None; 
             let mut failure_error: Option<String> = None;
             let mut success_payload: Option<serde_json::Value> = None;
 
+            // 4. Handle result
+            match execution_result {
+                Ok(result) => {
+                    // Record success in context
+                    {
+                        let mut ctx = context.write().await;
+                        execution_updates.push(ctx.record_auto_loop_progress());
+                        
+                        let mut completion_update = ctx.complete_tool_execution();
+                        completion_update.metadata.insert("result".to_string(), result.clone());
+                        completion_update.metadata.insert("tool_name".to_string(), serde_json::json!(tool_name.clone()));
+                        execution_updates.push(completion_update);
+                        
+                        execution_updates.push(ctx.complete_auto_loop());
+                    }
+                    
+                    success_payload = Some(result);
+                }
+                Err(e) => {
+                    // Record failure in context
+                    let error_msg = e.to_string();
+                    {
+                        let mut ctx = context.write().await;
+                        execution_updates.push(ctx.record_tool_execution_failure(
+                            &tool_name,
+                            0,
+                            &error_msg,
+                            approved_request,
+                        ));
+                    }
+                    
+                    failure_error = Some(error_msg);
+                }
+            }
+
+            // 5. Auto-save
+            self.session_manager.auto_save_if_dirty(&context).await?;
+            // ========================================
+            // END INLINED TOOL EXECUTION
+            // ========================================
+
+            // The original loop for processing execution_updates is still relevant
+            // as the inlined code now populates `execution_updates` and the `approval_info`, `failure_error`, `success_payload` variables.
+            // The loop below will now process the updates generated by the inlined execution logic.
             for update in &execution_updates {
                 if let Some(event) = update
                     .metadata

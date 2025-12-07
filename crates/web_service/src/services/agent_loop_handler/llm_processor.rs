@@ -46,7 +46,7 @@ pub async fn process_llm_request<T: StorageProvider>(
     // Ensure streaming is enabled
     request.stream = Some(true);
 
-    // Transition to AwaitingLLMResponse
+    // Transition to AwaitingLLMResponse using context_manager method
     {
         let mut ctx = context.write().await;
         let _updates = ctx.transition_to_awaiting_llm();
@@ -61,9 +61,14 @@ pub async fn process_llm_request<T: StorageProvider>(
                 let body_text = response.text().await.unwrap_or_default();
                 let error_msg = format_llm_error(status, &body_text);
                 error!("{}", error_msg);
-                return Err(
-                    error_handling::handle_llm_error(session_manager, context, error_msg).await,
-                );
+                
+                // Use context_manager's error handling
+                {
+                    let mut ctx = context.write().await;
+                    let _updates = ctx.handle_llm_error(error_msg.clone());
+                }
+                
+                return Err(AppError::InternalError(anyhow::anyhow!(error_msg)));
             }
 
             process_llm_stream(
@@ -78,7 +83,14 @@ pub async fn process_llm_request<T: StorageProvider>(
         }
         Err(e) => {
             error!("Failed to send request to LLM: {}", e);
-            Err(error_handling::handle_llm_error(session_manager, context, e.to_string()).await)
+            
+            // Use context_manager's error handling
+            {
+                let mut ctx = context.write().await;
+                let _updates = ctx.handle_llm_error(e.to_string());
+            }
+            
+            Err(AppError::InternalError(anyhow::anyhow!("LLM request failed: {}", e)))
         }
     }
 }

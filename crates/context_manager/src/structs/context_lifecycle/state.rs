@@ -9,7 +9,6 @@
 
 use crate::error::ContextError;
 use crate::fsm::ChatEvent;
-use crate::message_pipeline::MessagePipeline;
 use crate::structs::context::ChatContext;
 use crate::structs::events::{ContextUpdate, MessageUpdate};
 use crate::structs::message::{

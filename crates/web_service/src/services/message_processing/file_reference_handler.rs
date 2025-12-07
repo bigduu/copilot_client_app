@@ -2,7 +2,7 @@ use crate::{
     error::AppError,
     models::ClientMessageMetadata,
     services::{
-        message_builder, session_manager::ChatSessionManager, tool_coordinator::ToolCoordinator,
+        message_builder, session_manager::ChatSessionManager,
     },
     storage::StorageProvider,
 };
@@ -10,25 +10,26 @@ use context_manager::{structs::tool::DisplayPreference, ChatContext, ContextUpda
 use serde_json::json;
 use std::sync::Arc;
 use tokio::sync::RwLock;
+use tool_system::ToolExecutor;
 
 /// Handles file reference processing
 ///
 /// This handler is responsible for:
 /// - Processing file and directory references
-/// - Coordinating with ToolCoordinator for file operations
+/// - Executing file operations via ToolExecutor
 /// - Managing display preferences for file content
 pub struct FileReferenceHandler<T: StorageProvider> {
-    tool_coordinator: ToolCoordinator<T>,
+    tool_executor: Arc<ToolExecutor>,
     session_manager: Arc<ChatSessionManager<T>>,
 }
 
 impl<T: StorageProvider> FileReferenceHandler<T> {
     pub fn new(
-        tool_coordinator: ToolCoordinator<T>,
+        tool_executor: Arc<ToolExecutor>,
         session_manager: Arc<ChatSessionManager<T>>,
     ) -> Self {
         Self {
-            tool_coordinator,
+            tool_executor,
             session_manager,
         }
     }
@@ -42,8 +43,6 @@ impl<T: StorageProvider> FileReferenceHandler<T> {
         display_text: &str,
         metadata: &ClientMessageMetadata,
     ) -> Result<(), AppError> {
-        use crate::services::tool_coordinator::ToolExecutionOptions;
-
         // 1. Add user message
         let incoming = message_builder::build_incoming_text_message(
             display_text,
@@ -63,48 +62,66 @@ impl<T: StorageProvider> FileReferenceHandler<T> {
 
         self.session_manager.auto_save_if_dirty(context).await?;
 
-        // 2. Process each path using ToolCoordinator
+        // 2. Process each path using inline tool execution
         for path in paths {
             let path_obj = std::path::Path::new(path);
 
-            if path_obj.is_dir() {
+            let (tool_name, mut arguments) = if path_obj.is_dir() {
                 // Directory: use list_directory tool with depth=1
-                let mut arguments = serde_json::Map::new();
-                arguments.insert("path".to_string(), json!(path));
-                arguments.insert("depth".to_string(), json!(1));
-
-                let options = ToolExecutionOptions {
-                    display_preference: Some(DisplayPreference::Hidden),
-                    ..Default::default()
-                };
-
-                self.tool_coordinator
-                    .execute_tool(
-                        context,
-                        "list_directory".to_string(),
-                        serde_json::Value::Object(arguments),
-                        options,
-                    )
-                    .await?;
+                let mut args = serde_json::Map::new();
+                args.insert("path".to_string(), json!(path));
+                args.insert("depth".to_string(), json!(1));
+                ("list_directory", args)
             } else {
                 // File: use read_file tool
-                let mut arguments = serde_json::Map::new();
-                arguments.insert("path".to_string(), json!(path));
+                let mut args = serde_json::Map::new();
+                args.insert("path".to_string(), json!(path));
+                ("read_file", args)
+            };
 
-                let options = ToolExecutionOptions {
-                    display_preference: Some(DisplayPreference::Hidden),
+            // Execute tool with inline pattern
+            {
+                let mut ctx = context.write().await;
+                let depth = ctx.tool_execution.auto_loop_depth() + 1;
+                ctx.begin_auto_loop(depth);
+                ctx.begin_tool_execution(tool_name, 1, None);
+            }
+
+            let result = self
+                .tool_executor
+                .execute_tool(
+                    tool_name,
+                    tool_system::types::ToolArguments::Json(serde_json::Value::Object(arguments)),
+                )
+                .await
+                .map_err(|e| AppError::ToolExecutionError(e.to_string()))?;
+
+            // Record success and create tool result message
+            {
+                let mut ctx = context.write().await;
+                ctx.record_auto_loop_progress();
+                ctx.complete_tool_execution();
+                ctx.complete_auto_loop();
+
+                // Create tool result message with Hidden display preference
+                let message_text = result.to_string();
+                use context_manager::{ContentPart, InternalMessage, MessageType, Role};
+                let tool_message = InternalMessage {
+                    role: Role::Tool,
+                    content: vec![ContentPart::text_owned(message_text)],
+                    tool_result: Some(context_manager::structs::tool::ToolCallResult {
+                        request_id: tool_name.to_string(),
+                        result: result.clone(),
+                        display_preference: DisplayPreference::Hidden,
+                    }),
+                    message_type: MessageType::ToolResult,
                     ..Default::default()
                 };
-
-                self.tool_coordinator
-                    .execute_tool(
-                        context,
-                        "read_file".to_string(),
-                        serde_json::Value::Object(arguments),
-                        options,
-                    )
-                    .await?;
+                
+                ctx.add_message_to_branch("main", tool_message);
             }
+
+            self.session_manager.auto_save_if_dirty(context).await?;
         }
 
         // ✅ Return Ok(()) to allow AI call to proceed
@@ -200,13 +217,7 @@ mod tests {
         registry.register_factory(Arc::new(ListDirectoryTool::new()));
         let tool_executor = Arc::new(ToolExecutor::new(Arc::new(Mutex::new(registry))));
 
-        let tool_coordinator = ToolCoordinator::new(
-            tool_executor,
-            Arc::new(crate::services::approval_manager::ApprovalManager::new()),
-            session_manager.clone(),
-        );
-
-        let handler = FileReferenceHandler::new(tool_coordinator, session_manager.clone());
+        let handler = FileReferenceHandler::new(tool_executor, session_manager.clone());
 
         let conversation_context = session_manager
             .create_session("gpt-test".into(), "chat".into(), None)

@@ -68,7 +68,7 @@ pub struct AgentLoopHandler<T: StorageProvider> {
     copilot_client: Arc<dyn CopilotClientTrait>,
     system_prompt_service: Arc<SystemPromptService>,
     event_broadcaster: Option<Arc<EventBroadcaster>>,
-    tool_executor: Arc<crate::services::tool_coordinator::ToolExecutor>,
+    tool_executor: Arc<tool_system::ToolExecutor>,
     approval_manager: Arc<crate::services::approval_manager::ApprovalManager>,
     agent_service: Arc<crate::services::AgentService>,
     // Message handlers
@@ -85,7 +85,7 @@ impl<T: StorageProvider + 'static> AgentLoopHandler<T> {
         copilot_client: Arc<dyn CopilotClientTrait>,
         system_prompt_service: Arc<SystemPromptService>,
         event_broadcaster: Option<Arc<EventBroadcaster>>,
-        tool_executor: Arc<crate::services::tool_coordinator::ToolExecutor>,
+        tool_executor: Arc<tool_system::ToolExecutor>,
         approval_manager: Arc<crate::services::approval_manager::ApprovalManager>,
         agent_service: Arc<crate::services::AgentService>,
         file_reference_handler: FileReferenceHandler<T>,

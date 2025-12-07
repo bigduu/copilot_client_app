@@ -5,10 +5,11 @@ use crate::{
     models::ServiceResponse,
     services::{
         agent_loop_runner::AgentLoopRunner, approval_manager::ApprovalManager,
-        session_manager::ChatSessionManager, tool_coordinator::ToolExecutor, AgentService,
+        session_manager::ChatSessionManager, AgentService,
     },
     storage::StorageProvider,
 };
+use tool_system::ToolExecutor;
 use copilot_client::CopilotClientTrait;
 use log::info;
 use std::sync::Arc;

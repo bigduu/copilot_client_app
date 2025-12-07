@@ -15,7 +15,6 @@ pub mod sse_response_builder;
 pub mod system_prompt_service;
 pub mod template_variable_service;
 pub mod tool_auto_loop_handler;
-pub mod tool_coordinator;
 pub mod tool_service;
 pub mod user_preference_service;
 pub mod workflow_manager_service;

@@ -123,16 +123,9 @@ impl<T: StorageProvider + 'static> ChatServiceBuilder<T> {
 
         let agent_service = Arc::new(AgentService::with_default_config());
 
-        // Initialize tool coordinator
-        let tool_coordinator = crate::services::tool_coordinator::ToolCoordinator::new(
-            tool_executor.clone(),
-            approval_manager.clone(),
-            self.session_manager.clone(),
-        );
-
         // Initialize message handlers
         let file_reference_handler = crate::services::message_processing::FileReferenceHandler::new(
-            tool_coordinator.clone(),
+            tool_executor.clone(),
             self.session_manager.clone(),
         );
         let workflow_handler = crate::services::message_processing::WorkflowHandler::new(
