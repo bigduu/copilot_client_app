@@ -1,8 +1,10 @@
 use std::sync::Arc;
 
+use chrono::Utc;
+use std::collections::HashMap;
 use actix_web_lab::sse;
 use bytes::Bytes;
-use context_manager::{ChatContext, ChatEvent};
+use context_manager::{ChatContext, ChatEvent, MessageUpdate, ContextUpdate};
 use copilot_client::api::models::ChatCompletionStreamChunk;
 use serde_json::json;
 use tokio::sync::{mpsc, RwLock};
@@ -303,33 +305,39 @@ pub fn spawn_stream_task<T: StorageProvider + 'static>(
             return;
         }
 
-        if let Some(message_id) = assistant_message_id {
-            if let Ok(Some(ctx)) = session_manager.load_context(conversation_id, None).await {
-                let final_sequence = {
-                    let mut ctx_lock = ctx.write().await;
-                    ctx_lock.handle_event(ChatEvent::LLMStreamEnded);
-                    // Use new API
-                    ctx_lock.finalize_streaming_response(
-                        message_id,
-                        Some("complete".to_string()),
-                        None,
-                    );
-                    ctx_lock
-                        .message_sequence(message_id)
-                        .unwrap_or(last_sequence)
-                };
+        let has_tool_calls = tool_accumulator.has_tool_calls();
 
-                if let Err(_) = send_content_signal(
-                    &tx,
-                    "content_final",
-                    conversation_id,
-                    message_id,
-                    final_sequence,
-                    true,
-                )
-                .await
-                {
-                    return;
+        if let Some(message_id) = assistant_message_id {
+            // Only finalize as purely text if NO tool calls are present
+            // If tool calls exist, we'll handle finalization in the tool block below
+            if !has_tool_calls {
+                if let Ok(Some(ctx)) = session_manager.load_context(conversation_id, None).await {
+                    let final_sequence = {
+                        let mut ctx_lock = ctx.write().await;
+                        ctx_lock.handle_event(ChatEvent::LLMStreamEnded);
+                        // Use new API
+                        ctx_lock.finalize_streaming_response(
+                            message_id,
+                            Some("complete".to_string()),
+                            None,
+                        );
+                        ctx_lock
+                            .message_sequence(message_id)
+                            .unwrap_or(last_sequence)
+                    };
+
+                    if let Err(_) = send_content_signal(
+                        &tx,
+                        "content_final",
+                        conversation_id,
+                        message_id,
+                        final_sequence,
+                        true,
+                    )
+                    .await
+                    {
+                        return;
+                    }
                 }
             }
         }
@@ -383,6 +391,26 @@ pub fn spawn_stream_task<T: StorageProvider + 'static>(
                     ctx_lock.handle_event(context_manager::ChatEvent::LLMResponseProcessed {
                         has_tool_calls: true,
                     });
+
+                    // Broadcast MessageUpdate::Completed so frontend gets the tool calls in the message
+                    if let Some(node) = ctx_lock.message_pool.get(&message_id) {
+                        let final_message = node.message.clone();
+                        let update = ContextUpdate {
+                            context_id: conversation_id,
+                            current_state: ctx_lock.current_state.clone(),
+                            previous_state: None,
+                            message_update: Some(MessageUpdate::Completed {
+                                message_id,
+                                final_message,
+                            }),
+                            timestamp: Utc::now(),
+                            metadata: HashMap::new(),
+                        };
+                        
+                        // We use tx directly here (inline SSE)
+                        let _ = send_context_update(&tx, &update).await;
+                        log::info!("  Broadcasted MessageUpdate::Completed for message {}", message_id);
+                    }
                 }
             }
             

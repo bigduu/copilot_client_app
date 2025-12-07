@@ -13,6 +13,9 @@ use crate::{
 use anyhow::Result;
 use bytes::Bytes;
 use context_manager::structs::context::ChatContext;
+use context_manager::{ContextUpdate, MessageUpdate};
+use std::collections::HashMap;
+use chrono::Utc; // Added Utc for timestamp
 use copilot_client::{api::models::ChatCompletionRequest, CopilotClientTrait};
 use log::{error, info};
 use actix_web_lab::sse;
@@ -233,10 +236,35 @@ async fn process_llm_stream<T: StorageProvider>(
         
         // Broadcast tool approval event to SSE subscribers
         if let Some(broadcaster) = event_broadcaster {
-            let context_id = {
+            let (context_id, final_message, current_state) = {
                 let ctx = context.read().await;
-                ctx.id
+                let final_message = assistant_message_id
+                    .and_then(|id| ctx.message_pool.get(&id))
+                    .map(|n| n.message.clone());
+                (ctx.id, final_message, ctx.current_state.clone())
             };
+            
+            // Broadcast MessageUpdate::Completed first
+            if let Some(message_id) = assistant_message_id {
+                if let Some(final_message) = final_message {
+                    let update = ContextUpdate {
+                        context_id,
+                        current_state,
+                        previous_state: None,
+                        message_update: Some(MessageUpdate::Completed {
+                            message_id,
+                            final_message,
+                        }),
+                        timestamp: Utc::now(),
+                        metadata: HashMap::new(),
+                    };
+                    
+                    if let Ok(data) = sse::Data::new_json(update) {
+                        broadcaster.broadcast(context_id, sse::Event::Data(data.event("context_update"))).await;
+                        info!("LLM Processor: Broadcasted MessageUpdate::Completed to context {}", context_id);
+                    }
+                }
+            }
             
             if let Ok(data) = sse::Data::new_json(json!({
                 "type": "tool_approval",
