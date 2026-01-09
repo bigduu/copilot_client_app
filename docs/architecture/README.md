@@ -17,12 +17,11 @@ This directory contains project architecture design and system enhancement docum
 
 ### Tool System
 - [`tools-system.md`](./tools-system.md) - Tool system developer guide
-- [`TOOL_ARCHITECTURE_MIGRATION_GUIDE.md`](./TOOL_ARCHITECTURE_MIGRATION_GUIDE.md) - Tool architecture migration
-- [`IMPROVED_TOOL_CALL_FLOW.md`](./IMPROVED_TOOL_CALL_FLOW.md) - Tool call flow improvements
 
 ### Enhancement Plans
 - [`MERMAID_ENHANCEMENT.md`](./MERMAID_ENHANCEMENT.md) - Mermaid diagram enhancements
-- [`SYSTEM_PROMPT_ENHANCEMENT_PLAN.md`](./SYSTEM_PROMPT_ENHANCEMENT_PLAN.md) - System prompt optimization
+- [`SYSTEM_PROMPT_PERSISTENCE_DESIGN.md`](./SYSTEM_PROMPT_PERSISTENCE_DESIGN.md) - System prompt persistence design
+- [`SYSTEM_PROMPT_IMPLEMENTATION_STATUS.md`](./SYSTEM_PROMPT_IMPLEMENTATION_STATUS.md) - Implementation status
 
 ### Model Integration
 - [`copilot_model_refactor_plan.md`](./copilot_model_refactor_plan.md) - Copilot model refactor
