@@ -141,8 +141,8 @@ See [Context Manager Migration Guide](./docs/architecture/context-manager-migrat
 ### Architecture
 - **[Agent Loop Architecture](./docs/architecture/AGENT_LOOP_ARCHITECTURE.md)** - Autonomous LLM-driven tool usage
 - **[Workflow System Architecture](./docs/architecture/WORKFLOW_SYSTEM_ARCHITECTURE.md)** - User-invoked workflow system
-- **[Tool Classification Analysis](./TOOL_CLASSIFICATION_ANALYSIS.md)** - Tool vs Workflow decisions
 - **[Frontend Architecture](./docs/architecture/FRONTEND_ARCHITECTURE.md)** - Frontend component structure
+- **[Context Session Architecture](./docs/architecture/CONTEXT_SESSION_ARCHITECTURE.md)** - Backend context management
 
 ### Development
 - **[Development Guide](./docs/development/README.md)** - Development best practices
@@ -151,9 +151,7 @@ See [Context Manager Migration Guide](./docs/architecture/context-manager-migrat
 - **[0.2.0 Upgrade Guide](./docs/release/0.2.0-upgrade-guide.md)** - Deployment notes for the latest refactor
 
 ### OpenSpec
-- **[Refactor Proposal](./openspec/changes/refactor-tools-to-llm-agent-mode/proposal.md)** - Why and what changes
-- **[Design Decisions](./openspec/changes/refactor-tools-to-llm-agent-mode/design.md)** - Technical architecture
-- **[Implementation Tasks](./openspec/changes/refactor-tools-to-llm-agent-mode/tasks.md)** - Progress tracking
+- See [OpenSpec Change Proposals](../../openspec/changes/) for structured change proposals
 
 ## 🏗️ Architecture Overview
 
@@ -193,12 +191,9 @@ This project contains comprehensive technical documentation, organized by catego
     - [SystemPromptSelector](./docs/development/components/SystemPromptSelector.md) - System prompt selector component
 
 - **[Architecture Design](./docs/architecture/)** - System architecture and design documentation
-  - [Context Manager Migration](./docs/architecture/context-manager-migration.md) - **NEW**: Backend context architecture
+  - [Context Manager Migration](./docs/architecture/context-manager-migration.md) - Backend context architecture
   - [Tool System Developer Guide](./docs/architecture/tools-system.md) - Category trait architecture and development interface
-  - [Tool Call Flow Improvement](./docs/architecture/IMPROVED_TOOL_CALL_FLOW.md) - Tool call optimization solution
   - [Mermaid Feature Enhancement](./docs/architecture/MERMAID_ENHANCEMENT.md) - Chart functionality extension
-  - [System Prompt Enhancement Plan](./docs/architecture/SYSTEM_PROMPT_ENHANCEMENT_PLAN.md) - AI prompt improvement
-  - [Tool Architecture Migration Guide](./docs/architecture/TOOL_ARCHITECTURE_MIGRATION_GUIDE.md) - Architecture upgrade guidance
 
 - **[Project Reports](./docs/reports/)** - Refactoring and fix reports
   - [Implementation Reports](./docs/reports/implementation/) - Specific implementation process records
@@ -208,14 +203,11 @@ This project contains comprehensive technical documentation, organized by catego
     - [Other Fix Reports](./docs/reports/implementation/)
 
 - **[Testing Documentation](./docs/testing/)** - Testing strategies and results
-  - [Test Categories](./docs/testing/test_categories.md) - Testing standards and classification
-  - [Tool Call Testing](./docs/testing/TOOL_CALL_TEST_RESULTS.md) - Test result analysis
-  - [Refactoring Test Report](./docs/testing/TOOL_CALL_REFACTOR_TEST.md) - Refactoring verification
+  - [Frontend Tests Summary](./docs/testing/FRONTEND_TESTS_SUMMARY.md) - Test results and coverage
+  - [File Reference Backend Tests](./docs/testing/FILE_REFERENCE_BACKEND_TESTS_SUMMARY.md) - Backend test results
 
 - **[Tool Documentation](./docs/tools/)** - Tool configuration and usage guide
   - [Mermaid Examples](./docs/tools/MERMAID_EXAMPLES.md) - Chart usage examples
-  - [Tool Migration Guide](./docs/tools/TOOL_MIGRATION_GUIDE.md) - Tool upgrade guidance
-  - [Configuration Refactoring Plan](./docs/tools/TOOLS_CONFIG_REFACTOR_PLAN.md) - Configuration optimization solution
 
 ### 📋 Documentation Usage Recommendations
 
