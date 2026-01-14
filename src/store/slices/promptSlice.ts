@@ -1,10 +1,11 @@
 import { StateCreator } from "zustand";
 import { UserSystemPrompt } from "../../types/chat";
 import { SystemPromptService } from "../../services/SystemPromptService";
-import { backendContextService } from "../../services/BackendContextService";
+import { getDefaultSystemPrompts } from "../../utils/defaultSystemPrompts";
 import type { AppState } from "../";
 
 const LAST_SELECTED_PROMPT_ID_LS_KEY = "copilot_last_selected_prompt_id";
+const CUSTOM_PROMPTS_LS_KEY = "copilot_custom_system_prompts_v2";
 const systemPromptService = SystemPromptService.getInstance();
 
 // Helper function to generate ID from name
@@ -40,21 +41,28 @@ export const createPromptSlice: StateCreator<AppState, [], [], PromptSlice> = (
 
   // System prompt management
   loadSystemPrompts: async () => {
+    let prompts: UserSystemPrompt[] = [];
     try {
       const presets = await systemPromptService.getSystemPromptPresets();
-      const prompts: UserSystemPrompt[] = presets.map((p: any) => ({
+      prompts = presets.map((p: any) => ({
         id: p.id,
         name: p.name,
         content: p.content,
         description: p.description,
         isDefault: Boolean(p.isDefault),
       }));
-      set({ systemPrompts: prompts });
-      console.log("Loaded system prompts from backend:", prompts);
     } catch (error) {
-      console.error("Failed to load system prompts from backend:", error);
-      set({ systemPrompts: [] });
+      console.error("Failed to load system prompts from config:", error);
     }
+
+    const customPrompts = loadCustomPrompts();
+    let merged = mergePrompts(prompts, customPrompts);
+    if (merged.length === 0) {
+      merged = getDefaultSystemPrompts();
+      saveCustomPrompts(merged);
+    }
+    set({ systemPrompts: merged });
+    console.log("Loaded system prompts from config:", merged);
   },
 
   addSystemPrompt: async (promptData) => {
@@ -62,10 +70,20 @@ export const createPromptSlice: StateCreator<AppState, [], [], PromptSlice> = (
       // Generate ID from name if not provided
       const id = generateIdFromName(promptData.name);
 
-      // Call backend to create prompt
-      await backendContextService.createSystemPrompt(id, promptData.content);
+      const customPrompts = loadCustomPrompts();
+      if (customPrompts.some((prompt) => prompt.id === id)) {
+        throw new Error(`System prompt '${id}' already exists`);
+      }
 
-      // Refresh the list to get the latest prompts
+      const newPrompt: UserSystemPrompt = {
+        id,
+        name: promptData.name,
+        content: promptData.content,
+        description: promptData.description,
+        isDefault: false,
+      };
+      const updatedCustom = [...customPrompts, newPrompt];
+      saveCustomPrompts(updatedCustom);
       await get().loadSystemPrompts();
 
       console.log("System prompt added successfully:", id);
@@ -77,13 +95,25 @@ export const createPromptSlice: StateCreator<AppState, [], [], PromptSlice> = (
 
   updateSystemPrompt: async (promptToUpdate) => {
     try {
-      // Call backend to update prompt
-      await backendContextService.updateSystemPrompt(
-        promptToUpdate.id,
-        promptToUpdate.content,
+      const customPrompts = loadCustomPrompts();
+      const index = customPrompts.findIndex(
+        (prompt) => prompt.id === promptToUpdate.id,
       );
+      if (index === -1) {
+        throw new Error(
+          `System prompt '${promptToUpdate.id}' is read-only`,
+        );
+      }
+      const updated = [...customPrompts];
+      updated[index] = {
+        ...updated[index],
+        name: promptToUpdate.name,
+        content: promptToUpdate.content,
+        description: promptToUpdate.description,
+        isDefault: false,
+      };
+      saveCustomPrompts(updated);
 
-      // Refresh the list to get the latest prompts
       await get().loadSystemPrompts();
 
       console.log("System prompt updated successfully:", promptToUpdate.id);
@@ -95,15 +125,12 @@ export const createPromptSlice: StateCreator<AppState, [], [], PromptSlice> = (
 
   deleteSystemPrompt: async (promptId) => {
     try {
-      // Prevent deletion of default prompt
-      if (promptId === "general_assistant") {
-        throw new Error("Cannot delete the default system prompt");
+      const customPrompts = loadCustomPrompts();
+      const updated = customPrompts.filter((prompt) => prompt.id !== promptId);
+      if (updated.length === customPrompts.length) {
+        throw new Error(`System prompt '${promptId}' is read-only`);
       }
-
-      // Call backend to delete prompt
-      await backendContextService.deleteSystemPrompt(promptId);
-
-      // Refresh the list to get the latest prompts
+      saveCustomPrompts(updated);
       await get().loadSystemPrompts();
 
       console.log("System prompt deleted successfully:", promptId);
@@ -125,3 +152,37 @@ export const createPromptSlice: StateCreator<AppState, [], [], PromptSlice> = (
     }
   },
 });
+
+const loadCustomPrompts = (): UserSystemPrompt[] => {
+  try {
+    const stored = localStorage.getItem(CUSTOM_PROMPTS_LS_KEY);
+    if (!stored) return [];
+    const parsed = JSON.parse(stored);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (error) {
+    console.error("Failed to load custom system prompts:", error);
+    return [];
+  }
+};
+
+const saveCustomPrompts = (prompts: UserSystemPrompt[]): void => {
+  try {
+    localStorage.setItem(CUSTOM_PROMPTS_LS_KEY, JSON.stringify(prompts));
+  } catch (error) {
+    console.error("Failed to save custom system prompts:", error);
+  }
+};
+
+const mergePrompts = (
+  presets: UserSystemPrompt[],
+  customPrompts: UserSystemPrompt[],
+): UserSystemPrompt[] => {
+  const byId = new Map<string, UserSystemPrompt>();
+  presets.forEach((prompt) => {
+    byId.set(prompt.id, prompt);
+  });
+  customPrompts.forEach((prompt) => {
+    byId.set(prompt.id, prompt);
+  });
+  return Array.from(byId.values());
+};

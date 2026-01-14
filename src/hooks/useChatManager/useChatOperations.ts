@@ -1,6 +1,5 @@
 import { useCallback } from "react";
 import { useAppStore } from "../../store";
-import { SystemPromptService } from "../../services";
 import type { ChatItem, UserSystemPrompt } from "../../types/chat";
 import type { UseChatState } from "./types";
 
@@ -52,8 +51,7 @@ export function useChatOperations(state: UseChatState): UseChatOperations {
             (systemPrompts.length > 0
               ? systemPrompts.find((p) => p.id === "general_assistant")
                   ?.content || systemPrompts[0].content
-              : "You are a helpful assistant."),
-          toolCategory: "general",
+              : ""),
           lastUsedEnhancedPrompt: null,
         },
         currentInteraction: null,
@@ -70,27 +68,14 @@ export function useChatOperations(state: UseChatState): UseChatOperations {
         "[useChatOperations] createChatWithSystemPrompt started with prompt:",
         prompt
       );
-      const systemPromptService = SystemPromptService.getInstance();
-      const enhancedPrompt = await systemPromptService.getEnhancedSystemPrompt(
-        prompt.id
-      );
-
       const newChatData: Omit<ChatItem, "id"> = {
         title: `New Chat - ${prompt.name}`,
         createdAt: Date.now(),
-        messages: [
-          {
-            id: "system-prompt",
-            role: "system",
-            content: enhancedPrompt,
-            createdAt: new Date().toISOString(),
-          },
-        ],
+        messages: [],
         config: {
           systemPromptId: prompt.id,
-          baseSystemPrompt: prompt.content, // Store the original prompt content
-          toolCategory: "dynamic", // A new category to signify dynamic tool usage
-          lastUsedEnhancedPrompt: enhancedPrompt,
+          baseSystemPrompt: prompt.content,
+          lastUsedEnhancedPrompt: null,
         },
         currentInteraction: null,
       };

@@ -22,7 +22,6 @@ describe("chatUtils", () => {
         config: {
           systemPromptId: "default",
           baseSystemPrompt: "",
-          toolCategory: "general",
           lastUsedEnhancedPrompt: null,
         },
       };
@@ -42,7 +41,6 @@ describe("chatUtils", () => {
         config: {
           systemPromptId: "default",
           baseSystemPrompt: "",
-          toolCategory: "general",
           lastUsedEnhancedPrompt: null,
         },
       };
@@ -68,7 +66,6 @@ describe("chatUtils", () => {
         config: {
           systemPromptId: "default",
           baseSystemPrompt: "",
-          toolCategory: "general",
           lastUsedEnhancedPrompt: null,
         },
       };
@@ -83,7 +80,6 @@ describe("chatUtils", () => {
         config: {
           systemPromptId: "default",
           baseSystemPrompt: "",
-          toolCategory: "general",
           lastUsedEnhancedPrompt: null,
         },
       };
@@ -105,7 +101,6 @@ describe("chatUtils", () => {
           config: {
             systemPromptId: "default",
             baseSystemPrompt: "",
-            toolCategory: "general",
             lastUsedEnhancedPrompt: null,
           },
         },
@@ -119,7 +114,6 @@ describe("chatUtils", () => {
           config: {
             systemPromptId: "default",
             baseSystemPrompt: "",
-            toolCategory: "general",
             lastUsedEnhancedPrompt: null,
           },
         },
@@ -147,7 +141,6 @@ describe("chatUtils", () => {
           config: {
             systemPromptId: "default",
             baseSystemPrompt: "",
-            toolCategory: "general",
             lastUsedEnhancedPrompt: null,
           },
         },
@@ -161,7 +154,6 @@ describe("chatUtils", () => {
           config: {
             systemPromptId: "default",
             baseSystemPrompt: "",
-            toolCategory: "general",
             lastUsedEnhancedPrompt: null,
           },
         },

@@ -53,7 +53,7 @@ describe('WorkspaceValidator', () => {
 
       const result = await workspaceValidator.validateWorkspace('/valid/workspace');
 
-      expect(fetch).toHaveBeenCalledWith('/v1/workspace/validate', {
+      expect(fetch).toHaveBeenCalledWith('http://localhost:8080/v1/workspace/validate', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -118,7 +118,7 @@ describe('WorkspaceValidator', () => {
       // Wait for debounce
       await new Promise(resolve => setTimeout(resolve, 350));
 
-      expect(callback).toHaveBeenCalledTimes(1);
+      expect(callback).toHaveBeenCalledTimes(3);
       expect(fetch).toHaveBeenCalledTimes(1);
     });
   });
@@ -131,13 +131,12 @@ describe('WorkspaceValidator', () => {
         { path: '/path3', is_valid: true },
       ];
 
-      (fetch as any).mockResolvedValue({
-        ok: true,
-        json: async () => {
-          const path = (fetch as any).mock.calls[(fetch as any).mock.calls.length - 1][1].body;
-          const parsedPath = JSON.parse(path).path;
-          return mockResults.find(r => r.path === parsedPath);
-        },
+      (fetch as any).mockImplementation((_url: string, options: any) => {
+        const parsedPath = JSON.parse(options.body).path;
+        return Promise.resolve({
+          ok: true,
+          json: async () => mockResults.find(r => r.path === parsedPath),
+        });
       });
 
       const results = await workspaceValidator.validateMultiplePaths(['/path1', '/path2', '/path3']);

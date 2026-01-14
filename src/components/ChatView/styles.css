@@ -92,6 +92,7 @@ pre {
 .chat-view-messages-list.visible {
   opacity: 1;
   padding-bottom: 24px;
+  display: block;
 }
 
 /* Animation and specific styles for ChatView */
@@ -124,7 +125,7 @@ pre {
 }
 
 .chat-view-messages-list.visible {
-  display: flex;
+  display: block;
   padding-bottom: 24px;
 }
 

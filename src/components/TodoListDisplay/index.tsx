@@ -1,5 +1,5 @@
 import React from 'react';
-import { TodoListMsg, TodoItem, TodoItemStatus } from '../../types/sse';
+import { TodoListMsg, TodoItemStatus } from '../../types/todoList';
 import './TodoListDisplay.css';
 
 interface TodoListDisplayProps {

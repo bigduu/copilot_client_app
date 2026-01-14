@@ -1,12 +1,7 @@
-/**
- * WorkflowManagerService handles markdown-based workflow CRUD operations
- */
-
 export interface WorkflowMetadata {
   name: string;
   filename: string;
   source: 'global' | 'workspace';
-  created_at?: string;
   modified_at?: string;
   size: number;
 }
@@ -14,32 +9,15 @@ export interface WorkflowMetadata {
 export interface WorkflowContent {
   name: string;
   content: string;
-  metadata: WorkflowMetadata;
-}
-
-export interface CreateWorkflowRequest {
-  name: string;
-  content: string;
-  source: 'global' | 'workspace';
-  workspace_path?: string;
-}
-
-export interface UpdateWorkflowRequest {
-  content: string;
-  workspace_path?: string;
-}
-
-export interface DeleteWorkflowRequest {
-  source: 'global' | 'workspace';
-  workspace_path?: string;
+  metadata?: WorkflowMetadata;
 }
 
 /**
- * Service for managing markdown-based workflows
+ * Service for reading markdown-based workflows
  */
 export class WorkflowManagerService {
   private static instance: WorkflowManagerService;
-  private readonly baseUrl: string = 'http://127.0.0.1:8080/v1';
+  private readonly baseUrl: string = 'http://127.0.0.1:8080/v1/bodhi';
 
   private constructor() {}
 
@@ -50,49 +28,38 @@ export class WorkflowManagerService {
     return WorkflowManagerService.instance;
   }
 
-  /**
-   * List all workflows (global + workspace)
-   */
-  async listWorkflows(workspacePath?: string): Promise<WorkflowMetadata[]> {
+  async listWorkflows(): Promise<WorkflowMetadata[]> {
     try {
-      console.log('[WorkflowManagerService] Listing workflows', { workspacePath });
-      
-      const params = new URLSearchParams();
-      if (workspacePath) {
-        params.append('workspace_path', workspacePath);
-      }
-
-      const url = `${this.baseUrl}/workflow-manager${params.toString() ? `?${params.toString()}` : ''}`;
-      const response = await fetch(url);
+      console.log('[WorkflowManagerService] Listing workflows');
+      const response = await fetch(`${this.baseUrl}/workflows`);
 
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
 
       const data = await response.json();
-      console.log('[WorkflowManagerService] Listed workflows:', data);
+      const workflows = Array.isArray(data) ? data : [];
+      console.log('[WorkflowManagerService] Listed workflows:', workflows);
 
-      return data.workflows || [];
+      return workflows.map((workflow: any) => ({
+        name: String(workflow.name || ''),
+        filename: String(workflow.filename || `${workflow.name || 'workflow'}.md`),
+        size: Number(workflow.size || 0),
+        modified_at: workflow.modified_at,
+        source: 'global',
+      }));
     } catch (error) {
       console.error('[WorkflowManagerService] Failed to list workflows:', error);
       throw error;
     }
   }
 
-  /**
-   * Get a specific workflow by name
-   */
-  async getWorkflow(name: string, workspacePath?: string): Promise<WorkflowContent> {
+  async getWorkflow(name: string): Promise<WorkflowContent> {
     try {
-      console.log(`[WorkflowManagerService] Getting workflow: ${name}`, { workspacePath });
-
-      const params = new URLSearchParams();
-      if (workspacePath) {
-        params.append('workspace_path', workspacePath);
-      }
-
-      const url = `${this.baseUrl}/workflow-manager/${encodeURIComponent(name)}${params.toString() ? `?${params.toString()}` : ''}`;
-      const response = await fetch(url);
+      console.log(`[WorkflowManagerService] Getting workflow: ${name}`);
+      const response = await fetch(
+        `${this.baseUrl}/workflows/${encodeURIComponent(name)}`,
+      );
 
       if (!response.ok) {
         if (response.status === 404) {
@@ -102,91 +69,22 @@ export class WorkflowManagerService {
       }
 
       const data = await response.json();
+      const resolvedName = data?.name ? String(data.name) : name;
+      const metadata: WorkflowMetadata = {
+        name: resolvedName,
+        filename: String(data?.filename || `${resolvedName}.md`),
+        size: Number(data?.size || 0),
+        modified_at: data?.modified_at,
+        source: 'global',
+      };
       console.log(`[WorkflowManagerService] Got workflow:`, data);
-      return data;
+      return {
+        name: resolvedName,
+        content: String(data?.content || ''),
+        metadata,
+      };
     } catch (error) {
       console.error(`[WorkflowManagerService] Failed to get workflow '${name}':`, error);
-      throw error;
-    }
-  }
-
-  /**
-   * Create a new workflow
-   */
-  async createWorkflow(request: CreateWorkflowRequest): Promise<void> {
-    try {
-      console.log('[WorkflowManagerService] Creating workflow:', request);
-
-      const response = await fetch(`${this.baseUrl}/workflow-manager`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(request),
-      });
-
-      if (!response.ok) {
-        const error = await response.json().catch(() => ({}));
-        throw new Error(error.error || `HTTP error! status: ${response.status}`);
-      }
-
-      console.log('[WorkflowManagerService] Workflow created successfully');
-    } catch (error) {
-      console.error('[WorkflowManagerService] Failed to create workflow:', error);
-      throw error;
-    }
-  }
-
-  /**
-   * Update an existing workflow
-   */
-  async updateWorkflow(name: string, request: UpdateWorkflowRequest): Promise<void> {
-    try {
-      console.log(`[WorkflowManagerService] Updating workflow: ${name}`, request);
-
-      const response = await fetch(`${this.baseUrl}/workflow-manager/${encodeURIComponent(name)}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(request),
-      });
-
-      if (!response.ok) {
-        const error = await response.json().catch(() => ({}));
-        throw new Error(error.error || `HTTP error! status: ${response.status}`);
-      }
-
-      console.log('[WorkflowManagerService] Workflow updated successfully');
-    } catch (error) {
-      console.error(`[WorkflowManagerService] Failed to update workflow '${name}':`, error);
-      throw error;
-    }
-  }
-
-  /**
-   * Delete a workflow
-   */
-  async deleteWorkflow(name: string, request: DeleteWorkflowRequest): Promise<void> {
-    try {
-      console.log(`[WorkflowManagerService] Deleting workflow: ${name}`, request);
-
-      const response = await fetch(`${this.baseUrl}/workflow-manager/${encodeURIComponent(name)}`, {
-        method: 'DELETE',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(request),
-      });
-
-      if (!response.ok) {
-        const error = await response.json().catch(() => ({}));
-        throw new Error(error.error || `HTTP error! status: ${response.status}`);
-      }
-
-      console.log('[WorkflowManagerService] Workflow deleted successfully');
-    } catch (error) {
-      console.error(`[WorkflowManagerService] Failed to delete workflow '${name}':`, error);
       throw error;
     }
   }

@@ -1,16 +1,15 @@
 import React, { useState, useEffect, useMemo } from "react";
-import { Card, Space, Typography, theme, Collapse, Tag, Button } from "antd";
+import { Card, Space, Typography, theme, Collapse, Button } from "antd";
 import { EyeOutlined, CopyOutlined } from "@ant-design/icons";
 import ReactMarkdown from "react-markdown";
 import { useChatManager } from "../../hooks/useChatManager";
-import { useBackendContext } from "../../hooks/useBackendContext";
 import { SystemPromptService } from "../../services/SystemPromptService";
 import { Message } from "../../types/chat";
 import { useAppStore } from "../../store";
 import {
-  isMermaidEnhancementEnabled,
-  getMermaidEnhancementPrompt,
-} from "../../utils/mermaidUtils";
+  buildEnhancedSystemPrompt,
+  getSystemPromptEnhancementText,
+} from "../../utils/systemPromptEnhancement";
 
 const { Text, Paragraph } = Typography;
 const { useToken } = theme;
@@ -22,7 +21,6 @@ interface SystemMessageCardProps {
 const SystemMessageCard: React.FC<SystemMessageCardProps> = ({ message }) => {
   const { token } = useToken();
   const { currentChat } = useChatManager();
-  const { currentContext } = useBackendContext();
   const systemPrompts = useAppStore((state) => state.systemPrompts);
   const [categoryDescription, setCategoryDescription] = useState<string>("");
   const [basePrompt, setBasePrompt] = useState<string>("");
@@ -50,7 +48,7 @@ const SystemMessageCard: React.FC<SystemMessageCardProps> = ({ message }) => {
         "[SystemMessageCard] Message content length:",
         systemMessageContent.length
       );
-      console.log("[SystemMessageCard] Message timestamp:", message.timestamp);
+      console.log("[SystemMessageCard] Message timestamp:", message.createdAt);
       console.log(
         "[SystemMessageCard] ============================================="
       );
@@ -59,47 +57,17 @@ const SystemMessageCard: React.FC<SystemMessageCardProps> = ({ message }) => {
       setEnhancedPrompt(null);
       setShowEnhanced(false);
     }
-  }, [message.id, message.role, systemMessageContent, message.timestamp]);
-
-  // Get current agent role - prioritize backend context, always default to "actor"
-  const currentRole = useMemo(() => {
-    // Explicitly check for the role value, treating undefined as "actor"
-    const contextRole = currentContext?.config?.agent_role;
-    const chatRole = currentChat?.config?.agentRole;
-    const role = contextRole ?? chatRole ?? "actor";
-
-    console.log("[SystemMessageCard] ========== ROLE CALCULATION ==========");
-    console.log("[SystemMessageCard] currentContext:", currentContext);
-    console.log("[SystemMessageCard] contextRole:", contextRole);
-    console.log("[SystemMessageCard] chatRole:", chatRole);
-    console.log("[SystemMessageCard] Final role:", role);
-    console.log(
-      "[SystemMessageCard] =========================================="
-    );
-    return role;
-  }, [
-    currentContext?.config?.agent_role,
-    currentContext?.id,
-    currentChat?.config?.agentRole,
-  ]);
+  }, [message.id, message.role, systemMessageContent, message.createdAt]);
 
   // Load base prompt content
   useEffect(() => {
     const loadBasePrompt = async () => {
       if (!currentChat?.config) {
-        // Try to get from backend context
-        const activeBranch = currentContext?.branches?.find(
-          (b) => b.name === currentContext?.active_branch_name
-        );
-        if (activeBranch?.system_prompt?.content) {
-          setBasePrompt(activeBranch.system_prompt.content);
-          return;
-        }
         return;
       }
 
       try {
-        const { systemPromptId, toolCategory } = currentChat.config;
+        const { systemPromptId } = currentChat.config;
 
         // 1. First, try to find the content in the user-defined prompts from Zustand
         if (systemPromptId) {
@@ -126,141 +94,13 @@ const SystemMessageCard: React.FC<SystemMessageCardProps> = ({ message }) => {
           }
         }
 
-        // toolCategory is deprecated, system prompts are managed directly
-        // This block is kept for backward compatibility but will be removed
-        if (toolCategory) {
-          // Try to find a prompt with matching ID (toolCategory was often used as prompt ID)
-          const presets = await systemPromptService.getSystemPromptPresets();
-          const matchingPreset = presets.find(
-            (preset) =>
-              preset.id === toolCategory || preset.category === toolCategory
-          );
-          if (matchingPreset?.content) {
-            setBasePrompt(matchingPreset.content);
-          }
-          if (matchingPreset?.description) {
-            setCategoryDescription(matchingPreset.description);
-          }
-        }
       } catch (error) {
         console.error("Failed to load base prompt:", error);
       }
     };
 
     loadBasePrompt();
-  }, [currentChat?.config, currentContext, systemPromptService, systemPrompts]);
-
-  // Build role-specific section (simplified version matching backend)
-  const buildRoleSection = React.useCallback(
-    (role: "planner" | "actor"): string => {
-      if (role === "planner") {
-        return `# CURRENT ROLE: PLANNER
-
-You are operating in the PLANNER role. Your responsibilities:
-1. Analyze the user's request thoroughly
-2. Read necessary files and information (read-only access)
-3. Create a detailed step-by-step plan
-4. Discuss the plan with the user
-5. Refine based on feedback
-
-YOUR PERMISSIONS:
-- ✅ Read files, search code, list directories
-- ❌ Write, create, or delete files
-- ❌ Execute commands
-
-IMPORTANT:
-- You CANNOT modify any files in this role
-- Only read-only tools are available to you
-- If you need write access, the user must switch you to ACTOR role
-- After plan approval, the user will switch you to ACTOR role for execution
-
-OUTPUT FORMAT:
-When you create a plan, output it in the following JSON format:
-
-{
-  "goal": "Brief summary of what we're trying to accomplish",
-  "steps": [
-    {
-      "step_number": 1,
-      "action": "What you will do",
-      "reason": "Why this is necessary",
-      "tools_needed": ["list", "of", "tools"],
-      "estimated_time": "rough estimate"
-    }
-  ],
-  "estimated_total_time": "total time estimate",
-  "risks": ["list any potential issues"],
-  "prerequisites": ["anything user needs to prepare"]
-}
-
-After presenting the plan, discuss it with the user. When they approve, they will switch to ACT mode for execution.`;
-      } else {
-        return `# CURRENT ROLE: ACTOR
-
-You are operating in the ACTOR role. Your responsibilities:
-1. Execute the approved plan (if any)
-2. Use all available tools to accomplish tasks
-3. Make small adjustments as needed
-4. Ask for approval on major changes
-
-YOUR PERMISSIONS:
-- ✅ Read, write, create, delete files
-- ✅ Execute commands
-- ✅ Full tool access
-
-AUTONOMY GUIDELINES:
-- **Small changes**: Proceed (formatting, obvious fixes, typos)
-- **Medium changes**: Mention but proceed (refactoring within scope)
-- **Large changes**: Ask via question format (delete files, major refactors, security changes)
-
-QUESTION FORMAT:
-When you need to ask for approval, use this format:
-
-{
-  "type": "question",
-  "question": "Clear question for the user",
-  "context": "Why you're asking / what you discovered",
-  "severity": "critical" | "major" | "minor",
-  "options": [
-    {
-      "label": "Short label",
-      "value": "internal_value",
-      "description": "Longer explanation"
-    }
-  ],
-  "default": "recommended_value"
-}
-
-When to ask:
-- ALWAYS: Deleting files, major refactors, security-sensitive changes
-- USUALLY: Changes beyond original plan, uncertainty about approach
-- RARELY: Minor formatting, obvious fixes, style adjustments`;
-      }
-    },
-    []
-  );
-
-  // Clear enhanced prompt when role changes
-  useEffect(() => {
-    console.log("[SystemMessageCard] Role changed to:", currentRole);
-    // Clear cached enhanced prompt
-    setEnhancedPrompt(null);
-
-    // If enhanced view is currently shown, reload it with new role
-    if (showEnhanced && basePrompt) {
-      console.log("[SystemMessageCard] Reloading enhanced prompt for new role");
-      const roleSection = buildRoleSection(currentRole as "planner" | "actor");
-
-      // Add Mermaid enhancement if enabled
-      let enhanced = `${basePrompt}\n\n${roleSection}`;
-      if (isMermaidEnhancementEnabled()) {
-        const mermaidSection = getMermaidEnhancementPrompt();
-        enhanced += `\n\n${mermaidSection}`;
-      }
-
-      setEnhancedPrompt(enhanced);
-    }
-  }, [currentRole, showEnhanced, basePrompt, buildRoleSection]);
+  }, [currentChat?.config, systemPromptService, systemPrompts]);
 
   // Load enhanced prompt when requested
   const loadEnhancedPrompt = async () => {
@@ -268,17 +108,8 @@ When to ask:
 
     setLoadingEnhanced(true);
     try {
-      // Build enhanced prompt on frontend (since backend API might not support role parameter)
-      // For now, we'll build it client-side
-      const roleSection = buildRoleSection(currentRole as "planner" | "actor");
-
-      // Add Mermaid enhancement if enabled
-      let enhanced = `${basePrompt}\n\n${roleSection}`;
-      if (isMermaidEnhancementEnabled()) {
-        const mermaidSection = getMermaidEnhancementPrompt();
-        enhanced += `\n\n${mermaidSection}`;
-        console.log("[SystemMessageCard] Mermaid enhancement added to prompt");
-      }
+      const enhancementText = getSystemPromptEnhancementText();
+      const enhanced = buildEnhancedSystemPrompt(basePrompt, enhancementText);
 
       setEnhancedPrompt(enhanced);
       setShowEnhanced(true);
@@ -349,11 +180,6 @@ When to ask:
             >
               System Prompt
             </Text>
-            {currentRole && (
-              <Tag color={currentRole === "planner" ? "blue" : "green"}>
-                {currentRole === "planner" ? "Planner" : "Actor"} Mode
-              </Tag>
-            )}
           </div>
           <Space>
             {basePrompt && !showEnhanced && (
@@ -455,17 +281,7 @@ When to ask:
               ? [
                   {
                     key: "enhanced",
-                    label: (
-                      <span>
-                        Enhanced Prompt{" "}
-                        <Tag
-                          color="blue"
-                          style={{ marginLeft: token.marginXS }}
-                        >
-                          {currentRole === "planner" ? "Planner" : "Actor"}
-                        </Tag>
-                      </span>
-                    ),
+                    label: "Enhanced Prompt",
                     children: enhancedPrompt ? (
                       <div
                         style={{

@@ -6,17 +6,18 @@
  * each hook focused on a single responsibility.
  */
 
+import { useEffect, useRef } from "react";
 import { useChatState } from "./useChatState";
 import { useChatTitleGeneration } from "./useChatTitleGeneration";
 import { useChatOperations } from "./useChatOperations";
 import { useChatStateMachine } from "./useChatStateMachine";
-import { useChatSSEStreaming } from "./useChatSSEStreaming";
+import { useChatOpenAIStreaming } from "./useChatOpenAIStreaming";
 
 /**
  * Unified hook for managing all chat-related state and interactions.
  * This hook is the single source of truth for chat management in the UI.
  *
- * Uses Signal-Pull SSE architecture for backend-driven streaming.
+ * Uses OpenAI streaming with a local streaming component.
  */
 export const useChatManager = () => {
   // Phase 1: State and derived values
@@ -28,22 +29,36 @@ export const useChatManager = () => {
   // Phase 3: Chat operations (CRUD)
   const operations = useChatOperations(state);
 
-  // Phase 4: State machine integration
-  const stateMachine = useChatStateMachine(state);
-
-  // Phase 5: SSE streaming
-  const streaming = useChatSSEStreaming({
+  const streaming = useChatOpenAIStreaming({
     currentChat: state.currentChat,
     addMessage: state.addMessage,
-    setMessages: (chatId, messages) => {
-      // Need to update via updateChat to trigger reactivity
-      const chat = state.chats.find((c) => c.id === chatId);
-      if (chat) {
-        state.updateChat(chatId, { messages });
-      }
-    },
-    updateChat: state.updateChat,
+    setProcessing: state.setProcessing,
   });
+
+  const stateMachine = useChatStateMachine(state, {
+    onCancel: streaming.cancel,
+    onRetry: streaming.sendMessage,
+    isProcessing: state.isProcessing,
+  });
+
+  const lastAutoTitleMessageIdRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!state.currentChatId) return;
+    const messages = state.baseMessages;
+    if (messages.length === 0) return;
+    const lastMessage = messages[messages.length - 1];
+    if (lastMessage.role !== "assistant") return;
+    if (lastMessage.id === lastAutoTitleMessageIdRef.current) return;
+    lastAutoTitleMessageIdRef.current = lastMessage.id;
+    titleGeneration.generateChatTitle(state.currentChatId).catch((error) => {
+      console.warn("Auto title generation failed:", error);
+    });
+  }, [
+    state.baseMessages,
+    state.currentChatId,
+    titleGeneration.generateChatTitle,
+  ]);
 
   // Compose and return the complete interface
   return {
@@ -93,7 +108,8 @@ export const useChatManager = () => {
     setPendingAgentApproval: stateMachine.setPendingAgentApproval,
     retryLastMessage: stateMachine.retryLastMessage,
 
-    // Actions from useChatSSEStreaming
+    // Actions from useChatOpenAIStreaming
     sendMessage: streaming.sendMessage,
+    cancelMessage: streaming.cancel,
   };
 };

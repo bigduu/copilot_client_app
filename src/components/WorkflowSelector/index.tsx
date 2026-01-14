@@ -4,7 +4,6 @@ import {
   WorkflowManagerService,
   WorkflowMetadata,
 } from "../../services/WorkflowManagerService";
-import { useChatController } from "../../contexts/ChatControllerContext";
 
 const { useToken } = theme;
 
@@ -32,7 +31,6 @@ const WorkflowSelector: React.FC<WorkflowSelectorProps> = ({
   const { token } = useToken();
   const containerRef = useRef<HTMLDivElement>(null);
   const selectedItemRef = useRef<HTMLDivElement>(null);
-  const { currentChat } = useChatController();
 
   // Fetch workflows when component becomes visible
   useEffect(() => {
@@ -42,10 +40,7 @@ const WorkflowSelector: React.FC<WorkflowSelectorProps> = ({
       const fetchWorkflows = async () => {
         setIsLoading(true);
         try {
-          const workspacePath = currentChat?.config.workspacePath;
-          const fetchedWorkflows = await workflowService.listWorkflows(
-            workspacePath
-          );
+          const fetchedWorkflows = await workflowService.listWorkflows();
           console.log(
             "[WorkflowSelector] Fetched workflows:",
             fetchedWorkflows,
@@ -62,7 +57,7 @@ const WorkflowSelector: React.FC<WorkflowSelectorProps> = ({
 
       fetchWorkflows();
     }
-  }, [visible, currentChat?.config.workspacePath]);
+  }, [visible]);
 
   // Filter workflows based on search text
   useEffect(() => {
@@ -98,11 +93,7 @@ const WorkflowSelector: React.FC<WorkflowSelectorProps> = ({
   const handleWorkflowSelect = async (workflowName: string) => {
     try {
       const workflowService = WorkflowManagerService.getInstance();
-      const workspacePath = currentChat?.config.workspacePath;
-      const workflow = await workflowService.getWorkflow(
-        workflowName,
-        workspacePath
-      );
+      const workflow = await workflowService.getWorkflow(workflowName);
 
       onSelect({
         name: workflow.name,
@@ -179,7 +170,6 @@ const WorkflowSelector: React.FC<WorkflowSelectorProps> = ({
     selectedIndex,
     onCancel,
     onAutoComplete,
-    currentChat?.config.workspacePath,
   ]);
 
   if (!visible) {

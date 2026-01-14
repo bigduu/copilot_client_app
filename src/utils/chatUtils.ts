@@ -116,7 +116,7 @@ export const groupChatsByToolCategory = (
   chats
     .filter((chat) => !chat.pinned)
     .forEach((chat) => {
-      const category = chat.config.toolCategory || "General"; // Default category is "General"
+      const category = chat.config.systemPromptId || "General";
       if (!grouped[category]) {
         grouped[category] = [];
       }

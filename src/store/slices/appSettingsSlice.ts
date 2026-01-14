@@ -26,7 +26,6 @@ export const createSessionSlice: StateCreator<
   cancelCurrentRequest: () => {
     get().currentRequestController?.abort();
     get().setProcessing(false);
-    get().setStreamingMessage(null);
     set({ currentRequestController: null });
   },
 });

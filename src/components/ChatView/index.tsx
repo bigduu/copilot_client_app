@@ -5,26 +5,17 @@ import React, {
   useCallback,
   useMemo,
 } from "react";
-import { Layout, theme, Button, Grid, Flex, Modal } from "antd";
+import { Layout, theme, Button, Grid, Flex } from "antd";
 import { useChatController } from "../../contexts/ChatControllerContext";
 import SystemMessageCard from "../SystemMessageCard";
 import { DownOutlined } from "@ant-design/icons";
-import { InputContainer } from "../InputContainer";
-import { ApprovalModal } from "../ApprovalModal";
-import { AgentApprovalModal } from "../AgentApprovalModal";
+import { InputContainer, type WorkflowDraft } from "../InputContainer";
 import "./styles.css"; // Import a new CSS file for animations and specific styles
 import MessageCard from "../MessageCard";
-import { useBackendContext } from "../../hooks/useBackendContext";
-import { BranchSelector } from "../BranchSelector";
-import AgentRoleSelector from "../AgentRoleSelector";
+import StreamingMessageCard from "../StreamingMessageCard";
 import { Message } from "../../types/chat";
-import {
-  MessageDTO,
-  backendContextService,
-} from "../../services/BackendContextService";
-import { useAppStore } from "../../store";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { transformMessageDTOToMessage } from "../../utils/messageTransformers";
+import { streamingMessageBus } from "../../utils/streamingMessageBus";
 
 const { Content } = Layout;
 const { useToken } = theme;
@@ -32,41 +23,13 @@ const { useBreakpoint } = Grid;
 
 export const ChatView: React.FC = () => {
   const {
+    currentChat,
     currentChatId,
     currentMessages,
     deleteMessage,
     updateChat,
     interactionState,
-    send,
-    pendingAgentApproval,
-    setPendingAgentApproval,
   } = useChatController();
-
-  // Backend context for approvals and basic status display
-  const {
-    currentContext,
-    messages: backendMessages,
-    approveTools,
-    switchBranch,
-    updateAgentRole,
-    isLoading,
-    error,
-    loadContext,
-  } = useBackendContext();
-
-  // Auto-load backend context when currentChatId changes
-  // Use a ref to track the last loaded chat ID to prevent unnecessary reloads
-  const lastLoadedChatIdRef = useRef<string | null>(null);
-
-  useEffect(() => {
-    if (currentChatId && currentChatId !== lastLoadedChatIdRef.current) {
-      console.log(`[ChatView] Loading context for chat: ${currentChatId}`);
-      lastLoadedChatIdRef.current = currentChatId;
-      loadContext(currentChatId).catch((err) => {
-        console.error(`[ChatView] Failed to load context:`, err);
-      });
-    }
-  }, [currentChatId, loadContext]);
 
   // Handle message deletion - optimized with useCallback
   const handleDeleteMessage = useCallback(
@@ -86,6 +49,7 @@ export const ChatView: React.FC = () => {
   const lastChatIdRef = useRef<string | null>(null);
   // Scroll-to-bottom button state
   const [showScrollToBottom, setShowScrollToBottom] = useState(false);
+  const [workflowDraft, setWorkflowDraft] = useState<WorkflowDraft | null>(null);
   // Track if user has manually scrolled up (to prevent auto-scroll interruption)
   const userHasScrolledUpRef = useRef(false);
 
@@ -131,124 +95,35 @@ export const ChatView: React.FC = () => {
     }
   }, [currentChatId]);
 
-  const [loadedSystemPrompt, setLoadedSystemPrompt] = useState<{
-    id: string;
-    content: string;
-  } | null>(null);
+  useEffect(() => {
+    setWorkflowDraft(null);
+  }, [currentChatId]);
 
   const hasMessages = currentMessages.length > 0;
-  const hasBackendMessages = backendMessages.length > 0;
-
-  // Load system prompt from context manager - unified source of truth
-  useEffect(() => {
-    const loadSystemPrompt = async () => {
-      // First, check if there's already a system message in the messages
-      const allMessages =
-        backendMessages.length > 0 ? backendMessages : currentMessages;
-      const existingSystemMessage = allMessages.find(
-        (msg: Message | MessageDTO) => msg.role === "system"
-      );
-      if (existingSystemMessage) {
-        setLoadedSystemPrompt(null);
-        return;
-      }
-
-      // Priority 1: Get from active branch's system_prompt (if exists)
-      if (currentContext?.branches && currentContext.branches.length > 0) {
-        const activeBranch = currentContext.branches.find(
-          (b) => b.name === currentContext.active_branch_name
-        );
-        if (activeBranch?.system_prompt?.content) {
-          setLoadedSystemPrompt({
-            id: activeBranch.system_prompt.id,
-            content: activeBranch.system_prompt.content,
-          });
-          return;
-        }
-      }
-
-      // Priority 2: Get from context.config.system_prompt_id (source of truth)
-      const systemPromptId = currentContext?.config?.system_prompt_id;
-
-      if (!systemPromptId) {
-        setLoadedSystemPrompt(null);
-        return;
-      }
-
-      // Fetch system prompt content from backend API using the ID
-      try {
-        const prompt =
-          await backendContextService.getSystemPrompt(systemPromptId);
-        if (prompt?.content) {
-          setLoadedSystemPrompt({
-            id: systemPromptId,
-            content: prompt.content,
-          });
-        } else {
-          console.warn(
-            `System prompt ${systemPromptId} exists but has no content`
-          );
-          setLoadedSystemPrompt(null);
-        }
-      } catch (error) {
-        console.error(
-          `Failed to load system prompt ${systemPromptId} from backend:`,
-          error
-        );
-        setLoadedSystemPrompt(null);
-      }
-    };
-
-    loadSystemPrompt();
-  }, [
-    currentContext?.config?.system_prompt_id,
-    currentContext?.branches,
-    currentContext?.active_branch_name,
-    backendMessages,
-    currentMessages,
-  ]);
+  const hasWorkflowDraft = Boolean(workflowDraft?.content);
 
   // Get system prompt message to display
   const systemPromptMessage = useMemo(() => {
     // First, check if there's already a system message in the messages
-    const allMessages =
-      backendMessages.length > 0 ? backendMessages : currentMessages;
-    const existingSystemMessage = allMessages.find(
-      (msg: Message | MessageDTO) => msg.role === "system"
+    const existingSystemMessage = currentMessages.find(
+      (msg: Message) => msg.role === "system"
     );
     if (existingSystemMessage) {
-      // Extract content from MessageDTO if needed
-      if (
-        "content" in existingSystemMessage &&
-        Array.isArray((existingSystemMessage as any).content)
-      ) {
-        const dto = existingSystemMessage as MessageDTO;
-        const textContent = dto.content.find((c) => c.type === "text");
-        const messageContent =
-          textContent && "text" in textContent ? textContent.text : "";
-        return {
-          id: dto.id,
-          role: "system" as const,
-          content: messageContent,
-          createdAt: dto.id,
-        };
-      }
-      // Already a Message type
       return existingSystemMessage as Message;
     }
 
     // Use loaded system prompt from context manager
-    if (loadedSystemPrompt?.content) {
+    if (currentChat?.config?.baseSystemPrompt) {
       return {
-        id: `system-prompt-${loadedSystemPrompt.id}`,
+        id: `system-prompt-${currentChat.id}`,
         role: "system" as const,
-        content: loadedSystemPrompt.content,
+        content: currentChat.config.baseSystemPrompt,
         createdAt: new Date().toISOString(),
       };
     }
 
     return null;
-  }, [backendMessages, currentMessages, loadedSystemPrompt]);
+  }, [currentChat, currentMessages]);
 
   // Check if we have system prompt to show
   const hasSystemPrompt = useMemo(() => {
@@ -256,31 +131,22 @@ export const ChatView: React.FC = () => {
   }, [systemPromptMessage]);
 
   const showMessagesView =
-    currentChatId && (hasMessages || hasBackendMessages || hasSystemPrompt);
+    currentChatId && (hasMessages || hasSystemPrompt || hasWorkflowDraft);
 
   type RenderableEntry = {
     message: Message;
-    messageType?: MessageDTO["message_type"];
+    messageType?: "text" | "plan" | "question" | "tool_call" | "tool_result";
   };
 
   /**
    * Helper function to check if a message should be hidden from display.
    * Messages with display_preference: "Hidden" should not be shown in the UI.
    */
-  const shouldHideMessage = useCallback((item: Message | MessageDTO): boolean => {
+  const shouldHideMessage = useCallback((item: Message): boolean => {
     // Check if it's a tool result message with Hidden display preference (Message type)
     if ("type" in item && item.type === "tool_result") {
       const toolResultMsg = item as any;
       if (toolResultMsg.result?.display_preference === "Hidden") {
-        return true;
-      }
-    }
-
-    // Check MessageDTO with tool_result field
-    if ("tool_result" in item && item.tool_result) {
-      const dto = item as any;
-      // display_preference is now at the tool_result DTO level
-      if (dto.tool_result?.display_preference === "Hidden") {
         return true;
       }
     }
@@ -294,7 +160,7 @@ export const ChatView: React.FC = () => {
     ): {
       message: Message;
       align: "flex-start" | "flex-end";
-      messageType?: MessageDTO["message_type"];
+      messageType?: "text" | "plan" | "question" | "tool_call" | "tool_result";
     } => {
       const align = entry.message.role === "user" ? "flex-end" : "flex-start";
 
@@ -326,11 +192,8 @@ export const ChatView: React.FC = () => {
   );
 
   const renderableMessages = useMemo<RenderableEntry[]>(() => {
-    const source =
-      backendMessages.length > 0 ? backendMessages : currentMessages;
-
-    const filtered = source.filter((item) => {
-      const role = (item as Message).role ?? (item as MessageDTO).role;
+    const filtered = currentMessages.filter((item) => {
+      const role = item.role;
 
       // Filter out non-chat roles
       if (
@@ -350,23 +213,11 @@ export const ChatView: React.FC = () => {
       return true;
     });
 
-    const hasSystemMessage = filtered.some((item) => {
-      const role = (item as Message).role ?? (item as MessageDTO).role;
-      return role === "system";
-    });
+    const hasSystemMessage = filtered.some((item) => item.role === "system");
 
     const entries: RenderableEntry[] = filtered.map((item) => {
-      if ("message_type" in item && Array.isArray((item as any).content)) {
-        const dto = item as MessageDTO;
-        const transformed = transformMessageDTOToMessage(dto);
-        return {
-          message: transformed,
-          messageType: dto.message_type,
-        };
-      }
-
       const message = item as Message;
-      let inferredType: MessageDTO["message_type"] | undefined;
+      let inferredType: RenderableEntry["messageType"];
       if (message.role === "assistant" && "type" in message) {
         const assistantType = (message as any).type as string | undefined;
         if (
@@ -390,8 +241,26 @@ export const ChatView: React.FC = () => {
       entries.unshift({ message: systemPromptMessage });
     }
 
+    if (workflowDraft?.content) {
+      entries.push({
+        message: {
+          id: workflowDraft.id,
+          role: "user",
+          content: workflowDraft.content,
+          createdAt: workflowDraft.createdAt,
+        },
+        messageType: "text",
+      });
+    }
+
     return entries;
-  }, [backendMessages, currentMessages, hasSystemPrompt, systemPromptMessage, shouldHideMessage]);
+  }, [
+    currentMessages,
+    hasSystemPrompt,
+    systemPromptMessage,
+    shouldHideMessage,
+    workflowDraft,
+  ]);
 
   const rowVirtualizer = useVirtualizer({
     count: renderableMessages.length,
@@ -472,15 +341,21 @@ export const ChatView: React.FC = () => {
   }, []);
 
   const scrollToBottom = useCallback(() => {
+    const el = messagesListRef.current;
+    if (!el) return;
+    if (interactionState.matches("THINKING")) {
+      requestAnimationFrame(() => {
+        el.scrollTo({ top: el.scrollHeight });
+      });
+      return;
+    }
     if (renderableMessages.length === 0) return;
-
-    // Use requestAnimationFrame to ensure DOM has updated before scrolling
     requestAnimationFrame(() => {
       rowVirtualizer.scrollToIndex(renderableMessages.length - 1, {
         align: "end",
       });
     });
-  }, [renderableMessages.length, rowVirtualizer]);
+  }, [interactionState, renderableMessages.length, rowVirtualizer]);
 
   // Reset scroll flag and scroll to bottom when user sends a message
   // Detect message sending by watching state transition from IDLE to THINKING
@@ -501,17 +376,14 @@ export const ChatView: React.FC = () => {
     previousStateRef.current = currentState;
   }, [interactionState.value, scrollToBottom]);
 
-  // Auto-scroll to bottom when streaming content updates
-  // Only auto-scroll if user hasn't manually scrolled up
-  // This allows users to see streaming effects while not interrupting manual scrolling
   useEffect(() => {
-    if (
-      !userHasScrolledUpRef.current &&
-      interactionState.context.streamingContent
-    ) {
+    return streamingMessageBus.subscribe((update) => {
+      if (update.chatId !== currentChatId) return;
+      if (userHasScrolledUpRef.current) return;
+      if (!update.content) return;
       scrollToBottom();
-    }
-  }, [scrollToBottom, interactionState.context.streamingContent]);
+    });
+  }, [currentChatId, scrollToBottom]);
 
   // Auto-scroll when new messages are added (only if user hasn't scrolled up)
   useEffect(() => {
@@ -519,15 +391,6 @@ export const ChatView: React.FC = () => {
       scrollToBottom();
     }
   }, [renderableMessages.length, scrollToBottom]);
-
-  // Reset scroll flag when chat context changes
-  useEffect(() => {
-    if (currentContext?.id !== lastChatIdRef.current) {
-      lastChatIdRef.current = currentContext?.id || null;
-      userHasScrolledUpRef.current = false; // Reset on context change
-      scrollToBottom(); // Auto-scroll to bottom on context change
-    }
-  }, [currentContext?.id, scrollToBottom]);
 
   // Calculate scroll to bottom button position
   const getScrollButtonPosition = () => {
@@ -552,87 +415,6 @@ export const ChatView: React.FC = () => {
           height: "100vh",
         }}
       >
-        {/* Backend status banners */}
-        {isLoading && (
-          <div
-            style={{
-              width: "100%",
-              padding: `${token.paddingXS}px ${token.padding}px`,
-              background: token.colorWarningBg,
-              color: token.colorWarningText,
-              borderBottom: `1px solid ${token.colorWarningBorder}`,
-            }}
-          >
-            Syncing with backend...
-          </div>
-        )}
-        {error && (
-          <div
-            style={{
-              width: "100%",
-              padding: `${token.paddingXS}px ${token.padding}px`,
-              background: token.colorErrorBg,
-              color: token.colorErrorText,
-              borderBottom: `1px solid ${token.colorErrorBorder}`,
-            }}
-          >
-            {error}
-          </div>
-        )}
-        {/* Agent Role Selector and Branch Selector */}
-        {currentContext && (
-          <div
-            style={{
-              width: "100%",
-              padding: `${token.paddingXS}px ${token.padding}px`,
-              background: token.colorBgContainer,
-              borderBottom: `1px solid ${token.colorBorder}`,
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-              gap: token.marginMD,
-              flexWrap: "wrap",
-            }}
-          >
-            {/* Agent Role Selector */}
-            <Flex align="center" gap={token.marginSM}>
-              <span
-                style={{
-                  fontSize: token.fontSizeSM,
-                  color: token.colorTextSecondary,
-                }}
-              >
-                Agent Role:
-              </span>
-              <AgentRoleSelector
-                currentRole={currentContext.config.agent_role || "actor"}
-                contextId={currentContext.id}
-                onRoleChange={async (newRole) => {
-                  try {
-                    await updateAgentRole(currentContext.id, newRole);
-                  } catch (error) {
-                    console.error("Failed to update agent role:", error);
-                  }
-                }}
-                disabled={isLoading}
-              />
-            </Flex>
-
-            {/* Branch Selector */}
-            {currentContext.branches.length > 1 && (
-              <BranchSelector
-                branches={currentContext.branches}
-                currentBranch={currentContext.active_branch_name}
-                onBranchChange={(branchName) => {
-                  if (currentContext?.id) {
-                    switchBranch(currentContext.id, branchName);
-                  }
-                }}
-                disabled={isLoading}
-              />
-            )}
-          </div>
-        )}
         {/* Messages List Area */}
         <Content
           className={`chat-view-messages-list ${
@@ -708,7 +490,11 @@ export const ChatView: React.FC = () => {
                             <MessageCard
                               message={convertedMessage}
                               messageType={messageType}
-                              onDelete={handleDeleteMessage}
+                              onDelete={
+                                convertedMessage.id === workflowDraft?.id
+                                  ? undefined
+                                  : handleDeleteMessage
+                              }
                             />
                           </div>
                         </Flex>
@@ -718,146 +504,21 @@ export const ChatView: React.FC = () => {
                 })}
               </div>
             )}
-        </Content>
-
-        {/* Real Approval Modal */}
-        {interactionState.matches("AWAITING_APPROVAL") &&
-          interactionState.context.toolCallRequest && (
-            <ApprovalModal
-              visible={true}
-              toolName={interactionState.context.toolCallRequest.tool_name}
-              parameters={interactionState.context.parsedParameters || []}
-              onApprove={async () => {
-                try {
-                  const contextId = currentContext?.id;
-                  const toolCallId =
-                    interactionState.context.toolCallRequest?.toolCallId;
-                  const ids: string[] = toolCallId ? [toolCallId] : [];
-
-                  if (contextId && ids.length > 0) {
-                    await approveTools(contextId, ids);
-                  } else {
-                    // Fallback to legacy local flow
-                    send({ type: "USER_APPROVES" });
-                  }
-                } catch (e) {
-                  // On error, fallback to legacy local flow
-                  send({ type: "USER_APPROVES" });
-                }
-              }}
-              onReject={() => send({ type: "USER_REJECTS" })}
-            />
+          {interactionState.matches("THINKING") && currentChatId && (
+            <div style={{ paddingTop: rowGap }}>
+              <Flex justify="flex-start" style={{ width: "100%", maxWidth: "100%" }}>
+                <div
+                  style={{
+                    width: "100%",
+                    maxWidth: screens.xs ? "100%" : "90%",
+                  }}
+                >
+                  <StreamingMessageCard chatId={currentChatId} />
+                </div>
+              </Flex>
+            </div>
           )}
-
-        {/* Agent Approval Modal (for LLM-initiated tool calls) */}
-        {pendingAgentApproval && (
-          <AgentApprovalModal
-            visible={true}
-            requestId={pendingAgentApproval.request_id}
-            toolName={pendingAgentApproval.tool}
-            toolDescription={pendingAgentApproval.tool_description}
-            parameters={pendingAgentApproval.parameters}
-            onApprove={async (requestId: string) => {
-              console.log("🔓 [ChatView] Approving agent tool:", requestId);
-              try {
-                // Call the backend approval endpoint
-                const response =
-                  await backendContextService.approveAgentToolCall(
-                    pendingAgentApproval.session_id,
-                    requestId,
-                    true
-                  );
-                console.log("✅ [ChatView] Tool approved, response:", response);
-
-                // Clear the pending approval
-                setPendingAgentApproval(null);
-
-                // Reload messages to show the tool execution result
-                console.log(
-                  "🔄 [ChatView] Reloading messages after approval..."
-                );
-                if (currentChatId) {
-                  // Fetch messages from backend
-                  const messages =
-                    await backendContextService.getMessages(currentChatId);
-
-                  const allMessages = messages.messages.map(
-                    transformMessageDTOToMessage
-                  );
-
-                  // Update useChatManager's messages
-                  const { setMessages } = useAppStore.getState();
-                  setMessages(currentChatId, allMessages);
-                  console.log(
-                    `✅ [ChatView] Updated messages: ${allMessages.length} total`
-                  );
-
-                  // Also reload backend context for consistency
-                  await loadContext(currentChatId);
-                }
-              } catch (error) {
-                console.error("Failed to approve tool:", error);
-                Modal.error({
-                  title: "Approval Failed",
-                  content:
-                    "Failed to send approval to backend. Please try again.",
-                });
-              }
-            }}
-            onReject={async (requestId: string, reason?: string) => {
-              console.log(
-                "🚫 [ChatView] Rejecting agent tool:",
-                requestId,
-                reason
-              );
-              try {
-                // Call the backend approval endpoint
-                const response =
-                  await backendContextService.approveAgentToolCall(
-                    pendingAgentApproval.session_id,
-                    requestId,
-                    false,
-                    reason
-                  );
-                console.log("✅ [ChatView] Tool rejected, response:", response);
-
-                // Clear the pending approval
-                setPendingAgentApproval(null);
-
-                // Reload messages to reflect the rejection
-                console.log(
-                  "🔄 [ChatView] Reloading messages after rejection..."
-                );
-                if (currentChatId) {
-                  // Fetch messages from backend
-                  const messages =
-                    await backendContextService.getMessages(currentChatId);
-
-                  const allMessages = messages.messages.map(
-                    transformMessageDTOToMessage
-                  );
-
-                  // Update useChatManager's messages
-                  const { setMessages } = useAppStore.getState();
-                  setMessages(currentChatId, allMessages);
-                  console.log(
-                    `✅ [ChatView] Updated messages: ${allMessages.length} total`
-                  );
-
-                  // Also reload backend context for consistency
-                  await loadContext(currentChatId);
-                }
-              } catch (error) {
-                console.error("Failed to reject tool:", error);
-                Modal.error({
-                  title: "Rejection Failed",
-                  content:
-                    "Failed to send rejection to backend. Please try again.",
-                });
-              }
-            }}
-          />
-        )}
+        </Content>
 
         {/* Scroll to Bottom Button */}
         {showScrollToBottom && (
@@ -896,7 +557,10 @@ export const ChatView: React.FC = () => {
               margin: showMessagesView ? "0 auto" : undefined,
             }}
           >
-            <InputContainer isCenteredLayout={!showMessagesView} />
+            <InputContainer
+              isCenteredLayout={!showMessagesView}
+              onWorkflowDraftChange={setWorkflowDraft}
+            />
           </div>
         </Flex>
       </Flex>

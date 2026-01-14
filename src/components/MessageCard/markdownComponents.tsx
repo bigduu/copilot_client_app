@@ -154,7 +154,12 @@ const CodeBlockWithCopy: React.FC<{
 };
 
 // Enhanced code block renderer with error handling
-const renderCodeBlock = (language: string, codeString: string, token: any) => {
+const renderCodeBlock = (
+  language: string,
+  codeString: string,
+  token: any,
+  onFixMermaid?: (chart: string) => Promise<void> | void,
+) => {
   try {
     // Validate input
     if (!codeString || typeof codeString !== "string") {
@@ -165,20 +170,22 @@ const renderCodeBlock = (language: string, codeString: string, token: any) => {
       return null;
     }
 
+    const normalizedLanguage = language.toLowerCase();
+
     // Handle Mermaid diagrams
-    if (language === "mermaid") {
+    if (normalizedLanguage === "mermaid") {
       // Additional validation for Mermaid content
       const trimmedChart = codeString.trim();
       if (!trimmedChart) {
         console.warn("Empty Mermaid chart content");
         return null;
       }
-      return <MermaidChart chart={trimmedChart} />;
+      return <MermaidChart chart={trimmedChart} onFix={onFixMermaid} />;
     }
 
     return (
       <CodeBlockWithCopy
-        language={language}
+        language={normalizedLanguage}
         codeString={codeString}
         token={token}
       />
@@ -251,7 +258,12 @@ const renderCodeBlock = (language: string, codeString: string, token: any) => {
 };
 
 // Create markdown components factory
-export const createMarkdownComponents = (token: any): Components => ({
+export const createMarkdownComponents = (
+  token: any,
+  options?: {
+    onFixMermaid?: (chart: string) => Promise<void> | void;
+  },
+): Components => ({
   p: ({ children }) => (
     <Text
       style={{
@@ -295,10 +307,10 @@ export const createMarkdownComponents = (token: any): Components => ({
     </li>
   ),
 
-  code({ className, children, ...props }) {
-    const match = /language-(\w+)/.exec(className || "");
+  code({ className, children, inline, ...props }) {
+    const match = /language-([^\s]+)/i.exec(className || "");
     const language = match ? match[1] : "";
-    const isInline = !match && !className;
+    const isInline = inline ?? (!match && !className);
 
     // Safely handle children that might be undefined or null
     const codeString = children ? String(children).replace(/\n$/, "") : "";
@@ -316,7 +328,7 @@ export const createMarkdownComponents = (token: any): Components => ({
       return null;
     }
 
-    return renderCodeBlock(language, codeString, token);
+    return renderCodeBlock(language, codeString, token, options?.onFixMermaid);
   },
 
   blockquote: ({ children }) => (

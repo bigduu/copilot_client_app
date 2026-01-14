@@ -14,17 +14,14 @@ import InputPreview from "./InputPreview";
 import { useChatController } from "../../contexts/ChatControllerContext";
 import { useSystemPrompt } from "../../hooks/useSystemPrompt";
 import { WorkflowManagerService } from "../../services/WorkflowManagerService";
-import {
-  BackendContextService,
-  WorkspaceFileEntry,
-} from "../../services/BackendContextService";
 import { ImageFile } from "../../utils/imageUtils";
 import { ProcessedFile, summarizeAttachments } from "../../utils/fileUtils";
 import {
-  WorkflowCommandInfo,
   FileReferenceInfo,
+  WorkflowCommandInfo,
 } from "../../utils/inputHighlight";
 import { useChatInputHistory } from "../../hooks/useChatInputHistory";
+import { WorkspaceFileEntry } from "../../types/workspace";
 
 const FilePreview = lazy(() => import("../FilePreview"));
 const WorkflowSelector = lazy(() => import("../WorkflowSelector"));
@@ -33,19 +30,24 @@ const FileReferenceSelector = lazy(() => import("../FileReferenceSelector"));
 
 const { useToken } = theme;
 
+export type WorkflowDraft = {
+  id: string;
+  name: string;
+  content: string;
+  createdAt: string;
+};
+
 interface InputContainerProps {
   isCenteredLayout?: boolean;
+  onWorkflowDraftChange?: (workflow: WorkflowDraft | null) => void;
 }
 
 export const InputContainer: React.FC<InputContainerProps> = ({
   isCenteredLayout = false,
+  onWorkflowDraftChange,
 }) => {
   const [showWorkflowSelector, setShowWorkflowSelector] = useState(false);
   const [workflowSearchText, setWorkflowSearchText] = useState("");
-  const [currentWorkflow, setCurrentWorkflow] = useState<{
-    name: string;
-    content: string;
-  } | null>(null);
   const { token } = useToken();
   const {
     currentMessages,
@@ -82,6 +84,9 @@ export const InputContainer: React.FC<InputContainerProps> = ({
   // Use the new chat input hook for state management
   // State management for the input itself
   const [content, setContent] = useState("");
+  const [selectedWorkflow, setSelectedWorkflow] = useState<WorkflowDraft | null>(
+    null
+  );
   const [referenceText, setReferenceText] = useState<string | null>(null);
   const [attachments, setAttachments] = useState<ProcessedFile[]>([]);
   const [workspaceFiles, setWorkspaceFiles] = useState<WorkspaceFileEntry[]>(
@@ -94,7 +99,6 @@ export const InputContainer: React.FC<InputContainerProps> = ({
   const [showFileSelector, setShowFileSelector] = useState(false);
   const [fileSearchText, setFileSearchText] = useState("");
   const [isSavingWorkspace, setIsSavingWorkspace] = useState(false);
-  const backendServiceRef = useMemo(() => new BackendContextService(), []);
   const lastWorkspacePathRef = useRef<string | null>(null);
   const { recordEntry, navigate, acknowledgeManualInput } =
     useChatInputHistory(currentChatId);
@@ -116,7 +120,9 @@ export const InputContainer: React.FC<InputContainerProps> = ({
     setWorkspaceFiles([]);
     setFileReferences(new Map()); // Clear file references when chat changes
     lastWorkspacePathRef.current = currentChat?.config.workspacePath ?? null;
-  }, [currentChatId, currentChat?.config.workspacePath]);
+    setSelectedWorkflow(null);
+    onWorkflowDraftChange?.(null);
+  }, [currentChatId, currentChat?.config.workspacePath, onWorkflowDraftChange]);
 
   useEffect(() => {
     if (showWorkflowSelector) {
@@ -124,39 +130,53 @@ export const InputContainer: React.FC<InputContainerProps> = ({
     }
   }, [showWorkflowSelector]);
 
+  const clearWorkflowDraft = useCallback(() => {
+    setSelectedWorkflow(null);
+    onWorkflowDraftChange?.(null);
+  }, [onWorkflowDraftChange]);
+
+  const matchesWorkflowToken = (value: string, workflowName: string) => {
+    const trimmedValue = value.trimStart();
+    const token = `/${workflowName}`;
+    if (!trimmedValue.startsWith(token)) {
+      return false;
+    }
+    const nextChar = trimmedValue.charAt(token.length);
+    return !nextChar || /\s/.test(nextChar);
+  };
+
   // Create a new handleSubmit that uses our new hook
   const handleSubmit = (message: string, images?: ImageFile[]) => {
-    const trimmedContent = message.trim();
+    const trimmedInput = message.trim();
     const attachmentSummary = summarizeAttachments(attachments);
+    let composedInput = trimmedInput;
+
+    if (selectedWorkflow?.content) {
+      const token = `/${selectedWorkflow.name}`;
+      const hasToken = matchesWorkflowToken(trimmedInput, selectedWorkflow.name);
+      if (hasToken) {
+        const extraInput = trimmedInput.slice(token.length).trim();
+        composedInput = [selectedWorkflow.content, extraInput]
+          .filter(Boolean)
+          .join("\n\n");
+      }
+    }
+
     if (
-      !trimmedContent &&
+      !composedInput &&
       !attachmentSummary &&
       (!images || images.length === 0)
     ) {
       return;
     }
 
-    const composedMessage = [trimmedContent, attachmentSummary]
+    const composedMessage = [composedInput, attachmentSummary]
       .filter(Boolean)
       .join("\n\n");
 
     recordEntry(composedMessage);
 
-    // Check if this is a workflow message
-    if (currentWorkflow) {
-      console.log("[InputContainer] Sending workflow message:", currentWorkflow.name);
-      // Send workflow message with full content (not just the name shown in input)
-      const structuredMessage = JSON.stringify({
-        type: "workflow",
-        workflow: currentWorkflow.name,  // Backend expects "workflow", not "workflow_name"
-        content: currentWorkflow.content,  // Use full workflow content
-        display_text: currentWorkflow.content,
-      });
-      console.log("[InputContainer] Workflow payload:", structuredMessage);
-      sendMessage(structuredMessage, images);
-      setCurrentWorkflow(null); // Clear workflow after sending
-      console.log("[InputContainer] currentWorkflow cleared after send");
-    } else if (fileReferences.size > 0) {
+    if (fileReferences.size > 0) {
       // Check if message contains file references (@filename)
       const fileRefMatches = Array.from(composedMessage.matchAll(/@([^\s]+)/g));
       
@@ -193,6 +213,7 @@ export const InputContainer: React.FC<InputContainerProps> = ({
     }
 
     setContent("");
+    clearWorkflowDraft();
     setReferenceText(null); // Clear reference after sending
     setAttachments([]);
     setFileReferences(new Map()); // Clear file references
@@ -216,25 +237,22 @@ export const InputContainer: React.FC<InputContainerProps> = ({
   // Handle input changes to detect workflow selector trigger
   const handleInputChange = (value: string) => {
     acknowledgeManualInput();
+    if (
+      selectedWorkflow &&
+      !matchesWorkflowToken(value, selectedWorkflow.name)
+    ) {
+      clearWorkflowDraft();
+    }
     setContent(value);
   };
 
   const fetchWorkspaceFiles = useCallback(
-    async (chatId: string, workspacePath: string) => {
+    async (_chatId: string, workspacePath: string) => {
       setIsWorkspaceLoading(true);
-      try {
-        const response = await backendServiceRef.getWorkspaceFiles(chatId);
-        setWorkspaceFiles(response.files);
-        setWorkspaceError(null);
-        lastWorkspacePathRef.current = workspacePath;
-      } catch (error) {
-        const messageText =
-          error instanceof Error ? error.message : "Unknown error";
-        setWorkspaceError(messageText);
-        setWorkspaceFiles([]);
-      } finally {
-        setIsWorkspaceLoading(false);
-      }
+      setWorkspaceFiles([]);
+      setWorkspaceError("Workspace file browsing is unavailable.");
+      lastWorkspacePathRef.current = workspacePath;
+      setIsWorkspaceLoading(false);
     },
     []
   );
@@ -293,86 +311,62 @@ export const InputContainer: React.FC<InputContainerProps> = ({
     [navigate]
   );
 
-  // Handle workflow selection
-  const handleWorkflowSelect = async (workflow: {
-    name: string;
-    content: string;
-  }) => {
-    console.log("[InputContainer] Workflow selected:", workflow.name);
-    setShowWorkflowSelector(false);
-
-    // Only show workflow name in input, not full content
-    setContent(`/${workflow.name}`);
-
-    // Store workflow metadata (including full content) for message submission
-    setCurrentWorkflow({
-      name: workflow.name,
-      content: workflow.content,
-    });
-    
-    console.log("[InputContainer] currentWorkflow set to:", workflow.name);
-  };
-
-
-  // Monitor content changes - reset workflow if user deletes the workflow name
-  useEffect(() => {
-    if (currentWorkflow) {
-      const contentTrimmed = content.trim();
-      const workflowPrefix = `/${currentWorkflow.name}`;
-      
-      // Only clear workflow if:
-      // 1. Content is completely empty, OR
-      // 2. User removed the workflow name (doesn't start with /workflowname anymore)
-      if (!contentTrimmed || !contentTrimmed.startsWith(workflowPrefix)) {
-        console.log("[InputContainer] Workflow name removed, clearing currentWorkflow");
-        setCurrentWorkflow(null);
+  const handleWorkflowSelect = useCallback(
+    (workflow: { name: string; content: string }) => {
+      setShowWorkflowSelector(false);
+      const nextContent = workflow.content?.trim();
+      setContent(`/${workflow.name} `);
+      if (nextContent) {
+        const draft: WorkflowDraft = {
+          id: `workflow-draft-${workflow.name}`,
+          name: workflow.name,
+          content: nextContent,
+          createdAt: new Date().toISOString(),
+        };
+        setSelectedWorkflow(draft);
+        onWorkflowDraftChange?.(draft);
+      } else {
+        clearWorkflowDraft();
       }
-    }
-  }, [content, currentWorkflow]);
+    },
+    [clearWorkflowDraft, onWorkflowDraftChange]
+  );
 
-
-  // Handle workflow selector cancel
-  const handleWorkflowSelectorCancel = () => {
+  const handleWorkflowSelectorCancel = useCallback(() => {
     setShowWorkflowSelector(false);
-  };
+  }, []);
 
-  // Handle auto-completion (space/tab key) - should also select the workflow
-  const handleAutoComplete = async (workflowName: string) => {
-    console.log("[InputContainer] Auto-complete triggered for workflow:", workflowName);
-    setShowWorkflowSelector(false);
-
-    try {
-      // Fetch workflow content
-      const workflowService = WorkflowManagerService.getInstance();
-      const workspacePath = currentChat?.config.workspacePath;
-      const workflow = await workflowService.getWorkflow(
-        workflowName,
-        workspacePath
-      );
-
-      // Only show workflow name in input, not full content
-      setContent(`/${workflow.name}`);
-
-      // Store workflow metadata (including full content) for message submission
-      setCurrentWorkflow({
-        name: workflow.name,
-        content: workflow.content,
-      });
-
-      console.log("[InputContainer] Auto-complete: currentWorkflow set to:", workflow.name);
-    } catch (error) {
-      console.error(
-        `[InputContainer] Failed to load workflow '${workflowName}' in auto-complete:`,
-        error
-      );
-      // Fallback: just insert the workflow name
-      const slashIndex = content.lastIndexOf("/");
-      const beforeSlash = content.substring(0, slashIndex);
-      setContent(`${beforeSlash}/${workflowName}`);
-    }
-  };
-
-
+  const handleAutoComplete = useCallback(
+    async (workflowName: string) => {
+      setShowWorkflowSelector(false);
+      try {
+        const workflowService = WorkflowManagerService.getInstance();
+        const workflow = await workflowService.getWorkflow(workflowName);
+        const nextContent = workflow.content?.trim();
+        setContent(`/${workflow.name} `);
+        if (nextContent) {
+          const draft: WorkflowDraft = {
+            id: `workflow-draft-${workflow.name}`,
+            name: workflow.name,
+            content: nextContent,
+            createdAt: new Date().toISOString(),
+          };
+          setSelectedWorkflow(draft);
+          onWorkflowDraftChange?.(draft);
+        } else {
+          clearWorkflowDraft();
+        }
+      } catch (error) {
+        console.error(
+          `[InputContainer] Failed to load workflow '${workflowName}' in auto-complete:`,
+          error
+        );
+        setContent(`/${workflowName} `);
+        clearWorkflowDraft();
+      }
+    },
+    [clearWorkflowDraft, onWorkflowDraftChange]
+  );
 
   const handleFileReferenceSelect = useCallback(
     (file: WorkspaceFileEntry) => {
@@ -452,23 +446,16 @@ export const InputContainer: React.FC<InputContainerProps> = ({
 
       setIsSavingWorkspace(true);
       try {
-        const response = await backendServiceRef.setWorkspacePath(
-          currentChatId,
-          trimmedPath
-        );
-        const normalizedPath = response.workspace_path || trimmedPath;
-
         updateChat(currentChatId, {
           config: {
             ...currentChat.config,
-            workspacePath: normalizedPath,
+            workspacePath: trimmedPath,
           },
         });
 
         setIsWorkspaceModalVisible(false);
         setWorkspacePathInput("");
-        await fetchWorkspaceFiles(currentChatId, normalizedPath);
-        setShowFileSelector(true);
+        setShowFileSelector(false);
         setWorkspaceError(null);
       } catch (error) {
         const errorMessage =

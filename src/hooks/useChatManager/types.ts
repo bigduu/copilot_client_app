@@ -2,6 +2,7 @@ export interface UseChatState {
   chats: any[];
   currentChatId: string | null;
   currentChat: any | null;
+  isProcessing: boolean;
   baseMessages: any[];
   pinnedChats: any[];
   unpinnedChats: any[];
@@ -15,11 +16,7 @@ export interface UseChatState {
   unpinChat: (chatId: string) => void;
   updateChat: (chatId: string, updates: any) => void;
   loadChats: () => Promise<void>;
-  updateMessageContent: (
-    chatId: string,
-    messageId: string,
-    content: string
-  ) => Promise<void>;
+  setProcessing: (isProcessing: boolean) => void;
 }
 
 export interface UseChatTitleGeneration {
@@ -56,8 +53,4 @@ export interface UseChatStateMachine {
   send: (event: any) => void;
   setPendingAgentApproval: (approval: any | null) => void;
   retryLastMessage: () => Promise<void>;
-}
-
-export interface UseChatSSEStreaming {
-  sendMessage: (content: string, images?: any[]) => Promise<void>;
 }

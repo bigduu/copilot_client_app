@@ -207,7 +207,6 @@ export const ChatSidebar: React.FC<{
         config: {
           systemPromptId: preset.id,
           baseSystemPrompt: preset.content,
-          toolCategory: "general", // Category is deprecated, using a default value
           lastUsedEnhancedPrompt: null,
         },
       });

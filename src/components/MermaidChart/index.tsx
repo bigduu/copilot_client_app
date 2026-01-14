@@ -81,6 +81,31 @@ const mermaidCache = new Map<
 // Cache for error tracking to prevent duplicate error displays
 const errorCache = new Map<string, { count: number; lastSeen: number }>();
 
+const normalizeMermaidChart = (chart: string): string => {
+  return chart.replace(/\[([\s\S]*?)\]/g, (match, rawLabel) => {
+    const label = String(rawLabel);
+    const hasNewline = /\r?\n/.test(label);
+    const hasParen = /[()]/.test(label);
+    if (!hasNewline && !hasParen) {
+      return match;
+    }
+
+    const trimmed = label.trim();
+    const parensAreShape =
+      trimmed.startsWith("(") && trimmed.endsWith(")") && trimmed.length >= 2;
+
+    let nextLabel = label;
+    if (hasNewline) {
+      nextLabel = nextLabel.replace(/\r?\n/g, "<br/>");
+    }
+    if (hasParen && !parensAreShape) {
+      nextLabel = nextLabel.replace(/\(/g, "&#40;").replace(/\)/g, "&#41;");
+    }
+
+    return nextLabel === label ? match : `[${nextLabel}]`;
+  });
+};
+
 // Clean up old error cache entries (older than 5 minutes)
 const cleanupErrorCache = () => {
   const now = Date.now();
@@ -98,14 +123,17 @@ export interface MermaidChartProps {
   id?: string;
   className?: string;
   style?: React.CSSProperties;
+  onFix?: (chart: string) => Promise<void> | void;
 }
 
 export const MermaidChart: React.FC<MermaidChartProps> = React.memo(
-  ({ chart, id: _id, className, style }) => {
+  ({ chart, id: _id, className, style, onFix }) => {
     const { token } = useToken();
+    const chartKey = chart.trim();
     // Check cache during initialization
-    const cacheKey = chart.trim();
-    const initialCached = mermaidCache.get(cacheKey);
+    const initialCached = mermaidCache.get(chartKey);
+    const [isFixing, setIsFixing] = useState(false);
+    const [fixError, setFixError] = useState("");
 
     const [renderState, setRenderState] = useState<{
       svg: string;
@@ -126,6 +154,31 @@ export const MermaidChart: React.FC<MermaidChartProps> = React.memo(
     const containerRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
+      const cached = mermaidCache.get(chartKey);
+      if (cached) {
+        setRenderState({
+          svg: cached.svg,
+          height: cached.height,
+          svgWidth: cached.svgWidth,
+          svgHeight: cached.svgHeight,
+          error: "",
+          isLoading: false,
+        });
+        return;
+      }
+
+      setRenderState((prev) => ({
+        ...prev,
+        svg: "",
+        height: 200,
+        svgWidth: 800,
+        svgHeight: 200,
+        error: "",
+        isLoading: true,
+      }));
+    }, [chartKey]);
+
+    useEffect(() => {
       // Use cache directly if available
       if (initialCached) {
         console.log("✅ Using cached Mermaid chart");
@@ -139,7 +192,7 @@ export const MermaidChart: React.FC<MermaidChartProps> = React.memo(
       }
 
       // Prevent duplicate renders by checking if we're already rendering this chart
-      const renderKey = `${chart.trim()}-${Date.now()}`;
+      const renderKey = `${chartKey}-${Date.now()}`;
       console.log(
         "🚀 Starting Mermaid render for:",
         renderKey.substring(0, 50),
@@ -149,6 +202,7 @@ export const MermaidChart: React.FC<MermaidChartProps> = React.memo(
 
       const renderChart = async () => {
         try {
+          const normalizedChart = normalizeMermaidChart(chart);
           console.log(
             "🔍 Attempting to render Mermaid chart:",
             chart.substring(0, 100) + "...",
@@ -157,7 +211,7 @@ export const MermaidChart: React.FC<MermaidChartProps> = React.memo(
           // First validate the syntax using mermaid.parse with detailed error reporting
           let parseResult;
           try {
-            parseResult = await mermaid.parse(chart, {
+            parseResult = await mermaid.parse(normalizedChart, {
               suppressErrors: false, // Enable detailed error reporting
             });
           } catch (parseError) {
@@ -191,7 +245,7 @@ export const MermaidChart: React.FC<MermaidChartProps> = React.memo(
 
           let renderedSvg;
           try {
-            const renderResult = await mermaid.render(uniqueId, chart);
+            const renderResult = await mermaid.render(uniqueId, normalizedChart);
             renderedSvg = renderResult.svg;
             console.log("✅ Mermaid render successful");
           } catch (renderError) {
@@ -235,7 +289,7 @@ export const MermaidChart: React.FC<MermaidChartProps> = React.memo(
             document.body.removeChild(tempDiv);
 
             // Cache the result
-            mermaidCache.set(chart.trim(), {
+            mermaidCache.set(chartKey, {
               svg: renderedSvg,
               height: finalHeight,
               svgWidth,
@@ -370,7 +424,7 @@ export const MermaidChart: React.FC<MermaidChartProps> = React.memo(
             }
 
             // Track error frequency to prevent spam
-            const errorKey = `${chart.substring(0, 50)}-${errorMessage}`;
+            const errorKey = `${chartKey.substring(0, 50)}-${errorMessage}`;
             const now = Date.now();
             const errorInfo = errorCache.get(errorKey) || {
               count: 0,
@@ -413,7 +467,7 @@ export const MermaidChart: React.FC<MermaidChartProps> = React.memo(
         isMounted = false;
         console.log("🧹 Cleaning up Mermaid render");
       };
-    }, [chart.trim(), renderState.isLoading]); // Only re-render when chart content changes or loading state changes
+    }, [chartKey, renderState.isLoading]); // Only re-render when chart content changes or loading state changes
 
     const { svg, height, svgWidth, error, isLoading } = renderState;
 
@@ -435,6 +489,21 @@ export const MermaidChart: React.FC<MermaidChartProps> = React.memo(
     };
 
     const initialScale = calculateInitialScale();
+
+    const handleFix = async () => {
+      if (!onFix || isFixing) return;
+      setIsFixing(true);
+      setFixError("");
+      try {
+        await onFix(chart);
+      } catch (fixErr) {
+        const message =
+          fixErr instanceof Error ? fixErr.message : String(fixErr);
+        setFixError(message || "Failed to fix Mermaid diagram");
+      } finally {
+        setIsFixing(false);
+      }
+    };
 
     if (error) {
       return (
@@ -521,6 +590,38 @@ export const MermaidChart: React.FC<MermaidChartProps> = React.memo(
               </div>
             ))}
           </div>
+          {onFix && (
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: token.marginXS,
+                marginTop: token.marginXS,
+                width: "100%",
+              }}
+            >
+              <Button
+                size="small"
+                type="primary"
+                onClick={handleFix}
+                loading={isFixing}
+              >
+                Fix Mermaid
+              </Button>
+              {fixError && (
+                <span
+                  style={{
+                    color: token.colorError,
+                    fontSize: token.fontSizeSM,
+                    wordBreak: "break-word",
+                    flex: 1,
+                  }}
+                >
+                  {fixError}
+                </span>
+              )}
+            </div>
+          )}
           <div
             style={{
               fontSize: token.fontSizeSM,

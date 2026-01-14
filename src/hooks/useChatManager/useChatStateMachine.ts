@@ -1,202 +1,99 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useMachine } from "@xstate/react";
-import { chatMachine, ChatMachineEvent } from "../../core/chatInteractionMachine";
-import type { AssistantTextMessage, ChatItem, Message } from "../../types/chat";
+import { useCallback, useMemo } from "react";
+import type { Message, UserFileReferenceMessage } from "../../types/chat";
 import type { UseChatState } from "./types";
 
-/**
- * Hook for XState chat machine integration
- * Handles streaming state and state machine transitions
- */
+type ChatMachineEvent = { type: "CANCEL" };
+
 export interface UseChatStateMachine {
-  interactionState: any;
+  interactionState: {
+    value: "IDLE" | "THINKING" | "AWAITING_APPROVAL";
+    context: {
+      streamingContent: string | null;
+      toolCallRequest: null;
+      parsedParameters: null;
+    };
+    matches: (state: "IDLE" | "THINKING" | "AWAITING_APPROVAL") => boolean;
+  };
   currentMessages: Message[];
-  pendingAgentApproval: {
-    request_id: string;
-    session_id: string;
-    tool: string;
-    tool_description: string;
-    parameters: Record<string, any>;
-  } | null;
+  pendingAgentApproval: null;
   send: (event: ChatMachineEvent) => void;
   setPendingAgentApproval: (approval: any | null) => void;
   retryLastMessage: () => Promise<void>;
 }
 
 export function useChatStateMachine(
-  state: UseChatState
+  state: UseChatState,
+  options?: {
+    onCancel?: () => void;
+    onRetry?: (content: string) => Promise<void>;
+    isProcessing?: boolean;
+  }
 ): UseChatStateMachine {
-  // --- LOCAL UI STATE FOR STREAMING ---
-  const [streamingText, setStreamingText] = useState("");
-  const [streamingMessageId, setStreamingMessageId] = useState<string | null>(
-    null
+  const isProcessing = options?.isProcessing ?? false;
+  const currentMessages = useMemo(() => state.baseMessages, [state.baseMessages]);
+  const interactionState = useMemo(() => {
+    const value: "IDLE" | "THINKING" | "AWAITING_APPROVAL" = isProcessing
+      ? "THINKING"
+      : "IDLE";
+    return {
+      value,
+      context: {
+        streamingContent: null,
+        toolCallRequest: null,
+        parsedParameters: null,
+      },
+      matches: (stateName: "IDLE" | "THINKING" | "AWAITING_APPROVAL") =>
+        stateName === value,
+    };
+  }, [isProcessing]);
+
+  const send = useCallback(
+    (event: ChatMachineEvent) => {
+      if (event.type === "CANCEL") {
+        options?.onCancel?.();
+      }
+    },
+    [options]
   );
 
-  // --- AGENT APPROVAL STATE ---
-  const [pendingAgentApproval, setPendingAgentApproval] = useState<{
-    request_id: string;
-    session_id: string;
-    tool: string;
-    tool_description: string;
-    parameters: Record<string, any>;
-  } | null>(null);
-
-  // --- CHAT INTERACTION STATE MACHINE ---
-  const providedChatMachine = useMemo(() => {
-    return chatMachine.provide({
-      actions: {
-        forwardChunkToUI: ({ event }: { event: ChatMachineEvent }) => {
-          if (event.type === "CHUNK_RECEIVED") {
-            setStreamingText((prev) => prev + event.payload.chunk);
-          }
-        },
-        finalizeStreamingMessage: async ({
-          event,
-        }: {
-          event: ChatMachineEvent;
-        }) => {
-          if (
-            event.type === "STREAM_COMPLETE_TEXT" &&
-            streamingMessageId &&
-            state.currentChatId
-          ) {
-            await state.updateMessageContent(
-              state.currentChatId,
-              streamingMessageId,
-              event.payload.finalContent
-            );
-            // Reset local streaming UI state
-            setStreamingMessageId(null);
-            setStreamingText("");
-          }
-        },
-      },
-    });
-  }, []); // ✅ Initialize once on mount
-
-  const [machineState, send] = useMachine(providedChatMachine);
-  const prevStateRef = useRef(machineState);
-  const prevChatIdRef = useRef<string | null>(null);
-
-  // --- FINAL MESSAGES FOR UI ---
-  const currentMessages = useMemo(() => {
-    if (!streamingMessageId) {
-      return state.baseMessages;
-    }
-    // Ensure the streaming message placeholder is part of the list
-    const messageExists = state.baseMessages.some(
-      (msg) => msg.id === streamingMessageId
-    );
-    const list = messageExists
-      ? state.baseMessages
-      : [
-          ...state.baseMessages,
-          {
-            id: streamingMessageId,
-            role: "assistant",
-            type: "text",
-            content: "",
-            createdAt: new Date().toISOString(),
-          } as AssistantTextMessage,
-        ];
-
-    return list.map((msg) =>
-      msg.id === streamingMessageId ? { ...msg, content: streamingText } : msg
-    );
-  }, [state.baseMessages, streamingMessageId, streamingText]);
-
-  // Reset state machine when chat changes
-  useEffect(() => {
-    if (
-      prevChatIdRef.current &&
-      prevChatIdRef.current !== state.currentChatId
-    ) {
-      send({ type: "CANCEL" });
-      setStreamingMessageId(null);
-      setStreamingText("");
-    }
-    prevChatIdRef.current = state.currentChatId;
-  }, [state.currentChatId, send]);
-
-  // Handle side-effects based on state transitions
-  useEffect(() => {
-    if (!state.currentChatId) return;
-
-    const prevState = prevStateRef.current;
-
-    if (machineState.value === prevState.value) {
-      return;
-    }
-
-    console.log(
-      `[useChatStateMachine] State changed from ${JSON.stringify(
-        prevState.value
-      )} to ${JSON.stringify(machineState.value)}`
-    );
-
-    // --- Handle entering THINKING state ---
-    if (
-      machineState.matches("THINKING") &&
-      !prevState.matches("THINKING")
-    ) {
-      const newStreamingMessage: AssistantTextMessage = {
-        id: crypto.randomUUID(),
-        role: "assistant",
-        type: "text",
-        content: "",
-        createdAt: new Date().toISOString(),
-      };
-      state.addMessage(state.currentChatId, newStreamingMessage);
-      setStreamingMessageId(newStreamingMessage.id);
-      setStreamingText("");
-    }
-
-    // --- Sync message list on other state changes ---
-    if (
-      machineState.context.messages.length !== prevState.context.messages.length
-    ) {
-      state.setMessages(state.currentChatId, machineState.context.messages);
-    }
-
-    prevStateRef.current = machineState;
-  }, [machineState, state]);
-
   const retryLastMessage = useCallback(async () => {
-    if (!state.currentChat) return;
-
+    if (!state.currentChatId || !state.currentChat) return;
     const history = [...state.baseMessages];
     if (history.length === 0) return;
 
     const lastMessage = history[history.length - 1];
-    let messagesToRetry = history;
-
+    let trimmedHistory = history;
     if (lastMessage?.role === "assistant") {
-      state.deleteMessage(state.currentChat.id, lastMessage.id);
-      messagesToRetry = history.slice(0, -1);
+      state.deleteMessage(state.currentChatId, lastMessage.id);
+      trimmedHistory = history.slice(0, -1);
     }
 
-    if (messagesToRetry.length > 0) {
-      const updatedChat: ChatItem = {
-        ...state.currentChat,
-        messages: messagesToRetry,
-      };
-      send({
-        type: "USER_SUBMITS",
-        payload: {
-          messages: messagesToRetry,
-          chat: updatedChat,
-          systemPrompts: [], // TODO: Get from store if needed
-        },
-      });
-    }
-  }, [state, send]);
+    const lastUser = [...trimmedHistory].reverse().find(
+      (msg) => msg.role === "user"
+    );
+    if (!lastUser) return;
+
+    const content =
+      "content" in lastUser
+        ? lastUser.content
+        : (lastUser as UserFileReferenceMessage).displayText;
+
+    if (typeof content !== "string") return;
+    await options?.onRetry?.(content);
+  }, [
+    options,
+    state.baseMessages,
+    state.currentChat,
+    state.currentChatId,
+    state.deleteMessage,
+  ]);
 
   return {
-    interactionState: machineState,
+    interactionState,
     currentMessages,
-    pendingAgentApproval,
+    pendingAgentApproval: null,
     send,
-    setPendingAgentApproval,
+    setPendingAgentApproval: () => {},
     retryLastMessage,
   };
 }

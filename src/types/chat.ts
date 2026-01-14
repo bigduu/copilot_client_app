@@ -178,7 +178,7 @@ export interface WorkflowResultMessage extends BaseMessage {
 export interface AssistantTodoListMessage extends BaseMessage {
   role: "assistant";
   type: "todo_list";
-  todoList: import("./sse").TodoListMsg;
+  todoList: import("./todoList").TodoListMsg;
 }
 
 // The complete, type-safe Message union
@@ -211,8 +211,6 @@ export interface ChatItem {
     baseSystemPrompt: string;
     // The actual, enhanced prompt content used in the last interaction
     lastUsedEnhancedPrompt: string | null;
-    // The tool category active for this chat
-    toolCategory: string;
     // The agent's current role (planner or actor)
     agentRole?: AgentRole;
     // Workspace root path for @ file references

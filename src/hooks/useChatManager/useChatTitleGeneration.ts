@@ -1,7 +1,8 @@
 import { useCallback, useRef, useState } from "react";
 import { App as AntApp } from "antd";
 import { useAppStore } from "../../store";
-import type { AssistantTextMessage } from "../../types/chat";
+import { getOpenAIClient } from "../../services/openaiClient";
+import type { AssistantTextMessage, Message } from "../../types/chat";
 import type { UseChatState } from "./types";
 
 /**
@@ -29,6 +30,7 @@ export function useChatTitleGeneration(
   const { message: appMessage } = AntApp.useApp();
 
   const autoGenerateTitles = useAppStore((state) => state.autoGenerateTitles);
+  const selectedModel = useAppStore((state) => state.selectedModel);
   const setAutoGenerateTitlesPreference = useAppStore(
     (state) => state.setAutoGenerateTitlesPreference
   );
@@ -57,7 +59,7 @@ export function useChatTitleGeneration(
         return;
       }
 
-      const userAssistantMessages = chat.messages.filter((msg) => {
+      const userAssistantMessages = chat.messages.filter((msg: Message) => {
         if (msg.role === "user") return true;
         if (msg.role === "assistant" && "type" in msg) {
           return (msg as AssistantTextMessage).type === "text";
@@ -96,29 +98,16 @@ export function useChatTitleGeneration(
       }));
 
       try {
-        const { BackendContextService } = await import(
-          "../../services/BackendContextService"
+        const candidate = await generateTitleWithAI(
+          userAssistantMessages,
+          selectedModel
         );
-        const backendService = new BackendContextService();
-        const response = await backendService.generateTitle(chatId, {
-          maxLength: 60,
-          messageLimit: 6,
-        });
-        const candidate = response.title?.trim();
         if (!candidate) {
-          throw new Error("生成的标题为空");
+          throw new Error("Generated title is empty");
         }
 
-        // Backend now saves the title, so we sync from backend
-        // Fetch the updated context to get the saved title
-        const context = await backendService.getContext(chatId);
-        const savedTitle = context.title || candidate;
-
-        console.log(
-          `[useChatTitleGeneration] Updating chat ${chatId} title to: "${savedTitle}"`
-        );
-        state.updateChat(chatId, { title: savedTitle });
-        if (!isAuto || savedTitle.toLowerCase() !== "new chat") {
+        state.updateChat(chatId, { title: candidate });
+        if (!isAuto || candidate.toLowerCase() !== "new chat") {
           autoTitleGeneratedRef.current.add(chatId);
         }
 
@@ -128,11 +117,11 @@ export function useChatTitleGeneration(
         }));
 
         if (options?.force) {
-          appMessage?.success?.("聊天标题已更新");
+          appMessage?.success?.("Chat title updated");
         }
       } catch (error) {
         const errorMessage =
-          error instanceof Error ? error.message : "生成标题失败";
+          error instanceof Error ? error.message : "Failed to generate title";
         setTitleGenerationState((prev) => ({
           ...prev,
           [chatId]: { status: "error", error: errorMessage },
@@ -146,7 +135,7 @@ export function useChatTitleGeneration(
         titleGenerationInFlightRef.current.delete(chatId);
       }
     },
-    [appMessage, autoGenerateTitles, isDefaultTitle, state]
+    [appMessage, autoGenerateTitles, isDefaultTitle, selectedModel, state]
   );
 
   return {
@@ -158,3 +147,68 @@ export function useChatTitleGeneration(
     isDefaultTitle,
   };
 }
+
+const MAX_TITLE_CHARS = 60;
+const MAX_TITLE_TOKENS = 20;
+const MAX_MESSAGES_FOR_TITLE = 8;
+const MAX_MESSAGE_CHARS = 220;
+
+const buildTitleContext = (messages: Message[]): string => {
+  const slice = messages.slice(0, MAX_MESSAGES_FOR_TITLE);
+  const lines = slice
+    .map((message) => {
+      const role = message.role === "user" ? "User" : "Assistant";
+      const content =
+        "content" in message ? message.content : message.displayText;
+      const text = typeof content === "string" ? content.trim() : "";
+      if (!text) return "";
+      const trimmed =
+        text.length > MAX_MESSAGE_CHARS
+          ? `${text.slice(0, MAX_MESSAGE_CHARS - 3)}...`
+          : text;
+      return `${role}: ${trimmed}`;
+    })
+    .filter((line) => line.length > 0);
+
+  return lines.join("\n");
+};
+
+const normalizeTitle = (title: string): string => {
+  const singleLine = title.split(/\r?\n/)[0]?.trim() ?? "";
+  const unquoted = singleLine.replace(/^["']+|["']+$/g, "");
+  if (unquoted.length <= MAX_TITLE_CHARS) {
+    return unquoted;
+  }
+  return `${unquoted.slice(0, MAX_TITLE_CHARS - 3)}...`;
+};
+
+const generateTitleWithAI = async (
+  messages: Message[],
+  model?: string | null
+): Promise<string> => {
+  const context = buildTitleContext(messages);
+  if (!context) {
+    return "";
+  }
+
+  const client = getOpenAIClient();
+  const response = await client.chat.completions.create({
+    model: model || "gpt-4o-mini",
+    temperature: 0.2,
+    max_tokens: MAX_TITLE_TOKENS,
+    messages: [
+      {
+        role: "system",
+        content:
+          "You generate concise English chat titles. Return only the title text, no quotes or punctuation.",
+      },
+      {
+        role: "user",
+        content: `Create a short descriptive title (max ${MAX_TITLE_CHARS} characters) for this chat:\n\n${context}`,
+      },
+    ],
+  });
+
+  const candidate = response.choices?.[0]?.message?.content?.trim() ?? "";
+  return normalizeTitle(candidate);
+};

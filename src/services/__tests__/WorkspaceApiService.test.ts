@@ -42,7 +42,7 @@ describe('WorkspaceApiService', () => {
 
       const result = await workspaceApiService.validateWorkspacePath('/valid/workspace');
 
-      expect(fetch).toHaveBeenCalledWith('/v1/workspace/validate', {
+      expect(fetch).toHaveBeenCalledWith('http://localhost:8080/v1/workspace/validate', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -82,7 +82,7 @@ describe('WorkspaceApiService', () => {
 
       const result = await workspaceApiService.getRecentWorkspaces();
 
-      expect(fetch).toHaveBeenCalledWith('/v1/workspace/recent', {
+      expect(fetch).toHaveBeenCalledWith('http://localhost:8080/v1/workspace/recent', {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
@@ -106,7 +106,7 @@ describe('WorkspaceApiService', () => {
         workspace_name: 'new-workspace',
       });
 
-      expect(fetch).toHaveBeenCalledWith('/v1/workspace/recent', {
+      expect(fetch).toHaveBeenCalledWith('http://localhost:8080/v1/workspace/recent', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -137,7 +137,7 @@ describe('WorkspaceApiService', () => {
 
       const result = await workspaceApiService.getPathSuggestions();
 
-      expect(fetch).toHaveBeenCalledWith('/v1/workspace/suggestions', {
+      expect(fetch).toHaveBeenCalledWith('http://localhost:8080/v1/workspace/suggestions', {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
@@ -180,7 +180,7 @@ describe('WorkspaceApiService', () => {
   describe('custom configuration', () => {
     it('should use custom base URL', async () => {
       const service = useWorkspaceApiService({
-        baseUrl: '/custom/api/workspace',
+        baseUrl: 'http://localhost:8080/custom/api/workspace',
       });
 
       (fetch as any).mockResolvedValueOnce({
@@ -191,7 +191,10 @@ describe('WorkspaceApiService', () => {
 
       await service.getRecentWorkspaces();
 
-      expect(fetch).toHaveBeenCalledWith('/custom/api/workspace/recent', expect.any(Object));
+      expect(fetch).toHaveBeenCalledWith(
+        'http://localhost:8080/custom/api/workspace/recent',
+        expect.any(Object)
+      );
     });
 
     it('should use custom headers', async () => {
@@ -210,7 +213,7 @@ describe('WorkspaceApiService', () => {
 
       await service.getRecentWorkspaces();
 
-      expect(fetch).toHaveBeenCalledWith('/v1/workspace/recent', {
+      expect(fetch).toHaveBeenCalledWith('http://localhost:8080/v1/workspace/recent', {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',

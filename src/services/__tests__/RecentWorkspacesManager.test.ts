@@ -37,7 +37,7 @@ describe('RecentWorkspacesManager', () => {
 
       const result = await recentWorkspacesManager.getRecentWorkspaces();
 
-      expect(fetch).toHaveBeenCalledWith('/v1/workspace/recent', {
+      expect(fetch).toHaveBeenCalledWith('http://localhost:8080/v1/workspace/recent', {
         method: 'GET',
         signal: expect.any(AbortSignal),
       });
@@ -78,7 +78,7 @@ describe('RecentWorkspacesManager', () => {
         workspace_name: 'new-workspace',
       });
 
-      expect(fetch).toHaveBeenCalledWith('/v1/workspace/recent', {
+      expect(fetch).toHaveBeenCalledWith('http://localhost:8080/v1/workspace/recent', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -108,7 +108,7 @@ describe('RecentWorkspacesManager', () => {
 
       const result = await recentWorkspacesManager.validateWorkspacePath('/valid/workspace');
 
-      expect(fetch).toHaveBeenCalledWith('/v1/workspace/validate', {
+      expect(fetch).toHaveBeenCalledWith('http://localhost:8080/v1/workspace/validate', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -137,10 +137,15 @@ describe('RecentWorkspacesManager', () => {
 
   describe('getHealthStatus', () => {
     it('should return healthy status when API is available', async () => {
-      (fetch as any).mockResolvedValueOnce({
-        ok: true,
-        json: async () => [],
-      });
+      (fetch as any)
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => [],
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => [],
+        });
 
       const status = await recentWorkspacesManager.getHealthStatus();
 

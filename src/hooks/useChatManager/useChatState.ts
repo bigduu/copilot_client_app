@@ -11,6 +11,7 @@ export interface UseChatState {
   chats: ChatItem[];
   currentChatId: string | null;
   currentChat: ChatItem | null;
+  isProcessing: boolean;
 
   // Derived state
   baseMessages: Message[];
@@ -28,11 +29,7 @@ export interface UseChatState {
   unpinChat: (chatId: string) => void;
   updateChat: (chatId: string, updates: Partial<ChatItem>) => void;
   loadChats: () => Promise<void>;
-  updateMessageContent: (
-    chatId: string,
-    messageId: string,
-    content: string
-  ) => Promise<void>;
+  setProcessing: (isProcessing: boolean) => void;
 }
 
 export function useChatState(): UseChatState {
@@ -48,9 +45,8 @@ export function useChatState(): UseChatState {
   const pinChat = useAppStore((state) => state.pinChat);
   const unpinChat = useAppStore((state) => state.unpinChat);
   const loadChats = useAppStore((state) => state.loadChats);
-  const updateMessageContent = useAppStore(
-    (state) => state.updateMessageContent
-  );
+  const isProcessing = useAppStore((state) => state.isProcessing);
+  const setProcessing = useAppStore((state) => state.setProcessing);
 
   // --- DERIVED STATE ---
   const currentChat = useMemo(
@@ -80,6 +76,7 @@ export function useChatState(): UseChatState {
     chats,
     currentChatId,
     currentChat,
+    isProcessing,
     baseMessages,
     pinnedChats,
     unpinnedChats,
@@ -95,6 +92,6 @@ export function useChatState(): UseChatState {
     unpinChat,
     updateChat,
     loadChats,
-    updateMessageContent,
+    setProcessing,
   };
 }

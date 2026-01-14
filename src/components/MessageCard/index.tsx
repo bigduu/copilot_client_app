@@ -19,6 +19,7 @@ import {
   createReferenceButton,
 } from "../ActionButtonGroup";
 import { useChatManager } from "../../hooks/useChatManager";
+import { getOpenAIClient } from "../../services/openaiClient";
 import { useAppStore } from "../../store";
 import {
   isAssistantToolCallMessage,
@@ -32,21 +33,17 @@ import {
 } from "../../types/chat";
 import PlanMessageCard from "../PlanMessageCard";
 import QuestionMessageCard from "../QuestionMessageCard";
-import { useBackendContext } from "../../hooks/useBackendContext";
 import ToolResultCard from "../ToolResultCard";
 import WorkflowResultCard from "../WorkflowResultCard";
 import FileReferenceCard from "../FileReferenceCard";
 import TodoListDisplay from "../TodoListDisplay";
-import { TodoListMsg } from "../../types/sse";
 import { format } from "date-fns";
-
 const { Text } = Typography;
 const { useToken } = theme;
 const { useBreakpoint } = Grid;
 
 interface MessageCardProps {
   message: Message;
-  isStreaming?: boolean;
   onDelete?: (messageId: string) => void;
   // Optional: if message_type is not on Message, we can extract from content
   messageType?: "text" | "plan" | "question" | "tool_call" | "tool_result";
@@ -54,22 +51,17 @@ interface MessageCardProps {
 
 const MessageCardComponent: React.FC<MessageCardProps> = ({
   message,
-  isStreaming = false,
   onDelete,
   messageType,
 }) => {
   const { role, id: messageId } = message;
   const { token } = useToken();
   const screens = useBreakpoint();
-  const { currentChatId } = useChatManager();
-  const backendContext = useBackendContext();
-  const {
-    currentContext,
-    updateAgentRole,
-    addMessage: addMessageToBackend,
-    isLoading,
-  } = backendContext;
+  const { currentChatId, currentChat, sendMessage, updateChat } =
+    useChatManager();
+  const isProcessing = useAppStore((state) => state.isProcessing);
   const addFavorite = useAppStore((state) => state.addFavorite);
+  const selectedModel = useAppStore((state) => state.selectedModel);
   const cardRef = useRef<HTMLDivElement>(null);
   const [selectedText, setSelectedText] = useState<string>("");
   const [isHovering, setIsHovering] = useState<boolean>(false);
@@ -92,7 +84,6 @@ const MessageCardComponent: React.FC<MessageCardProps> = ({
     // If messageType prop is provided, use it
     if (messageType) return messageType;
 
-    // Check if message has message_type field (from backend MessageDTO)
     if ("message_type" in message && message.message_type) {
       return message.message_type;
     }
@@ -269,6 +260,105 @@ const MessageCardComponent: React.FC<MessageCardProps> = ({
     return "";
   }, [message]);
 
+  const extractMermaidCode = (content: string) => {
+    const match = content.match(/```mermaid\s*([\s\S]*?)```/i);
+    if (match) return match[1].trim();
+    return content.trim();
+  };
+
+  const replaceMermaidBlock = (
+    content: string,
+    originalChart: string,
+    fixedChart: string,
+  ) => {
+    const normalizedOriginal = originalChart.trim();
+    const normalizedFixed = extractMermaidCode(fixedChart);
+    let replaced = false;
+    const updated = content.replace(
+      /```mermaid\s*([\s\S]*?)```/gi,
+      (match, block) => {
+        if (replaced) return match;
+        if (block.trim() !== normalizedOriginal) return match;
+        replaced = true;
+        return `\`\`\`mermaid\n${normalizedFixed}\n\`\`\``;
+      },
+    );
+    return replaced ? updated : null;
+  };
+
+  const fixMermaidWithAI = async (chart: string) => {
+    const client = getOpenAIClient();
+    const model = selectedModel || "gpt-4o-mini";
+    const response = await client.chat.completions.create({
+      model,
+      messages: [
+        {
+          role: "system",
+          content:
+            "Fix Mermaid diagrams. Return only corrected Mermaid code without markdown fences or extra text.",
+        },
+        {
+          role: "user",
+          content: chart,
+        },
+      ],
+      temperature: 0,
+    });
+    const content = response.choices?.[0]?.message?.content ?? "";
+    return extractMermaidCode(content);
+  };
+
+  const canFixMermaid =
+    message.role === "assistant" &&
+    message.type === "text" &&
+    Boolean(currentChatId && currentChat);
+
+  const onFixMermaid = useMemo(() => {
+    if (!canFixMermaid) return undefined;
+    return async (chart: string) => {
+      if (!currentChatId || !currentChat) {
+        throw new Error("No active chat available");
+      }
+      if (message.role !== "assistant" || message.type !== "text") {
+        throw new Error("Mermaid fix is only available for assistant messages");
+      }
+
+      const fixedChart = await fixMermaidWithAI(chart);
+      if (!fixedChart) {
+        throw new Error("AI did not return a Mermaid fix");
+      }
+
+      const updatedContent = replaceMermaidBlock(
+        message.content,
+        chart,
+        fixedChart,
+      );
+      if (!updatedContent) {
+        throw new Error("Unable to locate Mermaid block to update");
+      }
+
+      const updatedMessages = currentChat.messages.map((msg) => {
+        if (
+          msg.id === messageId &&
+          msg.role === "assistant" &&
+          msg.type === "text"
+        ) {
+          return { ...msg, content: updatedContent };
+        }
+        return msg;
+      });
+      updateChat(currentChatId, { messages: updatedMessages });
+    };
+  }, [
+    canFixMermaid,
+    currentChat,
+    currentChatId,
+    message,
+    messageId,
+    selectedModel,
+    updateChat,
+  ]);
+
   const isUserToolCall = useMemo(
     () => role === "user" && messageText.startsWith("/"),
     [role, messageText]
@@ -276,8 +366,11 @@ const MessageCardComponent: React.FC<MessageCardProps> = ({
 
   // Create markdown components with current theme
   const markdownComponents = useMemo(
-    () => createMarkdownComponents(token),
-    [token]
+    () =>
+      createMarkdownComponents(token, {
+        onFixMermaid,
+      }),
+    [token, onFixMermaid]
   );
 
   // Standardized plugin configuration for consistency
@@ -426,40 +519,37 @@ const MessageCardComponent: React.FC<MessageCardProps> = ({
 
   // Handle plan execution (switch to Actor role)
   const handleExecutePlan = async () => {
-    if (currentContext?.id) {
-      try {
-        await updateAgentRole(currentContext.id, "actor");
-        // Optionally send a message to continue execution
-        // This could be added if needed
-      } catch (error) {
-        console.error("Failed to switch to Actor role:", error);
-      }
+    if (!currentChatId || !currentChat) return;
+    try {
+      updateChat(currentChatId, {
+        config: {
+          ...currentChat.config,
+          agentRole: "actor",
+        },
+      });
+    } catch (error) {
+      console.error("Failed to switch to Actor role:", error);
     }
   };
 
   // Handle plan refinement
   const handleRefinePlan = async (feedback: string) => {
-    if (currentContext?.id && feedback.trim()) {
-      try {
-        // Send feedback as user message
-        await addMessageToBackend(currentContext.id, "user", feedback.trim());
-      } catch (error) {
-        console.error("Failed to send plan refinement:", error);
-      }
+    if (!feedback.trim()) return;
+    try {
+      await sendMessage(feedback.trim());
+    } catch (error) {
+      console.error("Failed to send plan refinement:", error);
     }
   };
 
   // Handle question answer
   const handleQuestionAnswer = async (answer: string) => {
-    if (currentContext?.id && answer) {
-      try {
-        // Send answer as user message
-        await addMessageToBackend(currentContext.id, "user", answer);
-        // Note: The backend will process this and continue the conversation
-      } catch (error) {
-        console.error("Failed to send answer:", error);
-        throw error; // Re-throw so QuestionMessageCard can handle it
-      }
+    if (!answer) return;
+    try {
+      await sendMessage(answer);
+    } catch (error) {
+      console.error("Failed to send answer:", error);
+      throw error;
     }
   };
 
@@ -468,7 +558,7 @@ const MessageCardComponent: React.FC<MessageCardProps> = ({
     return (
       <PlanMessageCard
         plan={parsedPlan}
-        contextId={currentContext?.id || ""}
+        contextId={currentChatId || ""}
         onExecute={handleExecutePlan}
         onRefine={handleRefinePlan}
         timestamp={formattedTimestamp ?? undefined}
@@ -484,9 +574,9 @@ const MessageCardComponent: React.FC<MessageCardProps> = ({
     return (
       <QuestionMessageCard
         question={parsedQuestion}
-        contextId={currentContext?.id || ""}
+        contextId={currentChatId || ""}
         onAnswer={handleQuestionAnswer}
-        disabled={isLoading || false}
+        disabled={isProcessing || false}
         timestamp={formattedTimestamp ?? undefined}
       />
     );
@@ -693,72 +783,6 @@ const MessageCardComponent: React.FC<MessageCardProps> = ({
                             {JSON.stringify(call.parameters, null, 2)}
                           </pre>
                         </div>
-                        <Space style={{ width: "100%", justifyContent: "center" }}>
-                          <button
-                            onClick={async () => {
-                              try {
-                                const { backendContextService } = await import("../../services/BackendContextService");
-                                await backendContextService.approveToolsAction(
-                                  currentContext?.id || "",
-                                  [call.toolCallId]
-                                );
-                                console.log("[MessageCard] Approved tool:", call.toolCallId);
-                                
-                                // Refresh messages from backend and update store directly (no page reload!)
-                                if (currentContext?.id) {
-                                  const response = await backendContextService.getMessages(currentContext.id);
-                                  console.log("[MessageCard] Refreshed messages after approval:", response.messages.length);
-                                  
-                                  // Transform DTO messages to frontend Message type
-                                  const { transformMessageDTOToMessage } = await import("../../utils/messageTransformers");
-                                  const transformedMessages = response.messages.map(transformMessageDTOToMessage);
-                                  
-                                  // Update Zustand store directly
-                                  const { useAppStore } = await import("../../store");
-                                  useAppStore.getState().setMessages(currentContext.id, transformedMessages);
-                                  console.log("[MessageCard] Updated store with", transformedMessages.length, "messages");
-                                }
-                              } catch (error) {
-                                console.error("[MessageCard] Failed to approve tool:", error);
-                              }
-                            }}
-                            style={{
-                              backgroundColor: token.colorSuccess,
-                              borderColor: token.colorSuccess,
-                              color: "white",
-                              padding: "4px 15px",
-                              borderRadius: token.borderRadius,
-                              border: "none",
-                              cursor: "pointer",
-                              display: "flex",
-                              alignItems: "center",
-                              gap: 4,
-                            }}
-                          >
-                            ✓ Approve
-                          </button>
-                          <button
-                            onClick={async () => {
-                              // For reject, we'd need a reject API - for now just log
-                              console.log("[MessageCard] Rejected tool:", call.toolCallId);
-                              // TODO: Implement reject API call
-                            }}
-                            style={{
-                              backgroundColor: token.colorError,
-                              borderColor: token.colorError,
-                              color: "white",
-                              padding: "4px 15px",
-                              borderRadius: token.borderRadius,
-                              border: "none",
-                              cursor: "pointer",
-                              display: "flex",
-                              alignItems: "center",
-                              gap: 4,
-                            }}
-                          >
-                            ✕ Reject
-                          </button>
-                        </Space>
                       </Space>
                     </Card>
                   ))}
@@ -767,8 +791,7 @@ const MessageCardComponent: React.FC<MessageCardProps> = ({
                 // Case 3: Regular Text Message (User or Assistant)
                 <>
                   {message.role === "assistant" &&
-                  !messageText &&
-                  !isStreaming ? (
+                  !messageText ? (
                     <Text italic>Assistant is thinking...</Text>
                   ) : (
                     <ReactMarkdown
@@ -785,16 +808,6 @@ const MessageCardComponent: React.FC<MessageCardProps> = ({
               )}
 
               {/* Blinking cursor for streaming */}
-              {isStreaming && role === "assistant" && (
-                <span
-                  className="blinking-cursor"
-                  style={{
-                    display: "inline-block",
-                    marginLeft: "0.2em",
-                    color: token.colorText,
-                  }}
-                />
-              )}
             </div>
 
             {/* Action buttons */}
@@ -817,7 +830,6 @@ const MessageCardComponent: React.FC<MessageCardProps> = ({
 const MessageCard = memo(MessageCardComponent, (prevProps, nextProps) => {
   return (
     prevProps.message === nextProps.message &&
-    prevProps.isStreaming === nextProps.isStreaming &&
     prevProps.messageType === nextProps.messageType &&
     prevProps.onDelete === nextProps.onDelete
   );

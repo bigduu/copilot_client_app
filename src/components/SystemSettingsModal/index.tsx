@@ -1,4 +1,4 @@
-import { useState, lazy, Suspense } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import {
   Modal,
   Button,
@@ -11,13 +11,24 @@ import {
   Spin,
   theme,
   Flex,
+  Input,
 } from "antd";
 import { DeleteOutlined } from "@ant-design/icons";
 import { useChatManager } from "../../hooks/useChatManager";
 import { useModels } from "../../hooks/useModels";
-import { useBackendContext } from "../../contexts/BackendContextProvider";
+import {
+  getSystemPromptEnhancement,
+  setSystemPromptEnhancement,
+} from "../../utils/systemPromptEnhancement";
+import {
+  isMermaidEnhancementEnabled,
+  setMermaidEnhancementEnabled,
+} from "../../utils/mermaidUtils";
+import {
+  isTodoEnhancementEnabled,
+  setTodoEnhancementEnabled,
+} from "../../utils/todoEnhancementUtils";
 const SystemPromptManager = lazy(() => import("../SystemPromptManager"));
-const TemplateVariableEditor = lazy(() => import("../TemplateVariableEditor"));
 
 const { Text } = Typography;
 const { useToken } = theme;
@@ -118,11 +129,7 @@ const SystemSettingsModal = ({
     setAutoGenerateTitlesPreference,
     isUpdatingAutoTitlePreference,
   } = useChatManager();
-  const { currentContext, updateMermaidDiagrams } = useBackendContext();
   const [msgApi, contextHolder] = message.useMessage();
-  const [isUpdatingMermaid, setIsUpdatingMermaid] = useState(false);
-  const [isTemplateVariableEditorOpen, setIsTemplateVariableEditorOpen] =
-    useState(false);
   const {
     models,
     isLoading: isLoadingModels,
@@ -130,10 +137,20 @@ const SystemSettingsModal = ({
     selectedModel,
     setSelectedModel,
   } = useModels();
+  const [promptEnhancement, setPromptEnhancement] = useState("");
+  const [mermaidEnhancementEnabled, setMermaidEnhancementEnabledState] =
+    useState(isMermaidEnhancementEnabled());
+  const [todoEnhancementEnabled, setTodoEnhancementEnabledState] = useState(
+    isTodoEnhancementEnabled()
+  );
 
-  // Get mermaid_diagrams from current context
-  const mermaidEnhancementEnabled =
-    currentContext?.config?.mermaid_diagrams ?? true;
+  useEffect(() => {
+    if (open) {
+      setPromptEnhancement(getSystemPromptEnhancement());
+      setMermaidEnhancementEnabledState(isMermaidEnhancementEnabled());
+      setTodoEnhancementEnabledState(isTodoEnhancementEnabled());
+    }
+  }, [open]);
 
   const handleDeleteAll = () => {
     deleteAllUnpinnedChats();
@@ -155,30 +172,29 @@ const SystemSettingsModal = ({
   const handleAutoTitleToggle = async (checked: boolean) => {
     try {
       await setAutoGenerateTitlesPreference(checked);
-      msgApi.success(checked ? "自动标题生成已开启" : "自动标题生成已关闭");
+      msgApi.success(
+        checked
+          ? "Auto title generation enabled"
+          : "Auto title generation disabled"
+      );
     } catch (error) {
-      msgApi.error("更新自动标题生成偏好失败");
+      msgApi.error("Failed to update auto title preference");
     }
   };
 
-  const handleMermaidToggle = async (checked: boolean) => {
-    if (!currentContext?.id) {
-      msgApi.error("No active context");
-      return;
-    }
+  const handleSaveEnhancement = () => {
+    setSystemPromptEnhancement(promptEnhancement);
+    msgApi.success("System prompt enhancement saved");
+  };
 
-    setIsUpdatingMermaid(true);
-    try {
-      await updateMermaidDiagrams(currentContext.id, checked);
-      msgApi.success(
-        checked ? "Mermaid Diagrams enabled" : "Mermaid Diagrams disabled"
-      );
-    } catch (error) {
-      msgApi.error("Failed to update Mermaid diagrams setting");
-      console.error("Failed to update Mermaid diagrams:", error);
-    } finally {
-      setIsUpdatingMermaid(false);
-    }
+  const handleMermaidToggle = (checked: boolean) => {
+    setMermaidEnhancementEnabledState(checked);
+    setMermaidEnhancementEnabled(checked);
+  };
+
+  const handleTodoToggle = (checked: boolean) => {
+    setTodoEnhancementEnabledState(checked);
+    setTodoEnhancementEnabled(checked);
   };
 
   return (
@@ -206,25 +222,44 @@ const SystemSettingsModal = ({
           <SystemPromptManager />
         </Suspense>
 
-        {/* Template Variables Section */}
         <Space
           direction="vertical"
-          size={token.marginSM}
+          size={token.marginXS}
           style={{ width: "100%" }}
         >
-          <Flex justify="space-between" align="center">
-            <Text strong>Template Variables</Text>
-            <Button
-              type="primary"
-              onClick={() => setIsTemplateVariableEditorOpen(true)}
-            >
-              Configure Template Variables
+          <Text strong>System Prompt Enhancement</Text>
+          <Flex align="center" gap={token.marginSM}>
+            <Text strong>Mermaid Enhancement</Text>
+            <Switch
+              checked={mermaidEnhancementEnabled}
+              onChange={handleMermaidToggle}
+              checkedChildren="ON"
+              unCheckedChildren="OFF"
+            />
+          </Flex>
+          <Flex align="center" gap={token.marginSM}>
+            <Text strong>TODO List Generation</Text>
+            <Switch
+              checked={todoEnhancementEnabled}
+              onChange={handleTodoToggle}
+              checkedChildren="ON"
+              unCheckedChildren="OFF"
+            />
+          </Flex>
+          <Input.TextArea
+            rows={6}
+            placeholder="Add global enhancement text to append to every system prompt."
+            value={promptEnhancement}
+            onChange={(event) => setPromptEnhancement(event.target.value)}
+          />
+          <Flex justify="flex-end">
+            <Button type="primary" onClick={handleSaveEnhancement}>
+              Save Enhancement
             </Button>
           </Flex>
           <Text type="secondary" style={{ fontSize: token.fontSizeSM }}>
-            Configure template variables (e.g., preferred_language,
-            response_format, tone, detail_level) that can be used in system
-            prompts using {`{{variable_name}}`} syntax.
+            This text is appended first, followed by enabled system enhancements
+            before each request is sent.
           </Text>
         </Space>
 
@@ -235,7 +270,7 @@ const SystemSettingsModal = ({
           style={{ width: "100%" }}
         >
           <Flex align="center" gap={token.marginSM}>
-            <Text strong>自动生成聊天标题</Text>
+            <Text strong>Auto-generate Chat Titles</Text>
             <Switch
               checked={autoGenerateTitles}
               loading={isUpdatingAutoTitlePreference}
@@ -245,7 +280,8 @@ const SystemSettingsModal = ({
             />
           </Flex>
           <Text type="secondary" style={{ fontSize: token.fontSizeSM }}>
-            启用后,在新会话开始时会自动调用 AI 生成更具描述性的聊天标题。
+            When enabled, the app generates a descriptive title after the first
+            assistant response.
           </Text>
           <Flex align="center" gap={token.marginSM}>
             <Text strong>Dark Mode</Text>
@@ -260,20 +296,6 @@ const SystemSettingsModal = ({
               unCheckedChildren="Light"
             />
           </Flex>
-          <Flex align="center" gap={token.marginSM}>
-            <Text strong>Mermaid Diagrams Enhancement</Text>
-            <Switch
-              checked={mermaidEnhancementEnabled}
-              loading={isUpdatingMermaid}
-              onChange={handleMermaidToggle}
-              checkedChildren="ON"
-              unCheckedChildren="OFF"
-            />
-          </Flex>
-          <Text type="secondary" style={{ fontSize: token.fontSizeSM }}>
-            When enabled, AI will be encouraged to use Mermaid diagrams for
-            visual explanations
-          </Text>
           <Popconfirm
             title="Delete all chats"
             description="Are you sure? This will delete all chats except pinned."
@@ -312,13 +334,6 @@ const SystemSettingsModal = ({
           </Popconfirm>
         </Space>
       </Flex>
-
-      <Suspense fallback={null}>
-        <TemplateVariableEditor
-          open={isTemplateVariableEditorOpen}
-          onClose={() => setIsTemplateVariableEditorOpen(false)}
-        />
-      </Suspense>
     </Modal>
   );
 };

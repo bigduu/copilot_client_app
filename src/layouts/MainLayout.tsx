@@ -43,7 +43,6 @@ export const MainLayout: React.FC<{
             config: {
               systemPromptId: "general_assistant", // Default prompt
               baseSystemPrompt: "You are a helpful assistant.", // Default content
-              toolCategory: "general_assistant",
               lastUsedEnhancedPrompt: null,
             },
             currentInteraction: null,

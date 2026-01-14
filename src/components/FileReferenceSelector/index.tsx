@@ -15,7 +15,7 @@ import {
   FolderOutlined,
   ReloadOutlined,
 } from "@ant-design/icons";
-import { WorkspaceFileEntry } from "../../services/BackendContextService";
+import { WorkspaceFileEntry } from "../../types/workspace";
 
 const { Text } = Typography;
 const { useToken } = theme;
