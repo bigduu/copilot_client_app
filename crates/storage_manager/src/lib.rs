@@ -1,7 +1,6 @@
 pub mod file_storage;
 
 use async_trait::async_trait;
-use serde::{Deserialize, Serialize, de::DeserializeOwned};
 
 pub trait StorageContext: Send + Sized {
     fn get_id(&self) -> String;

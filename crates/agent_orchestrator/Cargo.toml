@@ -1,0 +1,25 @@
+[package]
+name = "agent_orchestrator"
+version = "0.1.0"
+edition = "2021"
+description = "Orchestrates agent execution loops and todo management"
+
+[dependencies]
+chat_core = { path = "../chat_core" }
+chat_state = { path = "../chat_state" }
+tool_system = { path = "../tool_system" }
+workflow_system = { path = "../workflow_system" }
+copilot_client = { path = "../copilot_client" }
+mcp_client = { path = "../mcp_client" }
+rmcp = { version = "0.1", features = ["client"] }
+
+tokio = { version = "1", features = ["full", "sync"] }
+async-trait = "0.1"
+uuid = { version = "1.8", features = ["v4", "serde"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+thiserror = "1.0"
+tracing = "0.1"
+chrono = { version = "0.4", features = ["serde"] }
+
+[dev-dependencies]

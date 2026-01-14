@@ -27,7 +27,6 @@ use crate::{
     error::AppError,
     models::{SendMessageRequest, ServiceResponse},
     services::{
-        agent_loop_runner::AgentLoopRunner,
         message_builder,
         message_processing::{
             FileReferenceHandler, TextMessageHandler, ToolResultHandler, WorkflowHandler,
@@ -111,18 +110,6 @@ impl<T: StorageProvider + 'static> AgentLoopHandler<T> {
 
     fn llm_request_builder(&self) -> LlmRequestBuilder {
         LlmRequestBuilder::new(self.system_prompt_service.clone())
-    }
-
-    fn agent_loop_runner(&self, conversation_id: Uuid) -> AgentLoopRunner<T> {
-        AgentLoopRunner::new(
-            self.session_manager.clone(),
-            conversation_id,
-            self.tool_executor.clone(),
-            self.approval_manager.clone(),
-            self.agent_service.clone(),
-            self.copilot_client.clone(),
-            self.llm_request_builder(),
-        )
     }
 
     /// 🎯 Unified Entry Point: Process message (non-streaming)

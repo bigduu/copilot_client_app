@@ -24,16 +24,7 @@ pub mod tool_approval; // Domain: Tool approval (legacy)
 pub mod types; // Shared types across domains (if needed)
 mod workspace; // Domain: Workspace management
 
-// Re-export shared types
-
-// Re-export all handlers and types from domain modules
-pub use actions::*;
-pub use context_lifecycle::*;
-pub use messages::*;
-pub use streaming::*;
-pub use title_generation::*;
-pub use tool_approval::*;
-pub use workspace::*;
+pub use workspace::{get_context_workspace, list_workspace_files, set_context_workspace};
 
 use actix_web::web;
 

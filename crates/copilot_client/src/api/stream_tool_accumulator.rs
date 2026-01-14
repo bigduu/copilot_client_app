@@ -1,4 +1,4 @@
-use super::models::{FunctionCall, StreamFunctionCall, StreamToolCall, ToolCall};
+use super::models::{FunctionCall, StreamToolCall, ToolCall};
 use std::collections::HashMap;
 
 /// Accumulates streaming tool call fragments into complete tool calls
@@ -103,6 +103,7 @@ impl StreamToolAccumulator {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::api::models::StreamFunctionCall;
 
     #[test]
     fn test_basic_accumulation() {

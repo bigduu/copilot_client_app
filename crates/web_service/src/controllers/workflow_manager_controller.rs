@@ -91,7 +91,7 @@ pub async fn get_workflow(
             info!("Retrieved workflow: {}", workflow_name);
             Ok(HttpResponse::Ok().json(workflow))
         }
-        Err(e) => {
+        Err(_e) => {
             info!("Workflow not found: {}", workflow_name);
             Ok(HttpResponse::NotFound().json(serde_json::json!({
                 "error": format!("Workflow '{}' not found", workflow_name)

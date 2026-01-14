@@ -20,4 +20,21 @@ impl StorageContext for FileContent {
 pub struct FileStorage {}
 
 #[async_trait]
-impl StorageManager for FileStorage {}
+impl StorageManager for FileStorage {
+    type Content = FileContent;
+
+    async fn find(&self, _content: Self::Content) -> anyhow::Result<Self::Content> {
+        // TODO: Implement file finding logic
+        todo!()
+    }
+
+    async fn save(&self, _content: Self::Content) -> anyhow::Result<Self::Content> {
+        // TODO: Implement file saving logic
+        todo!()
+    }
+
+    async fn delete(&self, _content: Self::Content) -> anyhow::Result<()> {
+        // TODO: Implement file deletion logic
+        todo!()
+    }
+}

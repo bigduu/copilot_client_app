@@ -62,7 +62,6 @@ pub(super) async fn continue_agent_loop_after_approval<T: StorageProvider>(
         session_manager.clone(),
         conversation_id,
         tool_executor.clone(),
-        approval_manager.clone(),
         agent_service.clone(),
         copilot_client.clone(),
         llm_request_builder,

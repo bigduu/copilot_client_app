@@ -86,7 +86,7 @@ pub(super) async fn handle_request_payload<T: StorageProvider>(
     tool_result_handler: &ToolResultHandler<T>,
     text_message_handler: &TextMessageHandler<T>,
     context: &Arc<RwLock<ChatContext>>,
-    context_id: Uuid,
+    _context_id: Uuid,
     payload: &MessagePayload,
     display_text: &str,
     metadata: &ClientMessageMetadata,

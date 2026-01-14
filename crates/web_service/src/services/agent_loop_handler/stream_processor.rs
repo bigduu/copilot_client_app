@@ -8,7 +8,6 @@ use crate::{
     error::AppError,
     models::{MessagePayload, SendMessageRequest},
     services::{
-        agent_loop_runner::AgentLoopRunner,
         copilot_stream_handler,
         llm_request_builder::LlmRequestBuilder,
         message_builder,
@@ -25,13 +24,13 @@ use tool_system::ToolExecutor;
 use actix_web_lab::sse;
 use anyhow::Result;
 use bytes::Bytes;
-use context_manager::{ChatContext, ContextUpdate};
+use context_manager::ContextUpdate;
 use copilot_client::CopilotClientTrait;
 use futures_util::StreamExt;
-use log::{error, info};
+use log::info;
 use std::sync::Arc;
 use std::time::Duration;
-use tokio::sync::{mpsc, RwLock};
+use tokio::sync::mpsc;
 use uuid::Uuid;
 
 /// Create and return SSE stream for message processing
@@ -39,7 +38,7 @@ use uuid::Uuid;
 pub async fn create_sse_stream<T: StorageProvider + 'static>(
     session_manager: Arc<ChatSessionManager<T>>,
     copilot_client: Arc<dyn CopilotClientTrait>,
-    event_broadcaster: Option<Arc<EventBroadcaster>>,
+    _event_broadcaster: Option<Arc<EventBroadcaster>>,
     llm_request_builder: LlmRequestBuilder,
     agent_service: Arc<AgentService>,
     tool_executor: Arc<ToolExecutor>,

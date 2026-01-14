@@ -66,7 +66,7 @@ pub fn spawn_stream_task<T: StorageProvider + 'static>(
     session_manager: Arc<ChatSessionManager<T>>,
     agent_service: Arc<AgentService>,
     tool_executor: Arc<ToolExecutor>,
-    approval_manager: Arc<ApprovalManager>,
+    _approval_manager: Arc<ApprovalManager>,
     conversation_id: Uuid,
     event_tx: mpsc::Sender<sse::Event>,
 ) -> JoinHandle<()> {
@@ -460,7 +460,6 @@ pub fn spawn_stream_task<T: StorageProvider + 'static>(
                 session_manager.clone(),
                 agent_service.clone(),
                 tool_executor.clone(),
-                approval_manager.clone(),
                 conversation_id,
                 tx.clone(),
             );

@@ -66,7 +66,7 @@ impl<T: StorageProvider> FileReferenceHandler<T> {
         for path in paths {
             let path_obj = std::path::Path::new(path);
 
-            let (tool_name, mut arguments) = if path_obj.is_dir() {
+            let (tool_name, arguments) = if path_obj.is_dir() {
                 // Directory: use list_directory tool with depth=1
                 let mut args = serde_json::Map::new();
                 args.insert("path".to_string(), json!(path));

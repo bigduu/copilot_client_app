@@ -7,11 +7,7 @@ use std::{
 };
 use tokio::sync::oneshot;
 
-use crate::controllers::{
-    chat_controller, context_controller, openai_controller, session_controller, system_controller,
-    system_prompt_controller, template_variable_controller, user_preference_controller,
-    workflow_controller, workflow_manager_controller, workspace_controller,
-};
+use crate::controllers::{anthropic_controller, bodhi_config_controller, openai_controller};
 use crate::services::{
     approval_manager::ApprovalManager, event_broadcaster::EventBroadcaster,
     session_manager::ChatSessionManager, system_prompt_service::SystemPromptService,
@@ -52,17 +48,9 @@ const DEFAULT_WORKER_COUNT: usize = 10;
 pub fn app_config(cfg: &mut web::ServiceConfig) {
     cfg.service(
         web::scope("/v1")
+            .configure(anthropic_controller::config)
             .configure(openai_controller::config)
-            .configure(chat_controller::config)
-            .configure(context_controller::config)
-            .configure(session_controller::config)
-            .configure(system_controller::config)
-            .configure(system_prompt_controller::config)
-            .configure(template_variable_controller::config)
-            .configure(workflow_controller::config)
-            .configure(workflow_manager_controller::config)
-            .configure(user_preference_controller::config)
-            .configure(workspace_controller::config),
+            .configure(bodhi_config_controller::config),
     );
 }
 

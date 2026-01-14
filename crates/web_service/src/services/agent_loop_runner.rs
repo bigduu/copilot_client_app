@@ -6,7 +6,6 @@ use uuid::Uuid;
 
 use crate::error::AppError;
 use crate::services::agent_service::{AgentLoopState, AgentService, ToolCall as AgentToolCall};
-use crate::services::approval_manager::ApprovalManager;
 use crate::services::llm_request_builder::LlmRequestBuilder;
 use crate::services::llm_utils::detect_message_type;
 use crate::services::session_manager::ChatSessionManager;
@@ -43,7 +42,6 @@ pub struct AgentLoopRunner<T: StorageProvider> {
     session_manager: Arc<ChatSessionManager<T>>,
     conversation_id: Uuid,
     tool_executor: Arc<ToolExecutor>,
-    approval_manager: Arc<ApprovalManager>,
     agent_service: Arc<AgentService>,
     copilot_client: Arc<dyn CopilotClientTrait>,
     request_builder: LlmRequestBuilder,
@@ -54,7 +52,6 @@ impl<T: StorageProvider> AgentLoopRunner<T> {
         session_manager: Arc<ChatSessionManager<T>>,
         conversation_id: Uuid,
         tool_executor: Arc<ToolExecutor>,
-        approval_manager: Arc<ApprovalManager>,
         agent_service: Arc<AgentService>,
         copilot_client: Arc<dyn CopilotClientTrait>,
         request_builder: LlmRequestBuilder,
@@ -63,7 +60,6 @@ impl<T: StorageProvider> AgentLoopRunner<T> {
             session_manager,
             conversation_id,
             tool_executor,
-            approval_manager,
             agent_service,
             copilot_client,
             request_builder,

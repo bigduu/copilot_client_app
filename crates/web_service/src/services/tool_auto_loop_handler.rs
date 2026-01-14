@@ -11,7 +11,6 @@ use uuid::Uuid;
 use crate::storage::StorageProvider;
 
 use super::agent_service::{AgentService, ToolCall};
-use super::approval_manager::ApprovalManager;
 use super::llm_utils::{detect_message_type, send_context_update};
 use super::session_manager::ChatSessionManager;
 
@@ -19,7 +18,6 @@ pub struct ToolAutoLoopHandler<T: StorageProvider> {
     session_manager: Arc<ChatSessionManager<T>>,
     agent_service: Arc<AgentService>,
     tool_executor: Arc<ToolExecutor>,
-    approval_manager: Arc<ApprovalManager>,
     conversation_id: Uuid,
     event_tx: mpsc::Sender<sse::Event>,
 }
@@ -30,7 +28,6 @@ impl<T: StorageProvider + 'static> ToolAutoLoopHandler<T> {
         session_manager: Arc<ChatSessionManager<T>>,
         agent_service: Arc<AgentService>,
         tool_executor: Arc<ToolExecutor>,
-        approval_manager: Arc<ApprovalManager>,
         conversation_id: Uuid,
         event_tx: mpsc::Sender<sse::Event>,
     ) -> Self {
@@ -38,7 +35,6 @@ impl<T: StorageProvider + 'static> ToolAutoLoopHandler<T> {
             session_manager,
             agent_service,
             tool_executor,
-            approval_manager,
             conversation_id,
             event_tx,
         }

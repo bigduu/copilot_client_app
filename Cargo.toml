@@ -1,5 +1,8 @@
 [workspace]
 members = [
+    "crates/chat_core",
+    "crates/chat_state",
+    "crates/agent_orchestrator",
     "crates/copilot_client",
     "crates/tool_system",
     "crates/workflow_system",

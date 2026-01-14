@@ -1,6 +1,7 @@
 pub mod agent_loop_handler;
 pub mod agent_loop_runner;
 pub mod agent_service;
+pub mod anthropic_model_mapping_service;
 pub mod approval_manager;
 pub mod chat_service;
 

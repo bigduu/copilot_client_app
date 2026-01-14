@@ -15,7 +15,7 @@ use tokio::sync::RwLock;
 ///
 /// This function eliminates the 90% code duplication between manual
 /// and automatic title generation by providing a unified implementation.
-pub async fn generate_title(
+pub(super) async fn generate_title(
     app_state: &AppState,
     context: &Arc<RwLock<context_manager::structs::context::ChatContext>>,
     context_id: uuid::Uuid,

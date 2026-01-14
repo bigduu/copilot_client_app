@@ -43,8 +43,8 @@ impl<T: StorageProvider> WorkflowHandler<T> {
         context: &Arc<RwLock<ChatContext>>,
         workflow: &str,
         parameters: &HashMap<String, serde_json::Value>,
-        display_text: &str,
-        metadata: &ClientMessageMetadata,
+        _display_text: &str,
+        _metadata: &ClientMessageMetadata,
     ) -> Result<(Uuid, String, u64), AppError> {
         // Construct Rich Workflow Message
         // The display logic (prompt injection) is handled by message_compat::from_rich_message_type

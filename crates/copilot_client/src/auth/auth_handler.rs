@@ -9,7 +9,7 @@ use std::{
     io::Write,
     path::PathBuf,
     sync::Arc,
-    time::Duration,
+    time::{Duration, SystemTime, UNIX_EPOCH},
 };
 use tokio::sync::Mutex;
 use tokio::time::sleep;
@@ -41,6 +41,89 @@ pub(crate) struct CopilotConfig {
     pub vsc_electron_fetcher_v2: bool,
     pub xcode: bool,
     pub xcode_chat: bool,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tempfile::tempdir;
+
+    fn sample_config(expires_at: u64) -> CopilotConfig {
+        CopilotConfig {
+            token: "cached-token".to_string(),
+            annotations_enabled: false,
+            chat_enabled: true,
+            chat_jetbrains_enabled: false,
+            code_quote_enabled: false,
+            code_review_enabled: false,
+            codesearch: false,
+            copilotignore_enabled: false,
+            endpoints: Endpoints {
+                api: Some("https://api.example.com".to_string()),
+                origin_tracker: None,
+                proxy: None,
+                telemetry: None,
+            },
+            expires_at,
+            individual: true,
+            limited_user_quotas: None,
+            limited_user_reset_date: None,
+            prompt_8k: false,
+            public_suggestions: "disabled".to_string(),
+            refresh_in: 300,
+            sku: "test".to_string(),
+            snippy_load_test_enabled: false,
+            telemetry: "disabled".to_string(),
+            tracking_id: "test".to_string(),
+            vsc_electron_fetcher_v2: false,
+            xcode: false,
+            xcode_chat: false,
+        }
+    }
+
+    #[test]
+    fn read_access_token_trims() {
+        let dir = tempdir().expect("tempdir");
+        let token_path = dir.path().join(".token");
+        std::fs::write(&token_path, "  token-value \n").expect("write token");
+
+        let token = CopilotAuthHandler::read_access_token(&token_path);
+        assert_eq!(token.as_deref(), Some("token-value"));
+    }
+
+    #[test]
+    fn cached_copilot_config_round_trip() {
+        let dir = tempdir().expect("tempdir");
+        let handler = CopilotAuthHandler::new(Arc::new(Client::new()), dir.path().to_path_buf());
+        let token_path = dir.path().join(".copilot_token.json");
+        let config = sample_config(1234567890);
+
+        handler
+            .write_cached_copilot_config(&token_path, &config)
+            .expect("write cache");
+        let loaded = handler
+            .read_cached_copilot_config(&token_path)
+            .expect("read cache");
+
+        assert_eq!(loaded.token, config.token);
+        assert_eq!(loaded.expires_at, config.expires_at);
+    }
+
+    #[test]
+    fn copilot_token_expiry_buffer() {
+        let dir = tempdir().expect("tempdir");
+        let handler = CopilotAuthHandler::new(Arc::new(Client::new()), dir.path().to_path_buf());
+        let now = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map(|duration| duration.as_secs())
+            .unwrap_or(0);
+
+        let valid = sample_config(now + 120);
+        let stale = sample_config(now + 30);
+
+        assert!(handler.is_copilot_token_valid(&valid));
+        assert!(!handler.is_copilot_token_valid(&stale));
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -112,14 +195,22 @@ impl CopilotAuthHandler {
         info!("The app dir is {:?}", self.app_data_dir.clone());
 
         let token_path = self.app_data_dir.join(".token");
+        let copilot_token_path = self.app_data_dir.join(".copilot_token.json");
+
+        if let Some(cached_config) = self.read_cached_copilot_config(&copilot_token_path) {
+            if self.is_copilot_token_valid(&cached_config) {
+                return Ok(cached_config.token);
+            }
+            let _ = std::fs::remove_file(&copilot_token_path);
+        }
 
         //read the access token from the .token file if exists don't get the device code and access token
-        if token_path.exists() {
-            let access_token_str = read_to_string(&token_path)?;
+        if let Some(access_token_str) = Self::read_access_token(&token_path) {
             let access_token = AccessTokenResponse::from_token(access_token_str);
             // Delegate to auth_handler
             match self.get_copilot_token(access_token).await {
                 Ok(copilot_config) => {
+                    self.write_cached_copilot_config(&copilot_token_path, &copilot_config)?;
                     return Ok(copilot_config.token);
                 }
                 Err(e) => {
@@ -140,7 +231,45 @@ impl CopilotAuthHandler {
         file.write_all(access_token.clone().access_token.unwrap().as_bytes())?;
         // Delegate to auth_handler
         let copilot_config = self.get_copilot_token(access_token).await?;
+        self.write_cached_copilot_config(&copilot_token_path, &copilot_config)?;
         Ok(copilot_config.token)
+    }
+
+    fn read_access_token(token_path: &PathBuf) -> Option<String> {
+        if !token_path.exists() {
+            return None;
+        }
+        let access_token_str = read_to_string(token_path).ok()?;
+        let trimmed = access_token_str.trim();
+        if trimmed.is_empty() {
+            None
+        } else {
+            Some(trimmed.to_string())
+        }
+    }
+
+    fn read_cached_copilot_config(&self, token_path: &PathBuf) -> Option<CopilotConfig> {
+        let cached_str = read_to_string(token_path).ok()?;
+        serde_json::from_str::<CopilotConfig>(&cached_str).ok()
+    }
+
+    fn write_cached_copilot_config(
+        &self,
+        token_path: &PathBuf,
+        copilot_config: &CopilotConfig,
+    ) -> anyhow::Result<()> {
+        let serialized = serde_json::to_string(copilot_config)?;
+        let mut file = File::create(token_path)?;
+        file.write_all(serialized.as_bytes())?;
+        Ok(())
+    }
+
+    fn is_copilot_token_valid(&self, copilot_config: &CopilotConfig) -> bool {
+        let now = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map(|duration| duration.as_secs())
+            .unwrap_or(0);
+        copilot_config.expires_at.saturating_sub(60) > now
     }
 
     pub(super) async fn get_device_code(&self) -> anyhow::Result<DeviceCodeResponse> {

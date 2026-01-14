@@ -26,7 +26,8 @@ use web_service::services::{
     approval_manager::ApprovalManager, event_broadcaster::EventBroadcaster,
     session_manager::ChatSessionManager, system_prompt_service::SystemPromptService,
     template_variable_service::TemplateVariableService,
-    user_preference_service::UserPreferenceService, workflow_service::WorkflowService,
+    user_preference_service::UserPreferenceService,
+    workflow_manager_service::WorkflowManagerService, workflow_service::WorkflowService,
 };
 use wiremock::{
     matchers::{method, path},
@@ -114,7 +115,7 @@ async fn setup_test_environment() -> (
 
     let copilot_client = Arc::new(MockCopilotClient {
         mock_server_uri: mock_server.uri(),
-        client: reqwest::Client::new(),
+        client: reqwest::Client::builder().no_proxy().build().unwrap(),
     });
 
     let system_prompt_service = Arc::new(SystemPromptService::new(PathBuf::from(
@@ -139,6 +140,8 @@ async fn setup_test_environment() -> (
         "test_user_preferences",
     )));
     let workflow_service = Arc::new(WorkflowService::new(Arc::new(WorkflowRegistry::new())));
+    let workflow_manager_service =
+        Arc::new(WorkflowManagerService::new(temp_dir.path().join("workflows")));
     let event_broadcaster = Arc::new(EventBroadcaster::new());
 
     let app_state = actix_web::web::Data::new(AppState {
@@ -150,6 +153,7 @@ async fn setup_test_environment() -> (
         approval_manager,
         user_preference_service,
         workflow_service,
+        workflow_manager_service,
         event_broadcaster,
         app_data_dir: temp_dir.path().to_path_buf(),
     });
