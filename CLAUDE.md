@@ -35,22 +35,39 @@ This is a GitHub Copilot Chat Desktop application built with Tauri (Rust backend
 - **Testing**: Vitest for frontend, Rust's built-in testing for backend
 
 ### Rust Crates Architecture
-The backend is organized into specialized crates:
-- `copilot_client`: GitHub Copilot API client and authentication
-- `web_service`: Actix-web HTTP server for API endpoints
-- `context_manager`: Conversation context and message management
-- `session_manager`: User session handling and persistence
-- `tool_system`: Tool execution and approval workflows
-- `workflow_system`: Complex workflow orchestration
-- `mcp_client`: Model Context Protocol client integration
+The workspace consists of 11 specialized crates with clear dependency hierarchy:
+
+**Core Infrastructure:**
+- `chat_core` - Foundational types and traits (MessageContent, TodoItem, AgentRole, ContextTree)
+- `chat_state` - State machine implementation for chat lifecycle management
+- `storage_manager` - File-based storage abstraction layer
+
+**Agent & Context:**
+- `agent_orchestrator` - Agent execution loops and todo management (AgentLoop, TodoManager)
+- `context_manager` - Conversation context, message management, and pipeline processing
+- `session_manager` - User session handling and persistence with multi-user support
+
+**Client & API Layer:**
+- `copilot_client` - GitHub Copilot API client with authentication and streaming support
+- `web_service` - Actix-web HTTP server with API endpoints and SSE streaming
+- `web_service_standalone` - Standalone web service variant
+- `mcp_client` - Model Context Protocol client integration
+
+**Feature Systems:**
+- `tool_system` - Tool execution, approval workflows, and auto-registration system
+- `workflow_system` - Complex workflow orchestration with parameterized workflows
+
+**Application Entry:**
+- `src-tauri` - Main Tauri application integrating all crates
 
 ### Frontend Architecture
-- `src/core/`: Core business logic including StateManager and chat interaction machines
-- `src/store/`: Zustand stores for different application domains (chat, models, settings, etc.)
-- `src/services/`: Service layer for API communication and data operations
-- `src/components/`: Reusable UI components organized by feature
-- `src/contexts/`: React context providers for dependency injection
-- `src/types/`: TypeScript type definitions
+- `src/core/`: StateManager (transactional state), chatInteractionMachine.ts (XState), ErrorHandler, ApprovalManager
+- `src/store/`: Zustand stores with 5 slices (chat, models, prompts, favorites, settings)
+- `src/services/`: ServiceFactory pattern, TauriService (native commands), HttpServices (API), domain services (Tool, AgentApproval, Workflow, Session)
+- `src/components/`: 40+ reusable components (ChatView, MessageCard, ApprovalModal, ToolResultCard, FileReferenceSelector, SystemPromptManager, MCPServerManagement, TodoListDisplay)
+- `src/contexts/`: BackendContextProvider, ChatControllerContext
+- `src/hooks/`: Custom React hooks (10+)
+- `src/types/`: TypeScript definitions (chat.ts, unified-chat.ts, toolConfig.ts, mcp.ts, sse.ts)
 
 ## Development Commands
 
@@ -108,24 +125,31 @@ cd crates/web_service && cargo test
 ## Key Technical Patterns
 
 ### State Management
-- **StateManager**: Centralized chat state management with transaction support (`src/core/StateManager.ts`)
-- **Zustand Stores**: Domain-specific stores for models, settings, chat sessions (`src/store/`)
-- **XState Machines**: Complex interaction flows using `@xstate/react` (`src/core/chatInteractionMachine.ts`)
+- **StateManager** (`src/core/StateManager.ts`): Centralized chat state with transaction support and automatic rollback
+- **Zustand Stores**: Domain-specific slices in `src/store/slices/` for chat, models, prompts, favorites, settings
+- **XState Machines**: Complex interaction flows using `@xstate/react` in `src/core/chatInteractionMachine.ts`
 
 ### Service Architecture
-- **Factory Pattern**: ServiceFactory manages service instantiation and lifecycle
-- **Backend Abstraction**: Services work with both local Rust backend and external HTTP backends
-- **Context Providers**: Dependency injection through React contexts (`src/contexts/`)
+- **Factory Pattern** (`src/services/ServiceFactory.ts`): Service instantiation and lifecycle management
+- **Backend Abstraction**: Services work with both local Rust backend (TauriService) and external HTTP backends (HttpServices)
+- **Composite Services**: UtilityService combines native Tauri functions with HTTP-based functions
+- **Dependency Injection**: React contexts provide services to components
 
 ### Component Patterns
-- **Compound Components**: Complex UI components like InputContainer with multiple sub-components
-- **Approval Workflows**: Multi-step approval system for tool execution and agent actions
-- **Message Types**: Specialized components for different message types (System, Tool, Question, etc.)
+- **Compound Components**: Complex UI like InputContainer with multiple sub-components
+- **Approval Workflows**: Multi-step approval system for tool execution and agent actions (ApprovalModal, AgentApprovalModal)
+- **Specialized Message Types**: SystemMessageCard, ToolResultCard, QuestionMessageCard, PlanMessageCard
+
+### Rust Patterns
+- **Auto Registration**: Tool/workflow registries use `inventory` crate for compile-time registration
+- **Trait-Based Abstractions**: CopilotClientTrait, ToolRuntime traits for extensibility
+- **Message Pipeline**: context_manager uses pipeline pattern with enhancers and processors
+- **SSE Streaming**: Signal-pull pattern for server-sent events with streaming support
 
 ### Error Handling
 - **Centralized Error Management**: ErrorHandler in `src/core/ErrorHandler.ts`
+- **Transaction Rollback**: StateManager supports automatic rollback on failed operations
 - **Graceful Degradation**: Fallback UI states when services are unavailable
-- **Transaction Rollback**: StateManager supports transactional operations with rollback
 
 ## Testing Strategy
 
@@ -174,15 +198,22 @@ cd crates/web_service && cargo test
 - Input sanitization for markdown rendering
 - Proper validation of user inputs in tool parameters
 
+## Important Crate Dependencies
+
+Understanding crate dependencies is crucial for modifications:
+- `web_service` depends on: context_manager, session_manager, tool_system, workflow_system, mcp_client, copilot_client
+- `agent_orchestrator` depends on: chat_core, chat_state, tool_system, workflow_system, copilot_client, mcp_client
+- `src-tauri` integrates: copilot_client, web_service, tool_system, mcp_client
+- `context_manager` is the central data layer used by most services
+
 ## Migration and Legacy
 
-### Recent Changes
+### Recent Refactoring
 - Migration from localStorage to backend-based context management
 - Transition to unified state management with StateManager
-- Updated API structure for better separation of concerns
-- Enhanced tool system with approval workflows
+- Introduction of `chat_core` and `chat_state` crates for better separation
+- Enhanced tool system with approval workflows and SSE broadcasting
 
 ### Legacy Code
 - Some migration code is commented out but preserved for reference
-- Legacy LocalStorage cleanup utilities are available but disabled
-- Historical data migration is currently disabled per user request
+- Legacy LocalStorage cleanup utilities are available but disabled per user request
