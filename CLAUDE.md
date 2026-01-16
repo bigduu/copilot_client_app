@@ -39,12 +39,7 @@ The workspace consists of specialized crates with a clear dependency hierarchy:
 
 **Core Infrastructure:**
 - `chat_core` - Foundational types and traits (MessageContent, TodoItem, AgentRole, ContextTree)
-- `chat_state` - State machine implementation for chat lifecycle management
 - `storage_manager` - File-based storage abstraction layer
-
-**Agent & Context:**
-- `context_manager` - Conversation context, message management, and pipeline processing
-- `session_manager` - User session handling and persistence with multi-user support
 
 **Client & API Layer:**
 - `copilot_client` - GitHub Copilot API client with authentication and streaming support
@@ -52,8 +47,6 @@ The workspace consists of specialized crates with a clear dependency hierarchy:
 - `web_service_standalone` - Standalone web service variant
 - `mcp_client` - Model Context Protocol client integration
 
-**Feature Systems:**
-- `tool_system` - Tool execution, approval workflows, and auto-registration system
 - `workflow_system` - Complex workflow orchestration with parameterized workflows
 
 **Application Entry:**
@@ -140,10 +133,8 @@ cd crates/web_service && cargo test
 - **Specialized Message Types**: SystemMessageCard, ToolResultCard, QuestionMessageCard, PlanMessageCard
 
 ### Rust Patterns
-- **Auto Registration**: Tool/workflow registries use `inventory` crate for compile-time registration
-- **Trait-Based Abstractions**: CopilotClientTrait, ToolRuntime traits for extensibility
-- **Message Pipeline**: context_manager uses pipeline pattern with enhancers and processors
-- **SSE Streaming**: Signal-pull pattern for server-sent events with streaming support
+- **Trait-Based Abstractions**: CopilotClientTrait for extensibility
+- **Forwarding-Only Backend**: web_service forwards model requests and does not persist state
 
 ### Error Handling
 - **Centralized Error Management**: ErrorHandler in `src/core/ErrorHandler.ts`
@@ -200,17 +191,15 @@ cd crates/web_service && cargo test
 ## Important Crate Dependencies
 
 Understanding crate dependencies is crucial for modifications:
-- `web_service` depends on: context_manager, session_manager, tool_system, workflow_system, mcp_client, copilot_client
-- `src-tauri` integrates: copilot_client, web_service, tool_system, mcp_client
-- `context_manager` is the central data layer used by most services
+- `web_service` depends on: copilot_client
+- `src-tauri` integrates: copilot_client, web_service, mcp_client
+- `workflow_system` is currently not used by the forwarding-only backend server
 
 ## Migration and Legacy
 
 ### Recent Refactoring
-- Migration from localStorage to backend-based context management
 - Transition to unified state management with StateManager
-- Introduction of `chat_core` and `chat_state` crates for better separation
-- Enhanced tool system with approval workflows and SSE broadcasting
+- Backend refactor to forwarding-only responsibilities (no server-side sessions/contexts/tools)
 
 ### Legacy Code
 - Some migration code is commented out but preserved for reference

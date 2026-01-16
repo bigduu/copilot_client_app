@@ -19,7 +19,6 @@ tauri-build = { version = "2.4.1", features = [] }
 
 [dependencies]
 copilot_client = { path = "../crates/copilot_client" }
-tool_system = { path = "../crates/tool_system" }
 mcp_client = { path = "../crates/mcp_client" }
 web_service = { path = "../crates/web_service" }
 # Tauri core and plugins

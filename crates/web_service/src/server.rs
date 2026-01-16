@@ -1,161 +1,49 @@
 use actix_cors::Cors;
-use actix_web::{middleware::Logger, web, App, HttpServer};
+use actix_web::{web, App, HttpServer};
 use log::{error, info};
-use std::{
-    path::PathBuf,
-    sync::{Arc, Mutex},
-};
+use std::{path::PathBuf, sync::Arc};
 use tokio::sync::oneshot;
 
-use crate::controllers::{anthropic_controller, bodhi_config_controller, openai_controller};
-use crate::services::{
-    approval_manager::ApprovalManager, event_broadcaster::EventBroadcaster,
-    session_manager::ChatSessionManager, system_prompt_service::SystemPromptService,
-    template_variable_service::TemplateVariableService, tool_service::ToolService,
-    user_preference_service::UserPreferenceService,
-    workflow_manager_service::WorkflowManagerService, workflow_service::WorkflowService,
-};
-use crate::storage::message_pool_provider::MessagePoolStorageProvider;
+use crate::controllers::{anthropic_controller, openai_controller};
 use copilot_client::{config::Config, CopilotClient, CopilotClientTrait};
-use session_manager::{FileSessionStorage, MultiUserSessionManager};
-use tool_system::{registry::create_default_tool_registry, ToolExecutor};
-use workflow_system::WorkflowRegistry;
 
-/// Application state (Phase 2.0 - Pipeline-based)
-///
-/// Note: SystemPromptEnhancer has been removed. System prompt enhancement
-/// is now handled by the Pipeline architecture in ChatContext.
 pub struct AppState {
-    pub session_manager: Arc<ChatSessionManager<MessagePoolStorageProvider>>,
     pub copilot_client: Arc<dyn CopilotClientTrait>,
-    pub tool_executor: Arc<ToolExecutor>,
-    pub system_prompt_service: Arc<SystemPromptService>,
-    pub template_variable_service: Arc<TemplateVariableService>,
-    pub approval_manager: Arc<ApprovalManager>,
-    pub user_preference_service: Arc<UserPreferenceService>,
-    pub workflow_service: Arc<WorkflowService>,
-    pub workflow_manager_service: Arc<WorkflowManagerService>,
-    pub event_broadcaster: Arc<EventBroadcaster>,
-    pub app_data_dir: PathBuf,
 }
 
 const DEFAULT_WORKER_COUNT: usize = 10;
 
-/// Configure application routes (Phase 2.0)
-///
-/// Note: tool_controller has been removed. Tool endpoints are now deprecated
-/// and replaced by the Workflow system.
 pub fn app_config(cfg: &mut web::ServiceConfig) {
     cfg.service(
         web::scope("/v1")
             .configure(anthropic_controller::config)
-            .configure(openai_controller::config)
-            .configure(bodhi_config_controller::config),
+            .configure(openai_controller::config),
     );
 }
 
 pub async fn run(app_data_dir: PathBuf, port: u16) -> Result<(), String> {
     info!("Starting web service...");
 
-    let tool_registry = Arc::new(Mutex::new(create_default_tool_registry()));
-    let tool_executor = Arc::new(ToolExecutor::new(tool_registry.clone()));
-    let tool_service = ToolService::new(tool_registry.clone(), tool_executor.clone());
-    let tool_service_data = web::Data::new(tool_service);
-
-    // Initialize workflow system
-    let workflow_registry = Arc::new(WorkflowRegistry::new());
-    let workflow_service = Arc::new(WorkflowService::new(workflow_registry));
-    let workflow_service_data = web::Data::from(workflow_service.clone());
-
-    // Initialize workflow manager (markdown file-based workflows)
-    let global_workflows_path = app_data_dir.join("workflows");
-    let workflow_manager_service = Arc::new(WorkflowManagerService::new(global_workflows_path));
-    // Initialize default workflow templates
-    if let Err(e) = workflow_manager_service.initialize_default_workflows() {
-        error!("Failed to initialize default workflows: {}", e);
-    }
-    let workflow_manager_data = web::Data::from(workflow_manager_service.clone());
-
-    // Use MessagePoolStorageProvider for separated storage (context metadata + individual message files)
-    let storage_provider = Arc::new(MessagePoolStorageProvider::new(app_data_dir.join("data")));
-    let session_manager = Arc::new(ChatSessionManager::new(
-        storage_provider,
-        100,
-        tool_registry.clone(),
-    )); // Cache up to 100 sessions
-
-    let system_prompt_service = Arc::new(SystemPromptService::new(app_data_dir.clone()));
-    // Load existing system prompts from storage
-    if let Err(e) = system_prompt_service.load_from_storage().await {
-        error!("Failed to load system prompts: {}", e);
-    }
-
-    // Initialize template variable service
-    let template_variable_service = Arc::new(TemplateVariableService::new(app_data_dir.clone()));
-    // Load template variables from storage
-    if let Err(e) = template_variable_service.load_from_storage().await {
-        error!("Failed to load template variables: {}", e);
-    }
-
-    let user_preference_service = Arc::new(UserPreferenceService::new(app_data_dir.clone()));
-    if let Err(e) = user_preference_service.load_from_storage().await {
-        error!("Failed to load user preferences: {}", e);
-    }
-
     let config = Config::new();
-    let copilot_client: Arc<dyn CopilotClientTrait> =
-        Arc::new(CopilotClient::new(config, app_data_dir.clone()));
-
-    let approval_manager = Arc::new(ApprovalManager::new());
-
-    // Initialize user session manager (new backend session manager)
-    let session_storage = FileSessionStorage::new(app_data_dir.join("sessions"));
-    let user_session_manager = MultiUserSessionManager::new(session_storage);
-    let user_session_manager_data = web::Data::new(user_session_manager);
-
-    let system_prompt_data = web::Data::from(system_prompt_service.clone());
-    let template_variable_data = web::Data::from(template_variable_service.clone());
-
-    // Create event broadcaster for Signal-Pull SSE
-    let event_broadcaster = Arc::new(EventBroadcaster::new());
-
-    let app_state = web::Data::new(AppState {
-        session_manager,
-        tool_executor,
-        copilot_client,
-        system_prompt_service,
-        template_variable_service: template_variable_service.clone(),
-        approval_manager: approval_manager.clone(),
-        user_preference_service: user_preference_service.clone(),
-        workflow_service: workflow_service.clone(),
-        workflow_manager_service: workflow_manager_service.clone(),
-        event_broadcaster,
-        app_data_dir: app_data_dir.clone(),
-    });
+    let copilot_client: Arc<dyn CopilotClientTrait> = Arc::new(CopilotClient::new(config, app_data_dir));
+    let app_state = web::Data::new(AppState { copilot_client });
 
     let server = HttpServer::new(move || {
         App::new()
             .app_data(app_state.clone())
-            .app_data(tool_service_data.clone())
-            .app_data(system_prompt_data.clone())
-            .app_data(template_variable_data.clone())
-            .app_data(workflow_service_data.clone())
-            .app_data(workflow_manager_data.clone())
-            .app_data(user_session_manager_data.clone())
-            // CORS only - no middleware for testing
             .wrap(Cors::permissive())
             .configure(app_config)
     })
     .workers(DEFAULT_WORKER_COUNT)
-    .bind(format!("127.0.0.1:{}", port))
-    .map_err(|e| format!("Failed to bind server: {}", e))?
+    .bind(format!("127.0.0.1:{port}"))
+    .map_err(|e| format!("Failed to bind server: {e}"))?
     .run();
 
-    info!("Starting web service on http://127.0.0.1:{}", port);
+    info!("Starting web service on http://127.0.0.1:{port}");
 
     if let Err(e) = server.await {
         error!("Web server error: {}", e);
-        return Err(format!("Web server error: {}", e));
+        return Err(format!("Web server error: {e}"));
     }
 
     Ok(())
@@ -184,101 +72,21 @@ impl WebService {
 
         let (shutdown_tx, mut shutdown_rx) = oneshot::channel::<()>();
 
-        let tool_registry = Arc::new(Mutex::new(create_default_tool_registry()));
-        let tool_executor = Arc::new(ToolExecutor::new(tool_registry.clone()));
-        let tool_service = ToolService::new(tool_registry.clone(), tool_executor.clone());
-        let tool_service_data = web::Data::new(tool_service);
-
-        // Initialize workflow system
-        let workflow_registry = Arc::new(WorkflowRegistry::new());
-        let workflow_service = Arc::new(WorkflowService::new(workflow_registry));
-        let workflow_service_data = web::Data::from(workflow_service.clone());
-
-        // Initialize workflow manager (markdown file-based workflows)
-        let global_workflows_path = self.app_data_dir.join("workflows");
-        let workflow_manager_service = Arc::new(WorkflowManagerService::new(global_workflows_path));
-        if let Err(e) = workflow_manager_service.initialize_default_workflows() {
-            error!("Failed to initialize default workflows: {}", e);
-        }
-        let workflow_manager_data = web::Data::from(workflow_manager_service.clone());
-
-        // Use MessagePoolStorageProvider for separated storage (context metadata + individual message files)
-        let storage_provider = Arc::new(MessagePoolStorageProvider::new(
-            self.app_data_dir.join("data"),
-        ));
-        let session_manager = Arc::new(ChatSessionManager::new(
-            storage_provider,
-            100,
-            tool_registry.clone(),
-        ));
-
-        let system_prompt_service = Arc::new(SystemPromptService::new(self.app_data_dir.clone()));
-        // Load existing system prompts from storage
-        if let Err(e) = system_prompt_service.load_from_storage().await {
-            error!("Failed to load system prompts: {}", e);
-        }
-
-        // Initialize template variable service
-        let template_variable_service =
-            Arc::new(TemplateVariableService::new(self.app_data_dir.clone()));
-        // Load template variables from storage
-        if let Err(e) = template_variable_service.load_from_storage().await {
-            error!("Failed to load template variables: {}", e);
-        }
-
-        let user_preference_service =
-            Arc::new(UserPreferenceService::new(self.app_data_dir.clone()));
-        if let Err(e) = user_preference_service.load_from_storage().await {
-            error!("Failed to load user preferences: {}", e);
-        }
-
         let config = Config::new();
         let copilot_client: Arc<dyn CopilotClientTrait> =
             Arc::new(CopilotClient::new(config, self.app_data_dir.clone()));
-
-        let approval_manager = Arc::new(ApprovalManager::new());
-
-        let system_prompt_data_for_start = web::Data::from(system_prompt_service.clone());
-        let template_variable_data_for_start = web::Data::from(template_variable_service.clone());
-
-        // Create event broadcaster for Signal-Pull SSE
-        let event_broadcaster = Arc::new(EventBroadcaster::new());
-
-        let app_state = web::Data::new(AppState {
-            session_manager,
-            tool_executor,
-            copilot_client,
-            system_prompt_service,
-            template_variable_service: template_variable_service.clone(),
-            approval_manager: approval_manager.clone(),
-            user_preference_service: user_preference_service.clone(),
-            workflow_service: workflow_service.clone(),
-            workflow_manager_service: workflow_manager_service.clone(),
-            event_broadcaster,
-            app_data_dir: self.app_data_dir.clone(),
-        });
+        let app_state = web::Data::new(AppState { copilot_client });
 
         let server = HttpServer::new(move || {
             App::new()
                 .app_data(app_state.clone())
-                .app_data(tool_service_data.clone())
-                .app_data(system_prompt_data_for_start.clone())
-                .app_data(template_variable_data_for_start.clone())
-                .app_data(workflow_service_data.clone())
-                .app_data(workflow_manager_data.clone())
-                // CORS must be first (wraps last, executes first on response)
                 .wrap(Cors::permissive())
-                .wrap(Logger::default())
-                // Temporarily disable TracingMiddleware to test
-                // .wrap(TracingMiddleware)
                 .configure(app_config)
         })
         .workers(DEFAULT_WORKER_COUNT)
-        .bind(format!("127.0.0.1:{}", port))
-        .map_err(|e| format!("Failed to bind server: {}", e))?
+        .bind(format!("127.0.0.1:{port}"))
+        .map_err(|e| format!("Failed to bind server: {e}"))?
         .run();
-
-        info!("Starting web service on http://127.0.0.1:{}", port);
 
         let server_handle = tokio::spawn(async move {
             tokio::select! {
@@ -310,7 +118,7 @@ impl WebService {
         if let Some(handle) = self.server_handle.take() {
             if let Err(e) = handle.await {
                 error!("Error waiting for server shutdown: {}", e);
-                return Err(format!("Error waiting for server shutdown: {}", e));
+                return Err(format!("Error waiting for server shutdown: {e}"));
             }
         }
 
@@ -330,3 +138,4 @@ impl Drop for WebService {
         }
     }
 }
+

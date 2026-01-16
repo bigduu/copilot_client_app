@@ -209,7 +209,7 @@ pub async fn messages(
             let status = response.status();
             let body = response.text().await.unwrap_or_default();
             return Ok(anthropic_error_response(AnthropicError::new(
-                to_actix_status(status),
+                to_actix_status(status.as_u16()),
                 "api_error",
                 format!("Upstream API error. Status: {}, Body: {}", status, body),
             )));
@@ -312,7 +312,7 @@ pub async fn messages(
 
         if !status.is_success() {
             return Ok(anthropic_error_response(AnthropicError::new(
-                to_actix_status(status),
+                to_actix_status(status.as_u16()),
                 "api_error",
                 format!(
                     "Upstream API error. Status: {}, Body: {}",
@@ -382,7 +382,7 @@ pub async fn complete(
             let status = response.status();
             let body = response.text().await.unwrap_or_default();
             return Ok(anthropic_error_response(AnthropicError::new(
-                to_actix_status(status),
+                to_actix_status(status.as_u16()),
                 "api_error",
                 format!("Upstream API error. Status: {}, Body: {}", status, body),
             )));
@@ -474,7 +474,7 @@ pub async fn complete(
 
         if !status.is_success() {
             return Ok(anthropic_error_response(AnthropicError::new(
-                to_actix_status(status),
+                to_actix_status(status.as_u16()),
                 "api_error",
                 format!(
                     "Upstream API error. Status: {}, Body: {}",
@@ -1127,8 +1127,8 @@ fn format_sse_data(data: Value) -> String {
     format!("data: {}\n\n", data)
 }
 
-fn to_actix_status(status: reqwest::StatusCode) -> StatusCode {
-    StatusCode::from_u16(status.as_u16()).unwrap_or(StatusCode::BAD_GATEWAY)
+fn to_actix_status(status: u16) -> StatusCode {
+    StatusCode::from_u16(status).unwrap_or(StatusCode::BAD_GATEWAY)
 }
 
 struct ToolStreamState {

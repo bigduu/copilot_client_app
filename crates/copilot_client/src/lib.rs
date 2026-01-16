@@ -1,4 +1,3 @@
-pub mod adapters;
 pub mod api;
 pub mod auth;
 pub mod client_trait;

@@ -18,24 +18,14 @@ use reqwest::Response;
 use serde_json::{json, Value};
 use std::{
     ffi::OsString,
-    path::PathBuf,
     sync::{Arc, Mutex, OnceLock},
 };
 use tokio::sync::mpsc::Sender;
-use tool_system::{registry::create_default_tool_registry, ToolExecutor};
 use web_service::server::{app_config, AppState};
-use web_service::services::{
-    approval_manager::ApprovalManager, event_broadcaster::EventBroadcaster,
-    session_manager::ChatSessionManager, system_prompt_service::SystemPromptService,
-    template_variable_service::TemplateVariableService,
-    user_preference_service::UserPreferenceService, workflow_manager_service::WorkflowManagerService,
-    workflow_service::WorkflowService,
-};
 use wiremock::{
     matchers::{body_partial_json, method, path},
     Mock, MockServer, ResponseTemplate,
 };
-use workflow_system::WorkflowRegistry;
 
 struct HomeGuard {
     previous: Option<OsString>,
@@ -121,51 +111,14 @@ async fn setup_test_environment() -> (
     MockServer,
 ) {
     let mock_server = MockServer::start().await;
-    let temp_dir = tempfile::TempDir::new().unwrap();
 
     let copilot_client = Arc::new(MockCopilotClient {
         mock_server_uri: mock_server.uri(),
         client: reqwest::Client::builder().no_proxy().build().unwrap(),
     });
 
-    let system_prompt_service = Arc::new(SystemPromptService::new(PathBuf::from(
-        "test_system_prompts",
-    )));
-    let template_variable_service = Arc::new(TemplateVariableService::new(PathBuf::from(
-        "test_template_variables",
-    )));
-    let tool_registry = Arc::new(std::sync::Mutex::new(create_default_tool_registry()));
-    let session_manager = Arc::new(ChatSessionManager::new(
-        Arc::new(
-            web_service::storage::message_pool_provider::MessagePoolStorageProvider::new(
-                "test_conversations",
-            ),
-        ),
-        10,
-        tool_registry.clone(),
-    ));
-    let tool_executor = Arc::new(ToolExecutor::new(tool_registry));
-    let approval_manager = Arc::new(ApprovalManager::new());
-    let user_preference_service = Arc::new(UserPreferenceService::new(PathBuf::from(
-        "test_user_preferences",
-    )));
-    let workflow_service = Arc::new(WorkflowService::new(Arc::new(WorkflowRegistry::new())));
-    let workflow_manager_service =
-        Arc::new(WorkflowManagerService::new(temp_dir.path().join("workflows")));
-    let event_broadcaster = Arc::new(EventBroadcaster::new());
-
     let app_state = actix_web::web::Data::new(AppState {
-        system_prompt_service,
-        session_manager,
         copilot_client: copilot_client.clone(),
-        tool_executor,
-        template_variable_service,
-        approval_manager,
-        user_preference_service,
-        workflow_service,
-        workflow_manager_service,
-        event_broadcaster,
-        app_data_dir: temp_dir.path().to_path_buf(),
     });
 
     let app =

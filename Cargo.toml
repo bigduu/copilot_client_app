@@ -1,16 +1,12 @@
 [workspace]
 members = [
     "crates/chat_core",
-    "crates/chat_state",
     "crates/copilot_client",
-    "crates/tool_system",
     "crates/workflow_system",
     "crates/mcp_client",
     "crates/web_service",
     "src-tauri",
     "crates/web_service_standalone",
-    "crates/context_manager",
-    "crates/session_manager",
     "crates/storage_manager",
 ]
 resolver = "2"

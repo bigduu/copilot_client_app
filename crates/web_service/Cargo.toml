@@ -7,69 +7,23 @@ edition = "2021"
 actix-web = "4.4"
 actix-cors = "0.7"
 anyhow = "1.0"
-chrono = { version = "0.4.38", features = ["serde"] }
 log = "0.4"
-env_logger = "0.9"
-tracing = "0.1"
-tracing-subscriber = { version = "0.3", features = [
-    "env-filter",
-    "fmt",
-    "json",
-] }
-lru = "0.12"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 thiserror = "1.0"
 tokio = { version = "1", features = ["full"] }
 tokio-stream = { version = "0.1", features = ["sync"] }
-uuid = { version = "1.8.0", features = ["v4"] }
 async-stream = "0.3"
-actix-web-lab = "0.20"
 futures-util = "0.3"
 bytes = "1"
-dirs = "5.0"
-rfd = "0.15.4"
-
-async-trait = "0.1.1"
-reqwest = { version = "0.12", features = [
-    "json",
-    "stream",
-    "gzip",
-    "rustls-tls",
-] }
-
-context_manager = { path = "../context_manager" }
-session_manager = { path = "../session_manager" }
-tool_system = { path = "../tool_system" }
-workflow_system = { path = "../workflow_system" }
-mcp_client = { path = "../mcp_client" }
 copilot_client = { path = "../copilot_client" }
-regex = "1.12.2"
 
 [dev-dependencies]
 actix-http = "3.0"
-actix-web-actors = "4.2.0"
-axum = "0.7"
 tempfile = "3.10"
 copilot_client = { path = "../copilot_client" }
-parking_lot = "0.12"
-http = "0.2"
-hyper = { version = "0.14", features = ["full"] }
-reqwest = { version = "0.12", features = [
-    "json",
-    "stream",
-    "gzip",
-    "rustls-tls",
-] }
+reqwest = { version = "0.12", features = ["json", "stream", "rustls-tls"] }
 wiremock = "0.5"
+async-trait = "0.1.1"
 
 
-[[test]]
-name = "fsm_integration_tests"
-path = "tests/fsm_integration_tests.rs"
-harness = true
-
-[[test]]
-name = "openai_api_tests"
-path = "tests/openai_api_tests.rs"
-harness = true
