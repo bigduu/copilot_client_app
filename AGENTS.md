@@ -146,7 +146,7 @@ pub type Result<T> = std::result::Result<T, AppError>;
 
 ### Backend (Rust Workspace)
 
-- **Structure:** Modular crates (chat_core, agent_orchestrator, web_service, etc.)
+- **Structure:** Modular crates (chat_core, web_service, etc.)
 - **Services:** Handler pattern in web_service (MessageHandler, ToolHandler, etc.)
 - **Storage:** Generic `StorageProvider` trait
 - **Async:** Tokio with `async/await`

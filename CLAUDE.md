@@ -35,7 +35,7 @@ This is a GitHub Copilot Chat Desktop application built with Tauri (Rust backend
 - **Testing**: Vitest for frontend, Rust's built-in testing for backend
 
 ### Rust Crates Architecture
-The workspace consists of 11 specialized crates with clear dependency hierarchy:
+The workspace consists of specialized crates with a clear dependency hierarchy:
 
 **Core Infrastructure:**
 - `chat_core` - Foundational types and traits (MessageContent, TodoItem, AgentRole, ContextTree)
@@ -43,7 +43,6 @@ The workspace consists of 11 specialized crates with clear dependency hierarchy:
 - `storage_manager` - File-based storage abstraction layer
 
 **Agent & Context:**
-- `agent_orchestrator` - Agent execution loops and todo management (AgentLoop, TodoManager)
 - `context_manager` - Conversation context, message management, and pipeline processing
 - `session_manager` - User session handling and persistence with multi-user support
 
@@ -202,7 +201,6 @@ cd crates/web_service && cargo test
 
 Understanding crate dependencies is crucial for modifications:
 - `web_service` depends on: context_manager, session_manager, tool_system, workflow_system, mcp_client, copilot_client
-- `agent_orchestrator` depends on: chat_core, chat_state, tool_system, workflow_system, copilot_client, mcp_client
 - `src-tauri` integrates: copilot_client, web_service, tool_system, mcp_client
 - `context_manager` is the central data layer used by most services
 
