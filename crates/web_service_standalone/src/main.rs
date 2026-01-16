@@ -1,5 +1,3 @@
-mod migrate;
-
 use clap::{Parser, Subcommand};
 use std::env;
 use std::path::PathBuf;
@@ -25,8 +23,6 @@ enum Commands {
         #[arg(short, long, default_value = ".")]
         data_dir: PathBuf,
     },
-    /// Migrate data from legacy storage format to new format
-    Migrate(migrate::MigrateArgs),
 }
 
 #[tokio::main]
@@ -83,12 +79,6 @@ async fn main() {
             // Start the server
             if let Err(e) = web_service::server::run(app_data_dir, port).await {
                 tracing::error!("Failed to run web service: {}", e);
-                std::process::exit(1);
-            }
-        }
-        Some(Commands::Migrate(args)) => {
-            if let Err(e) = migrate::run_migration(args).await {
-                eprintln!("Migration failed: {}", e);
                 std::process::exit(1);
             }
         }

@@ -169,7 +169,7 @@ impl Default for UserPreferences {
             theme: Theme::Auto,
             font_size: 14,
             auto_save: true,
-            default_model: "gpt-4".to_string(),
+            default_model: "gpt-5-mini".to_string(),
             tool_approval_policy: ToolApprovalPolicy::default(),
             language: "en".to_string(),
             code_theme: "github-dark".to_string(),
@@ -359,4 +359,3 @@ mod tests {
         assert_eq!(session.active_context_id, deserialized.active_context_id);
     }
 }
-

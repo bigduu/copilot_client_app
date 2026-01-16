@@ -12,7 +12,6 @@
 //! - `messages` - Message retrieval and querying
 //! - `title_generation` - Title generation and auto-generation
 //! - `streaming` - SSE events and streaming content
-//! - `tool_approval` - Tool approval (legacy endpoint, deprecated)
 //! - `actions` - FSM-driven action-based API endpoints
 
 pub mod actions;
@@ -20,7 +19,6 @@ pub mod context_lifecycle; // Domain: Context CRUD
 pub mod messages; // Domain: Message operations
 pub mod streaming; // Domain: SSE and streaming
 pub mod title_generation; // Domain: Title generation (refactored - no duplication!)
-pub mod tool_approval; // Domain: Tool approval (legacy)
 pub mod types; // Shared types across domains (if needed)
 mod workspace; // Domain: Workspace management
 
@@ -51,8 +49,6 @@ pub fn config(cfg: &mut web::ServiceConfig) {
         // Streaming domain
         .service(streaming::get_streaming_chunks)
         .service(streaming::subscribe_context_events)
-        // Tool approval domain (DEPRECATED)
-        .service(tool_approval::approve_context_tools)
         // Actions domain - FSM-driven endpoints
         .service(actions::send_message_action)
         .service(actions::approve_tools_action)

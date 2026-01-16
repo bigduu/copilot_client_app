@@ -311,6 +311,66 @@ async fn test_messages_missing_mapping_falls_back() {
 }
 
 #[actix_web::test]
+async fn test_messages_reasoning_is_mapped_to_reasoning_effort() {
+    let _lock = home_lock().lock().unwrap();
+    let temp_dir = tempfile::TempDir::new().unwrap();
+    let _guard = HomeGuard::new(temp_dir.path());
+
+    let (app, mock_server) = setup_test_environment().await;
+
+    let expected_completion = ChatCompletionResponse {
+        id: "chatcmpl-200".to_string(),
+        object: Some("chat.completion".to_string()),
+        created: Some(1677652288),
+        model: Some("gpt-3.5-turbo-0125".to_string()),
+        choices: vec![ResponseChoice {
+            index: 0,
+            message: ChatMessage {
+                role: Role::Assistant,
+                content: Content::Text("OK".to_string()),
+                tool_calls: None,
+                tool_call_id: None,
+            },
+            finish_reason: Some("stop".to_string()),
+        }],
+        usage: Some(Usage {
+            prompt_tokens: 5,
+            completion_tokens: 1,
+            total_tokens: 6,
+        }),
+        system_fingerprint: None,
+    };
+
+    Mock::given(method("POST"))
+        .and(path("/chat/completions"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(&expected_completion))
+        .mount(&mock_server)
+        .await;
+
+    let req_body = json!({
+        "model": "claude-3-5-sonnet",
+        "max_tokens": 10,
+        "reasoning": "mid",
+        "messages": [
+            {"role": "user", "content": "Hello"}
+        ]
+    });
+
+    let req = test::TestRequest::post()
+        .uri("/v1/messages")
+        .set_json(&req_body)
+        .to_request();
+
+    let _: Value = test::call_and_read_body_json(&app, req).await;
+
+    let requests = mock_server.received_requests().await.unwrap();
+    assert_eq!(requests.len(), 1);
+    let upstream_request: Value = serde_json::from_slice(&requests[0].body).unwrap();
+    assert_eq!(upstream_request["reasoning_effort"], "medium");
+    assert!(upstream_request.get("reasoning").is_none());
+}
+
+#[actix_web::test]
 async fn test_messages_streaming() {
     let (app, mock_server) = setup_test_environment().await;
 

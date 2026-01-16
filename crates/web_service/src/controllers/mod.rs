@@ -1,6 +1,5 @@
 pub mod chat_controller;
 pub mod context; // Domain-based context modules
-pub mod context_controller; // Re-exports from context module
 pub mod bodhi_config_controller;
 pub mod anthropic_controller;
 pub mod openai_controller;

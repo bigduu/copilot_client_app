@@ -18,7 +18,7 @@ use crate::api::models::{Content, ContentPart};
 use crate::client_trait::CopilotClientTrait;
 use async_trait::async_trait;
 
-const DEFAULT_COPILOT_MODEL: &str = "gpt-4.1";
+const DEFAULT_COPILOT_MODEL: &str = "gpt-5-mini";
 
 // Main Copilot Client struct
 #[derive(Debug, Clone)]

@@ -1,7 +1,7 @@
 // Integration tests for Context Management API endpoints
 //
 // These tests document the expected behavior of the new Context Manager endpoints.
-// To implement: Create mock AppState with FileStorageProvider, MockCopilotClient, etc.
+// To implement: Create mock AppState with MessagePoolStorageProvider, MockCopilotClient, etc.
 // See openai_api_tests.rs for the mocking pattern.
 
 #![cfg(test)]
@@ -43,38 +43,32 @@
 //    - Should support optional branch parameter
 //    - Should validate message format
 //
-// ## Tool Operations
-// 8. POST /v1/contexts/{id}/tools/approve - Approve tool calls
-//    - Should accept array of tool_call_ids
-//    - Should update approval status
-//    - Should trigger tool execution if configured
-//
 // ## System Prompt CRUD
-// 9. GET /v1/system-prompts - List all prompts
+// 8. GET /v1/system-prompts - List all prompts
 //    - Should return array of prompt objects
 //
-// 10. POST /v1/system-prompts - Create prompt
+// 9. POST /v1/system-prompts - Create prompt
 //     - Should accept id and content
 //     - Should return created prompt
 //     - Should handle duplicate IDs
 //
-// 11. GET /v1/system-prompts/{id} - Get specific prompt
+// 10. GET /v1/system-prompts/{id} - Get specific prompt
 //     - Should return prompt details
 //     - Should return 404 for nonexistent ID
 //
-// 12. PUT /v1/system-prompts/{id} - Update prompt
+// 11. PUT /v1/system-prompts/{id} - Update prompt
 //     - Should update content
 //     - Should preserve ID
 //
-// 13. DELETE /v1/system-prompts/{id} - Delete prompt
+// 12. DELETE /v1/system-prompts/{id} - Delete prompt
 //     - Should remove prompt
 //     - Should handle prompts in use by contexts
 //
 // ## Error Handling
-// 14. Invalid context ID format
-// 15. Missing required fields in requests
-// 16. Invalid JSON payloads
-// 17. Concurrent modification conflicts
+// 13. Invalid context ID format
+// 14. Missing required fields in requests
+// 15. Invalid JSON payloads
+// 16. Concurrent modification conflicts
 
 #[test]
 fn test_api_documentation() {
@@ -87,5 +81,4 @@ fn test_api_documentation() {
 // 1. Context CRUD (create, get, list, delete)
 // 2. Message operations (add, retrieve)
 // 3. System prompt CRUD
-// 4. Tool approval workflow
-// 5. Error cases and edge conditions
+// 4. Error cases and edge conditions

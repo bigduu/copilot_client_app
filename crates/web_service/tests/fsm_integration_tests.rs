@@ -14,7 +14,7 @@ use context_manager::structs::{
 use web_service::{
     server::AppState,
     services::{chat_service::ChatService, session_manager::ChatSessionManager},
-    storage::file_provider::FileStorageProvider,
+    storage::MessagePoolStorageProvider,
 };
 
 // --- Mock Implementations ---
@@ -40,7 +40,7 @@ impl MockToolExecutor {
 
 async fn setup_test_environment() -> (test::TestServer, Arc<AppState>, TempDir) {
     let temp_dir = tempfile::tempdir().unwrap();
-    let storage_provider = Arc::new(FileStorageProvider::new(temp_dir.path().to_path_buf()));
+    let storage_provider = Arc::new(MessagePoolStorageProvider::new(temp_dir.path().to_path_buf()));
     let session_manager = Arc::new(ChatSessionManager::new(storage_provider, 10));
     let copilot_client = Arc::new(MockCopilotClient::new());
     let tool_executor = Arc::new(MockToolExecutor::new());
@@ -195,7 +195,7 @@ async fn test_persistence_and_caching() {
 
     // 2. "Restart" the service by creating a new session manager pointing to the same directory
     // This simulates clearing the in-memory cache and forcing a load from disk.
-    let storage_provider = Arc::new(FileStorageProvider::new(temp_dir.path().to_path_buf()));
+    let storage_provider = Arc::new(MessagePoolStorageProvider::new(temp_dir.path().to_path_buf()));
     let new_session_manager = Arc::new(ChatSessionManager::new(storage_provider, 10));
 
     // Ensure the context is not in the new cache

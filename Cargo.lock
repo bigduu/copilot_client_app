@@ -7363,13 +7363,8 @@ dependencies = [
 name = "web_service_standalone"
 version = "0.1.0"
 dependencies = [
- "anyhow",
  "clap",
- "copilot_client",
  "dotenvy",
- "env_logger 0.9.3",
- "log",
- "rfd",
  "tokio",
  "tracing",
  "tracing-subscriber",

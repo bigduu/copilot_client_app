@@ -664,6 +664,8 @@ fn convert_messages_request(
         parameters.insert("stop".to_string(), json!(stop_sequences));
     }
 
+    apply_reasoning_mapping(&mut parameters);
+
     let tools = match request.tools {
         Some(tools) => Some(
             tools
@@ -694,6 +696,42 @@ fn convert_messages_request(
         stream: request.stream,
         parameters,
     })
+}
+
+fn apply_reasoning_mapping(parameters: &mut HashMap<String, Value>) {
+    let reasoning = match parameters.remove("reasoning") {
+        Some(value) => value,
+        None => return,
+    };
+
+    if parameters.contains_key("reasoning_effort") {
+        return;
+    }
+
+    let value = match reasoning {
+        Value::String(value) => value,
+        other => {
+            parameters.insert("reasoning".to_string(), other);
+            return;
+        }
+    };
+
+    let normalized = value.trim().to_ascii_lowercase();
+    let mapped = match normalized.as_str() {
+        "low" => Some("low"),
+        "mid" | "medium" => Some("medium"),
+        "high" => Some("high"),
+        _ => None,
+    };
+
+    match mapped {
+        Some(effort) => {
+            parameters.insert("reasoning_effort".to_string(), Value::String(effort.to_string()));
+        }
+        None => {
+            parameters.insert("reasoning".to_string(), Value::String(value));
+        }
+    }
 }
 
 fn append_user_blocks(
@@ -1006,6 +1044,8 @@ fn convert_complete_request(
     if let Some(top_k) = request.top_k {
         parameters.insert("top_k".to_string(), json!(top_k));
     }
+
+    apply_reasoning_mapping(&mut parameters);
 
     Ok(ChatCompletionRequest {
         model: request.model,

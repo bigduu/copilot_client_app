@@ -82,12 +82,7 @@ export const createModelSlice: StateCreator<AppState, [], [], ModelSlice> = (
             modelsError: errorMessage,
           };
         } else {
-          const fallbackModels = [
-            "gpt-4.1",
-            "gpt-5",
-            "gpt-5-mini",
-            "gemini-2.5-pro",
-          ];
+          const fallbackModels = ["gpt-5-mini", "gpt-5", "gemini-2.5-pro"];
           const fallbackModel = fallbackModels[0];
           localStorage.setItem(SELECTED_MODEL_LS_KEY, fallbackModel);
           console.warn("Using fallback models due to service unavailability");
