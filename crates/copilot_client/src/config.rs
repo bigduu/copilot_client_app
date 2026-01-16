@@ -7,9 +7,18 @@ pub struct Config {
     pub api_key: Option<String>,
     pub api_base: Option<String>,
     pub model: Option<String>,
+    #[serde(default)]
+    pub headless_auth: bool,
 }
 
 const CONFIG_FILE_PATH: &str = "config.toml";
+
+fn parse_bool_env(value: &str) -> bool {
+    matches!(
+        value.trim().to_ascii_lowercase().as_str(),
+        "1" | "true" | "yes" | "y" | "on"
+    )
+}
 
 impl Default for Config {
     fn default() -> Self {
@@ -25,6 +34,7 @@ impl Config {
             api_key: None,
             api_base: None,
             model: None,
+            headless_auth: false,
         };
 
         //detect the config file exists
@@ -53,6 +63,28 @@ impl Config {
         if let Ok(model) = std::env::var("MODEL") {
             config.model = Some(model);
         }
+        if let Ok(headless) = std::env::var("COPILOT_CHAT_HEADLESS") {
+            config.headless_auth = parse_bool_env(&headless);
+        }
         config
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parse_bool_env_true_values() {
+        for value in ["1", "true", "TRUE", " yes ", "Y", "on"] {
+            assert!(parse_bool_env(value), "value {value:?} should be true");
+        }
+    }
+
+    #[test]
+    fn parse_bool_env_false_values() {
+        for value in ["0", "false", "no", "off", "", "  "] {
+            assert!(!parse_bool_env(value), "value {value:?} should be false");
+        }
     }
 }

@@ -25,6 +25,20 @@ npm run tauri dev
 cargo run --package web_service_standalone
 ```
 
+#### 无头模式（不自动打开浏览器）
+
+在无头环境（远程服务器/CI/纯终端）下，可以开启无头模式。此时登录会把 `verification_url` 和 `user_code` 打印到终端，手动复制到浏览器完成授权。
+
+```bash
+cargo run --package web_service_standalone -- --headless
+```
+
+或使用环境变量：
+
+```bash
+COPILOT_CHAT_HEADLESS=1 cargo run --package web_service_standalone
+```
+
 #### 端口配置
 
 推荐通过在项目根目录创建 `.env` 文件来配置端口。`web_service_standalone` 程序在启动时会自动加载此文件。

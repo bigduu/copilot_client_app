@@ -41,8 +41,12 @@ impl CopilotClient {
         let client: Client = builder.build().unwrap();
         let shared_client = Arc::new(client);
 
-        let auth_handler =
-            CopilotAuthHandler::new(Arc::clone(&shared_client), app_data_dir.clone()); // Pass app_data_dir
+        let headless_auth = config.headless_auth;
+        let auth_handler = CopilotAuthHandler::new(
+            Arc::clone(&shared_client),
+            app_data_dir.clone(),
+            headless_auth,
+        );
         let models_handler = CopilotModelsHandler::new(Arc::clone(&shared_client));
 
         CopilotClient {

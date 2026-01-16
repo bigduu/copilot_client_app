@@ -48,6 +48,10 @@ mod tests {
     use super::*;
     use tempfile::tempdir;
 
+    fn test_http_client() -> Arc<Client> {
+        Arc::new(Client::builder().no_proxy().build().expect("client"))
+    }
+
     fn sample_config(expires_at: u64) -> CopilotConfig {
         CopilotConfig {
             token: "cached-token".to_string(),
@@ -94,7 +98,7 @@ mod tests {
     #[test]
     fn cached_copilot_config_round_trip() {
         let dir = tempdir().expect("tempdir");
-        let handler = CopilotAuthHandler::new(Arc::new(Client::new()), dir.path().to_path_buf());
+        let handler = CopilotAuthHandler::new(test_http_client(), dir.path().to_path_buf(), false);
         let token_path = dir.path().join(".copilot_token.json");
         let config = sample_config(1234567890);
 
@@ -112,7 +116,7 @@ mod tests {
     #[test]
     fn copilot_token_expiry_buffer() {
         let dir = tempdir().expect("tempdir");
-        let handler = CopilotAuthHandler::new(Arc::new(Client::new()), dir.path().to_path_buf());
+        let handler = CopilotAuthHandler::new(test_http_client(), dir.path().to_path_buf(), false);
         let now = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .map(|duration| duration.as_secs())
@@ -123,6 +127,32 @@ mod tests {
 
         assert!(handler.is_copilot_token_valid(&valid));
         assert!(!handler.is_copilot_token_valid(&stale));
+    }
+
+    #[test]
+    fn device_code_presentation_respects_headless_flag() {
+        let device_code = DeviceCodeResponse {
+            device_code: "device".to_string(),
+            user_code: "ABCD-EFGH".to_string(),
+            verification_uri: "https://github.com/login/device".to_string(),
+            expires_in: 900,
+            interval: 5,
+        };
+
+        let dir = tempdir().expect("tempdir");
+        let headless = CopilotAuthHandler::new(test_http_client(), dir.path().to_path_buf(), true);
+        assert!(matches!(
+            headless.device_code_presentation(&device_code),
+            DeviceCodePresentation::Headless(message)
+                if message.contains(&device_code.verification_uri)
+                    && message.contains(&device_code.user_code)
+        ));
+
+        let gui = CopilotAuthHandler::new(test_http_client(), dir.path().to_path_buf(), false);
+        assert_eq!(
+            gui.device_code_presentation(&device_code),
+            DeviceCodePresentation::Gui
+        );
     }
 }
 
@@ -175,13 +205,26 @@ lazy_static! {
 pub(crate) struct CopilotAuthHandler {
     client: Arc<Client>,
     app_data_dir: PathBuf,
+    headless_auth: bool,
 }
 
 impl CopilotAuthHandler {
-    pub(crate) fn new(client: Arc<Client>, app_data_dir: PathBuf) -> Self {
+    pub(crate) fn new(client: Arc<Client>, app_data_dir: PathBuf, headless_auth: bool) -> Self {
         CopilotAuthHandler {
             client,
             app_data_dir,
+            headless_auth,
+        }
+    }
+
+    fn device_code_presentation(&self, device_code: &DeviceCodeResponse) -> DeviceCodePresentation {
+        if self.headless_auth {
+            DeviceCodePresentation::Headless(format!(
+                "GitHub Device Authorization (headless)\nVerification URL: {}\nUser Code: {}\n",
+                device_code.verification_uri, device_code.user_code
+            ))
+        } else {
+            DeviceCodePresentation::Gui
         }
     }
 
@@ -298,23 +341,31 @@ impl CopilotAuthHandler {
             ("grant_type", "urn:ietf:params:oauth:grant-type:device_code"),
             ("expires_in", "3600"),
         ]);
-        use webbrowser;
-        webbrowser::open(&device_code.verification_uri)?;
-        use arboard::Clipboard;
-        let mut clipboard = Clipboard::new()?;
-        clipboard.set_text(device_code.user_code.clone())?;
+        match self.device_code_presentation(&device_code) {
+            DeviceCodePresentation::Headless(message) => {
+                println!("{message}");
+                info!("{message}");
+            }
+            DeviceCodePresentation::Gui => {
+                use webbrowser;
+                webbrowser::open(&device_code.verification_uri)?;
+                use arboard::Clipboard;
+                let mut clipboard = Clipboard::new()?;
+                clipboard.set_text(device_code.user_code.clone())?;
 
-        let dialog_message = format!(
-            "User code '{}' has been copied to your clipboard. Please paste it into the GitHub page that will open next.",
-            device_code.user_code
-        );
-        rfd::AsyncMessageDialog::new()
-            .set_title("GitHub Device Authorization")
-            .set_description(&dialog_message)
-            .set_level(rfd::MessageLevel::Info)
-            .set_buttons(rfd::MessageButtons::Ok)
-            .show()
-            .await;
+                let dialog_message = format!(
+                    "User code '{}' has been copied to your clipboard. Please paste it into the GitHub page that will open next.",
+                    device_code.user_code
+                );
+                rfd::AsyncMessageDialog::new()
+                    .set_title("GitHub Device Authorization")
+                    .set_description(&dialog_message)
+                    .set_level(rfd::MessageLevel::Info)
+                    .set_buttons(rfd::MessageButtons::Ok)
+                    .show()
+                    .await;
+            }
+        }
 
         loop {
             let response = self
@@ -359,4 +410,10 @@ impl CopilotAuthHandler {
             }
         }
     }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum DeviceCodePresentation {
+    Headless(String),
+    Gui,
 }
