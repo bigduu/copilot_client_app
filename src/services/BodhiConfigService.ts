@@ -15,7 +15,6 @@ export interface BodhiToolsResponse {
 
 export class BodhiConfigService {
   private static instance: BodhiConfigService
-  private readonly baseUrl = "http://127.0.0.1:8080/v1/bodhi"
 
   private constructor() {}
 
@@ -27,24 +26,14 @@ export class BodhiConfigService {
   }
 
   async getSystemPrompts(): Promise<BodhiSystemPromptsResponse> {
-    const response = await fetch(`${this.baseUrl}/system-prompts`)
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`)
-    }
-    const data = await response.json()
     return {
-      prompts: Array.isArray(data?.prompts) ? data.prompts : [],
+      prompts: [],
     }
   }
 
   async getTools(): Promise<BodhiToolsResponse> {
-    const response = await fetch(`${this.baseUrl}/tools`)
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`)
-    }
-    const data = await response.json()
     return {
-      tools: Array.isArray(data?.tools) ? data.tools : [],
+      tools: [],
     }
   }
 }
