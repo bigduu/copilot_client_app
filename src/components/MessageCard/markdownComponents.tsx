@@ -307,7 +307,7 @@ export const createMarkdownComponents = (
     </li>
   ),
 
-  code({ className, children, inline, ...props }) {
+  code({ className, children, inline, ...props }: any) {
     const match = /language-([^\s]+)/i.exec(className || "");
     const language = match ? match[1] : "";
     const isInline = inline ?? (!match && !className);

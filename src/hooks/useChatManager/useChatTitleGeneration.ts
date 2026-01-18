@@ -158,9 +158,18 @@ const buildTitleContext = (messages: Message[]): string => {
   const lines = slice
     .map((message) => {
       const role = message.role === "user" ? "User" : "Assistant";
-      const content =
-        "content" in message ? message.content : message.displayText;
-      const text = typeof content === "string" ? content.trim() : "";
+      const text = (() => {
+        if ("content" in message && typeof message.content === "string") {
+          return message.content.trim();
+        }
+        if ("displayText" in (message as any)) {
+          const displayText = (message as any).displayText;
+          if (typeof displayText === "string") {
+            return displayText.trim();
+          }
+        }
+        return "";
+      })();
       if (!text) return "";
       const trimmed =
         text.length > MAX_MESSAGE_CHARS

@@ -57,7 +57,7 @@ const SystemMessageCard: React.FC<SystemMessageCardProps> = ({ message }) => {
       setEnhancedPrompt(null);
       setShowEnhanced(false);
     }
-  }, [message.id, message.role, systemMessageContent, message.createdAt]);
+  }, [message.id, message.role, systemMessageContent]);
 
   // Load base prompt content
   useEffect(() => {

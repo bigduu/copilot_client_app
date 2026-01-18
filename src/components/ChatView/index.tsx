@@ -118,7 +118,7 @@ export const ChatView: React.FC = () => {
         id: `system-prompt-${currentChat.id}`,
         role: "system" as const,
         content: currentChat.config.baseSystemPrompt,
-        createdAt: new Date().toISOString(),
+        createdAt: new Date(currentChat.createdAt).toISOString(),
       };
     }
 
@@ -453,7 +453,7 @@ export const ChatView: React.FC = () => {
                     messageType,
                   } = convertRenderableEntry(entry);
 
-                  const key = `${convertedMessage.id}-${virtualRow.index}`;
+                  const key = convertedMessage.id;
                   const isLast =
                     virtualRow.index === renderableMessages.length - 1;
 

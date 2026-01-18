@@ -37,6 +37,7 @@ import { ChatItem } from "../../types/chat";
 import SystemPromptSelector from "../SystemPromptSelector";
 import { UserSystemPrompt } from "../../types/chat";
 import { useChatController } from "../../contexts/ChatControllerContext";
+import { ModeSwitcher } from "../ModeSwitcher";
 
 const { Sider } = Layout;
 const { Text } = Typography;
@@ -280,6 +281,9 @@ export const ChatSidebar: React.FC<{
         }}
         className="chat-sidebar-scroll"
       >
+        <Flex justify={collapsed ? "center" : "flex-start"} style={{ paddingBottom: 8 }}>
+          <ModeSwitcher size="small" style={{ width: collapsed ? 52 : "100%" }} />
+        </Flex>
         <style>{`
           .chat-sidebar-scroll::-webkit-scrollbar {
             display: none;
