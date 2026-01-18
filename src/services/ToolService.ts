@@ -1,5 +1,5 @@
-import { invoke } from "@tauri-apps/api/core";
 import { ToolExecutionResult } from "../types/chat";
+import { buildBackendUrl } from "../utils/backendBaseUrl";
 
 export interface ToolCallRequest {
   tool_name: string;
@@ -134,19 +134,25 @@ export class ToolService {
     request: ToolExecutionRequest,
   ): Promise<ToolExecutionResult> {
     console.log(
-      "[ToolService] executeTool: Attempting to execute tool via Tauri with request:",
+      "[ToolService] executeTool: Attempting to execute tool via HTTP with request:",
       request,
     );
     try {
-      // The backend now returns a JSON string containing the result and display preference.
-      const jsonResult = await invoke<string>("execute_tool", { request });
-      console.log(
-        '[ToolService] executeTool: Tauri command "execute_tool" returned successfully with JSON result:',
-        jsonResult,
-      );
-
-      // Parse the JSON string into a structured object.
-      const structuredResult: ToolExecutionResult = JSON.parse(jsonResult);
+      const response = await fetch(buildBackendUrl("/tools/execute"), {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(request),
+      });
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(
+          `HTTP error! status: ${response.status}, body: ${errorText}`,
+        );
+      }
+      const data = await response.json();
+      const structuredResult: ToolExecutionResult = JSON.parse(data.result);
       console.log(
         "[ToolService] executeTool: Parsed structured result:",
         structuredResult,
@@ -155,7 +161,7 @@ export class ToolService {
       return structuredResult;
     } catch (error) {
       console.error(
-        '[ToolService] executeTool: Tauri command "execute_tool" invocation failed:',
+        "[ToolService] executeTool: HTTP tool execution failed:",
         error,
       );
       throw new Error(`Workflow execution failed: ${error}`);

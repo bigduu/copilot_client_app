@@ -18,6 +18,7 @@ use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tokio::sync::mpsc::Sender;
 use web_service::server::{app_config, AppState};
+use web_service::services::mcp_service::McpRuntime;
 use wiremock::{
     matchers::{method, path},
     Mock, MockServer, ResponseTemplate,
@@ -105,9 +106,11 @@ async fn setup_test_environment() -> (
         client: reqwest::Client::builder().no_proxy().build().unwrap(),
     });
 
+    let mcp_runtime = Arc::new(McpRuntime::new(std::env::temp_dir()).await);
     let app_state = actix_web::web::Data::new(AppState {
         copilot_client: copilot_client.clone(),
         app_data_dir: std::env::temp_dir(),
+        mcp_runtime,
     });
 
     let app =

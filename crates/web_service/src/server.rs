@@ -4,12 +4,14 @@ use log::{error, info};
 use std::{path::PathBuf, sync::Arc};
 use tokio::sync::oneshot;
 
-use crate::controllers::{anthropic_controller, bodhi_controller, openai_controller};
+use crate::controllers::{anthropic_controller, bodhi_controller, mcp_controller, openai_controller};
+use crate::services::mcp_service::McpRuntime;
 use copilot_client::{config::Config, CopilotClient, CopilotClientTrait};
 
 pub struct AppState {
     pub copilot_client: Arc<dyn CopilotClientTrait>,
     pub app_data_dir: PathBuf,
+    pub mcp_runtime: Arc<McpRuntime>,
 }
 
 const DEFAULT_WORKER_COUNT: usize = 10;
@@ -19,7 +21,8 @@ pub fn app_config(cfg: &mut web::ServiceConfig) {
         web::scope("/v1")
             .configure(anthropic_controller::config)
             .configure(openai_controller::config)
-            .configure(bodhi_controller::config),
+            .configure(bodhi_controller::config)
+            .configure(mcp_controller::config),
     );
 }
 
@@ -29,9 +32,11 @@ pub async fn run(app_data_dir: PathBuf, port: u16) -> Result<(), String> {
     let config = Config::new();
     let copilot_client: Arc<dyn CopilotClientTrait> =
         Arc::new(CopilotClient::new(config, app_data_dir.clone()));
+    let mcp_runtime = Arc::new(McpRuntime::new(app_data_dir.clone()).await);
     let app_state = web::Data::new(AppState {
         copilot_client,
         app_data_dir,
+        mcp_runtime,
     });
 
     let server = HttpServer::new(move || {
@@ -81,9 +86,11 @@ impl WebService {
         let config = Config::new();
         let copilot_client: Arc<dyn CopilotClientTrait> =
             Arc::new(CopilotClient::new(config, self.app_data_dir.clone()));
+        let mcp_runtime = Arc::new(McpRuntime::new(self.app_data_dir.clone()).await);
         let app_state = web::Data::new(AppState {
             copilot_client,
             app_data_dir: self.app_data_dir.clone(),
+            mcp_runtime,
         });
 
         let server = HttpServer::new(move || {

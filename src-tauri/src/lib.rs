@@ -5,7 +5,6 @@ use crate::command::claude_code::{
     set_claude_binary_path, ClaudeCodeProcessState,
 };
 use log::{info, LevelFilter};
-use mcp_client::client::init_all_clients;
 use std::path::PathBuf;
 use tauri::{App, Runtime};
 use tauri::Manager;
@@ -28,10 +27,6 @@ fn setup<R: Runtime>(_app: &mut App<R>) -> std::result::Result<(), Box<dyn std::
     info!("App data dir: {:?}", app_data_dir);
 
     _app.manage(ClaudeCodeProcessState::default());
-
-    tauri::async_runtime::spawn(async {
-        let _ = init_all_clients().await;
-    });
 
     let server_data_dir = app_data_dir.clone();
     tauri::async_runtime::spawn(async {

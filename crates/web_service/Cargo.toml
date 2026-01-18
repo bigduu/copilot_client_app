@@ -17,6 +17,8 @@ async-stream = "0.3"
 futures-util = "0.3"
 bytes = "1"
 copilot_client = { path = "../copilot_client" }
+mcp_client = { path = "../mcp_client" }
+rmcp = { version = "0.1", features = ["transport-child-process", "client"] }
 
 [dev-dependencies]
 actix-http = "3.0"
@@ -25,5 +27,3 @@ copilot_client = { path = "../copilot_client" }
 reqwest = { version = "0.12", features = ["json", "stream", "rustls-tls"] }
 wiremock = "0.5"
 async-trait = "0.1.1"
-
-

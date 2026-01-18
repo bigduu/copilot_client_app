@@ -7,6 +7,7 @@ use rmcp::service::{RoleClient, RunningService};
 use rmcp::{transport::TokioChildProcess, ServiceExt};
 use serde::Serialize;
 use std::collections::HashMap;
+use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use tokio::process::Command;
 
@@ -79,13 +80,25 @@ pub struct McpClientManager {
 impl McpClientManager {
     pub async fn new(configs: &HashMap<String, McpServerConfig>) -> Result<Self> {
         let mut clients = HashMap::new();
+        let mut client_tools = HashMap::new();
         for (name, config) in configs {
             let client = McpClient::new(config.clone()).await?;
-            clients.insert(name.clone(), Arc::new(client));
+            let client = Arc::new(client);
+            match client.list_all_tools().await {
+                Ok(tools) => {
+                    for tool in tools {
+                        client_tools.insert(tool.name.to_string(), name.clone());
+                    }
+                }
+                Err(err) => {
+                    info!("Failed to list tools for MCP server {}: {}", name, err);
+                }
+            }
+            clients.insert(name.clone(), client);
         }
         Ok(Self {
             clients,
-            client_tools: HashMap::new(),
+            client_tools,
         })
     }
 
@@ -127,23 +140,41 @@ impl McpClientManager {
 pub static MCP_CLIENT_MANAGER: OnceCell<Arc<McpClientManager>> = OnceCell::new();
 
 pub async fn init_all_clients() -> anyhow::Result<()> {
-    // Load config from file (same as command/mcp.rs)
-    let config_path = std::path::Path::new("mcp_servers.json");
-    let config: McpServersConfig = if config_path.exists() {
-        let content = std::fs::read_to_string(config_path)?;
-        info!("config: {}", content);
-        serde_json::from_str(&content)?
-    } else {
-        McpServersConfig::default()
-    };
-    let mut manager = McpClientManager::new(&config.mcp_servers).await?;
-    for (name, server_config) in config.mcp_servers {
-        let _ = manager.add_client(name, server_config).await;
-    }
+    let config_path = bodhi_dir().join("mcp_servers.json");
+    let config = load_config(&config_path)?;
+    let enabled_configs = filter_enabled(&config);
+    let manager = McpClientManager::new(&enabled_configs).await?;
     MCP_CLIENT_MANAGER.set(Arc::new(manager)).ok();
     Ok(())
 }
 
 pub fn get_global_manager() -> Option<Arc<McpClientManager>> {
     MCP_CLIENT_MANAGER.get().cloned()
+}
+
+fn bodhi_dir() -> PathBuf {
+    std::env::var_os("HOME")
+        .or_else(|| std::env::var_os("USERPROFILE"))
+        .map(PathBuf::from)
+        .unwrap_or_else(|| std::env::temp_dir())
+        .join(".bodhi")
+}
+
+fn load_config(config_path: &PathBuf) -> Result<McpServersConfig> {
+    if config_path.exists() {
+        let content = std::fs::read_to_string(config_path)?;
+        info!("config: {}", content);
+        Ok(serde_json::from_str(&content)?)
+    } else {
+        Ok(McpServersConfig::default())
+    }
+}
+
+fn filter_enabled(config: &McpServersConfig) -> HashMap<String, McpServerConfig> {
+    config
+        .mcp_servers
+        .iter()
+        .filter(|(_, server)| !server.disabled.unwrap_or(false))
+        .map(|(name, server)| (name.clone(), server.clone()))
+        .collect()
 }

@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import {
   Modal,
   Button,
@@ -16,6 +16,7 @@ import {
 import { DeleteOutlined } from "@ant-design/icons";
 import { useChatManager } from "../../hooks/useChatManager";
 import { useModels } from "../../hooks/useModels";
+import { serviceFactory } from "../../services/ServiceFactory";
 import {
   getSystemPromptEnhancement,
   setSystemPromptEnhancement,
@@ -30,6 +31,7 @@ import {
 } from "../../utils/todoEnhancementUtils";
 import {
   clearBackendBaseUrlOverride,
+  buildBackendUrl,
   getBackendBaseUrl,
   getDefaultBackendBaseUrl,
   hasBackendBaseUrlOverride,
@@ -42,6 +44,12 @@ const { Text } = Typography;
 const { useToken } = theme;
 
 const DARK_MODE_KEY = "copilot_dark_mode";
+
+interface McpStatusResponse {
+  name: string;
+  status: string;
+  message?: string;
+}
 
 const ModelSelection = ({
   isLoadingModels,
@@ -152,10 +160,22 @@ const SystemSettingsModal = ({
   const [todoEnhancementEnabled, setTodoEnhancementEnabledState] = useState(
     isTodoEnhancementEnabled()
   );
-  const [backendBaseUrl, setBackendBaseUrlState] = useState(getBackendBaseUrl());
+  const [backendBaseUrl, setBackendBaseUrlState] = useState(
+    getBackendBaseUrl()
+  );
   const [hasBackendOverride, setHasBackendOverride] = useState(
     hasBackendBaseUrlOverride()
   );
+  const [mcpConfigJson, setMcpConfigJson] = useState("");
+  const [mcpConfigError, setMcpConfigError] = useState<string | null>(null);
+  const [mcpStatuses, setMcpStatuses] = useState<
+    Record<string, McpStatusResponse | null>
+  >({});
+  const [isLoadingMcp, setIsLoadingMcp] = useState(false);
+  const [mcpConfigDirty, setMcpConfigDirty] = useState(false);
+  const mcpPollingRef = useRef<number | null>(null);
+  const mcpDirtyRef = useRef(false);
+  const mcpLastConfigRef = useRef<string>("");
 
   useEffect(() => {
     if (open) {
@@ -164,7 +184,19 @@ const SystemSettingsModal = ({
       setTodoEnhancementEnabledState(isTodoEnhancementEnabled());
       setBackendBaseUrlState(getBackendBaseUrl());
       setHasBackendOverride(hasBackendBaseUrlOverride());
+      loadMcpConfig();
+      if (!mcpPollingRef.current) {
+        mcpPollingRef.current = window.setInterval(() => {
+          void pollMcpConfig();
+        }, 5000);
+      }
     }
+    return () => {
+      if (mcpPollingRef.current) {
+        window.clearInterval(mcpPollingRef.current);
+        mcpPollingRef.current = null;
+      }
+    };
   }, [open]);
 
   const handleDeleteAll = () => {
@@ -265,6 +297,109 @@ const SystemSettingsModal = ({
     }
   };
 
+  const fetchMcpConfig = async () => {
+    const config = await serviceFactory.getMcpServers();
+    return config ?? { mcpServers: {} };
+  };
+
+  const applyMcpConfig = async (config: any, force = false) => {
+    const json = JSON.stringify(config ?? { mcpServers: {} }, null, 2);
+    if (force || !mcpDirtyRef.current) {
+      setMcpConfigJson(json);
+    }
+    setMcpConfigDirty(false);
+    mcpDirtyRef.current = false;
+    mcpLastConfigRef.current = json;
+    await refreshMcpStatuses(config);
+  };
+
+  const loadMcpConfig = async () => {
+    setIsLoadingMcp(true);
+    setMcpConfigError(null);
+    try {
+      const config = await fetchMcpConfig();
+      await applyMcpConfig(config, true);
+    } catch (error) {
+      setMcpConfigError(
+        error instanceof Error
+          ? error.message
+          : "Failed to load MCP configuration"
+      );
+    } finally {
+      setIsLoadingMcp(false);
+    }
+  };
+
+  const reloadMcpConfig = async () => {
+    const response = await fetch(buildBackendUrl("/mcp/reload"), {
+      method: "POST",
+    });
+    if (!response.ok) {
+      throw new Error(`Failed to reload MCP config: ${response.status}`);
+    }
+    return await response.json();
+  };
+
+  const pollMcpConfig = async () => {
+    if (!open) return;
+    try {
+      const config = await fetchMcpConfig();
+      const json = JSON.stringify(config ?? { mcpServers: {} }, null, 2);
+      if (!mcpDirtyRef.current && json !== mcpLastConfigRef.current) {
+        const reloaded = await reloadMcpConfig();
+        await applyMcpConfig(reloaded, true);
+        return;
+      }
+      await applyMcpConfig(config);
+    } catch {
+    }
+  };
+
+  const refreshMcpStatuses = async (config: any) => {
+    const serverNames = Object.keys(config?.mcpServers ?? {});
+    if (serverNames.length === 0) {
+      setMcpStatuses({});
+      return;
+    }
+    const entries = await Promise.all(
+      serverNames.map(async (name) => {
+        try {
+          const status = await serviceFactory.getMcpClientStatus(name);
+          return [name, status as McpStatusResponse] as const;
+        } catch {
+          return [name, null] as const;
+        }
+      })
+    );
+    setMcpStatuses(Object.fromEntries(entries));
+  };
+
+  const handleSaveMcpConfig = async () => {
+    try {
+      const parsed = JSON.parse(mcpConfigJson);
+      await serviceFactory.setMcpServers(parsed);
+      msgApi.success("MCP configuration saved");
+      setMcpConfigDirty(false);
+      mcpDirtyRef.current = false;
+      mcpLastConfigRef.current = JSON.stringify(parsed, null, 2);
+      await loadMcpConfig();
+    } catch (error) {
+      msgApi.error(
+        error instanceof Error
+          ? error.message
+          : "Failed to save MCP configuration"
+      );
+    }
+  };
+
+  const formatMcpStatus = (status: McpStatusResponse | null) => {
+    if (!status) return "unknown";
+    if (status.status === "error") {
+      return status.message ? `error: ${status.message}` : "error";
+    }
+    return status.status;
+  };
+
   return (
     <Modal
       title="System Settings"
@@ -297,7 +432,10 @@ const SystemSettingsModal = ({
             onChange={(event) => setBackendBaseUrlState(event.target.value)}
           />
           <Flex justify="flex-end" gap={token.marginSM}>
-            <Button disabled={!hasBackendOverride} onClick={handleResetBackendBaseUrl}>
+            <Button
+              disabled={!hasBackendOverride}
+              onClick={handleResetBackendBaseUrl}
+            >
               Reset to Default
             </Button>
             <Button type="primary" onClick={handleSaveBackendBaseUrl}>
@@ -307,6 +445,79 @@ const SystemSettingsModal = ({
           <Text type="secondary" style={{ fontSize: token.fontSizeSM }}>
             Must be a full base URL including <Text code>/v1</Text> (e.g.
             <Text code>http://127.0.0.1:8080/v1</Text>).
+          </Text>
+        </Space>
+
+        <Space
+          direction="vertical"
+          size={token.marginXS}
+          style={{ width: "100%" }}
+        >
+          <Flex justify="space-between" align="center">
+            <Text strong>MCP Server Configuration</Text>
+            <Space size={token.marginSM}>
+              <Button
+                onClick={async () => {
+                  try {
+                    setIsLoadingMcp(true);
+                    const reloaded = await reloadMcpConfig();
+                    await applyMcpConfig(reloaded, true);
+                  } catch (error) {
+                    msgApi.error(
+                      error instanceof Error
+                        ? error.message
+                        : "Failed to reload MCP configuration"
+                    );
+                  } finally {
+                    setIsLoadingMcp(false);
+                  }
+                }}
+                disabled={isLoadingMcp}
+              >
+                Reload
+              </Button>
+              <Button
+                type="primary"
+                onClick={handleSaveMcpConfig}
+                disabled={isLoadingMcp}
+              >
+                Save
+              </Button>
+            </Space>
+          </Flex>
+          <Input.TextArea
+            rows={10}
+            value={mcpConfigJson}
+            onChange={(event) => {
+              setMcpConfigJson(event.target.value);
+              setMcpConfigDirty(true);
+              mcpDirtyRef.current = true;
+            }}
+            placeholder='{"mcpServers":{}}'
+          />
+          {mcpConfigError && <Text type="danger">{mcpConfigError}</Text>}
+          {Object.keys(mcpStatuses).length > 0 && (
+            <Space
+              direction="vertical"
+              size={token.marginXS}
+              style={{ width: "100%" }}
+            >
+              {Object.entries(mcpStatuses).map(([name, status]) => (
+                <Flex key={name} justify="space-between" align="center">
+                  <Text code>{name}</Text>
+                  <Text
+                    type={status?.status === "error" ? "danger" : "secondary"}
+                  >
+                    {formatMcpStatus(status)}
+                  </Text>
+                </Flex>
+              ))}
+            </Space>
+          )}
+          <Text type="secondary" style={{ fontSize: token.fontSizeSM }}>
+            Edit <Text code>~/.bodhi/mcp_servers.json</Text> directly or use this
+            editor. The UI refreshes periodically; use Reload to apply file
+            changes or Save to persist edits.
           </Text>
         </Space>
 

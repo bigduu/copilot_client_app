@@ -150,7 +150,7 @@ export class HttpUtilityService implements Partial<UtilityService> {
       return await response.json();
     } catch (error) {
       console.error("Failed to fetch MCP servers:", error);
-      return { servers: [] };
+      return { mcpServers: {} };
     }
   }
 
