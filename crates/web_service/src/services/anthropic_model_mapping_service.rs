@@ -14,6 +14,7 @@ pub struct AnthropicModelMapping {
 
 fn mapping_path() -> Result<PathBuf, AppError> {
     let home = std::env::var_os("HOME")
+        .or_else(|| std::env::var_os("USERPROFILE"))
         .ok_or_else(|| AppError::InternalError(anyhow::anyhow!("HOME not set")))?;
     Ok(PathBuf::from(home).join(".bodhi").join(MAPPING_FILE_NAME))
 }

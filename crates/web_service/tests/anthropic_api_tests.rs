@@ -119,6 +119,7 @@ async fn setup_test_environment() -> (
 
     let app_state = actix_web::web::Data::new(AppState {
         copilot_client: copilot_client.clone(),
+        app_data_dir: std::env::temp_dir(),
     });
 
     let app =
