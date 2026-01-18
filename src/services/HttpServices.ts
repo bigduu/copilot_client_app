@@ -1,6 +1,6 @@
 import { ToolService, UtilityService } from "./types";
 
-const API_BASE_URL = "http://127.0.0.1:8080/v1";
+import { buildBackendUrl } from "../utils/backendBaseUrl";
 
 export class HttpToolService implements ToolService {
   // Note: getAvailableTools removed - tools are no longer exposed to frontend UI
@@ -16,7 +16,7 @@ export class HttpToolService implements ToolService {
 
   async getToolsDocumentation(): Promise<any> {
     try {
-      const response = await fetch(`${API_BASE_URL}/tools/documentation`);
+      const response = await fetch(buildBackendUrl("/tools/documentation"));
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
@@ -29,7 +29,7 @@ export class HttpToolService implements ToolService {
 
   async getToolsForUI(categoryId?: string): Promise<any[]> {
     try {
-      const url = new URL(`${API_BASE_URL}/tools/ui`);
+      const url = new URL(buildBackendUrl("/tools/ui"));
       if (categoryId) {
         url.searchParams.append("category_id", categoryId);
       }
@@ -47,7 +47,7 @@ export class HttpToolService implements ToolService {
 
   async executeTool(toolName: string, parameters: any[]): Promise<any> {
     try {
-      const response = await fetch(`${API_BASE_URL}/tools/execute`, {
+      const response = await fetch(buildBackendUrl("/tools/execute"), {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -78,7 +78,7 @@ export class HttpToolService implements ToolService {
 
   async getToolCategories(): Promise<any[]> {
     try {
-      const response = await fetch(`${API_BASE_URL}/tools/categories`);
+      const response = await fetch(buildBackendUrl("/tools/categories"));
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
@@ -92,7 +92,7 @@ export class HttpToolService implements ToolService {
   async getCategoryTools(categoryId: string): Promise<any[]> {
     try {
       const response = await fetch(
-        `${API_BASE_URL}/tools/category/${categoryId}/tools`,
+        buildBackendUrl(`/tools/category/${categoryId}/tools`),
       );
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
@@ -107,7 +107,7 @@ export class HttpToolService implements ToolService {
   async getToolCategoryInfo(categoryId: string): Promise<any> {
     try {
       const response = await fetch(
-        `${API_BASE_URL}/tools/category/${categoryId}/info`,
+        buildBackendUrl(`/tools/category/${categoryId}/info`),
       );
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
@@ -122,7 +122,7 @@ export class HttpToolService implements ToolService {
   async getCategorySystemPrompt(categoryId: string): Promise<string> {
     try {
       const response = await fetch(
-        `${API_BASE_URL}/tools/category/${categoryId}/system_prompt`,
+        buildBackendUrl(`/tools/category/${categoryId}/system_prompt`),
       );
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
@@ -143,7 +143,7 @@ export class HttpToolService implements ToolService {
 export class HttpUtilityService implements Partial<UtilityService> {
   async getMcpServers(): Promise<any> {
     try {
-      const response = await fetch(`${API_BASE_URL}/mcp/servers`);
+      const response = await fetch(buildBackendUrl("/mcp/servers"));
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
@@ -156,7 +156,7 @@ export class HttpUtilityService implements Partial<UtilityService> {
 
   async setMcpServers(servers: any): Promise<void> {
     try {
-      const response = await fetch(`${API_BASE_URL}/mcp/servers`, {
+      const response = await fetch(buildBackendUrl("/mcp/servers"), {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -174,7 +174,7 @@ export class HttpUtilityService implements Partial<UtilityService> {
 
   async getMcpClientStatus(name: string): Promise<any> {
     try {
-      const response = await fetch(`${API_BASE_URL}/mcp/status/${name}`);
+      const response = await fetch(buildBackendUrl(`/mcp/status/${name}`));
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }

@@ -3,7 +3,7 @@
  * Manages template variables for system prompts
  */
 
-const API_BASE_URL = "http://127.0.0.1:8080/v1";
+import { buildBackendUrl } from "../utils/backendBaseUrl";
 
 export interface TemplateVariable {
   key: string;
@@ -28,7 +28,7 @@ export class TemplateVariableService {
    */
   async getAll(): Promise<Record<string, string>> {
     try {
-      const response = await fetch(`${API_BASE_URL}/template-variables`);
+      const response = await fetch(buildBackendUrl("/template-variables"));
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
@@ -45,7 +45,9 @@ export class TemplateVariableService {
    */
   async get(key: string): Promise<string | null> {
     try {
-      const response = await fetch(`${API_BASE_URL}/template-variables/${key}`);
+      const response = await fetch(
+        buildBackendUrl(`/template-variables/${key}`),
+      );
       if (response.status === 404) {
         return null;
       }
@@ -65,7 +67,7 @@ export class TemplateVariableService {
    */
   async set(key: string, value: string): Promise<void> {
     try {
-      const response = await fetch(`${API_BASE_URL}/template-variables`, {
+      const response = await fetch(buildBackendUrl("/template-variables"), {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -89,7 +91,7 @@ export class TemplateVariableService {
    */
   async setMultiple(variables: Record<string, string>): Promise<void> {
     try {
-      const response = await fetch(`${API_BASE_URL}/template-variables`, {
+      const response = await fetch(buildBackendUrl("/template-variables"), {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
@@ -114,7 +116,7 @@ export class TemplateVariableService {
   async delete(key: string): Promise<void> {
     try {
       const response = await fetch(
-        `${API_BASE_URL}/template-variables/${key}`,
+        buildBackendUrl(`/template-variables/${key}`),
         {
           method: "DELETE",
         },
@@ -137,7 +139,7 @@ export class TemplateVariableService {
   async reload(): Promise<void> {
     try {
       const response = await fetch(
-        `${API_BASE_URL}/template-variables/reload`,
+        buildBackendUrl("/template-variables/reload"),
         {
           method: "POST",
         },
@@ -154,8 +156,6 @@ export class TemplateVariableService {
     }
   }
 }
-
-
 
 
 

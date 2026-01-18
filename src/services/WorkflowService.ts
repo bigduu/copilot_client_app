@@ -3,6 +3,8 @@
  * Workflows are user-invoked actions with explicit parameter forms
  */
 
+import { buildBackendUrl } from "../utils/backendBaseUrl";
+
 export interface WorkflowParameter {
   name: string;
   description: string;
@@ -39,7 +41,6 @@ export interface WorkflowExecutionResult {
  */
 export class WorkflowService {
   private static instance: WorkflowService;
-  private readonly baseUrl: string = "http://127.0.0.1:8080/v1";
 
   private constructor() {}
 
@@ -56,7 +57,7 @@ export class WorkflowService {
   async getAvailableWorkflows(): Promise<WorkflowDefinition[]> {
     try {
       console.log("[WorkflowService] Fetching available workflows");
-      const response = await fetch(`${this.baseUrl}/workflows/available`);
+      const response = await fetch(buildBackendUrl("/workflows/available"));
 
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
@@ -103,7 +104,7 @@ export class WorkflowService {
   async getWorkflowCategories(): Promise<string[]> {
     try {
       console.log("[WorkflowService] Fetching workflow categories");
-      const response = await fetch(`${this.baseUrl}/workflows/categories`);
+      const response = await fetch(buildBackendUrl("/workflows/categories"));
 
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
@@ -132,7 +133,7 @@ export class WorkflowService {
   async getWorkflowDetails(name: string): Promise<WorkflowDefinition | null> {
     try {
       console.log(`[WorkflowService] Fetching details for workflow: ${name}`);
-      const response = await fetch(`${this.baseUrl}/workflows/${name}`);
+      const response = await fetch(buildBackendUrl(`/workflows/${name}`));
 
       if (response.status === 404) {
         console.warn(`[WorkflowService] Workflow not found: ${name}`);
@@ -163,7 +164,7 @@ export class WorkflowService {
   ): Promise<WorkflowExecutionResult> {
     try {
       console.log("[WorkflowService] Executing workflow:", request);
-      const response = await fetch(`${this.baseUrl}/workflows/execute`, {
+      const response = await fetch(buildBackendUrl("/workflows/execute"), {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

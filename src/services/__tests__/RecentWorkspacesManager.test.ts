@@ -19,6 +19,7 @@ global.console = {
 describe('RecentWorkspacesManager', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    localStorage.clear();
     // Reset singleton state by creating a new instance
     (recentWorkspacesManager as any).cache = null;
   });
@@ -37,7 +38,7 @@ describe('RecentWorkspacesManager', () => {
 
       const result = await recentWorkspacesManager.getRecentWorkspaces();
 
-      expect(fetch).toHaveBeenCalledWith('http://localhost:8080/v1/workspace/recent', {
+      expect(fetch).toHaveBeenCalledWith('http://127.0.0.1:8080/v1/workspace/recent', {
         method: 'GET',
         signal: expect.any(AbortSignal),
       });
@@ -78,7 +79,7 @@ describe('RecentWorkspacesManager', () => {
         workspace_name: 'new-workspace',
       });
 
-      expect(fetch).toHaveBeenCalledWith('http://localhost:8080/v1/workspace/recent', {
+      expect(fetch).toHaveBeenCalledWith('http://127.0.0.1:8080/v1/workspace/recent', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -108,7 +109,7 @@ describe('RecentWorkspacesManager', () => {
 
       const result = await recentWorkspacesManager.validateWorkspacePath('/valid/workspace');
 
-      expect(fetch).toHaveBeenCalledWith('http://localhost:8080/v1/workspace/validate', {
+      expect(fetch).toHaveBeenCalledWith('http://127.0.0.1:8080/v1/workspace/validate', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

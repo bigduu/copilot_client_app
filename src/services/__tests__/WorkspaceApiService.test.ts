@@ -23,6 +23,7 @@ global.console = {
 describe('WorkspaceApiService', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    localStorage.clear();
   });
 
   describe('validateWorkspacePath', () => {
@@ -42,7 +43,7 @@ describe('WorkspaceApiService', () => {
 
       const result = await workspaceApiService.validateWorkspacePath('/valid/workspace');
 
-      expect(fetch).toHaveBeenCalledWith('http://localhost:8080/v1/workspace/validate', {
+      expect(fetch).toHaveBeenCalledWith('http://127.0.0.1:8080/v1/workspace/validate', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -82,7 +83,7 @@ describe('WorkspaceApiService', () => {
 
       const result = await workspaceApiService.getRecentWorkspaces();
 
-      expect(fetch).toHaveBeenCalledWith('http://localhost:8080/v1/workspace/recent', {
+      expect(fetch).toHaveBeenCalledWith('http://127.0.0.1:8080/v1/workspace/recent', {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
@@ -106,7 +107,7 @@ describe('WorkspaceApiService', () => {
         workspace_name: 'new-workspace',
       });
 
-      expect(fetch).toHaveBeenCalledWith('http://localhost:8080/v1/workspace/recent', {
+      expect(fetch).toHaveBeenCalledWith('http://127.0.0.1:8080/v1/workspace/recent', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -137,7 +138,7 @@ describe('WorkspaceApiService', () => {
 
       const result = await workspaceApiService.getPathSuggestions();
 
-      expect(fetch).toHaveBeenCalledWith('http://localhost:8080/v1/workspace/suggestions', {
+      expect(fetch).toHaveBeenCalledWith('http://127.0.0.1:8080/v1/workspace/suggestions', {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
@@ -213,7 +214,7 @@ describe('WorkspaceApiService', () => {
 
       await service.getRecentWorkspaces();
 
-      expect(fetch).toHaveBeenCalledWith('http://localhost:8080/v1/workspace/recent', {
+      expect(fetch).toHaveBeenCalledWith('http://127.0.0.1:8080/v1/workspace/recent', {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',

@@ -14,6 +14,7 @@ global.console = {
 describe('WorkspaceValidator', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    localStorage.clear();
     workspaceValidator.clearCache();
   });
 
@@ -53,7 +54,7 @@ describe('WorkspaceValidator', () => {
 
       const result = await workspaceValidator.validateWorkspace('/valid/workspace');
 
-      expect(fetch).toHaveBeenCalledWith('http://localhost:8080/v1/workspace/validate', {
+      expect(fetch).toHaveBeenCalledWith('http://127.0.0.1:8080/v1/workspace/validate', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

@@ -2,7 +2,7 @@
  * Service for handling agent-initiated tool call approvals
  */
 
-const API_BASE_URL = "http://127.0.0.1:8080/v1";
+import { buildBackendUrl } from "../utils/backendBaseUrl";
 
 export interface AgentApprovalRequest {
   request_id: string;
@@ -27,7 +27,7 @@ export class AgentApprovalService {
     endpoint: string,
     options: RequestInit = {},
   ): Promise<T> {
-    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+    const response = await fetch(buildBackendUrl(endpoint), {
       headers: {
         "Content-Type": "application/json",
         ...options.headers,

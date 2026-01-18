@@ -1,3 +1,5 @@
+import { buildBackendUrl } from "../utils/backendBaseUrl";
+
 export interface WorkflowMetadata {
   name: string;
   filename: string;
@@ -17,7 +19,6 @@ export interface WorkflowContent {
  */
 export class WorkflowManagerService {
   private static instance: WorkflowManagerService;
-  private readonly baseUrl: string = 'http://127.0.0.1:8080/v1/bodhi';
 
   private constructor() {}
 
@@ -31,7 +32,7 @@ export class WorkflowManagerService {
   async listWorkflows(): Promise<WorkflowMetadata[]> {
     try {
       console.log('[WorkflowManagerService] Listing workflows');
-      const response = await fetch(`${this.baseUrl}/workflows`);
+      const response = await fetch(buildBackendUrl("/bodhi/workflows"));
 
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
@@ -58,7 +59,7 @@ export class WorkflowManagerService {
     try {
       console.log(`[WorkflowManagerService] Getting workflow: ${name}`);
       const response = await fetch(
-        `${this.baseUrl}/workflows/${encodeURIComponent(name)}`,
+        buildBackendUrl(`/bodhi/workflows/${encodeURIComponent(name)}`),
       );
 
       if (!response.ok) {

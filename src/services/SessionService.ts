@@ -1,4 +1,5 @@
-const API_BASE_URL = "http://127.0.0.1:8080/v1";
+import { buildBackendUrl } from "../utils/backendBaseUrl";
+
 const DEFAULT_USER_ID = "default_user";
 
 export interface OpenContextDTO {
@@ -33,7 +34,7 @@ export class SessionService {
     endpoint: string,
     options: RequestInit = {}
   ): Promise<T> {
-    const response = await fetch(`${API_BASE_URL}/session${endpoint}`, {
+    const response = await fetch(buildBackendUrl(`/session${endpoint}`), {
       headers: {
         "Content-Type": "application/json",
         ...options.headers,
@@ -107,4 +108,3 @@ export class SessionService {
     });
   }
 }
-

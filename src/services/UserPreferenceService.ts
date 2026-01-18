@@ -1,4 +1,4 @@
-const API_BASE_URL = "http://127.0.0.1:8080/v1";
+import { buildBackendUrl } from "../utils/backendBaseUrl";
 
 export interface UserPreferencesDTO {
   last_opened_chat_id?: string | null;
@@ -7,7 +7,7 @@ export interface UserPreferencesDTO {
 
 export class UserPreferenceService {
   private async request<T>(options: RequestInit): Promise<T> {
-    const response = await fetch(`${API_BASE_URL}/user/preferences`, {
+    const response = await fetch(buildBackendUrl("/user/preferences"), {
       headers: {
         "Content-Type": "application/json",
         ...options.headers,

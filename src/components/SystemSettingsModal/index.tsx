@@ -28,6 +28,14 @@ import {
   isTodoEnhancementEnabled,
   setTodoEnhancementEnabled,
 } from "../../utils/todoEnhancementUtils";
+import {
+  clearBackendBaseUrlOverride,
+  getBackendBaseUrl,
+  getDefaultBackendBaseUrl,
+  hasBackendBaseUrlOverride,
+  normalizeBackendBaseUrl,
+  setBackendBaseUrl,
+} from "../../utils/backendBaseUrl";
 const SystemPromptManager = lazy(() => import("../SystemPromptManager"));
 
 const { Text } = Typography;
@@ -136,6 +144,7 @@ const SystemSettingsModal = ({
     error: modelsError,
     selectedModel,
     setSelectedModel,
+    refreshModels,
   } = useModels();
   const [promptEnhancement, setPromptEnhancement] = useState("");
   const [mermaidEnhancementEnabled, setMermaidEnhancementEnabledState] =
@@ -143,12 +152,18 @@ const SystemSettingsModal = ({
   const [todoEnhancementEnabled, setTodoEnhancementEnabledState] = useState(
     isTodoEnhancementEnabled()
   );
+  const [backendBaseUrl, setBackendBaseUrlState] = useState(getBackendBaseUrl());
+  const [hasBackendOverride, setHasBackendOverride] = useState(
+    hasBackendBaseUrlOverride()
+  );
 
   useEffect(() => {
     if (open) {
       setPromptEnhancement(getSystemPromptEnhancement());
       setMermaidEnhancementEnabledState(isMermaidEnhancementEnabled());
       setTodoEnhancementEnabledState(isTodoEnhancementEnabled());
+      setBackendBaseUrlState(getBackendBaseUrl());
+      setHasBackendOverride(hasBackendBaseUrlOverride());
     }
   }, [open]);
 
@@ -197,6 +212,59 @@ const SystemSettingsModal = ({
     setTodoEnhancementEnabled(checked);
   };
 
+  const validateBackendUrl = (value: string): string | null => {
+    const normalized = normalizeBackendBaseUrl(value);
+    if (!normalized) {
+      return "Backend URL cannot be empty";
+    }
+
+    try {
+      const parsed = new URL(normalized);
+      if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+        return "Backend URL must start with http:// or https://";
+      }
+    } catch {
+      return "Backend URL is not a valid URL";
+    }
+
+    if (!normalized.endsWith("/v1")) {
+      return 'Backend URL must end with "/v1"';
+    }
+
+    return null;
+  };
+
+  const handleSaveBackendBaseUrl = async () => {
+    const error = validateBackendUrl(backendBaseUrl);
+    if (error) {
+      msgApi.error(error);
+      return;
+    }
+
+    const normalized = normalizeBackendBaseUrl(backendBaseUrl);
+    setBackendBaseUrl(normalized);
+    setBackendBaseUrlState(normalized);
+    setHasBackendOverride(true);
+    msgApi.success("Backend URL saved");
+
+    try {
+      await refreshModels();
+    } catch {
+    }
+  };
+
+  const handleResetBackendBaseUrl = async () => {
+    clearBackendBaseUrlOverride();
+    setBackendBaseUrlState(getDefaultBackendBaseUrl());
+    setHasBackendOverride(false);
+    msgApi.success("Backend URL reset to default");
+
+    try {
+      await refreshModels();
+    } catch {
+    }
+  };
+
   return (
     <Modal
       title="System Settings"
@@ -216,6 +284,31 @@ const SystemSettingsModal = ({
           selectedModel={selectedModel}
           onModelChange={setSelectedModel}
         />
+
+        <Space
+          direction="vertical"
+          size={token.marginXS}
+          style={{ width: "100%" }}
+        >
+          <Text strong>Backend API Base URL</Text>
+          <Input
+            placeholder={getDefaultBackendBaseUrl()}
+            value={backendBaseUrl}
+            onChange={(event) => setBackendBaseUrlState(event.target.value)}
+          />
+          <Flex justify="flex-end" gap={token.marginSM}>
+            <Button disabled={!hasBackendOverride} onClick={handleResetBackendBaseUrl}>
+              Reset to Default
+            </Button>
+            <Button type="primary" onClick={handleSaveBackendBaseUrl}>
+              Save
+            </Button>
+          </Flex>
+          <Text type="secondary" style={{ fontSize: token.fontSizeSM }}>
+            Must be a full base URL including <Text code>/v1</Text> (e.g.
+            <Text code>http://127.0.0.1:8080/v1</Text>).
+          </Text>
+        </Space>
 
         {/* System Prompt Manager Section */}
         <Suspense fallback={<Spin size="small" />}>

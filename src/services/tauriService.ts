@@ -2,6 +2,8 @@ import { invoke } from "@tauri-apps/api/core";
 import { Channel } from "@tauri-apps/api/core";
 import { UtilityService, Message } from "./types";
 
+import { buildBackendUrl } from "../utils/backendBaseUrl";
+
 export class TauriChatService {
   /**
    * Execute a prompt with streaming response
@@ -60,7 +62,7 @@ export class TauriChatService {
    */
   async getModels(): Promise<string[]> {
     try {
-      const response = await fetch("http://localhost:8080/v1/models");
+      const response = await fetch(buildBackendUrl("/models"));
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }

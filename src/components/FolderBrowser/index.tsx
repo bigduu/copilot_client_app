@@ -7,6 +7,7 @@ import {
   CheckOutlined,
 } from "@ant-design/icons";
 import "./styles.css";
+import { buildBackendUrl } from "../../utils/backendBaseUrl";
 
 interface FolderItem {
   name: string;
@@ -47,7 +48,7 @@ export const FolderBrowser: React.FC<FolderBrowserProps> = ({
     setLoading(true);
     try {
       const response = await fetch(
-        "http://localhost:8080/v1/workspace/browse-folder",
+        buildBackendUrl("/workspace/browse-folder"),
         {
           method: "POST",
           headers: {

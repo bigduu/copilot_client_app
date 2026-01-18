@@ -3,6 +3,8 @@
  * Manages workspace history through HTTP API with client-side caching and error handling
  */
 
+import { buildBackendUrl } from "../utils/backendBaseUrl";
+
 export interface WorkspaceInfo {
   path: string;
   is_valid: boolean;
@@ -32,14 +34,23 @@ class RecentWorkspacesManager {
     timestamp: number;
   } | null = null;
   private options: Required<RecentWorkspacesManagerOptions>;
+  private apiBaseUrlOverride: string | null;
 
   constructor(options: RecentWorkspacesManagerOptions = {}) {
+    this.apiBaseUrlOverride = options.apiBaseUrl
+      ? options.apiBaseUrl.replace(/\/+$/, "")
+      : null;
+
     this.options = {
       maxRecentWorkspaces: options.maxRecentWorkspaces ?? 10,
       cacheTimeoutMs: options.cacheTimeoutMs ?? 5 * 60 * 1000, // 5 minutes
-      apiBaseUrl: options.apiBaseUrl ?? 'http://localhost:8080/v1/workspace',
+      apiBaseUrl: "",
       requestTimeoutMs: options.requestTimeoutMs ?? 10000,
     };
+  }
+
+  private getApiBaseUrl(): string {
+    return this.apiBaseUrlOverride ?? buildBackendUrl("/workspace");
   }
 
   /**
@@ -168,7 +179,7 @@ class RecentWorkspacesManager {
    */
   async validateWorkspacePath(path: string): Promise<WorkspaceInfo> {
     try {
-      const response = await fetch(`${this.options.apiBaseUrl}/validate`, {
+      const response = await fetch(`${this.getApiBaseUrl()}/validate`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -218,7 +229,7 @@ class RecentWorkspacesManager {
    * Fetch recent workspaces from API
    */
   private async fetchRecentWorkspaces(): Promise<WorkspaceInfo[]> {
-    const response = await fetch(`${this.options.apiBaseUrl}/recent`, {
+    const response = await fetch(`${this.getApiBaseUrl()}/recent`, {
       method: 'GET',
       signal: AbortSignal.timeout(this.options.requestTimeoutMs),
     });
@@ -237,7 +248,7 @@ class RecentWorkspacesManager {
     path: string,
     metadata?: WorkspaceMetadata
   ): Promise<void> {
-    const response = await fetch(`${this.options.apiBaseUrl}/recent`, {
+    const response = await fetch(`${this.getApiBaseUrl()}/recent`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -255,7 +266,7 @@ class RecentWorkspacesManager {
    * Fetch path suggestions from API
    */
   private async fetchPathSuggestions(): Promise<WorkspaceInfo[]> {
-    const response = await fetch(`${this.options.apiBaseUrl}/suggestions`, {
+    const response = await fetch(`${this.getApiBaseUrl()}/suggestions`, {
       method: 'GET',
       signal: AbortSignal.timeout(this.options.requestTimeoutMs),
     });
@@ -302,7 +313,7 @@ class RecentWorkspacesManager {
   }> {
     try {
       // Test API availability
-      const response = await fetch(`${this.options.apiBaseUrl}/recent`, {
+      const response = await fetch(`${this.getApiBaseUrl()}/recent`, {
         method: 'GET',
         signal: AbortSignal.timeout(2000),
       });

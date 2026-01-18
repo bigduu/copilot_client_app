@@ -1,5 +1,7 @@
 import { useState, useEffect } from "react";
 
+import { buildBackendUrl } from "../utils/backendBaseUrl";
+
 interface ServiceHealth {
   isHealthy: boolean;
   error?: string;
@@ -18,7 +20,7 @@ export const useServiceHealth = () => {
     setIsChecking(true);
     try {
       // Check if the web service is responding
-      const response = await fetch("http://localhost:8080/v1/models", {
+      const response = await fetch(buildBackendUrl("/models"), {
         method: "GET",
         headers: {
           "Content-Type": "application/json",

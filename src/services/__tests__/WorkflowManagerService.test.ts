@@ -7,6 +7,7 @@ describe('WorkflowManagerService', () => {
   let mockFetch: ReturnType<typeof vi.fn>
 
   beforeEach(() => {
+    localStorage.clear()
     service = WorkflowManagerService.getInstance()
     mockFetch = vi.fn()
     global.fetch = mockFetch as unknown as typeof fetch

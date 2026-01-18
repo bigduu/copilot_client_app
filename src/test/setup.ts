@@ -5,6 +5,31 @@
 
 import { vi } from 'vitest';
 
+const createMemoryStorage = (): Storage => {
+  const store = new Map<string, string>()
+
+  return {
+    get length() {
+      return store.size
+    },
+    clear: () => {
+      store.clear()
+    },
+    getItem: (key: string) => store.get(String(key)) ?? null,
+    key: (index: number) => Array.from(store.keys())[index] ?? null,
+    removeItem: (key: string) => {
+      store.delete(String(key))
+    },
+    setItem: (key: string, value: string) => {
+      store.set(String(key), String(value))
+    },
+  } as Storage
+}
+
+// Some environments predefine a non-WebStorage `localStorage`.
+globalThis.localStorage = createMemoryStorage()
+globalThis.sessionStorage = createMemoryStorage()
+
 // Mock fetch if not available
 if (!global.fetch) {
   global.fetch = vi.fn();

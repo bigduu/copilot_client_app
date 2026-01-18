@@ -4,6 +4,8 @@
  * with proper error handling, request/response interceptors, and type safety
  */
 
+import { buildBackendUrl } from "../utils/backendBaseUrl";
+
 export interface WorkspaceValidationResult {
   path: string;
   is_valid: boolean;
@@ -49,11 +51,15 @@ export interface WorkspaceApiServiceOptions {
 }
 
 class WorkspaceApiService {
-  private options: Required<WorkspaceApiServiceOptions>;
+  private baseUrlOverride: string | null;
+  private options: Omit<Required<WorkspaceApiServiceOptions>, "baseUrl">;
 
   constructor(options: WorkspaceApiServiceOptions = {}) {
+    this.baseUrlOverride = options.baseUrl
+      ? options.baseUrl.replace(/\/+$/, "")
+      : null;
+
     this.options = {
-      baseUrl: options.baseUrl ?? 'http://localhost:8080/v1/workspace',
       timeoutMs: options.timeoutMs ?? 10000,
       retries: options.retries ?? 3,
       headers: {
@@ -64,6 +70,10 @@ class WorkspaceApiService {
       onResponse: options.onResponse ?? (() => {}),
       onError: options.onError ?? (() => {}),
     };
+  }
+
+  private getBaseUrl(): string {
+    return this.baseUrlOverride ?? buildBackendUrl("/workspace");
   }
 
   /**
@@ -98,7 +108,7 @@ class WorkspaceApiService {
    * Generic GET request
    */
   private async get<T>(endpoint: string, queryParams?: Record<string, string>): Promise<T> {
-    const baseUrl = this.options.baseUrl.endsWith('/') ? this.options.baseUrl.slice(0, -1) : this.options.baseUrl;
+    const baseUrl = this.getBaseUrl();
     const cleanEndpoint = endpoint.startsWith('/') ? endpoint.slice(1) : endpoint;
     const url = `${baseUrl}/${cleanEndpoint}`;
 
@@ -121,7 +131,7 @@ class WorkspaceApiService {
    * Generic POST request
    */
   private async post<T>(endpoint: string, data?: any): Promise<T> {
-    const baseUrl = this.options.baseUrl.endsWith('/') ? this.options.baseUrl.slice(0, -1) : this.options.baseUrl;
+    const baseUrl = this.getBaseUrl();
     const cleanEndpoint = endpoint.startsWith('/') ? endpoint.slice(1) : endpoint;
     const url = `${baseUrl}/${cleanEndpoint}`;
 
@@ -280,7 +290,11 @@ class WorkspaceApiService {
       });
     }
 
-    return this.request(`${this.options.baseUrl}${endpoint}`, {
+    const baseUrl = this.getBaseUrl();
+    const cleanEndpoint = endpoint.startsWith('/') ? endpoint.slice(1) : endpoint;
+    const url = `${baseUrl}/${cleanEndpoint}`;
+
+    return this.request(url, {
       method: 'POST',
       body: formData,
       // Don't set Content-Type header for FormData (browser sets it with boundary)
@@ -294,7 +308,11 @@ class WorkspaceApiService {
    * Stream responses (for future use - workspace sync)
    */
   async *streamResponse(endpoint: string, data?: any): AsyncGenerator<any, void, unknown> {
-    const response = await fetch(`${this.options.baseUrl}${endpoint}`, {
+    const baseUrl = this.getBaseUrl();
+    const cleanEndpoint = endpoint.startsWith('/') ? endpoint.slice(1) : endpoint;
+    const url = `${baseUrl}/${cleanEndpoint}`;
+
+    const response = await fetch(url, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
