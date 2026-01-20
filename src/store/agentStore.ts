@@ -9,16 +9,17 @@ export type ClaudeModel =
 
 interface AgentState {
   selectedProjectId: string | null
+  selectedProjectPath: string | null
   selectedSessionId: string | null
   model: ClaudeModel
-  skipPermissions: boolean
   promptDraft: string
   sessionsRefreshNonce: number
 
+  setSelectedProject: (id: string | null, path: string | null) => void
   setSelectedProjectId: (id: string | null) => void
+  setSelectedProjectPath: (path: string | null) => void
   setSelectedSessionId: (id: string | null) => void
   setModel: (model: ClaudeModel) => void
-  setSkipPermissions: (skip: boolean) => void
   setPromptDraft: (value: string) => void
   bumpSessionsRefreshNonce: () => void
 }
@@ -27,17 +28,30 @@ export const useAgentStore = create<AgentState>()(
   persist(
     (set) => ({
       selectedProjectId: null,
+      selectedProjectPath: null,
       selectedSessionId: null,
       model: "sonnet",
-      skipPermissions: false,
       promptDraft: "",
       sessionsRefreshNonce: 0,
 
+      setSelectedProject: (id, path) =>
+        set((state) => ({
+          selectedProjectId: id,
+          selectedProjectPath: path,
+          selectedSessionId:
+            state.selectedProjectId === id ? state.selectedSessionId : null,
+        })),
       setSelectedProjectId: (id) =>
-        set({ selectedProjectId: id, selectedSessionId: null }),
+        set((state) => ({
+          selectedProjectId: id,
+          selectedProjectPath:
+            state.selectedProjectId === id ? state.selectedProjectPath : null,
+          selectedSessionId:
+            state.selectedProjectId === id ? state.selectedSessionId : null,
+        })),
+      setSelectedProjectPath: (path) => set({ selectedProjectPath: path }),
       setSelectedSessionId: (id) => set({ selectedSessionId: id }),
       setModel: (model) => set({ model }),
-      setSkipPermissions: (skip) => set({ skipPermissions: skip }),
       setPromptDraft: (value) => set({ promptDraft: value }),
       bumpSessionsRefreshNonce: () =>
         set((prev) => ({ sessionsRefreshNonce: prev.sessionsRefreshNonce + 1 })),

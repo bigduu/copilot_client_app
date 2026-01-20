@@ -307,21 +307,7 @@ export const AgentChatView: React.FC<{
           const key = getStableEntryKey(entry, idx)
 
           if (entry.type === "system" && entry.subtype === "init") {
-            const sessionId = entry.session_id ?? entry.sessionId
-            const model = (entry as any)?.model || entry.message?.model
-            const cwd = entry.cwd
-            return (
-              <Flex key={key} justify="center">
-                <Card size="small" styles={{ body: { padding: token.paddingXS } }}>
-                  <Flex gap={8} align="center" wrap>
-                    <Tag>system:init</Tag>
-                    {model ? <Text type="secondary">{model}</Text> : null}
-                    {cwd ? <Text type="secondary">{cwd}</Text> : null}
-                    {sessionId ? <Text type="secondary">{sessionId}</Text> : null}
-                  </Flex>
-                </Card>
-              </Flex>
-            )
+            return null
           }
 
           if (role === "system") {

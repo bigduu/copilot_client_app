@@ -1,43 +1,29 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react"
 import { Layout, Button, Flex, Input, List, Typography, theme } from "antd"
-import { ReloadOutlined } from "@ant-design/icons"
+import { FolderOpenOutlined, ReloadOutlined } from "@ant-design/icons"
 
-import { serviceFactory } from "../../services/ServiceFactory"
+import {
+  claudeCodeService,
+  ClaudeProject,
+  ClaudeSession,
+} from "../../services/ClaudeCodeService"
 import { useAgentStore } from "../../store/agentStore"
 import { ModeSwitcher } from "../ModeSwitcher"
+import { serviceFactory } from "../../services/ServiceFactory"
 
 const { Sider } = Layout
 const { Text } = Typography
-
-export interface ClaudeProject {
-  id: string
-  path: string
-  sessions: string[]
-  created_at: number
-  most_recent_session: number | null
-}
-
-export interface ClaudeSession {
-  id: string
-  project_id: string
-  project_path: string
-  created_at: number
-  modified_at: number
-  first_message: string | null
-  message_timestamp: string | null
-}
 
 export const AgentSidebar: React.FC = () => {
   const { token } = theme.useToken()
   const selectedProjectId = useAgentStore((s) => s.selectedProjectId)
   const selectedSessionId = useAgentStore((s) => s.selectedSessionId)
   const sessionsRefreshNonce = useAgentStore((s) => s.sessionsRefreshNonce)
-  const setSelectedProjectId = useAgentStore((s) => s.setSelectedProjectId)
+  const setSelectedProject = useAgentStore((s) => s.setSelectedProject)
   const setSelectedSessionId = useAgentStore((s) => s.setSelectedSessionId)
 
   const debugLog = useCallback((...args: any[]) => {
     if (!import.meta.env.DEV) return
-    // eslint-disable-next-line no-console -- dev-only debug trace
     console.log("[AgentSidebar]", ...args)
   }, [])
 
@@ -53,9 +39,7 @@ export const AgentSidebar: React.FC = () => {
     setError(null)
     try {
       debugLog("loadProjects")
-      const data = await serviceFactory.invoke<ClaudeProject[]>(
-        "list_claude_projects",
-      )
+      const data = await claudeCodeService.listProjects()
       setProjects(data)
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to load Claude projects")
@@ -64,15 +48,24 @@ export const AgentSidebar: React.FC = () => {
     }
   }, [])
 
+  const openProject = useCallback(async () => {
+    setError(null)
+    try {
+      const path = await serviceFactory.invoke<string | null>("pick_folder")
+      if (!path) return
+      await claudeCodeService.createProject(path)
+      await loadProjects()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to open project")
+    }
+  }, [loadProjects])
+
   const loadSessions = useCallback(async (projectId: string) => {
     setIsLoadingSessions(true)
     setError(null)
     try {
       debugLog("loadSessions", { projectId })
-      const data = await serviceFactory.invoke<ClaudeSession[]>(
-        "list_project_sessions",
-        { projectId },
-      )
+      const data = await claudeCodeService.listProjectSessions(projectId)
       setSessions(data)
     } catch (e) {
       const message =
@@ -101,6 +94,13 @@ export const AgentSidebar: React.FC = () => {
     }
     loadSessions(selectedProjectId)
   }, [loadSessions, selectedProjectId])
+
+  useEffect(() => {
+    if (!selectedProjectId) return
+    if (!sessions.length) return
+    if (selectedSessionId) return
+    setSelectedSessionId(sessions[0].id)
+  }, [selectedProjectId, selectedSessionId, sessions, setSelectedSessionId])
 
   useEffect(() => {
     if (!selectedProjectId) return
@@ -143,11 +143,18 @@ export const AgentSidebar: React.FC = () => {
       >
         <Flex justify="space-between" align="center" style={{ gap: token.marginSM }}>
           <ModeSwitcher size="small" />
-          <Button
-            icon={<ReloadOutlined />}
-            onClick={loadProjects}
-            loading={isLoadingProjects}
-          />
+          <Flex style={{ gap: token.marginXS }}>
+            <Button
+              icon={<FolderOpenOutlined />}
+              onClick={openProject}
+              title="Open project"
+            />
+            <Button
+              icon={<ReloadOutlined />}
+              onClick={loadProjects}
+              loading={isLoadingProjects}
+            />
+          </Flex>
         </Flex>
 
         <Input
@@ -183,7 +190,7 @@ export const AgentSidebar: React.FC = () => {
                           ? "var(--ant-color-bg-elevated)"
                           : "transparent",
                       }}
-                      onClick={() => setSelectedProjectId(item.id)}
+                      onClick={() => setSelectedProject(item.id, item.path)}
                     >
                       <Flex vertical style={{ width: "100%" }}>
                         <Text ellipsis>{item.path}</Text>

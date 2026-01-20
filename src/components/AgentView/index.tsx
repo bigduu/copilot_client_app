@@ -2,49 +2,59 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { listen } from "@tauri-apps/api/event"
 import {
   Alert,
+  Badge,
   Button,
   Card,
   AutoComplete,
+  Drawer,
   Flex,
   Input,
   Layout,
+  List,
   Segmented,
-  Switch,
+  Tabs,
+  Tag,
   Typography,
   theme,
 } from "antd"
+import { ToolOutlined } from "@ant-design/icons"
 
-import { serviceFactory } from "../../services/ServiceFactory"
+import {
+  claudeCodeService,
+  ClaudeProject,
+} from "../../services/ClaudeCodeService"
 import { useAgentStore } from "../../store/agentStore"
 import { ClaudeStreamPanel } from "../ClaudeStream"
 import type { ClaudeStreamMessage } from "../ClaudeStream"
 import { AgentChatView } from "../AgentChatView"
-
-type ClaudeProject = {
-  id: string
-  path: string
-}
+import { AgentSessionPersistenceService } from "../../services/AgentSessionPersistenceService"
+import { TimelinePanel } from "../AgentTools/TimelinePanel"
+import { SlashCommandsPanel } from "../AgentTools/SlashCommandsPanel"
+import { PreviewPanel } from "../AgentTools/PreviewPanel"
+import { ClaudeInstallPanel } from "../ClaudeInstallPanel"
+import { serviceFactory } from "../../services/ServiceFactory"
 
 const { Content } = Layout
 const { Text } = Typography
+type QueuedPrompt = { id: string; prompt: string; model: string }
 
 export const AgentView: React.FC = () => {
   const debugLog = useCallback((...args: any[]) => {
     if (!import.meta.env.DEV) return
-    // eslint-disable-next-line no-console -- dev-only debug trace
     console.log("[AgentView]", ...args)
   }, [])
 
   const { token } = theme.useToken()
   const selectedProjectId = useAgentStore((s) => s.selectedProjectId)
+  const selectedProjectPath = useAgentStore((s) => s.selectedProjectPath)
   const selectedSessionId = useAgentStore((s) => s.selectedSessionId)
   const model = useAgentStore((s) => s.model)
-  const skipPermissions = useAgentStore((s) => s.skipPermissions)
   const promptDraft = useAgentStore((s) => s.promptDraft)
 
   const setPromptDraft = useAgentStore((s) => s.setPromptDraft)
   const setModel = useAgentStore((s) => s.setModel)
-  const setSkipPermissions = useAgentStore((s) => s.setSkipPermissions)
+  const setSelectedProject = useAgentStore((s) => s.setSelectedProject)
+  const setSelectedProjectPath = useAgentStore((s) => s.setSelectedProjectPath)
   const setSelectedSessionId = useAgentStore((s) => s.setSelectedSessionId)
   const bumpSessionsRefreshNonce = useAgentStore((s) => s.bumpSessionsRefreshNonce)
 
@@ -59,12 +69,21 @@ export const AgentView: React.FC = () => {
   const [runSessionId, setRunSessionId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [view, setView] = useState<"chat" | "debug">("chat")
+  const [queuedPrompts, setQueuedPrompts] = useState<QueuedPrompt[]>([])
+  const [toolsOpen, setToolsOpen] = useState(false)
+  const [toolsTab, setToolsTab] = useState<string>("timeline")
+  const [projectPathStatus, setProjectPathStatus] = useState<{
+    valid: boolean | null
+    message?: string
+  }>({ valid: null })
 
   const viewRef = useRef(view)
   const unlistenGenericRef = useRef<Array<() => void>>([])
   const unlistenScopedRef = useRef<Array<() => void>>([])
   const runSessionIdRef = useRef<string | null>(null)
   const isMountedRef = useRef(true)
+  const outputLineCountRef = useRef(0)
+  const sawAssistantRef = useRef(false)
 
   const pendingLinesRef = useRef<string[]>([])
   const liveLinesBufferRef = useRef<string[]>([])
@@ -73,6 +92,7 @@ export const AgentView: React.FC = () => {
   const flushTimerRef = useRef<number | null>(null)
   const seqRef = useRef(0)
   const partialTextRef = useRef<Map<string, string>>(new Map())
+  const runNextQueuedPromptRef = useRef<() => void>(() => {})
 
   useEffect(() => {
     isMountedRef.current = true
@@ -90,18 +110,73 @@ export const AgentView: React.FC = () => {
 
   useEffect(() => cleanupListeners, [cleanupListeners])
 
-  const selectedProjectPath = useMemo(() => {
+  const selectedProjectPathFromIndex = useMemo(() => {
     if (!selectedProjectId) return null
     return projectsIndex.get(selectedProjectId)?.path ?? null
   }, [projectsIndex, selectedProjectId])
 
+  const resolvedProjectPath = useMemo(
+    () => selectedProjectPath ?? selectedProjectPathFromIndex,
+    [selectedProjectPath, selectedProjectPathFromIndex],
+  )
+
+  useEffect(() => {
+    if (!resolvedProjectPath) {
+      setProjectPathStatus({ valid: null })
+      return
+    }
+    let active = true
+    setProjectPathStatus({ valid: null })
+    void (async () => {
+      try {
+        await serviceFactory.invoke("list_directory_contents", {
+          directoryPath: resolvedProjectPath,
+        })
+        if (!active) return
+        setProjectPathStatus({ valid: true })
+      } catch (e) {
+        if (!active) return
+        const message =
+          e instanceof Error
+            ? e.message
+            : typeof e === "string"
+              ? e
+              : (e as any)?.message
+                ? String((e as any).message)
+                : JSON.stringify(e)
+        setProjectPathStatus({
+          valid: false,
+          message: message || "Project path not found",
+        })
+      }
+    })()
+    return () => {
+      active = false
+    }
+  }, [resolvedProjectPath])
+
+  useEffect(() => {
+    if (!selectedProjectId || selectedProjectPath) return
+    if (selectedProjectPathFromIndex) {
+      setSelectedProjectPath(selectedProjectPathFromIndex)
+    }
+  }, [
+    selectedProjectId,
+    selectedProjectPath,
+    selectedProjectPathFromIndex,
+    setSelectedProjectPath,
+  ])
+
+  const deriveProjectId = useCallback((path?: string | null) => {
+    if (!path) return ""
+    return path.replace(/[^a-zA-Z0-9]/g, "-")
+  }, [])
+
   const loadProjectsIndex = useCallback(async () => {
     try {
-      const list = await serviceFactory.invoke<ClaudeProject[]>(
-        "list_claude_projects",
-      )
+      const list = await claudeCodeService.listProjects()
       const map = new Map<string, ClaudeProject>()
-      list.forEach((p) => map.set(p.id, { id: p.id, path: p.path }))
+      list.forEach((p) => map.set(p.id, p))
       setProjectsIndex(map)
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to load projects")
@@ -112,18 +187,27 @@ export const AgentView: React.FC = () => {
     loadProjectsIndex()
   }, [loadProjectsIndex])
 
+  const extractSessionId = useCallback((info: any): string | null => {
+    const pt = info?.process_type ?? info?.processType
+    if (!pt) return null
+    if (pt.ClaudeSession?.session_id) return pt.ClaudeSession.session_id
+    if (pt.ClaudeSession?.sessionId) return pt.ClaudeSession.sessionId
+    if (pt.session_id) return pt.session_id
+    if (pt.sessionId) return pt.sessionId
+    return null
+  }, [])
+
   const loadSessionHistory = useCallback(async (): Promise<number> => {
     if (!selectedProjectId || !selectedSessionId) {
-      setHistory([])
       return 0
     }
 
     setError(null)
     try {
-      const entries = await serviceFactory.invoke<any[]>("get_session_jsonl", {
-        projectId: selectedProjectId,
-        sessionId: selectedSessionId,
-      })
+      const entries = await claudeCodeService.loadSessionHistory(
+        selectedProjectId,
+        selectedSessionId,
+      )
       debugLog("loadSessionHistory(ok)", {
         projectId: selectedProjectId,
         sessionId: selectedSessionId,
@@ -142,10 +226,36 @@ export const AgentView: React.FC = () => {
               ? String((e as any).message)
               : JSON.stringify(e)
       setError(message || "Failed to load session history")
-      setHistory([])
       return 0
     }
   }, [debugLog, selectedProjectId, selectedSessionId])
+
+  const loadSessionHistoryFor = useCallback(
+    async (projectId: string, sessionId: string): Promise<number> => {
+      if (!projectId || !sessionId) return 0
+      setError(null)
+      try {
+        const entries = await claudeCodeService.loadSessionHistory(
+          projectId,
+          sessionId,
+        )
+        setHistory(entries as ClaudeStreamMessage[])
+        return entries.length
+      } catch (e) {
+        const message =
+          e instanceof Error
+            ? e.message
+            : typeof e === "string"
+              ? e
+              : (e as any)?.message
+                ? String((e as any).message)
+                : JSON.stringify(e)
+        setError(message || "Failed to load session history")
+        return 0
+      }
+    },
+    [],
+  )
 
   useEffect(() => {
     if (isRunning) return
@@ -218,6 +328,20 @@ export const AgentView: React.FC = () => {
     setLiveTick((t) => t + 1)
   }, [])
 
+  const resetRunSignals = useCallback(() => {
+    outputLineCountRef.current = 0
+    sawAssistantRef.current = false
+  }, [])
+
+  const enqueuePrompt = useCallback((prompt: string, modelName: string) => {
+    const item = {
+      id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      prompt,
+      model: modelName,
+    }
+    setQueuedPrompts((prev) => [...prev, item])
+  }, [])
+
   const updateLocalPromptSessionId = useCallback(
     (sid: string) => {
       const map = liveMapRef.current
@@ -235,6 +359,7 @@ export const AgentView: React.FC = () => {
   const appendOutputLine = useCallback(
     (line: string) => {
       if (!isMountedRef.current) return
+      outputLineCountRef.current += 1
       pendingLinesRef.current.push(line)
 
       try {
@@ -248,6 +373,7 @@ export const AgentView: React.FC = () => {
           undefined
 
         if (rawType === "partial") {
+          sawAssistantRef.current = true
           const key = `partial:${sid ?? "unknown"}`
           const existing = partialTextRef.current.get(key) ?? ""
           const prevEntry: any = liveMapRef.current.get(key)
@@ -277,6 +403,10 @@ export const AgentView: React.FC = () => {
         }
 
         const msg = parsed as ClaudeStreamMessage
+        const msgRole = msg.message?.role ?? msg.type
+        if (msgRole === "assistant") {
+          sawAssistantRef.current = true
+        }
         const uuid = parsed?.uuid as string | undefined
         const messageId = parsed?.message?.id as string | undefined
         const key = uuid
@@ -327,6 +457,11 @@ export const AgentView: React.FC = () => {
           cleanupListeners()
           if (evt.payload === false) {
             setError((prev) => prev ?? "Claude run failed")
+          } else if (!sawAssistantRef.current) {
+            const message = outputLineCountRef.current
+              ? "Claude returned no assistant output"
+              : "Claude returned no output"
+            setError((prev) => prev ?? message)
           }
           bumpSessionsRefreshNonce()
           void (async () => {
@@ -337,6 +472,7 @@ export const AgentView: React.FC = () => {
               void loadSessionHistory()
             }, 250)
           })()
+          runNextQueuedPromptRef.current()
         },
       )
 
@@ -366,6 +502,15 @@ export const AgentView: React.FC = () => {
           setSelectedSessionId(msg.session_id)
           updateLocalPromptSessionId(msg.session_id)
           attachScopedListeners(msg.session_id)
+          const projectPath = resolvedProjectPath
+          const projectId = selectedProjectId ?? deriveProjectId(projectPath ?? undefined)
+          if (projectId && projectPath) {
+            AgentSessionPersistenceService.saveSession(
+              msg.session_id,
+              projectId,
+              projectPath,
+            )
+          }
         }
       } catch {
         return
@@ -375,6 +520,13 @@ export const AgentView: React.FC = () => {
     const errorUnlisten = await listen<string>("claude-error", (evt) => {
       if (!isMountedRef.current) return
       setError(evt.payload)
+      const payload = JSON.stringify({
+        type: "system",
+        subtype: "stderr",
+        timestamp: new Date().toISOString(),
+        message: { role: "system", content: [{ type: "text", text: evt.payload }] },
+      })
+      appendOutputLine(payload)
     })
 
     const completeUnlisten = await listen<boolean>("claude-complete", (evt) => {
@@ -384,6 +536,11 @@ export const AgentView: React.FC = () => {
       cleanupListeners()
       if (evt.payload === false) {
         setError((prev) => prev ?? "Claude run failed")
+      } else if (!sawAssistantRef.current) {
+        const message = outputLineCountRef.current
+          ? "Claude returned no assistant output"
+          : "Claude returned no output"
+        setError((prev) => prev ?? message)
       }
       bumpSessionsRefreshNonce()
       void (async () => {
@@ -394,6 +551,7 @@ export const AgentView: React.FC = () => {
           void loadSessionHistory()
         }, 250)
       })()
+      runNextQueuedPromptRef.current()
     })
 
     unlistenGenericRef.current = [
@@ -406,21 +564,93 @@ export const AgentView: React.FC = () => {
     attachScopedListeners,
     bumpSessionsRefreshNonce,
     cleanupListeners,
+    deriveProjectId,
     debugLog,
     updateLocalPromptSessionId,
     loadSessionHistory,
+    selectedProjectId,
     selectedSessionId,
+    resolvedProjectPath,
   ])
 
-	  const startRun = useCallback(async () => {
+  useEffect(() => {
+    AgentSessionPersistenceService.cleanupOldSessions()
+    let active = true
+    const reconnect = async () => {
+      try {
+        const running = await claudeCodeService.listRunningSessions()
+        if (!active || !running?.length) return
+        const sorted = [...running].sort((a, b) => {
+          const aTime = new Date(a.started_at ?? a.startedAt ?? 0).getTime()
+          const bTime = new Date(b.started_at ?? b.startedAt ?? 0).getTime()
+          return bTime - aTime
+        })
+        const info = sorted[0]
+        const sessionId = extractSessionId(info)
+        if (!sessionId) return
+        const projectPath = info.project_path ?? info.projectPath ?? ""
+        const projectId = selectedProjectId || deriveProjectId(projectPath)
+
+        setSelectedProject(projectId || null, projectPath || null)
+        setSelectedSessionId(sessionId)
+        setRunSessionId(sessionId)
+        runSessionIdRef.current = sessionId
+        setIsRunning(true)
+        resetLiveState()
+        cleanupListeners()
+        await attachScopedListeners(sessionId)
+
+        const output = await claudeCodeService.getSessionOutput(sessionId)
+        if (output) {
+          output
+            .split("\n")
+            .map((line) => line.trim())
+            .filter(Boolean)
+            .forEach((line) => appendOutputLine(line))
+        }
+
+        const historyCount = await loadSessionHistoryFor(projectId, sessionId)
+        AgentSessionPersistenceService.saveSession(
+          sessionId,
+          projectId,
+          projectPath,
+          historyCount,
+        )
+      } catch (e) {
+        if (!active) return
+        debugLog("reconnect failed", e)
+      }
+    }
+    void reconnect()
+    return () => {
+      active = false
+    }
+  }, [
+    appendOutputLine,
+    attachScopedListeners,
+    cleanupListeners,
+    debugLog,
+    deriveProjectId,
+    extractSessionId,
+    loadSessionHistoryFor,
+    resetLiveState,
+    selectedProjectId,
+    setSelectedProject,
+    setSelectedSessionId,
+  ])
+
+  const startRun = useCallback(async () => {
+    if (projectPathStatus.valid === false) {
+      setError(projectPathStatus.message || "Project path not found")
+      return
+    }
     debugLog("startRun(New Session)", {
-      selectedProjectPath,
+      selectedProjectPath: resolvedProjectPath,
       selectedSessionId,
       model,
-      skipPermissions,
       prompt: promptDraft,
     })
-    if (!selectedProjectPath) {
+    if (!resolvedProjectPath) {
       setError("Select a project first")
       return
     }
@@ -429,32 +659,30 @@ export const AgentView: React.FC = () => {
       return
     }
 
-	    setError(null)
-	    setHistory([])
-	    resetLiveState()
-	    upsertLiveEntry(`local:${Date.now()}:${seqRef.current++}`, {
-	      type: "user",
-	      timestamp: new Date().toISOString(),
-	      message: { role: "user", content: promptDraft },
-	      local_prompt: true,
-	    } as any)
-	    scheduleFlush()
-	    setRunSessionId(null)
-	    runSessionIdRef.current = null
-	    setSelectedSessionId(null)
+    setError(null)
+    resetRunSignals()
+    setHistory([])
+    resetLiveState()
+    upsertLiveEntry(`local:${Date.now()}:${seqRef.current++}`, {
+      type: "user",
+      timestamp: new Date().toISOString(),
+      message: { role: "user", content: promptDraft },
+      local_prompt: true,
+    } as any)
+    scheduleFlush()
+    setRunSessionId(null)
+    runSessionIdRef.current = null
+    setSelectedSessionId(null)
 
     cleanupListeners()
     await attachGenericListeners()
 
     setIsRunning(true)
     try {
-      await serviceFactory.invoke("execute_claude_code", {
-        params: {
-          projectPath: selectedProjectPath,
-          prompt: promptDraft,
-          model,
-          skipPermissions: skipPermissions,
-        },
+      await claudeCodeService.execute({
+        projectPath: resolvedProjectPath,
+        prompt: promptDraft,
+        model,
       })
     } catch (e) {
       setIsRunning(false)
@@ -469,111 +697,148 @@ export const AgentView: React.FC = () => {
               : JSON.stringify(e)
       setError(message || "Failed to start Claude run")
     }
-	  }, [
-	    attachGenericListeners,
-	    cleanupListeners,
-	    debugLog,
-	    model,
-	    promptDraft,
-	    resetLiveState,
-	    scheduleFlush,
-	    selectedProjectPath,
-	    selectedSessionId,
-	    skipPermissions,
-	    upsertLiveEntry,
-	  ])
+  }, [
+    attachGenericListeners,
+    cleanupListeners,
+    debugLog,
+    model,
+    projectPathStatus,
+    promptDraft,
+    resetRunSignals,
+    resetLiveState,
+    scheduleFlush,
+    resolvedProjectPath,
+    selectedSessionId,
+    upsertLiveEntry,
+  ])
 
-	  const sendPrompt = useCallback(async () => {
-    debugLog("sendPrompt", {
-      selectedProjectPath,
-      selectedSessionId,
-      model,
-      skipPermissions,
-      prompt: promptDraft,
-    })
-    if (!selectedProjectPath) {
-      setError("Select a project first")
-      return
-    }
-    if (!promptDraft.trim()) {
-      setError("Enter a prompt")
-      return
-    }
-
-	    setError(null)
-	    resetLiveState()
-	    upsertLiveEntry(`local:${Date.now()}:${seqRef.current++}`, {
-	      type: "user",
-	      sessionId: selectedSessionId ?? undefined,
-	      timestamp: new Date().toISOString(),
-	      message: { role: "user", content: promptDraft },
-	      local_prompt: true,
-	    } as any)
-	    scheduleFlush()
-	    setRunSessionId(null)
-	    runSessionIdRef.current = null
-
-    cleanupListeners()
-    await attachGenericListeners()
-
-    setIsRunning(true)
-    try {
-      if (selectedSessionId) {
-        debugLog("sendPrompt -> resume_claude_code", { selectedSessionId })
-        await serviceFactory.invoke("resume_claude_code", {
-          projectPath: selectedProjectPath,
-          sessionId: selectedSessionId,
-          prompt: promptDraft,
-          model,
-          skipPermissions: skipPermissions,
-        })
-      } else {
-        debugLog("sendPrompt -> execute_claude_code (no selectedSessionId)")
-        await serviceFactory.invoke("execute_claude_code", {
-          params: {
-            projectPath: selectedProjectPath,
-            prompt: promptDraft,
-            model,
-            skipPermissions: skipPermissions,
-          },
-        })
+  const sendPrompt = useCallback(
+    async (override?: { prompt: string; model: string }) => {
+      if (projectPathStatus.valid === false) {
+        setError(projectPathStatus.message || "Project path not found")
+        return
       }
-    } catch (e) {
-      setIsRunning(false)
+      const nextPrompt = override?.prompt ?? promptDraft
+      const nextModel = override?.model ?? model
+
+      if (isRunning) {
+        if (nextPrompt.trim()) {
+          enqueuePrompt(nextPrompt, nextModel)
+        }
+        return
+      }
+
+      debugLog("sendPrompt", {
+        selectedProjectPath: resolvedProjectPath,
+        selectedSessionId,
+        model: nextModel,
+        prompt: nextPrompt,
+      })
+      if (!resolvedProjectPath) {
+        setError("Select a project first")
+        return
+      }
+      if (!nextPrompt.trim()) {
+        setError("Enter a prompt")
+        return
+      }
+
+      setError(null)
+      resetRunSignals()
+      resetLiveState()
+      upsertLiveEntry(`local:${Date.now()}:${seqRef.current++}`, {
+        type: "user",
+        sessionId: selectedSessionId ?? undefined,
+        timestamp: new Date().toISOString(),
+        message: { role: "user", content: nextPrompt },
+        local_prompt: true,
+      } as any)
+      scheduleFlush()
+      setRunSessionId(null)
+      runSessionIdRef.current = null
+
       cleanupListeners()
-      const message =
-        e instanceof Error
-          ? e.message
-          : typeof e === "string"
-            ? e
-            : (e as any)?.message
-              ? String((e as any).message)
-              : JSON.stringify(e)
-      setError(message || "Failed to send prompt")
+      await attachGenericListeners()
+
+      setIsRunning(true)
+      try {
+        if (selectedSessionId) {
+          debugLog("sendPrompt -> resume_claude_code", { selectedSessionId })
+          await claudeCodeService.resume({
+            projectPath: resolvedProjectPath,
+            sessionId: selectedSessionId,
+            prompt: nextPrompt,
+            model: nextModel,
+          })
+        } else {
+          debugLog("sendPrompt -> execute_claude_code (no selectedSessionId)")
+          await claudeCodeService.execute({
+            projectPath: resolvedProjectPath,
+            prompt: nextPrompt,
+            model: nextModel,
+          })
+        }
+      } catch (e) {
+        setIsRunning(false)
+        cleanupListeners()
+        const message =
+          e instanceof Error
+            ? e.message
+            : typeof e === "string"
+              ? e
+              : (e as any)?.message
+                ? String((e as any).message)
+                : JSON.stringify(e)
+        setError(message || "Failed to send prompt")
+      }
+    },
+    [
+      attachGenericListeners,
+      cleanupListeners,
+      debugLog,
+      enqueuePrompt,
+      isRunning,
+      model,
+      projectPathStatus,
+      promptDraft,
+      resetRunSignals,
+      resetLiveState,
+      scheduleFlush,
+      resolvedProjectPath,
+      selectedSessionId,
+      upsertLiveEntry,
+    ],
+  )
+
+  const runNextQueuedPrompt = useCallback(() => {
+    if (isRunning || !queuedPrompts.length) return
+    const next = queuedPrompts[0]
+    setQueuedPrompts((prev) => prev.slice(1))
+    void sendPrompt({ prompt: next.prompt, model: next.model })
+  }, [isRunning, queuedPrompts, sendPrompt])
+
+  useEffect(() => {
+    runNextQueuedPromptRef.current = runNextQueuedPrompt
+  }, [runNextQueuedPrompt])
+
+  useEffect(() => {
+    if (!isRunning && queuedPrompts.length) {
+      runNextQueuedPrompt()
     }
-	  }, [
-	    attachGenericListeners,
-	    cleanupListeners,
-	    debugLog,
-	    model,
-	    promptDraft,
-	    resetLiveState,
-	    scheduleFlush,
-	    selectedProjectPath,
-	    selectedSessionId,
-	    skipPermissions,
-	    upsertLiveEntry,
-	  ])
+  }, [isRunning, queuedPrompts.length, runNextQueuedPrompt])
 
   const continueRun = useCallback(async () => {
+    if (projectPathStatus.valid === false) {
+      setError(projectPathStatus.message || "Project path not found")
+      return
+    }
     debugLog("continueRun(most recent)", {
-      selectedProjectPath,
+      selectedProjectPath: resolvedProjectPath,
       selectedSessionId,
       model,
-      skipPermissions,
       prompt: promptDraft,
     })
-    if (!selectedProjectPath) {
+    if (!resolvedProjectPath) {
       setError("Select a project first")
       return
     }
@@ -582,30 +847,28 @@ export const AgentView: React.FC = () => {
       return
     }
 
-	    setError(null)
-	    resetLiveState()
-	    upsertLiveEntry(`local:${Date.now()}:${seqRef.current++}`, {
-	      type: "user",
-	      timestamp: new Date().toISOString(),
-	      message: { role: "user", content: promptDraft },
-	      local_prompt: true,
-	    } as any)
-	    scheduleFlush()
-	    setRunSessionId(null)
-	    runSessionIdRef.current = null
+    setError(null)
+    resetRunSignals()
+    resetLiveState()
+    upsertLiveEntry(`local:${Date.now()}:${seqRef.current++}`, {
+      type: "user",
+      timestamp: new Date().toISOString(),
+      message: { role: "user", content: promptDraft },
+      local_prompt: true,
+    } as any)
+    scheduleFlush()
+    setRunSessionId(null)
+    runSessionIdRef.current = null
 
     cleanupListeners()
     await attachGenericListeners()
 
     setIsRunning(true)
     try {
-      await serviceFactory.invoke("continue_claude_code", {
-        params: {
-          projectPath: selectedProjectPath,
-          prompt: promptDraft,
-          model,
-          skipPermissions: skipPermissions,
-        },
+      await claudeCodeService.continue({
+        projectPath: resolvedProjectPath,
+        prompt: promptDraft,
+        model,
       })
     } catch (e) {
       setIsRunning(false)
@@ -620,29 +883,33 @@ export const AgentView: React.FC = () => {
               : JSON.stringify(e)
       setError(message || "Failed to start Claude run")
     }
-	  }, [
-	    attachGenericListeners,
-	    cleanupListeners,
-	    debugLog,
-	    model,
-	    promptDraft,
-	    resetLiveState,
-	    scheduleFlush,
-	    selectedProjectPath,
-	    selectedSessionId,
-	    skipPermissions,
-	    upsertLiveEntry,
-	  ])
+  }, [
+    attachGenericListeners,
+    cleanupListeners,
+    debugLog,
+    model,
+    projectPathStatus,
+    promptDraft,
+    resetRunSignals,
+    resetLiveState,
+    scheduleFlush,
+    resolvedProjectPath,
+    selectedSessionId,
+    upsertLiveEntry,
+  ])
 
   const resumeRun = useCallback(async () => {
+    if (projectPathStatus.valid === false) {
+      setError(projectPathStatus.message || "Project path not found")
+      return
+    }
     debugLog("resumeRun(explicit)", {
-      selectedProjectPath,
+      selectedProjectPath: resolvedProjectPath,
       selectedSessionId,
       model,
-      skipPermissions,
       prompt: promptDraft,
     })
-    if (!selectedProjectPath) {
+    if (!resolvedProjectPath) {
       setError("Select a project first")
       return
     }
@@ -655,30 +922,30 @@ export const AgentView: React.FC = () => {
       return
     }
 
-	    setError(null)
-	    resetLiveState()
-	    upsertLiveEntry(`local:${Date.now()}:${seqRef.current++}`, {
-	      type: "user",
-	      sessionId: selectedSessionId ?? undefined,
-	      timestamp: new Date().toISOString(),
-	      message: { role: "user", content: promptDraft },
-	      local_prompt: true,
-	    } as any)
-	    scheduleFlush()
-	    setRunSessionId(null)
-	    runSessionIdRef.current = null
+    setError(null)
+    resetRunSignals()
+    resetLiveState()
+    upsertLiveEntry(`local:${Date.now()}:${seqRef.current++}`, {
+      type: "user",
+      sessionId: selectedSessionId ?? undefined,
+      timestamp: new Date().toISOString(),
+      message: { role: "user", content: promptDraft },
+      local_prompt: true,
+    } as any)
+    scheduleFlush()
+    setRunSessionId(null)
+    runSessionIdRef.current = null
 
     cleanupListeners()
     await attachGenericListeners()
 
     setIsRunning(true)
     try {
-      await serviceFactory.invoke("resume_claude_code", {
-        projectPath: selectedProjectPath,
+      await claudeCodeService.resume({
+        projectPath: resolvedProjectPath,
         sessionId: selectedSessionId,
         prompt: promptDraft,
         model,
-        skipPermissions: skipPermissions,
       })
     } catch (e) {
       setIsRunning(false)
@@ -693,31 +960,32 @@ export const AgentView: React.FC = () => {
               : JSON.stringify(e)
       setError(message || "Failed to resume Claude run")
     }
-	  }, [
-	    attachGenericListeners,
-	    cleanupListeners,
-	    debugLog,
-	    model,
-	    promptDraft,
-	    resetLiveState,
-	    scheduleFlush,
-	    selectedProjectPath,
-	    selectedSessionId,
-	    skipPermissions,
-	    upsertLiveEntry,
-	  ])
+  }, [
+    attachGenericListeners,
+    cleanupListeners,
+    debugLog,
+    model,
+    projectPathStatus,
+    promptDraft,
+    resetRunSignals,
+    resetLiveState,
+    scheduleFlush,
+    resolvedProjectPath,
+    selectedSessionId,
+    upsertLiveEntry,
+  ])
 
   const cancelRun = useCallback(async () => {
     debugLog("cancelRun")
     try {
-      await serviceFactory.invoke("cancel_claude_execution")
+      await claudeCodeService.cancel(runSessionId ?? selectedSessionId ?? undefined)
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to cancel")
     } finally {
       setIsRunning(false)
       cleanupListeners()
     }
-  }, [cleanupListeners, debugLog])
+  }, [cleanupListeners, debugLog, runSessionId, selectedSessionId])
 
   const outputText = useMemo(() => liveLines.join("\n"), [liveLines])
   const mergedEntries = useMemo(
@@ -730,18 +998,15 @@ export const AgentView: React.FC = () => {
 
       const filtered = combined.filter(({ entry, index }) => {
         if (!activeSessionId) return true
+        if (index < history.length) return true
         const sid = entry.session_id ?? entry.sessionId
-        // Keep pre-init live messages that don't have session_id yet.
-        if (!sid) {
-          return index >= history.length
-        }
+        if (!sid) return true
         return sid === activeSessionId
       })
 
-      // Prefer "latest wins" for the same uuid/message.id so streaming updates replace earlier
-      // partial entries rather than being deduped away.
-      const byKey = new Map<string, { entry: ClaudeStreamMessage; index: number }>()
-      filtered.forEach(({ entry, index }) => {
+      const latestIndex = new Map<string, number>()
+      const keys: string[] = new Array(filtered.length)
+      filtered.forEach(({ entry, index }, i) => {
         const sid = entry.session_id ?? entry.sessionId ?? ""
         const uuid = (entry as any)?.uuid as string | undefined
         const messageId = entry.message?.id
@@ -750,27 +1015,13 @@ export const AgentView: React.FC = () => {
           : messageId
             ? `${sid}|mid|${messageId}`
             : `${sid}|${entry.type ?? ""}|${entry.subtype ?? ""}|${entry.timestamp ?? ""}|${index}`
-
-        const existing = byKey.get(key)
-        if (!existing || existing.index < index) {
-          byKey.set(key, { entry, index })
-        }
+        keys[i] = key
+        latestIndex.set(key, i)
       })
 
-      const deduped = Array.from(byKey.values())
-
-      deduped.sort((a, b) => {
-        const at = Date.parse(a.entry.timestamp ?? "")
-        const bt = Date.parse(b.entry.timestamp ?? "")
-        const aHas = Number.isFinite(at)
-        const bHas = Number.isFinite(bt)
-        if (aHas && bHas) return at - bt
-        if (aHas) return -1
-        if (bHas) return 1
-        return a.index - b.index
-      })
-
-      const sortedEntries = deduped.map((x) => x.entry)
+      const sortedEntries = filtered
+        .filter((_, i) => latestIndex.get(keys[i]) === i)
+        .map((x) => x.entry)
       const extractUserText = (entry: ClaudeStreamMessage): string | null => {
         if (entry.message?.role !== "user") return null
         const c = entry.message?.content
@@ -831,13 +1082,12 @@ export const AgentView: React.FC = () => {
           <Flex vertical style={{ minWidth: 0 }}>
             <Text strong>Agent</Text>
             <Text type="secondary" ellipsis>
-              {selectedProjectPath ?? "Select a project to begin"}
+              {resolvedProjectPath ?? "Select a project to begin"}
             </Text>
-            {runSessionId ? (
-              <Text type="secondary" ellipsis>
-                Running session: {runSessionId}
-              </Text>
-            ) : null}
+            <Flex style={{ gap: token.marginXS, flexWrap: "wrap" }}>
+              {runSessionId ? <Tag color="processing">Running</Tag> : null}
+              {selectedSessionId ? <Tag>{selectedSessionId}</Tag> : null}
+            </Flex>
           </Flex>
           <Flex style={{ gap: token.marginSM }}>
             <Segmented
@@ -849,6 +1099,11 @@ export const AgentView: React.FC = () => {
               ]}
               onChange={(value) => setView(value as any)}
             />
+            <Badge count={queuedPrompts.length} size="small">
+              <Button icon={<ToolOutlined />} onClick={() => setToolsOpen(true)}>
+                Tools
+              </Button>
+            </Badge>
             <Button onClick={loadSessionHistory} disabled={!selectedSessionId}>
               Reload History
             </Button>
@@ -857,6 +1112,14 @@ export const AgentView: React.FC = () => {
             </Button>
           </Flex>
         </Flex>
+
+        {projectPathStatus.valid === false ? (
+          <Alert
+            type="warning"
+            message={projectPathStatus.message || "Project path not found"}
+            showIcon
+          />
+        ) : null}
 
         {error ? (
           <Alert type="error" message={error} showIcon />
@@ -879,7 +1142,10 @@ export const AgentView: React.FC = () => {
               />
             </Flex>
           ) : (
-            <AgentChatView entries={mergedEntries} autoScrollToken={liveTick} />
+            <AgentChatView
+              entries={mergedEntries}
+              autoScrollToken={`${selectedSessionId ?? "none"}-${liveTick}`}
+            />
           )}
         </div>
 
@@ -901,22 +1167,42 @@ export const AgentView: React.FC = () => {
                 style={{ minWidth: 220 }}
                 placeholder="Model (e.g. sonnet / opus)"
               />
-
-              <Flex align="center" style={{ gap: 8 }}>
-                <Switch
-                  checked={skipPermissions}
-                  onChange={(v) => setSkipPermissions(v)}
-                />
-                <Text>Skip Permissions</Text>
-              </Flex>
             </Flex>
 
-            {skipPermissions ? (
-              <Alert
-                type="warning"
-                showIcon
-                message="Skip Permissions is enabled for the next run"
-              />
+            {queuedPrompts.length ? (
+              <Card size="small" styles={{ body: { padding: token.paddingXS } }}>
+                <Flex vertical style={{ gap: token.marginXS }}>
+                  <Text type="secondary">Queued prompts</Text>
+                  <List
+                    size="small"
+                    dataSource={queuedPrompts}
+                    renderItem={(item) => (
+                      <List.Item
+                        actions={[
+                          <Button
+                            key="remove"
+                            size="small"
+                            onClick={() =>
+                              setQueuedPrompts((prev) =>
+                                prev.filter((p) => p.id !== item.id),
+                              )
+                            }
+                          >
+                            Remove
+                          </Button>,
+                        ]}
+                      >
+                        <Flex vertical style={{ minWidth: 0 }}>
+                          <Text ellipsis>{item.prompt}</Text>
+                          <Text type="secondary" style={{ fontSize: 12 }}>
+                            {item.model}
+                          </Text>
+                        </Flex>
+                      </List.Item>
+                    )}
+                  />
+                </Flex>
+              </Card>
             ) : null}
 
             <Input.TextArea
@@ -928,21 +1214,84 @@ export const AgentView: React.FC = () => {
             />
 
             <Flex style={{ gap: token.marginSM, flexWrap: "wrap" }}>
-              <Button type="primary" onClick={sendPrompt} loading={isRunning}>
+              <Button
+                type="primary"
+                onClick={() => void sendPrompt()}
+                loading={isRunning}
+                disabled={projectPathStatus.valid !== true}
+              >
                 Send
               </Button>
-              <Button onClick={startRun} disabled={isRunning}>
+              <Button onClick={startRun} disabled={isRunning || projectPathStatus.valid !== true}>
                 New Session
               </Button>
-              <Button onClick={continueRun} disabled={isRunning}>
+              <Button
+                onClick={continueRun}
+                disabled={isRunning || projectPathStatus.valid !== true}
+              >
                 Continue
               </Button>
-              <Button onClick={resumeRun} disabled={isRunning || !selectedSessionId}>
+              <Button
+                onClick={resumeRun}
+                disabled={
+                  isRunning ||
+                  !selectedSessionId ||
+                  projectPathStatus.valid !== true
+                }
+              >
                 Resume
               </Button>
             </Flex>
           </Flex>
         </Card>
+
+        <Drawer
+          title="Session Tools"
+          placement="right"
+          width={520}
+          onClose={() => setToolsOpen(false)}
+          open={toolsOpen}
+        >
+          <Tabs
+            activeKey={toolsTab}
+            onChange={setToolsTab}
+            items={[
+              {
+                key: "timeline",
+                label: "Timeline",
+                children: (
+                  <TimelinePanel
+                    sessionId={selectedSessionId}
+                    projectId={
+                      selectedProjectId ??
+                      deriveProjectId(resolvedProjectPath ?? undefined)
+                    }
+                    projectPath={resolvedProjectPath}
+                  />
+                ),
+              },
+              {
+                key: "slash",
+                label: "Slash Commands",
+                children: (
+                  <SlashCommandsPanel
+                    projectPath={resolvedProjectPath}
+                  />
+                ),
+              },
+              {
+                key: "preview",
+                label: "Preview",
+                children: <PreviewPanel />,
+              },
+              {
+                key: "installer",
+                label: "Installer",
+                children: <ClaudeInstallPanel projectPath={resolvedProjectPath} />,
+              },
+            ]}
+          />
+        </Drawer>
       </Flex>
     </Content>
   )
