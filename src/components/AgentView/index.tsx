@@ -11,7 +11,6 @@ import {
   Input,
   Layout,
   List,
-  Segmented,
   Tabs,
   Tag,
   Typography,
@@ -33,6 +32,7 @@ import { SlashCommandsPanel } from "../AgentTools/SlashCommandsPanel"
 import { PreviewPanel } from "../AgentTools/PreviewPanel"
 import { ClaudeInstallPanel } from "../ClaudeInstallPanel"
 import { serviceFactory } from "../../services/ServiceFactory"
+import "./styles.css"
 
 const { Content } = Layout
 const { Text } = Typography
@@ -1085,7 +1085,13 @@ export const AgentView: React.FC = () => {
   )
 
   return (
-    <Content style={{ height: "100vh", overflow: "hidden" }}>
+    <Content
+      style={{
+        height: "100vh",
+        overflow: "hidden",
+        background: token.colorBgContainer,
+      }}
+    >
       <Flex
         vertical
         style={{
@@ -1107,14 +1113,14 @@ export const AgentView: React.FC = () => {
             </Flex>
           </Flex>
           <Flex style={{ gap: token.marginSM }}>
-            <Segmented
+            <Tabs
               size="small"
-              value={view}
-              options={[
-                { label: "Chat", value: "chat" },
-                { label: "Debug", value: "debug" },
-              ]}
+              activeKey={view}
               onChange={(value) => setView(value as any)}
+              items={[
+                { key: "chat", label: "Chat" },
+                { key: "debug", label: "Debug" },
+              ]}
             />
             <Badge count={queuedPrompts.length} size="small">
               <Button icon={<ToolOutlined />} onClick={() => setToolsOpen(true)}>
@@ -1166,108 +1172,126 @@ export const AgentView: React.FC = () => {
           )}
         </div>
 
-        <Card
-          size="small"
-          styles={{ body: { padding: token.paddingSM } }}
-          style={{ borderRadius: token.borderRadius }}
+        <div
+          className="agent-view-input-wrapper"
+          style={{
+            position: "sticky",
+            bottom: 0,
+            zIndex: 10,
+            background:
+              token.colorBgContainer ??
+              (token.colorBgLayout || "transparent"),
+            backdropFilter: "blur(10px)",
+            borderTop: `1px solid ${token.colorBorderSecondary}`,
+          }}
         >
-          <Flex vertical style={{ gap: token.marginSM }}>
-            <Flex align="center" style={{ gap: token.marginSM, flexWrap: "wrap" }}>
-              <AutoComplete
-                value={model}
-                onChange={(value) => setModel(value)}
-                options={[
-                  { value: "sonnet" },
-                  { value: "haiku" },
-                  { value: "opus" },
-                ]}
-                style={{ minWidth: 220 }}
-                placeholder="Model (e.g. sonnet / opus)"
+          <Card
+            size="small"
+            className="agent-view-input-card"
+            styles={{ body: { padding: token.paddingSM } }}
+            style={{ borderRadius: token.borderRadius }}
+          >
+            <Flex vertical style={{ gap: token.marginSM }}>
+              <Flex align="center" style={{ gap: token.marginSM, flexWrap: "wrap" }}>
+                <AutoComplete
+                  value={model}
+                  onChange={(value) => setModel(value)}
+                  options={[
+                    { value: "sonnet" },
+                    { value: "haiku" },
+                    { value: "opus" },
+                  ]}
+                  style={{ minWidth: 220 }}
+                  placeholder="Model (e.g. sonnet / opus)"
+                />
+              </Flex>
+
+              {queuedPrompts.length ? (
+                <Card size="small" styles={{ body: { padding: token.paddingXS } }}>
+                  <Flex vertical style={{ gap: token.marginXS }}>
+                    <Text type="secondary">Queued prompts</Text>
+                    <List
+                      size="small"
+                      dataSource={queuedPrompts}
+                      renderItem={(item) => (
+                        <List.Item
+                          actions={[
+                            <Button
+                              key="remove"
+                              size="small"
+                              onClick={() =>
+                                setQueuedPrompts((prev) =>
+                                  prev.filter((p) => p.id !== item.id),
+                                )
+                              }
+                            >
+                              Remove
+                            </Button>,
+                          ]}
+                        >
+                          <Flex vertical style={{ minWidth: 0 }}>
+                            <Text ellipsis>{item.prompt}</Text>
+                            <Text type="secondary" style={{ fontSize: 12 }}>
+                              {item.model}
+                            </Text>
+                          </Flex>
+                        </List.Item>
+                      )}
+                    />
+                  </Flex>
+                </Card>
+              ) : null}
+
+              <Input.TextArea
+                value={promptDraft}
+                onChange={(e) => setPromptDraft(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key !== "Enter" || e.shiftKey) return
+                  const nativeEvent = e.nativeEvent as any
+                  if (nativeEvent?.isComposing) return
+                  e.preventDefault()
+                  void sendPrompt()
+                }}
+                placeholder="Enter a prompt for Claude Code"
+                autoSize={{ minRows: 2, maxRows: 8 }}
+                disabled={isRunning}
               />
+
+              <Flex style={{ gap: token.marginSM, flexWrap: "wrap" }}>
+                <Button
+                  type="primary"
+                  onClick={() => void sendPrompt()}
+                  loading={isRunning}
+                  disabled={projectPathStatus.valid !== true}
+                >
+                  Send
+                </Button>
+                <Button
+                  onClick={startRun}
+                  disabled={isRunning || projectPathStatus.valid !== true}
+                >
+                  New Session
+                </Button>
+                <Button
+                  onClick={continueRun}
+                  disabled={isRunning || projectPathStatus.valid !== true}
+                >
+                  Continue
+                </Button>
+                <Button
+                  onClick={resumeRun}
+                  disabled={
+                    isRunning ||
+                    !selectedSessionId ||
+                    projectPathStatus.valid !== true
+                  }
+                >
+                  Resume
+                </Button>
+              </Flex>
             </Flex>
-
-            {queuedPrompts.length ? (
-              <Card size="small" styles={{ body: { padding: token.paddingXS } }}>
-                <Flex vertical style={{ gap: token.marginXS }}>
-                  <Text type="secondary">Queued prompts</Text>
-                  <List
-                    size="small"
-                    dataSource={queuedPrompts}
-                    renderItem={(item) => (
-                      <List.Item
-                        actions={[
-                          <Button
-                            key="remove"
-                            size="small"
-                            onClick={() =>
-                              setQueuedPrompts((prev) =>
-                                prev.filter((p) => p.id !== item.id),
-                              )
-                            }
-                          >
-                            Remove
-                          </Button>,
-                        ]}
-                      >
-                        <Flex vertical style={{ minWidth: 0 }}>
-                          <Text ellipsis>{item.prompt}</Text>
-                          <Text type="secondary" style={{ fontSize: 12 }}>
-                            {item.model}
-                          </Text>
-                        </Flex>
-                      </List.Item>
-                    )}
-                  />
-                </Flex>
-              </Card>
-            ) : null}
-
-            <Input.TextArea
-              value={promptDraft}
-              onChange={(e) => setPromptDraft(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key !== "Enter" || e.shiftKey) return
-                const nativeEvent = e.nativeEvent as any
-                if (nativeEvent?.isComposing) return
-                e.preventDefault()
-                void sendPrompt()
-              }}
-              placeholder="Enter a prompt for Claude Code"
-              autoSize={{ minRows: 2, maxRows: 8 }}
-              disabled={isRunning}
-            />
-
-            <Flex style={{ gap: token.marginSM, flexWrap: "wrap" }}>
-              <Button
-                type="primary"
-                onClick={() => void sendPrompt()}
-                loading={isRunning}
-                disabled={projectPathStatus.valid !== true}
-              >
-                Send
-              </Button>
-              <Button onClick={startRun} disabled={isRunning || projectPathStatus.valid !== true}>
-                New Session
-              </Button>
-              <Button
-                onClick={continueRun}
-                disabled={isRunning || projectPathStatus.valid !== true}
-              >
-                Continue
-              </Button>
-              <Button
-                onClick={resumeRun}
-                disabled={
-                  isRunning ||
-                  !selectedSessionId ||
-                  projectPathStatus.valid !== true
-                }
-              >
-                Resume
-              </Button>
-            </Flex>
-          </Flex>
-        </Card>
+          </Card>
+        </div>
 
         <Drawer
           title="Session Tools"

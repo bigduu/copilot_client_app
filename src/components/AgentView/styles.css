@@ -1,0 +1,14 @@
+.agent-view-messages-list {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.agent-view-messages-list::-webkit-scrollbar {
+  display: none;
+}
+
+.agent-view-input-card {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+}

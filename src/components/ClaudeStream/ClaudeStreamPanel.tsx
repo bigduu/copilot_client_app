@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react"
-import { Card, Flex, Segmented, theme, Typography } from "antd"
+import { Card, Empty, Flex, Input, Tabs, theme, Typography } from "antd"
 
 import { ClaudeEntryCard } from "./ClaudeEntryCard"
 import type { ClaudeStreamMessage } from "./types"
@@ -40,48 +40,60 @@ export const ClaudeStreamPanel: React.FC<{
       title={title}
       style={{ flex: 1, minWidth: 0, overflow: "hidden" }}
       styles={{ body: { height: "100%", overflow: "hidden" } }}
-      extra={
-        <Segmented
-          size="small"
-          value={view}
-          options={[
-            { label: "Rendered", value: "rendered" },
-            { label: "Raw", value: "raw" },
-          ]}
-          onChange={(value) => setView(value as any)}
-        />
-      }
     >
-      {view === "raw" ? (
-        <div style={{ height: "100%", overflow: "auto" }}>
-          <pre style={{ margin: 0, fontSize: 12, whiteSpace: "pre-wrap" }}>
-            {resolvedRaw}
-          </pre>
-        </div>
-      ) : (
-        <div
-          ref={containerRef}
-          style={{
-            height: "100%",
-            overflow: "auto",
-            paddingRight: 2,
-          }}
-        >
-          {entries.length ? (
-            <Flex vertical gap={token.marginSM}>
-              {entries.map((entry, idx) => (
-                <ClaudeEntryCard
-                  key={`${entry.type}-${entry.subtype ?? ""}-${entry.timestamp ?? ""}-${idx}`}
-                  entry={entry}
-                />
-              ))}
-            </Flex>
-          ) : (
-            <Text type="secondary">No entries</Text>
-          )}
-        </div>
-      )}
+      <Tabs
+        size="small"
+        activeKey={view}
+        onChange={(value) => setView(value as any)}
+        style={{ height: "100%" }}
+        items={[
+          {
+            key: "rendered",
+            label: "Rendered",
+            children: (
+              <div
+                ref={containerRef}
+                style={{
+                  height: "100%",
+                  overflow: "auto",
+                  paddingRight: 2,
+                }}
+              >
+                {entries.length ? (
+                  <Flex vertical gap={token.marginSM}>
+                    {entries.map((entry, idx) => (
+                      <ClaudeEntryCard
+                        key={`${entry.type}-${entry.subtype ?? ""}-${entry.timestamp ?? ""}-${idx}`}
+                        entry={entry}
+                      />
+                    ))}
+                  </Flex>
+                ) : (
+                  <Empty
+                    image={Empty.PRESENTED_IMAGE_SIMPLE}
+                    description={<Text type="secondary">No entries</Text>}
+                  />
+                )}
+              </div>
+            ),
+          },
+          {
+            key: "raw",
+            label: "Raw",
+            children: (
+              <Input.TextArea
+                readOnly
+                value={resolvedRaw}
+                style={{
+                  height: "100%",
+                  fontSize: 12,
+                  fontFamily: "SFMono-Regular, Menlo, Monaco, Consolas, monospace",
+                }}
+              />
+            ),
+          },
+        ]}
+      />
     </Card>
   )
 }
-
