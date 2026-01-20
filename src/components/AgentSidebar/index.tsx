@@ -186,8 +186,12 @@ export const AgentSidebar: React.FC = () => {
                         cursor: "pointer",
                         borderRadius: token.borderRadius,
                         padding: token.paddingXS,
+                        border: "1px solid",
+                        borderColor: isSelected
+                          ? token.colorPrimaryBorder
+                          : "transparent",
                         background: isSelected
-                          ? "var(--ant-color-bg-elevated)"
+                          ? token.colorPrimaryBg
                           : "transparent",
                       }}
                       onClick={() => setSelectedProject(item.id, item.path)}
@@ -228,8 +232,12 @@ export const AgentSidebar: React.FC = () => {
                         cursor: "pointer",
                         borderRadius: token.borderRadius,
                         padding: token.paddingXS,
+                        border: "1px solid",
+                        borderColor: isSelected
+                          ? token.colorPrimaryBorder
+                          : "transparent",
                         background: isSelected
-                          ? "var(--ant-color-bg-elevated)"
+                          ? token.colorPrimaryBg
                           : "transparent",
                       }}
                       onClick={() => setSelectedSessionId(item.id)}
