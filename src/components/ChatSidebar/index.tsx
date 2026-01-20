@@ -31,7 +31,7 @@ import {
   getChatCountByDate,
   getDateGroupKeyForChat,
 } from "../../utils/chatUtils";
-import { SystemSettingsModal } from "../SystemSettingsModal";
+import { useSettingsViewStore } from "../../store/settingsViewStore";
 import { ChatItem as ChatItemComponent } from "../ChatItem";
 import { ChatItem } from "../../types/chat";
 import SystemPromptSelector from "../SystemPromptSelector";
@@ -67,7 +67,6 @@ export const ChatSidebar: React.FC<{
   const systemPrompts = useAppStore((state) => state.systemPrompts);
   const loadSystemPrompts = useAppStore((state) => state.loadSystemPrompts);
 
-  const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   const [isNewChatSelectorOpen, setIsNewChatSelectorOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
   const [footerHeight, setFooterHeight] = useState(0);
@@ -157,12 +156,10 @@ export const ChatSidebar: React.FC<{
     });
   };
 
-  const handleOpenSettings = () => {
-    setIsSettingsModalOpen(true);
-  };
+  const openSettings = useSettingsViewStore((state) => state.open);
 
-  const handleCloseSettings = () => {
-    setIsSettingsModalOpen(false);
+  const handleOpenSettings = () => {
+    openSettings("chat");
   };
 
   const handleEditTitle = (chatId: string, newTitle: string) => {
@@ -563,13 +560,6 @@ export const ChatSidebar: React.FC<{
           </Button>
         </Tooltip>
       </Flex>
-
-      <SystemSettingsModal
-        open={isSettingsModalOpen}
-        onClose={handleCloseSettings}
-        themeMode={themeMode}
-        onThemeModeChange={onThemeModeChange}
-      />
 
       <SystemPromptSelector
         open={isNewChatSelectorOpen}

@@ -5,11 +5,13 @@ import { ChatView } from "../components/ChatView";
 import { FavoritesPanel } from "../components/FavoritesPanel";
 import { AgentSidebar } from "../components/AgentSidebar";
 import { AgentView } from "../components/AgentView";
+import { SystemSettingsPage } from "../components/SystemSettingsPage";
 import { listen } from "@tauri-apps/api/event";
 import { useAppStore } from "../store";
 import { useChatManager } from "../hooks/useChatManager";
 import { ChatItem } from "../types/chat";
 import { useUiModeStore } from "../store/uiModeStore";
+import { useSettingsViewStore } from "../store/settingsViewStore";
 
 import "./styles.css";
 
@@ -18,6 +20,10 @@ export const MainLayout: React.FC<{
   onThemeModeChange: (mode: "light" | "dark") => void;
 }> = ({ themeMode, onThemeModeChange }) => {
   const mode = useUiModeStore((s) => s.mode);
+  const setMode = useUiModeStore((s) => s.setMode);
+  const settingsOpen = useSettingsViewStore((s) => s.isOpen);
+  const settingsOrigin = useSettingsViewStore((s) => s.origin);
+  const closeSettings = useSettingsViewStore((s) => s.close);
   // Direct access to Zustand store
   const addChat = useAppStore((state) => state.addChat);
   const selectChat = useAppStore((state) => state.selectChat);
@@ -134,10 +140,26 @@ export const MainLayout: React.FC<{
         <AgentSidebar />
       )}
       <Layout className="content-layout">
-        {mode === "chat" ? <ChatView /> : <AgentView />}
+        {settingsOpen ? (
+          <SystemSettingsPage
+            themeMode={themeMode}
+            onThemeModeChange={onThemeModeChange}
+            onBack={() => {
+              closeSettings();
+              if (settingsOrigin !== mode) {
+                setMode(settingsOrigin);
+              }
+            }}
+          />
+        ) : mode === "chat" ? (
+          <ChatView />
+        ) : (
+          <AgentView />
+        )}
       </Layout>
       {/* Favorites Panel */}
       {mode === "chat" &&
+        !settingsOpen &&
         showFavorites &&
         currentChatId &&
         currentMessages.length > 0 && (

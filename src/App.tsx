@@ -3,7 +3,6 @@ import type { ProfilerOnRenderCallback } from "react";
 import { App as AntApp, ConfigProvider, theme } from "antd";
 import "./App.css";
 import { MainLayout } from "./layouts/MainLayout";
-import { SystemSettingsModal } from "./components/SystemSettingsModal";
 import { ChatControllerProvider } from "./contexts/ChatControllerContext";
 import { useAppStore } from "./store";
 
@@ -48,9 +47,6 @@ function App() {
     loadSystemPrompts();
   }, [loadSystemPrompts]);
 
-  // Control the display of settings modal (can be adjusted according to actual project logic)
-  const [settingsOpen, setSettingsOpen] = useState(false);
-
   return (
     <ConfigProvider
       theme={{
@@ -78,12 +74,6 @@ function App() {
                 onThemeModeChange={setThemeMode}
               />
             )}
-            <SystemSettingsModal
-              open={settingsOpen}
-              onClose={() => setSettingsOpen(false)}
-              themeMode={themeMode}
-              onThemeModeChange={setThemeMode}
-            />
           </div>
         </ChatControllerProvider>
       </AntApp>
