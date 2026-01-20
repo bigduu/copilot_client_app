@@ -77,6 +77,10 @@ export const AgentView: React.FC = () => {
     message?: string
   }>({ valid: null })
 
+  const clearPromptDraft = useCallback(() => {
+    setPromptDraft("")
+  }, [setPromptDraft])
+
   const viewRef = useRef(view)
   const unlistenGenericRef = useRef<Array<() => void>>([])
   const unlistenScopedRef = useRef<Array<() => void>>([])
@@ -660,6 +664,7 @@ export const AgentView: React.FC = () => {
     }
 
     setError(null)
+    clearPromptDraft()
     resetRunSignals()
     setHistory([])
     resetLiveState()
@@ -700,6 +705,7 @@ export const AgentView: React.FC = () => {
   }, [
     attachGenericListeners,
     cleanupListeners,
+    clearPromptDraft,
     debugLog,
     model,
     projectPathStatus,
@@ -724,6 +730,9 @@ export const AgentView: React.FC = () => {
       if (isRunning) {
         if (nextPrompt.trim()) {
           enqueuePrompt(nextPrompt, nextModel)
+          if (!override) {
+            clearPromptDraft()
+          }
         }
         return
       }
@@ -738,14 +747,17 @@ export const AgentView: React.FC = () => {
         setError("Select a project first")
         return
       }
-      if (!nextPrompt.trim()) {
-        setError("Enter a prompt")
-        return
-      }
+    if (!nextPrompt.trim()) {
+      setError("Enter a prompt")
+      return
+    }
 
-      setError(null)
-      resetRunSignals()
-      resetLiveState()
+    setError(null)
+    if (!override) {
+      clearPromptDraft()
+    }
+    resetRunSignals()
+    resetLiveState()
       upsertLiveEntry(`local:${Date.now()}:${seqRef.current++}`, {
         type: "user",
         sessionId: selectedSessionId ?? undefined,
@@ -795,6 +807,7 @@ export const AgentView: React.FC = () => {
     [
       attachGenericListeners,
       cleanupListeners,
+      clearPromptDraft,
       debugLog,
       enqueuePrompt,
       isRunning,
@@ -848,6 +861,7 @@ export const AgentView: React.FC = () => {
     }
 
     setError(null)
+    clearPromptDraft()
     resetRunSignals()
     resetLiveState()
     upsertLiveEntry(`local:${Date.now()}:${seqRef.current++}`, {
@@ -886,6 +900,7 @@ export const AgentView: React.FC = () => {
   }, [
     attachGenericListeners,
     cleanupListeners,
+    clearPromptDraft,
     debugLog,
     model,
     projectPathStatus,
@@ -923,6 +938,7 @@ export const AgentView: React.FC = () => {
     }
 
     setError(null)
+    clearPromptDraft()
     resetRunSignals()
     resetLiveState()
     upsertLiveEntry(`local:${Date.now()}:${seqRef.current++}`, {
@@ -963,6 +979,7 @@ export const AgentView: React.FC = () => {
   }, [
     attachGenericListeners,
     cleanupListeners,
+    clearPromptDraft,
     debugLog,
     model,
     projectPathStatus,
@@ -1208,6 +1225,13 @@ export const AgentView: React.FC = () => {
             <Input.TextArea
               value={promptDraft}
               onChange={(e) => setPromptDraft(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key !== "Enter" || e.shiftKey) return
+                const nativeEvent = e.nativeEvent as any
+                if (nativeEvent?.isComposing) return
+                e.preventDefault()
+                void sendPrompt()
+              }}
               placeholder="Enter a prompt for Claude Code"
               autoSize={{ minRows: 2, maxRows: 8 }}
               disabled={isRunning}
