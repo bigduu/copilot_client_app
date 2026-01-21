@@ -1,144 +1,6 @@
-import { ToolService, UtilityService } from "./types";
+import { UtilityService } from "./types";
 
 import { buildBackendUrl } from "../utils/backendBaseUrl";
-
-export class HttpToolService implements ToolService {
-  // Note: getAvailableTools removed - tools are no longer exposed to frontend UI
-  // Tools are now injected into system prompts for LLM-driven autonomous usage
-  async getAvailableTools(): Promise<any[]> {
-    // This method is kept for interface compatibility but returns empty array
-    // Tools are no longer exposed to frontend - they're used by LLM via backend
-    console.warn(
-      "getAvailableTools() called but tools are no longer available to frontend",
-    );
-    return [];
-  }
-
-  async getToolsDocumentation(): Promise<any> {
-    try {
-      const response = await fetch(buildBackendUrl("/tools/documentation"));
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-      return await response.text();
-    } catch (error) {
-      console.error("Failed to fetch tools documentation:", error);
-      return "";
-    }
-  }
-
-  async getToolsForUI(categoryId?: string): Promise<any[]> {
-    try {
-      const url = new URL(buildBackendUrl("/tools/ui"));
-      if (categoryId) {
-        url.searchParams.append("category_id", categoryId);
-      }
-      const response = await fetch(url.toString());
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-      const data = await response.json();
-      return data; // Assuming the backend returns the correct structure
-    } catch (error) {
-      console.error("Failed to fetch tools for UI:", error);
-      return [];
-    }
-  }
-
-  async executeTool(toolName: string, parameters: any[]): Promise<any> {
-    try {
-      const response = await fetch(buildBackendUrl("/tools/execute"), {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          tool_name: toolName,
-          parameters,
-        }),
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(
-          `HTTP error! status: ${response.status}, body: ${errorText}`,
-        );
-      }
-
-      const data = await response.json();
-      // The backend returns a JSON string inside the result field.
-      // This is consistent with the old Tauri command, but ideally should be refactored.
-      const result = JSON.parse(data.result);
-      return result;
-    } catch (error) {
-      console.error(`Failed to execute tool "${toolName}":`, error);
-      throw error;
-    }
-  }
-
-  async getToolCategories(): Promise<any[]> {
-    try {
-      const response = await fetch(buildBackendUrl("/tools/categories"));
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-      return await response.json();
-    } catch (error) {
-      console.error("Failed to fetch tool categories:", error);
-      return [];
-    }
-  }
-
-  async getCategoryTools(categoryId: string): Promise<any[]> {
-    try {
-      const response = await fetch(
-        buildBackendUrl(`/tools/category/${categoryId}/tools`),
-      );
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-      return await response.json();
-    } catch (error) {
-      console.error(`Failed to fetch tools for category ${categoryId}:`, error);
-      return [];
-    }
-  }
-
-  async getToolCategoryInfo(categoryId: string): Promise<any> {
-    try {
-      const response = await fetch(
-        buildBackendUrl(`/tools/category/${categoryId}/info`),
-      );
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-      return await response.json();
-    } catch (error) {
-      console.error(`Failed to fetch info for category ${categoryId}:`, error);
-      return null;
-    }
-  }
-
-  async getCategorySystemPrompt(categoryId: string): Promise<string> {
-    try {
-      const response = await fetch(
-        buildBackendUrl(`/tools/category/${categoryId}/system_prompt`),
-      );
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-      // The backend returns JSON which might be null, or a string.
-      const data = await response.json();
-      return data || "";
-    } catch (error) {
-      console.error(
-        `Failed to fetch system prompt for category ${categoryId}:`,
-        error,
-      );
-      return "";
-    }
-  }
-}
 
 export class HttpUtilityService implements Partial<UtilityService> {
   async getMcpServers(): Promise<any> {
@@ -182,6 +44,56 @@ export class HttpUtilityService implements Partial<UtilityService> {
     } catch (error) {
       console.error(`Failed to fetch MCP client status for ${name}:`, error);
       return null;
+    }
+  }
+
+  async reloadMcpServers(): Promise<any> {
+    try {
+      const response = await fetch(buildBackendUrl("/mcp/reload"), {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+      });
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      return await response.json();
+    } catch (error) {
+      console.error("Failed to reload MCP servers:", error);
+      throw error;
+    }
+  }
+
+  async getBodhiConfig(): Promise<any> {
+    try {
+      const response = await fetch(buildBackendUrl("/bodhi/config"));
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      return await response.json();
+    } catch (error) {
+      console.error("Failed to fetch Bodhi config:", error);
+      return {};
+    }
+  }
+
+  async setBodhiConfig(config: any): Promise<any> {
+    try {
+      const response = await fetch(buildBackendUrl("/bodhi/config"), {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(config),
+      });
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      return await response.json();
+    } catch (error) {
+      console.error("Failed to set Bodhi config:", error);
+      throw error;
     }
   }
 }

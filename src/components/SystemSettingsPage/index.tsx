@@ -169,9 +169,15 @@ const SystemSettingsPage = ({
     Record<string, McpStatusResponse | null>
   >({});
   const [isLoadingMcp, setIsLoadingMcp] = useState(false);
+  const [bodhiConfigJson, setBodhiConfigJson] = useState("");
+  const [bodhiConfigError, setBodhiConfigError] = useState<string | null>(null);
+  const [isLoadingBodhiConfig, setIsLoadingBodhiConfig] = useState(false);
   const mcpPollingRef = useRef<number | null>(null);
   const mcpDirtyRef = useRef(false);
   const mcpLastConfigRef = useRef<string>("");
+  const bodhiConfigPollingRef = useRef<number | null>(null);
+  const bodhiConfigDirtyRef = useRef(false);
+  const bodhiConfigLastRef = useRef<string>("");
 
   const handleDeleteAll = () => {
     deleteAllUnpinnedChats();
@@ -272,6 +278,11 @@ const SystemSettingsPage = ({
     return config ?? { mcpServers: {} };
   };
 
+  const fetchBodhiConfig = async () => {
+    const config = await serviceFactory.getBodhiConfig();
+    return config ?? {};
+  };
+
   const refreshMcpStatuses = async (config: any) => {
     const serverNames = Object.keys(config?.mcpServers ?? {});
     if (serverNames.length === 0) {
@@ -301,6 +312,15 @@ const SystemSettingsPage = ({
     await refreshMcpStatuses(config);
   };
 
+  const applyBodhiConfig = async (config: any, force = false) => {
+    const json = JSON.stringify(config ?? {}, null, 2);
+    if (force || !bodhiConfigDirtyRef.current) {
+      setBodhiConfigJson(json);
+    }
+    bodhiConfigDirtyRef.current = false;
+    bodhiConfigLastRef.current = json;
+  };
+
   const loadMcpConfig = async () => {
     setIsLoadingMcp(true);
     setMcpConfigError(null);
@@ -315,6 +335,21 @@ const SystemSettingsPage = ({
       );
     } finally {
       setIsLoadingMcp(false);
+    }
+  };
+
+  const loadBodhiConfig = async () => {
+    setIsLoadingBodhiConfig(true);
+    setBodhiConfigError(null);
+    try {
+      const config = await fetchBodhiConfig();
+      await applyBodhiConfig(config, true);
+    } catch (error) {
+      setBodhiConfigError(
+        error instanceof Error ? error.message : "Failed to load Bodhi config"
+      );
+    } finally {
+      setIsLoadingBodhiConfig(false);
     }
   };
 
@@ -335,6 +370,18 @@ const SystemSettingsPage = ({
     } catch {}
   };
 
+  const pollBodhiConfig = async () => {
+    try {
+      const config = await fetchBodhiConfig();
+      const json = JSON.stringify(config ?? {}, null, 2);
+      if (!bodhiConfigDirtyRef.current && json !== bodhiConfigLastRef.current) {
+        await applyBodhiConfig(config, true);
+        return;
+      }
+      await applyBodhiConfig(config);
+    } catch {}
+  };
+
   const handleSaveMcpConfig = async () => {
     try {
       const parsed = JSON.parse(mcpConfigJson);
@@ -348,6 +395,21 @@ const SystemSettingsPage = ({
         error instanceof Error
           ? error.message
           : "Failed to save MCP configuration"
+      );
+    }
+  };
+
+  const handleSaveBodhiConfig = async () => {
+    try {
+      const parsed = JSON.parse(bodhiConfigJson || "{}");
+      await serviceFactory.setBodhiConfig(parsed);
+      msgApi.success("Bodhi config saved");
+      bodhiConfigDirtyRef.current = false;
+      bodhiConfigLastRef.current = JSON.stringify(parsed, null, 2);
+      await loadBodhiConfig();
+    } catch (error) {
+      msgApi.error(
+        error instanceof Error ? error.message : "Failed to save Bodhi config"
       );
     }
   };
@@ -367,15 +429,25 @@ const SystemSettingsPage = ({
     setBackendBaseUrlState(getBackendBaseUrl());
     setHasBackendOverride(hasBackendBaseUrlOverride());
     loadMcpConfig();
+    loadBodhiConfig();
     if (!mcpPollingRef.current) {
       mcpPollingRef.current = window.setInterval(() => {
         void pollMcpConfig();
+      }, 5000);
+    }
+    if (!bodhiConfigPollingRef.current) {
+      bodhiConfigPollingRef.current = window.setInterval(() => {
+        void pollBodhiConfig();
       }, 5000);
     }
     return () => {
       if (mcpPollingRef.current) {
         window.clearInterval(mcpPollingRef.current);
         mcpPollingRef.current = null;
+      }
+      if (bodhiConfigPollingRef.current) {
+        window.clearInterval(bodhiConfigPollingRef.current);
+        bodhiConfigPollingRef.current = null;
       }
     };
   }, []);
@@ -544,6 +616,69 @@ const SystemSettingsPage = ({
                     <Text type="secondary" style={{ fontSize: token.fontSizeSM }}>
                       Edit <Text code>~/.bodhi/mcp_servers.json</Text> directly or
                       use this editor. The UI refreshes periodically; use Reload to
+                      apply file changes or Save to persist edits.
+                    </Text>
+                  </Space>
+                </Card>
+              ),
+            },
+            {
+              key: "config",
+              label: "Config",
+              children: (
+                <Card size="small">
+                  <Space
+                    direction="vertical"
+                    size={token.marginXS}
+                    style={{ width: "100%" }}
+                  >
+                    <Flex justify="space-between" align="center">
+                      <Text strong>Bodhi Config</Text>
+                      <Space size={token.marginSM}>
+                        <Button
+                          onClick={async () => {
+                            try {
+                              setIsLoadingBodhiConfig(true);
+                              const config = await fetchBodhiConfig();
+                              await applyBodhiConfig(config, true);
+                            } catch (error) {
+                              msgApi.error(
+                                error instanceof Error
+                                  ? error.message
+                                  : "Failed to reload Bodhi config"
+                              );
+                            } finally {
+                              setIsLoadingBodhiConfig(false);
+                            }
+                          }}
+                          disabled={isLoadingBodhiConfig}
+                        >
+                          Reload
+                        </Button>
+                        <Button
+                          type="primary"
+                          onClick={handleSaveBodhiConfig}
+                          disabled={isLoadingBodhiConfig}
+                        >
+                          Save
+                        </Button>
+                      </Space>
+                    </Flex>
+                    <Input.TextArea
+                      rows={10}
+                      value={bodhiConfigJson}
+                      onChange={(event) => {
+                        setBodhiConfigJson(event.target.value);
+                        bodhiConfigDirtyRef.current = true;
+                      }}
+                      placeholder="{}"
+                    />
+                    {bodhiConfigError && (
+                      <Text type="danger">{bodhiConfigError}</Text>
+                    )}
+                    <Text type="secondary" style={{ fontSize: token.fontSizeSM }}>
+                      Edit <Text code>~/.bodhi/config.json</Text> directly or use
+                      this editor. The UI refreshes periodically; use Reload to
                       apply file changes or Save to persist edits.
                     </Text>
                   </Space>

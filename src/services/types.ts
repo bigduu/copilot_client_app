@@ -1,60 +1,3 @@
-// Common types for both service implementations
-export interface Message {
-  role: string;
-  content: string | MessageContent[];
-}
-
-export interface MessageContent {
-  type: string;
-  text?: string;
-  image_url?: {
-    url: string;
-    detail?: string;
-  };
-}
-
-export interface ToolService {
-  /**
-   * Get available tools
-   */
-  getAvailableTools(): Promise<any[]>;
-
-  /**
-   * Get tools documentation
-   */
-  getToolsDocumentation(): Promise<any>;
-
-  /**
-   * Get tools for UI
-   */
-  getToolsForUI(): Promise<any[]>;
-
-  /**
-   * Execute a tool
-   */
-  executeTool(toolName: string, parameters: any[]): Promise<any>;
-
-  /**
-   * Get tool categories
-   */
-  getToolCategories(): Promise<any[]>;
-
-  /**
-   * Get tools by category
-   */
-  getCategoryTools(categoryId: string): Promise<any[]>;
-
-  /**
-   * Get category information by ID
-   */
-  getToolCategoryInfo(categoryId: string): Promise<any>;
-
-  /**
-   * Get category system prompt
-   */
-  getCategorySystemPrompt(categoryId: string): Promise<string>;
-}
-
 export interface UtilityService {
   /**
    * Copy text to clipboard
@@ -75,6 +18,21 @@ export interface UtilityService {
    * Get MCP client status
    */
   getMcpClientStatus(name: string): Promise<any>;
+
+  /**
+   * Reload MCP servers
+   */
+  reloadMcpServers(): Promise<any>;
+
+  /**
+   * Get Bodhi config
+   */
+  getBodhiConfig(): Promise<any>;
+
+  /**
+   * Set Bodhi config
+   */
+  setBodhiConfig(config: any): Promise<any>;
 
   /**
    * Generic invoke method for custom commands

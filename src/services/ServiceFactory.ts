@@ -1,6 +1,6 @@
-import { ToolService, UtilityService } from "./types";
-import { HttpToolService, HttpUtilityService } from "./HttpServices";
-import { TauriChatService, TauriUtilityService } from "./TauriService";
+import { UtilityService } from "./types";
+import { HttpUtilityService } from "./HttpServices";
+import { TauriUtilityService } from "./TauriService";
 
 /**
  * ServiceFactory - Simplified to use only Web/HTTP mode
@@ -10,9 +10,7 @@ export class ServiceFactory {
   private static instance: ServiceFactory;
 
   // Service instances
-  private tauriChatService = new TauriChatService();
   private tauriUtilityService = new TauriUtilityService();
-  private httpToolService = new HttpToolService();
   private httpUtilityService = new HttpUtilityService();
 
   private constructor() {
@@ -24,16 +22,6 @@ export class ServiceFactory {
       ServiceFactory.instance = new ServiceFactory();
     }
     return ServiceFactory.instance;
-  }
-
-  getChatService(): TauriChatService {
-    // Always return Tauri chat service (used for all chat operations)
-    return this.tauriChatService;
-  }
-
-  getToolService(): ToolService {
-    // Always return HTTP-based tool service
-    return this.httpToolService;
   }
 
   getUtilityService(): UtilityService {
@@ -52,28 +40,14 @@ export class ServiceFactory {
         this.httpUtilityService.setMcpServers(servers),
       getMcpClientStatus: (name: string) =>
         this.httpUtilityService.getMcpClientStatus(name),
+      reloadMcpServers: () => this.httpUtilityService.reloadMcpServers(),
+      getBodhiConfig: () => this.httpUtilityService.getBodhiConfig(),
+      setBodhiConfig: (config: any) =>
+        this.httpUtilityService.setBodhiConfig(config),
     };
   }
 
   // Convenience methods for direct access
-  async executePrompt(
-    messages: any[],
-    model?: string,
-    onChunk?: (chunk: string) => void,
-    abortSignal?: AbortSignal
-  ): Promise<void> {
-    return this.getChatService().executePrompt(
-      messages,
-      model,
-      onChunk,
-      abortSignal
-    );
-  }
-
-  async getModels(): Promise<string[]> {
-    return this.getChatService().getModels();
-  }
-
   async copyToClipboard(text: string): Promise<void> {
     return this.getUtilityService().copyToClipboard(text);
   }
@@ -88,6 +62,18 @@ export class ServiceFactory {
 
   async getMcpClientStatus(name: string): Promise<any> {
     return this.getUtilityService().getMcpClientStatus(name);
+  }
+
+  async reloadMcpServers(): Promise<any> {
+    return this.getUtilityService().reloadMcpServers();
+  }
+
+  async getBodhiConfig(): Promise<any> {
+    return this.getUtilityService().getBodhiConfig();
+  }
+
+  async setBodhiConfig(config: any): Promise<any> {
+    return this.getUtilityService().setBodhiConfig(config);
   }
 
   async invoke<T = any>(

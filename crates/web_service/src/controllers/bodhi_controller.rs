@@ -1,5 +1,6 @@
 use crate::{error::AppError, server::AppState};
-use actix_web::{get, web, HttpResponse};
+use actix_web::{get, post, web, HttpResponse};
+use serde_json::Value;
 use serde::Serialize;
 use std::path::PathBuf;
 use tokio::fs;
@@ -26,6 +27,10 @@ fn workflows_dir() -> Result<PathBuf, AppError> {
         .or_else(|| std::env::var_os("USERPROFILE"))
         .ok_or_else(|| AppError::InternalError(anyhow::anyhow!("HOME not set")))?;
     Ok(PathBuf::from(home).join(".bodhi").join("workflows"))
+}
+
+fn config_path(app_state: &AppState) -> PathBuf {
+    app_state.app_data_dir.join("config.json")
 }
 
 fn is_safe_workflow_name(name: &str) -> bool {
@@ -117,6 +122,39 @@ pub async fn get_workflow(
     }))
 }
 
+#[get("/bodhi/config")]
+pub async fn get_bodhi_config(app_state: web::Data<AppState>) -> Result<HttpResponse, AppError> {
+    let path = config_path(&app_state);
+    match fs::read_to_string(&path).await {
+        Ok(content) => {
+            let config = serde_json::from_str::<Value>(&content)?;
+            Ok(HttpResponse::Ok().json(config))
+        }
+        Err(err) if err.kind() == std::io::ErrorKind::NotFound => {
+            Ok(HttpResponse::Ok().json(serde_json::json!({})))
+        }
+        Err(err) => Err(AppError::StorageError(err)),
+    }
+}
+
+#[post("/bodhi/config")]
+pub async fn set_bodhi_config(
+    app_state: web::Data<AppState>,
+    payload: web::Json<Value>,
+) -> Result<HttpResponse, AppError> {
+    let path = config_path(&app_state);
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent).await?;
+    }
+    let config = payload.into_inner();
+    let content = serde_json::to_string_pretty(&config)?;
+    fs::write(path, content).await?;
+    Ok(HttpResponse::Ok().json(config))
+}
+
 pub fn config(cfg: &mut web::ServiceConfig) {
-    cfg.service(list_workflows).service(get_workflow);
+    cfg.service(list_workflows)
+        .service(get_workflow)
+        .service(get_bodhi_config)
+        .service(set_bodhi_config);
 }
