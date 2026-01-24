@@ -1,0 +1,10 @@
+- [x] Inventory all `src/` files over 300 lines and group by feature area for refactor sequencing.
+- [x] Refactor Agent UI modules (AgentChatView, AgentView/useAgentStreamState, AgentSidebar) into subcomponents/hooks/helpers.
+- [x] Refactor Chat UI modules (ChatView, ChatSidebar) into smaller view sections and helper hooks.
+- [x] Refactor Input and Message modules (InputContainer, MessageInput, MessageCard, markdownComponents) into focused submodules.
+- [x] Refactor System and Settings modules (SystemSettingsPage, SystemMessageCard, SystemPromptSelector) for smaller, testable parts.
+- [x] Refactor Workspace and Workflow UI modules (WorkspacePicker, WorkflowSelector) into smaller components and hooks.
+- [x] Refactor Services (ClaudeCodeService, WorkspaceApiService, RecentWorkspacesManager) into focused helper modules.
+- [x] Refactor hooks and shared types (useChatOpenAIStreaming, types/chat) to reduce size and improve cohesion.
+- [x] Ensure re-exports/index files preserve public APIs where callers rely on them.
+- [x] Run `npm run test:run` and `npm run format:check` to validate.

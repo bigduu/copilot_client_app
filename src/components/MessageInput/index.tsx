@@ -1,53 +1,24 @@
-import React, {
-  useRef,
-  useEffect,
-  useMemo,
-  useCallback,
-  useState,
-} from "react";
-import {
-  Button,
-  Space,
-  theme,
-  message,
-  Typography,
-  Spin,
-  Flex,
-  Card,
-} from "antd";
-import {
-  SendOutlined,
-  SyncOutlined,
-  PictureOutlined,
-  CloseOutlined,
-  StopOutlined,
-  FileTextOutlined,
-} from "@ant-design/icons";
-
-const { Text } = Typography;
+import React, { useRef, useMemo } from "react";
+import { Flex, message, theme } from "antd";
+import type { TextAreaRef } from "antd/es/input/TextArea";
 import { ImageFile } from "../../utils/imageUtils";
 import ImagePreviewModal from "../ImagePreviewModal";
-import { useImageHandler } from "../../hooks/useImageHandler";
-import { useDragAndDrop } from "../../hooks/useDragAndDrop";
-import { usePasteHandler } from "../../hooks/usePasteHandler";
 import {
   getInputHighlightSegments,
-  getWorkflowCommandInfo,
-  getFileReferenceInfo,
   WorkflowCommandInfo,
   FileReferenceInfo,
 } from "../../utils/inputHighlight";
-import {
-  processFiles,
-  separateImageFiles,
-  ProcessedFile,
-} from "../../utils/fileUtils";
+import { ProcessedFile } from "../../utils/fileUtils";
 import { useDebouncedValue } from "../../hooks/useDebouncedValue";
-
-import { Input } from "antd";
-import type { TextAreaRef } from "antd/es/input/TextArea";
-
-const { TextArea } = Input;
+import MessageInputDragOverlay from "./MessageInputDragOverlay";
+import MessageInputImageStrip from "./MessageInputImageStrip";
+import MessageInputField from "./MessageInputField";
+import MessageInputControlsLeft from "./MessageInputControlsLeft";
+import MessageInputControlsRight from "./MessageInputControlsRight";
+import MessageInputFooter from "./MessageInputFooter";
+import { useMessageInputAttachments } from "./useMessageInputAttachments";
+import { useMessageInputEffects } from "./useMessageInputEffects";
+import { useMessageInputHandlers } from "./useMessageInputHandlers";
 // ToolService import removed - no longer needed for tool validation
 
 export interface MessageInputInteractionControls {
@@ -115,7 +86,6 @@ export const MessageInput: React.FC<MessageInputProps> = ({
   const highlightOverlayRef = useRef<HTMLDivElement>(null);
   const { token } = theme.useToken();
   const [messageApi, contextHolder] = message.useMessage();
-  const [isProcessingAttachments, setIsProcessingAttachments] = useState(false);
   const charCount = value.length;
   const isOverCharLimit = charCount > maxCharCount;
   const isNearCharLimit = !isOverCharLimit && charCount >= maxCharCount * 0.9;
@@ -126,51 +96,19 @@ export const MessageInput: React.FC<MessageInputProps> = ({
     previewModalVisible,
     setPreviewModalVisible,
     previewImageIndex,
-    handleImageFiles,
-    handleRemoveImage: _handleRemoveImage,
     handleImagePreview,
     clearImages,
-  } = useImageHandler(allowImages);
-
-  const handleDroppedFiles = useCallback(
-    async (files: File[]) => {
-      if (!files || files.length === 0) return;
-      const { images: imageFiles, others } = separateImageFiles(files);
-      if (imageFiles.length > 0) {
-        await handleImageFiles(imageFiles);
-      }
-      if (others.length > 0 && onAttachmentsAdded) {
-        setIsProcessingAttachments(true);
-        const { processed, errors } = await processFiles(others);
-        if (processed.length > 0) {
-          onAttachmentsAdded(processed);
-          messageApi.success(`Added ${processed.length} file(s)`);
-        }
-        errors.forEach((err) => messageApi.error(err));
-        setIsProcessingAttachments(false);
-      }
-    },
-    [handleImageFiles, messageApi, onAttachmentsAdded],
-  );
-
-  const { isDragOver, handleDragOver, handleDragLeave, handleDrop } =
-    useDragAndDrop({ onFiles: handleDroppedFiles, mode: "any" });
-
-  const { handlePaste } = usePasteHandler({
-    onImages: handleImageFiles,
-    onAttachments: onAttachmentsAdded
-      ? async (files) => {
-          setIsProcessingAttachments(true);
-          const { processed, errors } = await processFiles(files);
-          if (processed.length > 0) {
-            onAttachmentsAdded(processed);
-            messageApi.success(`Attached ${processed.length} file(s)`);
-          }
-          errors.forEach((err) => messageApi.error(err));
-          setIsProcessingAttachments(false);
-        }
-      : undefined,
+    isProcessingAttachments,
+    isDragOver,
+    handleDragOver,
+    handleDragLeave,
+    handleDrop,
+    handlePaste,
+    handleFileInputChange,
+  } = useMessageInputAttachments({
     allowImages,
+    onAttachmentsAdded,
+    messageApi,
   });
 
   // Use debounced value only for triggering workflow/file search to avoid excessive API calls
@@ -190,116 +128,38 @@ export const MessageInput: React.FC<MessageInputProps> = ({
     highlightOverlayRef.current.style.transform = `translate(${-scrollLeft}px, ${-scrollTop}px)`;
   };
 
-  useEffect(() => {
-    syncOverlayScroll();
-  }, [value]);
-
-  useEffect(() => {
-    if (onWorkflowCommandChange) {
-      onWorkflowCommandChange(getWorkflowCommandInfo(debouncedValue));
-    }
-  }, [debouncedValue, onWorkflowCommandChange]);
-
-  useEffect(() => {
-    if (onFileReferenceChange) {
-      onFileReferenceChange(getFileReferenceInfo(debouncedValue));
-    }
-  }, [debouncedValue, onFileReferenceChange]);
-
-  useEffect(() => {
-    if (onImagesChange) {
-      onImagesChange(images);
-    }
-  }, [images, onImagesChange]);
-
-  useEffect(() => {
-    if (propImages) {
-      setImages(propImages);
-    }
-  }, [propImages, setImages]);
+  useMessageInputEffects({
+    value,
+    debouncedValue,
+    onWorkflowCommandChange,
+    onFileReferenceChange,
+    onImagesChange,
+    images,
+    propImages,
+    setImages,
+    syncOverlayScroll,
+  });
 
   // Note: Tool validation logic removed - users no longer input tool commands directly
   // Tools are now called autonomously by LLM based on user intent
 
-  const handleKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (
-      onHistoryNavigate &&
-      !disabled &&
-      !isStreaming &&
-      !event.shiftKey &&
-      (event.key === "ArrowUp" || event.key === "ArrowDown")
-    ) {
-      const direction = event.key === "ArrowUp" ? "previous" : "next";
-      const historyValue = onHistoryNavigate(direction, value);
-      if (historyValue !== null && historyValue !== undefined) {
-        event.preventDefault();
-        onChange(historyValue);
-        requestAnimationFrame(() => {
-          const textArea =
-            textAreaRef.current?.resizableTextArea?.textArea || null;
-          if (textArea) {
-            const caret = historyValue.length;
-            textArea.setSelectionRange(caret, caret);
-          }
-        });
-        return;
-      }
-    }
-
-    if (
-      event.key === "Enter" &&
-      !event.shiftKey &&
-      !isStreaming &&
-      !disabled &&
-      !isWorkflowSelectorVisible
-    ) {
-      event.preventDefault();
-      handleSubmit();
-    }
-  };
-
-  const handleSubmit = () => {
-    const trimmedContent = value.trim();
-    if ((!trimmedContent && images.length === 0) || isStreaming || disabled)
-      return;
-
-    if (isOverCharLimit) {
-      messageApi.error(
-        `Message exceeds the maximum length of ${maxCharCount.toLocaleString()} characters.`,
-      );
-      return;
-    }
-
-    // If validation function is provided, validate first
-    if (validateMessage) {
-      const validation = validateMessage(trimmedContent);
-
-      if (!validation.isValid) {
-        // Show error message
-        messageApi.error(
-          validation.errorMessage || "Message format is incorrect",
-        );
-        return;
-      }
-    }
-
-    onSubmit(trimmedContent, images.length > 0 ? images : undefined);
-    clearImages();
-  };
-
-  const handleRetry = () => {
-    if (isStreaming || disabled || !onRetry) return;
-    onRetry();
-  };
-
-  const handleFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (files && files.length > 0) {
-      handleImageFiles(files);
-    }
-    // Reset input value to allow selecting the same file again
-    e.target.value = "";
-  };
+  const { handleKeyDown, handleSubmit, handleRetry } = useMessageInputHandlers({
+    value,
+    images,
+    isStreaming,
+    disabled,
+    isWorkflowSelectorVisible,
+    onChange,
+    onSubmit,
+    onRetry,
+    onHistoryNavigate,
+    validateMessage,
+    isOverCharLimit,
+    maxCharCount,
+    messageApi,
+    clearImages,
+    textAreaRef,
+  });
 
   return (
     <>
@@ -320,93 +180,14 @@ export const MessageInput: React.FC<MessageInputProps> = ({
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
       >
-        {/* Compact Image Preview - shown above input when images exist */}
-        {allowImages && images.length > 0 && (
-          <Card
-            size="small"
-            styles={{ body: { padding: token.paddingXS } }}
-            style={{ marginBottom: token.marginXS }}
-          >
-            <Flex align="center" wrap="wrap" gap={token.marginXS}>
-              <Text
-                type="secondary"
-                style={{ fontSize: token.fontSizeSM, minWidth: "fit-content" }}
-              >
-                {images.length} image{images.length > 1 ? "s" : ""}:
-              </Text>
-              {images.slice(0, 3).map((image) => (
-                <div
-                  key={image.id}
-                  style={{
-                    position: "relative",
-                    width: 32,
-                    height: 32,
-                    borderRadius: token.borderRadiusSM,
-                    overflow: "hidden",
-                    border: `1px solid ${token.colorBorderSecondary}`,
-                    cursor: "pointer",
-                  }}
-                  onClick={() => handleImagePreview(image)}
-                >
-                  <img
-                    src={image.preview}
-                    alt={image.name}
-                    style={{
-                      width: "100%",
-                      height: "100%",
-                      objectFit: "cover",
-                    }}
-                  />
-                </div>
-              ))}
-              {images.length > 3 && (
-                <Text type="secondary" style={{ fontSize: token.fontSizeSM }}>
-                  +{images.length - 3} more
-                </Text>
-              )}
-              <Button
-                type="text"
-                size="small"
-                icon={<CloseOutlined />}
-                onClick={clearImages}
-                style={{
-                  marginLeft: "auto",
-                  minWidth: "auto",
-                  padding: "0 4px",
-                  height: 20,
-                }}
-                title="Clear all images"
-              />
-            </Flex>
-          </Card>
-        )}
-        {isDragOver && (
-          <div
-            style={{
-              position: "absolute",
-              top: 0,
-              left: 0,
-              right: 0,
-              bottom: 0,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              backgroundColor: token.colorPrimaryBg,
-              borderRadius: token.borderRadius,
-              zIndex: 10,
-              pointerEvents: "none",
-            }}
-          >
-            <Space direction="vertical" align="center">
-              <PictureOutlined
-                style={{ fontSize: 32, color: token.colorPrimary }}
-              />
-              <Text style={{ color: token.colorPrimary, fontWeight: 500 }}>
-                Drop images here
-              </Text>
-            </Space>
-          </div>
-        )}
+        <MessageInputImageStrip
+          images={images}
+          token={token}
+          allowImages={allowImages}
+          onPreview={handleImagePreview}
+          onClear={clearImages}
+        />
+        <MessageInputDragOverlay visible={isDragOver} token={token} />
 
         {/* Input with integrated buttons */}
         <Flex
@@ -424,214 +205,56 @@ export const MessageInput: React.FC<MessageInputProps> = ({
           }}
         >
           {/* Left side buttons */}
-          <Flex
-            align="center"
-            style={{
-              alignSelf: "center",
-              gap: token.marginXS,
-            }}
-          >
-            {/* Image Upload Button */}
-            {allowImages && (
-              <>
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept="image/*"
-                  multiple
-                  style={{ display: "none" }}
-                  onChange={handleFileInputChange}
-                />
-                <Button
-                  type="text"
-                  icon={<PictureOutlined />}
-                  onClick={() => fileInputRef.current?.click()}
-                  disabled={disabled || isStreaming}
-                  size="small"
-                  style={{
-                    minWidth: "auto",
-                    padding: "4px",
-                    height: 32,
-                    width: 32,
-                    color: token.colorTextSecondary,
-                  }}
-                  title="Add images"
-                />
-              </>
-            )}
-
-            {/* File Reference Button */}
-            {onFileReferenceButtonClick && (
-              <Button
-                type="text"
-                icon={<FileTextOutlined />}
-                onClick={onFileReferenceButtonClick}
-                disabled={disabled || isStreaming}
-                size="small"
-                style={{
-                  minWidth: "auto",
-                  padding: "4px",
-                  height: 32,
-                  width: 32,
-                  color: token.colorTextSecondary,
-                }}
-                title="Reference workspace files (@)"
-              />
-            )}
-          </Flex>
+          <MessageInputControlsLeft
+            allowImages={allowImages}
+            disabled={disabled}
+            isStreaming={isStreaming}
+            token={token}
+            fileInputRef={fileInputRef}
+            onFileInputChange={handleFileInputChange}
+            onFileReferenceButtonClick={onFileReferenceButtonClick}
+          />
 
           {/* Text input */}
-          <div
-            style={{
-              position: "relative",
-              flex: 1,
-            }}
-          >
-            <div
-              ref={highlightOverlayRef}
-              aria-hidden
-              style={{
-                position: "absolute",
-                top: 0,
-                left: 0,
-                right: 0,
-                bottom: 0,
-                padding: "8px 0",
-                whiteSpace: "pre-wrap",
-                wordBreak: "break-word",
-                pointerEvents: "none",
-                color: token.colorText,
-                fontSize: token.fontSize,
-                lineHeight: 1.5,
-                transform: "translate(0, 0)",
-              }}
-            >
-              {value ? (
-                highlightSegments.map((segment, index) => {
-                  let style: React.CSSProperties | undefined;
-                  if (segment.type === "workflow") {
-                    style = {
-                      backgroundColor: token.colorPrimaryBg,
-                      color: token.colorPrimary,
-                      fontWeight: 500,
-                    };
-                  } else if (segment.type === "file") {
-                    style = {
-                      backgroundColor: token.colorSuccessBg,
-                      color: token.colorSuccess,
-                    };
-                  }
-                  return (
-                    <span key={`segment-${index}`} style={style}>
-                      {segment.text}
-                    </span>
-                  );
-                })
-              ) : (
-                <span style={{ color: token.colorTextQuaternary }}>
-                  {placeholder}
-                </span>
-              )}
-              {value.endsWith("\n") ? "\n" : null}
-            </div>
-            <TextArea
-              ref={textAreaRef}
-              value={value}
-              onChange={(e) => onChange(e.target.value)}
-              onKeyDown={handleKeyDown}
-              onPaste={handlePaste}
-              placeholder={placeholder}
-              disabled={disabled}
-              autoSize={{ minRows: 2, maxRows: 6 }}
-              variant="borderless"
-              onScroll={syncOverlayScroll}
-              style={{
-                resize: "none",
-                flex: 1,
-                fontSize: token.fontSize,
-                padding: "8px 0",
-                minHeight: "100%",
-                height: "100%",
-                lineHeight: "1.5",
-                border: "none",
-                outline: "none",
-                background: "transparent",
-                color: "transparent",
-                caretColor: token.colorText,
-                position: "relative",
-                zIndex: 1,
-              }}
-            />
-          </div>
+          <MessageInputField
+            value={value}
+            placeholder={placeholder}
+            disabled={disabled}
+            token={token}
+            highlightSegments={highlightSegments}
+            textAreaRef={textAreaRef}
+            highlightOverlayRef={highlightOverlayRef}
+            onChange={onChange}
+            onKeyDown={handleKeyDown}
+            onPaste={handlePaste}
+            onScrollSync={syncOverlayScroll}
+          />
 
           {/* Right side buttons */}
-          <Flex
-            align="center"
-            style={{
-              alignSelf: "center",
-              gap: token.marginXS,
-            }}
-          >
-            {allowRetry && hasMessages && (
-              <Button
-                type="text"
-                icon={<SyncOutlined spin={isStreaming} />}
-                onClick={handleRetry}
-                disabled={isStreaming || disabled || !onRetry}
-                title="Regenerate last AI response"
-                size="small"
-                style={{
-                  minWidth: "auto",
-                  padding: "4px",
-                  height: 32,
-                  width: 32,
-                  color: token.colorTextSecondary,
-                }}
-              />
-            )}
-
-            <Button
-              type="primary"
-              icon={isStreaming ? <StopOutlined /> : <SendOutlined />}
-              onClick={isStreaming ? onCancel : handleSubmit}
-              loading={isStreaming && !onCancel}
-              disabled={
-                isStreaming
-                  ? !onCancel || disabled
-                  : (!value.trim() && images.length === 0) ||
-                    disabled ||
-                    isOverCharLimit
-              }
-              size="small"
-              danger={isStreaming}
-              style={{
-                minWidth: "auto",
-                padding: "4px 6px",
-                height: 32,
-                width: 40,
-              }}
-              title={isStreaming ? "Cancel request" : "Send message"}
-            />
-          </Flex>
+          <MessageInputControlsRight
+            allowRetry={allowRetry}
+            hasMessages={hasMessages}
+            isStreaming={isStreaming}
+            disabled={disabled}
+            onRetry={handleRetry}
+            onCancel={onCancel}
+            onSubmit={handleSubmit}
+            value={value}
+            images={images}
+            isOverCharLimit={isOverCharLimit}
+            token={token}
+          />
         </Flex>
       </div>
 
-      <Flex justify="flex-end" style={{ marginTop: token.marginXXS }}>
-        <Text
-          type={
-            isOverCharLimit
-              ? "danger"
-              : isNearCharLimit
-                ? "warning"
-                : "secondary"
-          }
-          style={{ fontSize: token.fontSizeSM }}
-        >
-          {charCount.toLocaleString()} / {maxCharCount.toLocaleString()}
-        </Text>
-      </Flex>
-
-      {/* Image Preview Modal */}
+      <MessageInputFooter
+        charCount={charCount}
+        maxCharCount={maxCharCount}
+        isOverCharLimit={isOverCharLimit}
+        isNearCharLimit={isNearCharLimit}
+        isProcessingAttachments={isProcessingAttachments}
+        token={token}
+      />
       {allowImages && (
         <ImagePreviewModal
           visible={previewModalVisible}
@@ -639,13 +262,6 @@ export const MessageInput: React.FC<MessageInputProps> = ({
           currentIndex={previewImageIndex}
           onClose={() => setPreviewModalVisible(false)}
         />
-      )}
-
-      {isProcessingAttachments && (
-        <Space size="small" style={{ marginTop: token.marginXS }}>
-          <Spin size="small" />
-          <Text type="secondary">Processing files…</Text>
-        </Space>
       )}
     </>
   );

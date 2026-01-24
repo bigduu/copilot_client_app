@@ -1,24 +1,17 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { Alert, Flex, Layout, theme } from "antd";
-
-import { useAgentStore } from "../../store/agentStore";
-import { ClaudeStreamPanel } from "../ClaudeStream";
-import { AgentChatView } from "../AgentChatView";
-import { AgentProjectsPage } from "../AgentProjectsPage";
-import { AgentSessionsPage } from "../AgentSessionsPage";
-import { AgentHeader } from "./AgentHeader";
-import { AgentInputPanel } from "./AgentInputPanel";
-import { AgentToolsDrawer } from "./AgentToolsDrawer";
-import { deriveProjectId } from "./agentViewUtils";
-import { useAgentProjectState } from "./useAgentProjectState";
-import { useAgentStreamState } from "./useAgentStreamState";
+import { theme } from "antd";
 
 import type {
   ClaudeProject,
   ClaudeSession,
 } from "../../services/ClaudeCodeService";
-
-const { Content } = Layout;
+import { useAgentStore } from "../../store/agentStore";
+import { deriveProjectId } from "./agentViewUtils";
+import { AgentViewChatRoute } from "./AgentViewChatRoute";
+import { AgentViewProjectsRoute } from "./AgentViewProjectsRoute";
+import { AgentViewSessionsRoute } from "./AgentViewSessionsRoute";
+import { useAgentProjectState } from "./useAgentProjectState";
+import { useAgentStreamState } from "./useAgentStreamState";
 
 export const AgentView: React.FC = () => {
   const { token } = theme.useToken();
@@ -72,7 +65,6 @@ export const AgentView: React.FC = () => {
   const {
     history,
     liveEntries,
-    liveLines,
     liveTick,
     outputText,
     mergedEntries,
@@ -187,176 +179,84 @@ export const AgentView: React.FC = () => {
 
   if (agentPage === "projects") {
     return (
-      <Content
-        style={{
-          height: "100vh",
-          overflow: "hidden",
-          background: token.colorBgContainer,
-        }}
-      >
-        <AgentProjectsPage
-          projects={projects}
-          loading={isLoadingProjects}
-          error={projectsError}
-          onOpenProject={handleOpenProject}
-          onSelectProject={handleSelectProject}
-        />
-      </Content>
+      <AgentViewProjectsRoute
+        token={token}
+        projects={projects}
+        isLoadingProjects={isLoadingProjects}
+        projectsError={projectsError}
+        onOpenProject={handleOpenProject}
+        onSelectProject={handleSelectProject}
+      />
     );
   }
 
   if (agentPage === "sessions" && selectedProjectId) {
-    const project =
-      projects.find((p) => p.id === selectedProjectId) ??
-      projectsIndex.get(selectedProjectId);
-    if (!project) {
-      return (
-        <Content
-          style={{
-            height: "100vh",
-            overflow: "hidden",
-            background: token.colorBgContainer,
-          }}
-        >
-          <AgentProjectsPage
-            projects={projects}
-            loading={isLoadingProjects}
-            error={projectsError}
-            onOpenProject={handleOpenProject}
-            onSelectProject={handleSelectProject}
-          />
-        </Content>
-      );
-    }
-
     return (
-      <Content
-        style={{
-          height: "100vh",
-          overflow: "hidden",
-          background: token.colorBgContainer,
-        }}
-      >
-        <AgentSessionsPage
-          project={project}
-          sessions={sessions}
-          loading={isLoadingSessions}
-          error={sessionsError}
-          onBackToProjects={handleBackToProjects}
-          onSelectSession={handleSelectSession}
-          onNewSession={handleNewSession}
-          onRefresh={refreshSessions}
-        />
-      </Content>
+      <AgentViewSessionsRoute
+        token={token}
+        projects={projects}
+        projectsIndex={projectsIndex}
+        selectedProjectId={selectedProjectId}
+        isLoadingProjects={isLoadingProjects}
+        projectsError={projectsError}
+        onOpenProject={handleOpenProject}
+        onSelectProject={handleSelectProject}
+        sessions={sessions}
+        isLoadingSessions={isLoadingSessions}
+        sessionsError={sessionsError}
+        onBackToProjects={handleBackToProjects}
+        onSelectSession={handleSelectSession}
+        onNewSession={handleNewSession}
+        onRefresh={refreshSessions}
+      />
     );
   }
 
   return (
-    <Content
-      style={{
-        height: "100vh",
-        overflow: "hidden",
-        background: token.colorBgContainer,
-      }}
-    >
-      <Flex
-        vertical
-        style={{
-          height: "100%",
-          padding: token.padding,
-          gap: token.padding,
-          overflow: "hidden",
-        }}
-      >
-        <AgentHeader
-          token={token}
-          resolvedProjectPath={resolvedProjectPath}
-          runSessionId={runSessionId}
-          selectedSessionId={selectedSessionId}
-          queuedCount={queuedPrompts.length}
-          view={view}
-          onViewChange={handleViewChange}
-          onOpenTools={handleOpenTools}
-          onReloadHistory={loadSessionHistory}
-          onCancelRun={cancelRun}
-          canReloadHistory={Boolean(selectedSessionId)}
-          isRunning={isRunning}
-          onGoProjects={handleBackToProjects}
-          onGoSessions={selectedProjectId ? handleBackToSessions : undefined}
-          projectLabel={
-            selectedProjectId
-              ? (projects.find((p) => p.id === selectedProjectId)?.id ??
-                "Sessions")
-              : null
-          }
-        />
-
-        {projectPathStatus.valid === false ? (
-          <Alert
-            type="warning"
-            message={projectPathStatus.message || "Project path not found"}
-            showIcon
-          />
-        ) : null}
-
-        {error ? <Alert type="error" message={error} showIcon /> : null}
-
-        <div style={{ minHeight: 0, flex: 1, overflow: "hidden" }}>
-          {view === "debug" ? (
-            <Flex style={{ gap: token.padding, minHeight: 0, height: "100%" }}>
-              <ClaudeStreamPanel
-                title="Session History"
-                entries={history}
-                rawText={history.length ? JSON.stringify(history, null, 2) : ""}
-              />
-
-              <ClaudeStreamPanel
-                title="Live Output"
-                entries={liveEntries}
-                rawText={outputText}
-                autoScroll
-              />
-            </Flex>
-          ) : (
-            <AgentChatView
-              entries={mergedEntries}
-              autoScrollToken={`${selectedSessionId ?? "none"}-${liveTick}`}
-              onAskUserAnswer={handleAskUserAnswer}
-              isRunning={isRunning}
-            />
-          )}
-        </div>
-
-        <AgentInputPanel
-          token={token}
-          model={model}
-          promptDraft={promptDraft}
-          queuedPrompts={queuedPrompts}
-          isRunning={isRunning}
-          projectPathValid={projectPathStatus.valid === true}
-          selectedSessionId={selectedSessionId}
-          onModelChange={handleModelChange}
-          onPromptChange={handlePromptChange}
-          onSendPrompt={handleSendPrompt}
-          onStartRun={startRun}
-          onContinueRun={continueRun}
-          onResumeRun={resumeRun}
-          onRemoveQueuedPrompt={handleRemoveQueuedPrompt}
-        />
-
-        <AgentToolsDrawer
-          open={toolsOpen}
-          activeTab={toolsTab}
-          onClose={handleCloseTools}
-          onTabChange={handleToolsTabChange}
-          sessionId={selectedSessionId}
-          projectId={
-            selectedProjectId ??
-            deriveProjectId(resolvedProjectPath ?? undefined)
-          }
-          projectPath={resolvedProjectPath}
-        />
-      </Flex>
-    </Content>
+    <AgentViewChatRoute
+      token={token}
+      resolvedProjectPath={resolvedProjectPath}
+      runSessionId={runSessionId}
+      selectedSessionId={selectedSessionId}
+      queuedPrompts={queuedPrompts}
+      view={view}
+      onViewChange={handleViewChange}
+      onOpenTools={handleOpenTools}
+      onReloadHistory={loadSessionHistory}
+      onCancelRun={cancelRun}
+      canReloadHistory={Boolean(selectedSessionId)}
+      isRunning={isRunning}
+      onGoProjects={handleBackToProjects}
+      onGoSessions={selectedProjectId ? handleBackToSessions : undefined}
+      projectLabel={
+        selectedProjectId
+          ? (projects.find((p) => p.id === selectedProjectId)?.id ?? "Sessions")
+          : null
+      }
+      projectPathStatus={projectPathStatus}
+      error={error}
+      history={history}
+      liveEntries={liveEntries}
+      outputText={outputText}
+      mergedEntries={mergedEntries}
+      liveTick={liveTick}
+      onAskUserAnswer={handleAskUserAnswer}
+      model={model}
+      promptDraft={promptDraft}
+      onModelChange={handleModelChange}
+      onPromptChange={handlePromptChange}
+      onSendPrompt={handleSendPrompt}
+      onStartRun={startRun}
+      onContinueRun={continueRun}
+      onResumeRun={resumeRun}
+      onRemoveQueuedPrompt={handleRemoveQueuedPrompt}
+      toolsOpen={toolsOpen}
+      toolsTab={toolsTab}
+      onCloseTools={handleCloseTools}
+      onToolsTabChange={handleToolsTabChange}
+      selectedProjectId={selectedProjectId}
+      projects={projects}
+      deriveProjectId={deriveProjectId}
+    />
   );
 };

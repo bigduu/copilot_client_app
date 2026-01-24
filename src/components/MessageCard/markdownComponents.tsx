@@ -1,267 +1,10 @@
-import React, { useState } from "react";
-import { Typography, Button, message, Card } from "antd";
-import { CopyOutlined } from "@ant-design/icons";
-import { Components } from "react-markdown";
-import { PrismLight as SyntaxHighlighter } from "react-syntax-highlighter";
-import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism";
-
-// Import only commonly used languages for better performance
-import javascript from "react-syntax-highlighter/dist/esm/languages/prism/javascript";
-import typescript from "react-syntax-highlighter/dist/esm/languages/prism/typescript";
-import python from "react-syntax-highlighter/dist/esm/languages/prism/python";
-import json from "react-syntax-highlighter/dist/esm/languages/prism/json";
-import bash from "react-syntax-highlighter/dist/esm/languages/prism/bash";
-import css from "react-syntax-highlighter/dist/esm/languages/prism/css";
-import html from "react-syntax-highlighter/dist/esm/languages/prism/markup";
-import sql from "react-syntax-highlighter/dist/esm/languages/prism/sql";
-import yaml from "react-syntax-highlighter/dist/esm/languages/prism/yaml";
-import markdown from "react-syntax-highlighter/dist/esm/languages/prism/markdown";
-
-import { MermaidChart } from "../MermaidChart";
+import React from "react";
+import { Card, Typography } from "antd";
+import type { Components } from "react-markdown";
+import { renderCodeBlock } from "./MarkdownCodeBlock";
 
 const { Text } = Typography;
 
-// Register languages with PrismLight for better performance
-SyntaxHighlighter.registerLanguage("javascript", javascript);
-SyntaxHighlighter.registerLanguage("js", javascript);
-SyntaxHighlighter.registerLanguage("typescript", typescript);
-SyntaxHighlighter.registerLanguage("ts", typescript);
-SyntaxHighlighter.registerLanguage("python", python);
-SyntaxHighlighter.registerLanguage("py", python);
-SyntaxHighlighter.registerLanguage("json", json);
-SyntaxHighlighter.registerLanguage("bash", bash);
-SyntaxHighlighter.registerLanguage("shell", bash);
-SyntaxHighlighter.registerLanguage("sh", bash);
-SyntaxHighlighter.registerLanguage("css", css);
-SyntaxHighlighter.registerLanguage("html", html);
-SyntaxHighlighter.registerLanguage("xml", html);
-SyntaxHighlighter.registerLanguage("sql", sql);
-SyntaxHighlighter.registerLanguage("yaml", yaml);
-SyntaxHighlighter.registerLanguage("yml", yaml);
-SyntaxHighlighter.registerLanguage("markdown", markdown);
-SyntaxHighlighter.registerLanguage("md", markdown);
-
-// Create theme-aware syntax highlighting
-const getSyntaxTheme = () => {
-  // For now, use the original oneDark theme to ensure highlighting works
-  // TODO: Integrate with Ant Design theme properly
-  return oneDark;
-};
-
-// List of registered languages for PrismLight
-const registeredLanguages = [
-  "javascript",
-  "js",
-  "typescript",
-  "ts",
-  "python",
-  "py",
-  "json",
-  "bash",
-  "shell",
-  "sh",
-  "css",
-  "html",
-  "xml",
-  "sql",
-  "yaml",
-  "yml",
-  "markdown",
-  "md",
-];
-
-// Code block component with copy button
-const CodeBlockWithCopy: React.FC<{
-  language: string;
-  codeString: string;
-  token: any;
-}> = ({ language, codeString, token }) => {
-  const [isHovered, setIsHovered] = useState(false);
-
-  const handleCopy = async () => {
-    try {
-      await navigator.clipboard.writeText(codeString);
-      message.success("Code copied to clipboard");
-    } catch (error) {
-      console.error("Copy failed:", error);
-      message.error("Copy failed");
-    }
-  };
-
-  // Check if language is supported
-  const normalizedLanguage = language.toLowerCase();
-  const isSupported = registeredLanguages.includes(normalizedLanguage);
-
-  return (
-    <Card
-      size="small"
-      styles={{ body: { padding: 0 } }}
-      style={{
-        position: "relative",
-        maxWidth: "100%",
-        overflow: "auto",
-      }}
-      onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => setIsHovered(false)}
-    >
-      <SyntaxHighlighter
-        style={getSyntaxTheme()}
-        language={isSupported ? normalizedLanguage : "text"}
-        PreTag="div"
-        customStyle={{
-          margin: `${token.marginXS}px 0`,
-          borderRadius: token.borderRadiusSM,
-          fontSize: token.fontSizeSM,
-          maxWidth: "100%",
-          paddingRight: "50px", // Make space for copy button
-        }}
-        showLineNumbers={codeString.split("\n").length > 10}
-        wrapLines={true}
-        wrapLongLines={true}
-      >
-        {codeString}
-      </SyntaxHighlighter>
-
-      {/* Copy button - only visible on hover */}
-      {isHovered && (
-        <Button
-          type="text"
-          size="small"
-          icon={<CopyOutlined />}
-          onClick={handleCopy}
-          style={{
-            position: "absolute",
-            top: token.paddingSM,
-            right: token.paddingSM,
-            backgroundColor: "rgba(0, 0, 0, 0.6)",
-            color: "white",
-            border: "none",
-            borderRadius: token.borderRadiusSM,
-            opacity: 0.8,
-            transition: "opacity 0.2s",
-            zIndex: 10,
-          }}
-          onMouseEnter={(e) => {
-            const target = e.currentTarget as HTMLElement;
-            target.style.opacity = "1";
-          }}
-          onMouseLeave={(e) => {
-            const target = e.currentTarget as HTMLElement;
-            target.style.opacity = "0.8";
-          }}
-        />
-      )}
-    </Card>
-  );
-};
-
-// Enhanced code block renderer with error handling
-const renderCodeBlock = (
-  language: string,
-  codeString: string,
-  token: any,
-  onFixMermaid?: (chart: string) => Promise<void> | void,
-) => {
-  try {
-    // Validate input
-    if (!codeString || typeof codeString !== "string") {
-      console.warn(
-        "Invalid codeString provided to renderCodeBlock:",
-        codeString,
-      );
-      return null;
-    }
-
-    const normalizedLanguage = language.toLowerCase();
-
-    // Handle Mermaid diagrams
-    if (normalizedLanguage === "mermaid") {
-      // Additional validation for Mermaid content
-      const trimmedChart = codeString.trim();
-      if (!trimmedChart) {
-        console.warn("Empty Mermaid chart content");
-        return null;
-      }
-      return <MermaidChart chart={trimmedChart} onFix={onFixMermaid} />;
-    }
-
-    return (
-      <CodeBlockWithCopy
-        language={normalizedLanguage}
-        codeString={codeString}
-        token={token}
-      />
-    );
-  } catch (error) {
-    console.warn("Syntax highlighting failed:", error);
-    // Fallback to plain code block with copy functionality
-    return (
-      <Card
-        size="small"
-        styles={{ body: { padding: 0 } }}
-        style={{
-          position: "relative",
-          margin: `${token.marginXS}px 0`,
-        }}
-        onMouseEnter={(e) => {
-          const copyBtn = e.currentTarget.querySelector(
-            ".fallback-copy-btn",
-          ) as HTMLElement;
-          if (copyBtn) copyBtn.style.display = "block";
-        }}
-        onMouseLeave={(e) => {
-          const copyBtn = e.currentTarget.querySelector(
-            ".fallback-copy-btn",
-          ) as HTMLElement;
-          if (copyBtn) copyBtn.style.display = "none";
-        }}
-      >
-        <pre
-          style={{
-            backgroundColor: token.colorBgContainer,
-            border: `1px solid ${token.colorBorder}`,
-            padding: token.padding,
-            borderRadius: token.borderRadiusSM,
-            overflow: "auto",
-            fontSize: token.fontSizeSM,
-            paddingRight: "50px",
-            margin: 0,
-          }}
-        >
-          <code style={{ color: token.colorText }}>{codeString}</code>
-        </pre>
-        <Button
-          type="text"
-          size="small"
-          icon={<CopyOutlined />}
-          className="fallback-copy-btn"
-          onClick={async () => {
-            try {
-              await navigator.clipboard.writeText(codeString);
-              message.success("Code copied to clipboard");
-            } catch (error) {
-              console.error("Copy failed:", error);
-              message.error("Copy failed");
-            }
-          }}
-          style={{
-            position: "absolute",
-            top: token.paddingSM,
-            right: token.paddingSM,
-            backgroundColor: "rgba(0, 0, 0, 0.6)",
-            color: "white",
-            border: "none",
-            borderRadius: token.borderRadiusSM,
-            display: "none",
-            zIndex: 10,
-          }}
-        />
-      </Card>
-    );
-  }
-};
-
-// Create markdown components factory
 export const createMarkdownComponents = (
   token: any,
   options?: {
@@ -316,7 +59,6 @@ export const createMarkdownComponents = (
     const language = match ? match[1] : "";
     const isInline = inline ?? (!match && !className);
 
-    // Safely handle children that might be undefined or null
     const codeString = children ? String(children).replace(/\n$/, "") : "";
 
     if (isInline) {
@@ -327,7 +69,6 @@ export const createMarkdownComponents = (
       );
     }
 
-    // Don't render empty code blocks
     if (!codeString.trim()) {
       return null;
     }
@@ -360,7 +101,6 @@ export const createMarkdownComponents = (
     </Text>
   ),
 
-  // Enhanced table support for better GFM compatibility
   table: ({ children }) => (
     <Card
       size="small"
@@ -417,7 +157,6 @@ export const createMarkdownComponents = (
     </td>
   ),
 
-  // Enhanced task list support
   input: ({ type, checked, disabled }) => {
     if (type === "checkbox") {
       return (

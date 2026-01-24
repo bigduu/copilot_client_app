@@ -1,40 +1,22 @@
-import React, { useEffect, useState, useCallback, useRef } from "react";
+import React from "react";
 import {
-  Input,
   Button,
-  List,
-  Typography,
-  Space,
   Divider,
-  Spin,
-  Empty,
-  Alert,
-  Tooltip,
-  message,
   Flex,
+  Input,
+  Space,
+  Tooltip,
+  Typography,
   theme,
 } from "antd";
-import {
-  FolderOutlined,
-  HistoryOutlined,
-  HomeOutlined,
-  CheckCircleOutlined,
-  ExclamationCircleOutlined,
-  LoadingOutlined,
-} from "@ant-design/icons";
-import {
-  workspaceValidator,
-  WorkspaceValidationResult,
-} from "../../utils/workspaceValidator";
-import {
-  recentWorkspacesManager,
-  WorkspaceInfo,
-} from "../../services/RecentWorkspacesManager";
+import { FolderOutlined } from "@ant-design/icons";
+import type { WorkspaceValidationResult } from "../../utils/workspaceValidator";
 import { FolderBrowser } from "../FolderBrowser";
-import {
-  workspaceApiService,
-  PathSuggestion,
-} from "../../services/WorkspaceApiService";
+import { useWorkspacePickerState } from "./useWorkspacePickerState";
+import WorkspacePickerRecentList from "./WorkspacePickerRecentList";
+import WorkspacePickerSuggestionsList from "./WorkspacePickerSuggestionsList";
+import WorkspacePickerValidationIcon from "./WorkspacePickerValidationIcon";
+import WorkspacePickerValidationStatus from "./WorkspacePickerValidationStatus";
 
 const { Text } = Typography;
 
@@ -51,11 +33,6 @@ export interface WorkspacePickerProps {
   style?: React.CSSProperties;
 }
 
-interface ValidationStatus {
-  isValidating: boolean;
-  result: WorkspaceValidationResult | null;
-}
-
 const WorkspacePicker: React.FC<WorkspacePickerProps> = ({
   value = "",
   onChange,
@@ -69,318 +46,26 @@ const WorkspacePicker: React.FC<WorkspacePickerProps> = ({
   style,
 }) => {
   const { token } = theme.useToken();
-  const [path, setPath] = useState(value);
-  const [validationStatus, setValidationStatus] = useState<ValidationStatus>({
-    isValidating: false,
-    result: null,
+  const {
+    path,
+    validationStatus,
+    recentWorkspaces,
+    suggestions,
+    isLoadingRecent,
+    isLoadingSuggestions,
+    folderBrowserVisible,
+    setFolderBrowserVisible,
+    handlePathChange,
+    handleBrowseClick,
+    handleFolderSelect,
+    handleWorkspaceSelect,
+  } = useWorkspacePickerState({
+    value,
+    onChange,
+    showRecentWorkspaces,
+    showSuggestions,
+    onValidationChange,
   });
-  const [recentWorkspaces, setRecentWorkspaces] = useState<WorkspaceInfo[]>([]);
-  const [folderBrowserVisible, setFolderBrowserVisible] = useState(false);
-  const [suggestions, setSuggestions] = useState<PathSuggestion[]>([]);
-  const [isLoadingRecent, setIsLoadingRecent] = useState(false);
-  const [isLoadingSuggestions, setIsLoadingSuggestions] = useState(false);
-
-  const abortControllerRef = useRef<AbortController | null>(null);
-  const debouncedValidateRef = useRef<(() => void) | null>(null);
-
-  // Sync with parent value
-  useEffect(() => {
-    setPath(value);
-  }, [value]);
-
-  // Load recent workspaces and suggestions on mount
-  useEffect(() => {
-    if (showRecentWorkspaces) {
-      loadRecentWorkspaces();
-    }
-    if (showSuggestions) {
-      loadSuggestions();
-    }
-
-    return () => {
-      // Cleanup any pending validations
-      if (abortControllerRef.current) {
-        abortControllerRef.current.abort();
-      }
-      if (debouncedValidateRef.current) {
-        debouncedValidateRef.current();
-      }
-    };
-  }, [showRecentWorkspaces, showSuggestions]);
-
-  // Load recent workspaces
-  const loadRecentWorkspaces = useCallback(async () => {
-    setIsLoadingRecent(true);
-    try {
-      const workspaces = await recentWorkspacesManager.getRecentWorkspaces();
-      setRecentWorkspaces(workspaces.slice(0, 5)); // Show only the 5 most recent
-    } catch (error) {
-      console.error("Failed to load recent workspaces:", error);
-      // Gracefully handle error - just don't show recent workspaces
-      setRecentWorkspaces([]);
-    } finally {
-      setIsLoadingRecent(false);
-    }
-  }, []);
-
-  // Load path suggestions
-  const loadSuggestions = useCallback(async () => {
-    setIsLoadingSuggestions(true);
-    try {
-      const suggestionsData = await workspaceApiService.getPathSuggestions();
-      setSuggestions(suggestionsData.suggestions.slice(0, 8)); // Show only 8 suggestions
-    } catch (error) {
-      console.error("Failed to load suggestions:", error);
-      // Gracefully handle error - just don't show suggestions
-      setSuggestions([]);
-    } finally {
-      setIsLoadingSuggestions(false);
-    }
-  }, []);
-
-  // Handle path change with debounced validation
-  const handlePathChange = useCallback(
-    (newPath: string) => {
-      setPath(newPath);
-
-      if (onChange) {
-        onChange(newPath);
-      }
-
-      // Cancel any pending validation
-      if (abortControllerRef.current) {
-        abortControllerRef.current.abort();
-      }
-      if (debouncedValidateRef.current) {
-        debouncedValidateRef.current();
-      }
-
-      // Start debounced validation
-      if (newPath.trim()) {
-        setValidationStatus({ isValidating: true, result: null });
-
-        debouncedValidateRef.current =
-          workspaceValidator.validateWorkspaceDebounced(
-            newPath.trim(),
-            (result) => {
-              setValidationStatus({ isValidating: false, result });
-              if (onValidationChange) {
-                onValidationChange(result);
-              }
-            },
-          );
-      } else {
-        setValidationStatus({ isValidating: false, result: null });
-        if (onValidationChange) {
-          onValidationChange(null);
-        }
-      }
-    },
-    [onChange, onValidationChange],
-  );
-
-  // Handle browse button click - Open unified folder browser
-  const handleBrowseClick = useCallback(() => {
-    setFolderBrowserVisible(true);
-  }, []);
-
-  const handleFolderSelect = useCallback(
-    (selectedPath: string) => {
-      handlePathChange(selectedPath);
-      message.success("文件夹选择成功");
-    },
-    [handlePathChange],
-  );
-
-  // Handle workspace selection from recent/suggestions
-  const handleWorkspaceSelect = useCallback(
-    (workspacePath: string) => {
-      handlePathChange(workspacePath);
-    },
-    [handlePathChange],
-  );
-
-  // Get validation status icon
-  const getValidationIcon = () => {
-    if (validationStatus.isValidating) {
-      return <LoadingOutlined style={{ color: token.colorPrimary }} />;
-    }
-
-    if (validationStatus.result) {
-      if (validationStatus.result.is_valid) {
-        return <CheckCircleOutlined style={{ color: token.colorSuccess }} />;
-      } else {
-        return (
-          <ExclamationCircleOutlined style={{ color: token.colorError }} />
-        );
-      }
-    }
-
-    return null;
-  };
-
-  // Get suggestion icon
-  const getSuggestionIcon = (suggestion: PathSuggestion) => {
-    switch (suggestion.suggestion_type) {
-      case "home":
-        return <HomeOutlined style={{ color: token.colorPrimary }} />;
-      case "documents":
-      case "desktop":
-      case "downloads":
-        return <FolderOutlined style={{ color: token.colorSuccess }} />;
-      case "recent":
-        return <HistoryOutlined style={{ color: token.colorWarning }} />;
-      default:
-        return <FolderOutlined />;
-    }
-  };
-
-  // Render workspace validation status
-  const renderValidationStatus = () => {
-    if (!validationStatus.result) return null;
-
-    const { result } = validationStatus;
-
-    return (
-      <div style={{ marginTop: token.marginXS }}>
-        {result.is_valid ? (
-          <Alert
-            type="success"
-            message={
-              <Space>
-                <span>有效的工作区</span>
-                {result.workspace_name && (
-                  <Text type="secondary">({result.workspace_name})</Text>
-                )}
-                {result.file_count !== undefined && (
-                  <Text type="secondary">- {result.file_count} 个文件</Text>
-                )}
-              </Space>
-            }
-            showIcon
-          />
-        ) : (
-          <Alert
-            type="error"
-            message={result.error_message || "无效的工作区路径"}
-            showIcon
-          />
-        )}
-      </div>
-    );
-  };
-
-  // Render recent workspaces
-  const renderRecentWorkspaces = () => {
-    if (!showRecentWorkspaces) return null;
-
-    return (
-      <Flex vertical gap={token.marginXS} style={{ marginTop: token.marginMD }}>
-        <Space>
-          <HistoryOutlined />
-          <Text strong>最近使用的工作区</Text>
-        </Space>
-
-        {isLoadingRecent ? (
-          <Flex justify="center" style={{ padding: token.paddingSM }}>
-            <Spin size="small" />
-          </Flex>
-        ) : recentWorkspaces.length === 0 ? (
-          <Empty
-            description="暂无最近使用的工作区"
-            image={Empty.PRESENTED_IMAGE_SIMPLE}
-            style={{ padding: token.paddingSM }}
-          />
-        ) : (
-          <List
-            size="small"
-            dataSource={recentWorkspaces}
-            renderItem={(workspace) => (
-              <List.Item style={{ padding: 0 }}>
-                <Button
-                  type="text"
-                  onClick={() => handleWorkspaceSelect(workspace.path)}
-                  style={{
-                    width: "100%",
-                    textAlign: "left",
-                    padding: `${token.paddingXS}px ${token.paddingSM}px`,
-                  }}
-                >
-                  <Space>
-                    <FolderOutlined style={{ color: token.colorWarning }} />
-                    <Space direction="vertical" size={0}>
-                      <Text strong>
-                        {workspace.workspace_name ||
-                          workspace.path.split("/").pop() ||
-                          "工作区"}
-                      </Text>
-                      <Text type="secondary" style={{ fontSize: 12 }}>
-                        {workspace.path}
-                      </Text>
-                    </Space>
-                  </Space>
-                </Button>
-              </List.Item>
-            )}
-          />
-        )}
-      </Flex>
-    );
-  };
-
-  // Render suggestions
-  const renderSuggestions = () => {
-    if (!showSuggestions) return null;
-
-    return (
-      <Flex vertical gap={token.marginXS} style={{ marginTop: token.marginMD }}>
-        <Space>
-          <FolderOutlined />
-          <Text strong>建议的工作区</Text>
-        </Space>
-
-        {isLoadingSuggestions ? (
-          <Flex justify="center" style={{ padding: token.paddingSM }}>
-            <Spin size="small" />
-          </Flex>
-        ) : suggestions.length === 0 ? (
-          <Empty
-            description="暂无建议"
-            image={Empty.PRESENTED_IMAGE_SIMPLE}
-            style={{ padding: token.paddingSM }}
-          />
-        ) : (
-          <List
-            size="small"
-            dataSource={suggestions}
-            renderItem={(suggestion) => (
-              <List.Item style={{ padding: 0 }}>
-                <Button
-                  type="text"
-                  onClick={() => handleWorkspaceSelect(suggestion.path)}
-                  style={{
-                    width: "100%",
-                    textAlign: "left",
-                    padding: `${token.paddingXS}px ${token.paddingSM}px`,
-                  }}
-                >
-                  <Space>
-                    {getSuggestionIcon(suggestion)}
-                    <Space direction="vertical" size={0}>
-                      <Text strong>{suggestion.name}</Text>
-                      <Text type="secondary" style={{ fontSize: 12 }}>
-                        {suggestion.path}
-                      </Text>
-                    </Space>
-                  </Space>
-                </Button>
-              </List.Item>
-            )}
-          />
-        )}
-      </Flex>
-    );
-  };
 
   return (
     <div className={className} style={style}>
@@ -390,7 +75,13 @@ const WorkspacePicker: React.FC<WorkspacePickerProps> = ({
           onChange={(e) => handlePathChange(e.target.value)}
           placeholder={placeholder}
           disabled={disabled}
-          suffix={getValidationIcon()}
+          suffix={
+            <WorkspacePickerValidationIcon
+              isValidating={validationStatus.isValidating}
+              result={validationStatus.result}
+              token={token}
+            />
+          }
           addonBefore={
             <Space>
               <FolderOutlined />
@@ -409,13 +100,28 @@ const WorkspacePicker: React.FC<WorkspacePickerProps> = ({
         )}
       </Space.Compact>
 
-      {renderValidationStatus()}
+      <WorkspacePickerValidationStatus
+        result={validationStatus.result}
+        token={token}
+      />
 
       {(showRecentWorkspaces || showSuggestions) && (
         <>
           <Divider style={{ margin: "16px 0 12px 0" }} />
-          {renderRecentWorkspaces()}
-          {renderSuggestions()}
+          <WorkspacePickerRecentList
+            show={showRecentWorkspaces}
+            isLoading={isLoadingRecent}
+            recentWorkspaces={recentWorkspaces}
+            onSelect={handleWorkspaceSelect}
+            token={token}
+          />
+          <WorkspacePickerSuggestionsList
+            show={showSuggestions}
+            isLoading={isLoadingSuggestions}
+            suggestions={suggestions}
+            onSelect={handleWorkspaceSelect}
+            token={token}
+          />
         </>
       )}
 

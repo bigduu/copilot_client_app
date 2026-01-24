@@ -1,0 +1,218 @@
+import { useCallback, useEffect, useRef, useState } from "react";
+import type { App } from "antd";
+import type { FileReferenceInfo } from "../../utils/inputHighlight";
+import type { WorkspaceFileEntry } from "../../types/workspace";
+
+interface UseInputContainerFileReferencesProps {
+  content: string;
+  setContent: (value: string) => void;
+  currentChatId: string | null;
+  currentChat: any | null;
+  updateChat: (chatId: string, update: any) => void;
+  messageApi: App["message"];
+}
+
+export const useInputContainerFileReferences = ({
+  content,
+  setContent,
+  currentChatId,
+  currentChat,
+  updateChat,
+  messageApi,
+}: UseInputContainerFileReferencesProps) => {
+  const [fileReferences, setFileReferences] = useState<
+    Map<string, WorkspaceFileEntry>
+  >(new Map());
+  const [workspaceFiles, setWorkspaceFiles] = useState<WorkspaceFileEntry[]>(
+    [],
+  );
+  const [showFileSelector, setShowFileSelector] = useState(false);
+  const [fileSearchText, setFileSearchText] = useState("");
+  const [isWorkspaceModalVisible, setIsWorkspaceModalVisible] = useState(false);
+  const [workspacePathInput, setWorkspacePathInput] = useState("");
+  const [isWorkspaceLoading, setIsWorkspaceLoading] = useState(false);
+  const [workspaceError, setWorkspaceError] = useState<string | null>(null);
+  const [isSavingWorkspace, setIsSavingWorkspace] = useState(false);
+  const lastWorkspacePathRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (isWorkspaceModalVisible) {
+      setWorkspacePathInput(currentChat?.config.workspacePath ?? "");
+    }
+  }, [isWorkspaceModalVisible, currentChat?.config.workspacePath]);
+
+  useEffect(() => {
+    setShowFileSelector(false);
+    setFileSearchText("");
+    setWorkspaceFiles([]);
+    setFileReferences(new Map());
+    lastWorkspacePathRef.current = currentChat?.config.workspacePath ?? null;
+  }, [currentChatId, currentChat?.config.workspacePath]);
+
+  const fetchWorkspaceFiles = useCallback(
+    async (_chatId: string, workspacePath: string) => {
+      setIsWorkspaceLoading(true);
+      setWorkspaceFiles([]);
+      setWorkspaceError("Workspace file browsing is unavailable.");
+      lastWorkspacePathRef.current = workspacePath;
+      setIsWorkspaceLoading(false);
+    },
+    [],
+  );
+
+  const handleFileReferenceChange = useCallback(
+    (info: FileReferenceInfo) => {
+      setFileSearchText(info.searchText);
+
+      if (!info.isTriggerActive) {
+        setShowFileSelector(false);
+        return;
+      }
+
+      if (!currentChatId || !currentChat) {
+        setShowFileSelector(false);
+        return;
+      }
+
+      const workspacePath = currentChat.config.workspacePath;
+
+      if (!workspacePath) {
+        setWorkspacePathInput("");
+        setIsWorkspaceModalVisible(true);
+        setShowFileSelector(false);
+        return;
+      }
+
+      setShowFileSelector(true);
+
+      if (
+        lastWorkspacePathRef.current !== workspacePath ||
+        workspaceFiles.length === 0
+      ) {
+        fetchWorkspaceFiles(currentChatId, workspacePath);
+      }
+    },
+    [currentChat, currentChatId, fetchWorkspaceFiles, workspaceFiles.length],
+  );
+
+  const handleFileReferenceSelect = useCallback(
+    (file: WorkspaceFileEntry) => {
+      const atIndex = content.lastIndexOf("@");
+      let newContent: string;
+
+      if (
+        atIndex >= 0 &&
+        content.substring(atIndex).match(/^@[a-zA-Z0-9._\\-\\/\\\\]*$/)
+      ) {
+        const before = content.slice(0, atIndex);
+        newContent = `${before}@${file.name} `;
+      } else {
+        newContent = content.trim()
+          ? `${content.trim()} @${file.name} `
+          : `@${file.name} `;
+      }
+
+      setContent(newContent);
+
+      setFileReferences((prev) => {
+        const newMap = new Map(prev);
+        newMap.set(file.name, file);
+        return newMap;
+      });
+
+      setShowFileSelector(false);
+      setFileSearchText("");
+    },
+    [content, setContent],
+  );
+
+  const handleFileSelectorCancel = useCallback(() => {
+    setShowFileSelector(false);
+  }, []);
+
+  const handleFileReferenceButtonClick = useCallback(() => {
+    if (!currentChatId || !currentChat) {
+      return;
+    }
+
+    const workspacePath = currentChat.config.workspacePath;
+
+    if (!workspacePath) {
+      setWorkspacePathInput("");
+      setIsWorkspaceModalVisible(true);
+      setShowFileSelector(false);
+      return;
+    }
+
+    setFileSearchText("");
+    setShowFileSelector(true);
+
+    if (
+      lastWorkspacePathRef.current !== workspacePath ||
+      workspaceFiles.length === 0
+    ) {
+      fetchWorkspaceFiles(currentChatId, workspacePath);
+    }
+  }, [currentChat, currentChatId, fetchWorkspaceFiles, workspaceFiles.length]);
+
+  const handleWorkspaceModalCancel = useCallback(() => {
+    setIsWorkspaceModalVisible(false);
+    setWorkspacePathInput("");
+  }, []);
+
+  const handleWorkspaceModalSubmit = useCallback(
+    async (path: string) => {
+      if (!currentChat || !currentChatId) return;
+      const trimmedPath = path.trim();
+      if (!trimmedPath) {
+        messageApi.error("Workspace 路径不能为空");
+        return;
+      }
+
+      setIsSavingWorkspace(true);
+      try {
+        updateChat(currentChatId, {
+          config: {
+            ...currentChat.config,
+            workspacePath: trimmedPath,
+          },
+        });
+
+        setIsWorkspaceModalVisible(false);
+        setWorkspacePathInput("");
+        setShowFileSelector(false);
+        setWorkspaceError(null);
+      } catch (error) {
+        const errorMessage =
+          error instanceof Error ? error.message : "无法保存 workspace 路径";
+        messageApi.error(errorMessage);
+      } finally {
+        setIsSavingWorkspace(false);
+      }
+    },
+    [currentChat, currentChatId, messageApi, updateChat],
+  );
+
+  return {
+    fileReferences,
+    setFileReferences,
+    workspaceFiles,
+    showFileSelector,
+    setShowFileSelector,
+    fileSearchText,
+    isWorkspaceLoading,
+    workspaceError,
+    isWorkspaceModalVisible,
+    workspacePathInput,
+    isSavingWorkspace,
+    setWorkspacePathInput,
+    setIsWorkspaceModalVisible,
+    handleFileReferenceChange,
+    handleFileReferenceSelect,
+    handleFileSelectorCancel,
+    handleFileReferenceButtonClick,
+    handleWorkspaceModalCancel,
+    handleWorkspaceModalSubmit,
+    fetchWorkspaceFiles,
+  };
+};
