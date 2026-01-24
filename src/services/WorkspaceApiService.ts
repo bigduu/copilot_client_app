@@ -33,6 +33,19 @@ export interface PathSuggestionsResponse {
   suggestions: PathSuggestion[];
 }
 
+export interface BrowseFolderRequest {
+  path?: string;
+}
+
+export interface BrowseFolderResponse {
+  current_path: string;
+  parent_path?: string;
+  folders: Array<{
+    name: string;
+    path: string;
+  }>;
+}
+
 export interface ApiResponse<T = any> {
   success: boolean;
   data?: T;
@@ -102,6 +115,13 @@ class WorkspaceApiService {
    */
   async getPathSuggestions(): Promise<PathSuggestionsResponse> {
     return this.get<PathSuggestionsResponse>('/suggestions');
+  }
+
+  /**
+   * Browse folders for workspace selection
+   */
+  async browseFolder(path?: string): Promise<BrowseFolderResponse> {
+    return this.post<BrowseFolderResponse>('/browse-folder', { path });
   }
 
   /**

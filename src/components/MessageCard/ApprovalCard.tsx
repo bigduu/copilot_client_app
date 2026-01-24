@@ -7,6 +7,7 @@ import {
   Descriptions,
   theme,
   Tag,
+  Flex,
 } from "antd";
 import { CheckOutlined, CloseOutlined } from "@ant-design/icons";
 
@@ -55,7 +56,7 @@ const ApprovalCard: React.FC<ApprovalCardProps> = ({
       }}
     >
       <Space direction="vertical" style={{ width: "100%" }} size="middle">
-        <div>
+        <Flex vertical>
           <Title level={5} style={{ margin: 0, color: token.colorInfo }}>
             🔧 Workflow Execution Request
           </Title>
@@ -77,17 +78,17 @@ const ApprovalCard: React.FC<ApprovalCardProps> = ({
               </Tag>
             )}
           </Space>
-        </div>
+        </Flex>
 
-        <div>
+        <Flex align="center" gap={token.marginXS} wrap="wrap">
           <Text strong>Workflow: </Text>
           <Text code style={{ fontSize: token.fontSize }}>
             {data.tool_call}
           </Text>
-        </div>
+        </Flex>
 
         {data.parameters.length > 0 && (
-          <div>
+          <Flex vertical>
             <Text
               strong
               style={{ marginBottom: token.marginXS, display: "block" }}
@@ -98,13 +99,12 @@ const ApprovalCard: React.FC<ApprovalCardProps> = ({
               size="small"
               column={1}
               items={items}
-              bordered
               style={{
                 backgroundColor: token.colorBgContainer,
                 borderRadius: token.borderRadius,
               }}
             />
-          </div>
+          </Flex>
         )}
 
         <Space style={{ width: "100%", justifyContent: "center" }}>

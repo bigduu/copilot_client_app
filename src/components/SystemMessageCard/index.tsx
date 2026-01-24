@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from "react";
-import { Card, Space, Typography, theme, Collapse, Button } from "antd";
+import { Card, Space, Typography, theme, Collapse, Button, Flex } from "antd";
 import { EyeOutlined, CopyOutlined } from "@ant-design/icons";
 import ReactMarkdown from "react-markdown";
 import { useChatManager } from "../../hooks/useChatManager";
@@ -159,20 +159,8 @@ const SystemMessageCard: React.FC<SystemMessageCardProps> = ({ message }) => {
         size={token.marginSM}
         style={{ width: "100%" }}
       >
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-          }}
-        >
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: token.marginXS,
-            }}
-          >
+        <Flex justify="space-between" align="center">
+          <Flex align="center" gap={token.marginXS}>
             <Text
               type="secondary"
               strong
@@ -180,7 +168,7 @@ const SystemMessageCard: React.FC<SystemMessageCardProps> = ({ message }) => {
             >
               System Prompt
             </Text>
-          </div>
+          </Flex>
           <Space>
             {basePrompt && !showEnhanced && (
               <Button
@@ -202,7 +190,7 @@ const SystemMessageCard: React.FC<SystemMessageCardProps> = ({ message }) => {
               Copy
             </Button>
           </Space>
-        </div>
+        </Flex>
 
         <Collapse
           ghost
@@ -219,7 +207,8 @@ const SystemMessageCard: React.FC<SystemMessageCardProps> = ({ message }) => {
               key: "base",
               label: basePrompt ? "Base Prompt" : "Description",
               children: (
-                <div
+                <Flex
+                  vertical
                   style={{
                     maxHeight: "300px",
                     overflowY: "auto",
@@ -274,7 +263,7 @@ const SystemMessageCard: React.FC<SystemMessageCardProps> = ({ message }) => {
                   >
                     {basePrompt || categoryDescription || systemMessageContent}
                   </ReactMarkdown>
-                </div>
+                </Flex>
               ),
             },
             ...(basePrompt
@@ -283,7 +272,8 @@ const SystemMessageCard: React.FC<SystemMessageCardProps> = ({ message }) => {
                     key: "enhanced",
                     label: "Enhanced Prompt",
                     children: enhancedPrompt ? (
-                      <div
+                      <Flex
+                        vertical
                         style={{
                           maxHeight: "400px",
                           overflowY: "auto",
@@ -353,9 +343,9 @@ const SystemMessageCard: React.FC<SystemMessageCardProps> = ({ message }) => {
                         >
                           {enhancedPrompt}
                         </ReactMarkdown>
-                      </div>
+                      </Flex>
                     ) : (
-                      <div>Loading enhanced prompt...</div>
+                      <Text type="secondary">Loading enhanced prompt...</Text>
                     ),
                   },
                 ]

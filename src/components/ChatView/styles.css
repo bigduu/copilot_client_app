@@ -1,141 +1,45 @@
-/* ChatView.css */
-
-.chat-view-system-message-container,
-.chat-view-input-container-wrapper {
-  transition: transform 0.5s ease-in-out, opacity 0.5s ease-in-out;
-  width: 100%;
-  box-sizing: border-box; /* Ensure padding is included in width/height */
-}
-
-/* Add styles for message cards to ensure proper width */
-.ant-list-item {
-  width: 100% !important;
-  box-sizing: border-box !important;
-}
-
-/* Add padding bottom to space items for better spacing */
-.ant-space-item {
-  padding-bottom: 1px !important;
-}
-
-/* Ensure message cards have proper width */
-.ant-card {
-  width: 100% !important;
-  max-width: 100% !important;
-  box-sizing: border-box !important;
-  overflow-wrap: break-word !important;
-  word-wrap: break-word !important;
-}
-
-/* Style for code blocks to prevent overflow */
-pre {
-  white-space: pre-wrap !important;
-  word-break: break-word !important;
-  max-width: 100% !important;
-  overflow-x: auto !important;
-}
-
-.chat-view-messages-list {
-  transition: opacity 0.5s ease-in-out;
-  will-change: opacity; /* Hint to browser for optimization */
-  /* Hide scrollbar for Webkit browsers */
-  scrollbar-width: none; /* Firefox */
-  -ms-overflow-style: none; /* IE and Edge */
-}
-
-.chat-view-messages-list::-webkit-scrollbar {
-  display: none;
-}
-
-/* Centered View State (No messages) */
-.chat-view-system-message-container.centered-view {
-  opacity: 1;
-  transform: translateY(0%);
-  z-index: 10;
-  overflow: auto; /* Allows SystemMessage to scroll if too tall for its space */
-}
-
-.chat-view-input-container-wrapper.centered-view {
-  position: absolute;
-  top: 70%; /* Starts at the vertical midpoint */
-  left: 0;
-  width: 100%;
-  transform: translateY(-50%); /* Vertically centers itself */
-  opacity: 1;
-  z-index: 10;
-}
-
-.chat-view-messages-list.hidden {
-  opacity: 0;
-  pointer-events: none; /* Prevent interaction when hidden */
-}
-
-/* Messages View State (Messages are present) */
-.chat-view-system-message-container.messages-view {
-  position: sticky;
-  top: 0;
-  z-index: 20;
-  opacity: 1;
-  transform: translateY(0);
-  /* padding-top, padding-left, padding-right set inline via style prop */
-  /* padding-bottom will be 0 as per inline style */
-}
-
-.chat-view-input-container-wrapper.messages-view {
-  position: relative; /* Normal flow, will be at the bottom */
-  /* transform: translateY(0); Default position */
-  opacity: 1;
-  margin-top: auto; /* Pushes it to the bottom of the flex container (ChatView Layout) */
-  /* The InputContainer itself has border-top when not centered */
-}
-
-.chat-view-messages-list.visible {
-  opacity: 1;
-  padding-bottom: 24px;
-  display: block;
-}
-
-/* Animation and specific styles for ChatView */
-
-/* System message container transitions */
-.chat-view-system-message-container {
-  transition: all 0.3s ease-in-out;
-}
-
-.chat-view-system-message-container.centered-view {
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  align-items: center;
-  min-height: 30vh;
-}
-
-.chat-view-system-message-container.messages-view {
-  max-width: 768px;
-  margin: 0 auto;
-}
-
-/* Messages list transitions */
 .chat-view-messages-list {
   transition: opacity 0.3s ease-in-out;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.chat-view-messages-list::-webkit-scrollbar {
+  display: none;
 }
 
 .chat-view-messages-list.hidden {
   display: none;
+  opacity: 0;
+  pointer-events: none;
 }
 
 .chat-view-messages-list.visible {
   display: block;
+  opacity: 1;
   padding-bottom: 24px;
 }
 
-/* Hide scrollbar but keep functionality */
-.chat-view-messages-list::-webkit-scrollbar {
-  width: 0px;
-  background: transparent;
+.chat-view-messages-list .ant-list-item,
+.chat-view-messages-list .ant-card,
+.chat-view-messages-list .ant-space-item {
+  width: 100%;
+  box-sizing: border-box;
 }
 
-/* Input container transitions */
+.chat-view-messages-list .ant-card {
+  max-width: 100%;
+  overflow-wrap: break-word;
+  word-wrap: break-word;
+}
+
+.chat-view-messages-list pre {
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-width: 100%;
+  overflow-x: auto;
+}
+
 .chat-view-input-container-wrapper {
   transition: all 0.3s ease-in-out;
   width: 100%;
@@ -144,75 +48,51 @@ pre {
 }
 
 .chat-view-input-container-wrapper.centered-view {
-  max-width: 100%;
+  position: absolute;
+  top: 70%;
+  left: 0;
+  transform: translateY(-50%);
+  opacity: 1;
+  z-index: 10;
 }
 
 .chat-view-input-container-wrapper.messages-view {
-  max-width: 100%;
   position: sticky;
   bottom: 0;
-  background: rgba(255, 255, 255, 0.9);
+  opacity: 1;
+  margin-top: auto;
+  background: var(--ant-color-bg-container);
   backdrop-filter: blur(10px);
   z-index: 10;
 }
 
-/* Dark mode adjustments */
-@media (prefers-color-scheme: dark) {
-  [data-theme='dark'] .chat-view-input-container-wrapper.messages-view {
-    background: rgba(0, 0, 0, 0.8);
-  }
-}
-
-/* Define the animation */
 @keyframes highlight-pulse {
-  0% { background-color: rgba(var(--primary-color-rgb), 0.1); }
-  50% { background-color: rgba(var(--primary-color-rgb), 0.3); }
-  100% { background-color: rgba(var(--primary-color-rgb), 0.1); }
+  0% {
+    background-color: color-mix(in srgb, var(--ant-color-primary) 10%, transparent);
+  }
+  50% {
+    background-color: color-mix(in srgb, var(--ant-color-primary) 30%, transparent);
+  }
+  100% {
+    background-color: color-mix(in srgb, var(--ant-color-primary) 10%, transparent);
+  }
 }
 
 .highlight-message {
   animation: highlight-pulse 1.5s ease-in-out;
-  border: 2px solid var(--primary-color) !important;
+  border: 2px solid var(--ant-color-primary);
   transition: all 0.3s ease-in-out;
 }
 
-/* Responsive adjustments */
 @media (max-width: 900px) {
-  .chat-view-system-message-container.messages-view {
-    max-width: 98vw;
-    padding-left: 8px !important;
-    padding-right: 8px !important;
-  }
   .chat-view-input-container-wrapper > div {
-    max-width: 98vw !important;
+    max-width: 98vw;
   }
 }
 
 @media (max-width: 600px) {
-  .chat-view-system-message-container.messages-view {
-    max-width: 100vw;
-    padding-left: 2vw !important;
-    padding-right: 2vw !important;
-  }
   .chat-view-input-container-wrapper > div {
-    max-width: 100vw !important;
-    margin: 0 !important;
-  }
-  .chat-view-messages-list {
-    gap: 4px !important;
-    padding: 4px !important;
+    max-width: 100vw;
+    margin: 0;
   }
 }
-
-/* Responsive adjustments for smaller screens */
-@media (max-height: 600px) {
-  .chat-view-system-message-container.centered-view {
-    min-height: 40vh;
-    padding: 16px;
-  }
-  
-  .chat-view-input-container-wrapper.centered-view {
-    min-height: 20vh;
-    padding: 20px 12px;
-  }
-} 

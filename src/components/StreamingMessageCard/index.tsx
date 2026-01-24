@@ -1,5 +1,5 @@
 import React, { useEffect, useState, memo } from "react";
-import { Card, Space, Typography, theme } from "antd";
+import { Card, Flex, Space, Typography, theme } from "antd";
 import { streamingMessageBus } from "../../utils/streamingMessageBus";
 
 const { Text } = Typography;
@@ -43,19 +43,12 @@ const StreamingMessageCard: React.FC<StreamingMessageCardProps> = memo(
           size={token.marginXS}
           style={{ width: "100%", maxWidth: "100%" }}
         >
-          <div
-            style={{
-              display: "flex",
-              alignItems: "baseline",
-              justifyContent: "space-between",
-              gap: token.marginXS,
-            }}
-          >
+          <Flex align="baseline" justify="space-between" gap={token.marginXS}>
             <Text type="secondary" strong style={{ fontSize: token.fontSizeSM }}>
               Assistant
             </Text>
-          </div>
-          <div style={{ width: "100%", maxWidth: "100%" }}>
+          </Flex>
+          <Flex vertical style={{ width: "100%", maxWidth: "100%" }}>
             {!content ? (
               <Text italic>Assistant is thinking...</Text>
             ) : (
@@ -69,7 +62,7 @@ const StreamingMessageCard: React.FC<StreamingMessageCardProps> = memo(
                 color: token.colorText,
               }}
             />
-          </div>
+          </Flex>
         </Space>
       </Card>
     );

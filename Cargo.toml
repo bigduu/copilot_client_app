@@ -1,5 +1,6 @@
 [workspace]
 members = [
+    "crates/claude_installer",
     "crates/chat_core",
     "crates/copilot_client",
     "crates/workflow_system",
@@ -7,7 +8,6 @@ members = [
     "crates/web_service",
     "src-tauri",
     "crates/web_service_standalone",
-    "crates/storage_manager",
 ]
 resolver = "2"
 default-members = ["src-tauri"]

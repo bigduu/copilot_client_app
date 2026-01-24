@@ -1,5 +1,5 @@
 import React, { useRef, useState, useMemo, memo } from "react";
-import { Card, Space, Typography, theme, Dropdown, Grid } from "antd";
+import { Card, Flex, Space, Typography, theme, Dropdown, Grid } from "antd";
 import {
   CopyOutlined,
   BookOutlined,
@@ -598,25 +598,23 @@ const MessageCardComponent: React.FC<MessageCardProps> = ({
       message.paths
     );
     return (
-      <div
-        style={{
-          width: "100%",
-          display: "flex",
-          justifyContent: "flex-end", // Align to right for user messages
-        }}
-      >
+      <Flex justify="flex-end" style={{ width: "100%" }}>
         <FileReferenceCard
           paths={message.paths}
           displayText={message.displayText}
           timestamp={formattedTimestamp ?? undefined}
         />
-      </div>
+      </Flex>
     );
   }
 
   // Default rendering for text messages
   return (
-    <div onContextMenu={(e) => handleMouseUp(e)} style={{ width: "100%" }}>
+    <Flex
+      vertical
+      onContextMenu={(e) => handleMouseUp(e)}
+      style={{ width: "100%" }}
+    >
       <Dropdown menu={{ items: contextMenuItems }} trigger={["contextMenu"]}>
         <Card
           id={messageId ? `message-${messageId}` : undefined}
@@ -646,13 +644,10 @@ const MessageCardComponent: React.FC<MessageCardProps> = ({
             size={token.marginXS}
             style={{ width: "100%", maxWidth: "100%" }}
           >
-            <div
-              style={{
-                display: "flex",
-                alignItems: "baseline",
-                justifyContent: "space-between",
-                gap: token.marginXS,
-              }}
+            <Flex
+              align="baseline"
+              justify="space-between"
+              gap={token.marginXS}
             >
               <Text
                 type="secondary"
@@ -676,7 +671,7 @@ const MessageCardComponent: React.FC<MessageCardProps> = ({
                   {formattedTimestamp}
                 </Text>
               )}
-            </div>
+            </Flex>
 
             {/* Images for User Messages */}
             {message.role === "user" && message.images && (
@@ -684,7 +679,7 @@ const MessageCardComponent: React.FC<MessageCardProps> = ({
             )}
 
             {/* Content */}
-            <div style={{ width: "100%", maxWidth: "100%" }}>
+            <Flex vertical style={{ width: "100%", maxWidth: "100%" }}>
               {/* Case 1: Assistant Tool Result */}
               {isAssistantToolResultMessage(message) ? (
                 (() => {
@@ -757,7 +752,7 @@ const MessageCardComponent: React.FC<MessageCardProps> = ({
                       size="small"
                       title={
                         <Space>
-                          <span>🔧 Requesting Tool: {call.toolName}</span>
+                          <Text>🔧 Requesting Tool: {call.toolName}</Text>
                         </Space>
                       }
                       style={{
@@ -765,9 +760,13 @@ const MessageCardComponent: React.FC<MessageCardProps> = ({
                         borderColor: token.colorInfoBorder,
                       }}
                     >
-                      <Space direction="vertical" style={{ width: "100%" }} size="middle">
-                        <div>
-                          <Text strong style={{ display: "block", marginBottom: 8 }}>
+                      <Space
+                        direction="vertical"
+                        style={{ width: "100%" }}
+                        size="middle"
+                      >
+                        <Flex vertical>
+                          <Text strong style={{ marginBottom: token.marginXS }}>
                             Parameters:
                           </Text>
                           <pre
@@ -782,7 +781,7 @@ const MessageCardComponent: React.FC<MessageCardProps> = ({
                           >
                             {JSON.stringify(call.parameters, null, 2)}
                           </pre>
-                        </div>
+                        </Flex>
                       </Space>
                     </Card>
                   ))}
@@ -808,7 +807,7 @@ const MessageCardComponent: React.FC<MessageCardProps> = ({
               )}
 
               {/* Blinking cursor for streaming */}
-            </div>
+            </Flex>
 
             {/* Action buttons */}
             <ActionButtonGroup
@@ -823,7 +822,7 @@ const MessageCardComponent: React.FC<MessageCardProps> = ({
           </Space>
         </Card>
       </Dropdown>
-    </div>
+    </Flex>
   );
 };
 

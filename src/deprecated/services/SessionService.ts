@@ -1,4 +1,4 @@
-import { buildBackendUrl } from "../utils/backendBaseUrl";
+import { buildBackendUrl } from "../../utils/backendBaseUrl";
 
 const DEFAULT_USER_ID = "default_user";
 

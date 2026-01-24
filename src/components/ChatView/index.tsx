@@ -5,12 +5,12 @@ import React, {
   useCallback,
   useMemo,
 } from "react";
-import { Layout, theme, Button, Grid, Flex } from "antd";
-import { useChatController } from "../../contexts/ChatControllerContext";
+import { FloatButton, Layout, theme, Grid, Flex } from "antd";
+import { useAppStore } from "../../store";
 import SystemMessageCard from "../SystemMessageCard";
 import { DownOutlined } from "@ant-design/icons";
 import { InputContainer, type WorkflowDraft } from "../InputContainer";
-import "./styles.css"; // Import a new CSS file for animations and specific styles
+import "./styles.css";
 import MessageCard from "../MessageCard";
 import StreamingMessageCard from "../StreamingMessageCard";
 import { Message } from "../../types/chat";
@@ -22,14 +22,33 @@ const { useToken } = theme;
 const { useBreakpoint } = Grid;
 
 export const ChatView: React.FC = () => {
-  const {
-    currentChat,
-    currentChatId,
-    currentMessages,
-    deleteMessage,
-    updateChat,
-    interactionState,
-  } = useChatController();
+  const currentChatId = useAppStore((state) => state.currentChatId);
+  const currentChat = useAppStore(
+    (state) =>
+      state.chats.find((chat) => chat.id === state.currentChatId) || null
+  );
+  const deleteMessage = useAppStore((state) => state.deleteMessage);
+  const updateChat = useAppStore((state) => state.updateChat);
+  const isProcessing = useAppStore((state) => state.isProcessing);
+  const currentMessages = useMemo(
+    () => currentChat?.messages || [],
+    [currentChat]
+  );
+  const interactionState = useMemo(() => {
+    const value: "IDLE" | "THINKING" | "AWAITING_APPROVAL" = isProcessing
+      ? "THINKING"
+      : "IDLE";
+    return {
+      value,
+      context: {
+        streamingContent: null,
+        toolCallRequest: null,
+        parsedParameters: null,
+      },
+      matches: (stateName: "IDLE" | "THINKING" | "AWAITING_APPROVAL") =>
+        stateName === value,
+    };
+  }, [isProcessing]);
 
   // Handle message deletion - optimized with useCallback
   const handleDeleteMessage = useCallback(
@@ -522,22 +541,15 @@ export const ChatView: React.FC = () => {
 
         {/* Scroll to Bottom Button */}
         {showScrollToBottom && (
-          <Button
+          <FloatButton
             type="primary"
-            shape="circle"
             icon={<DownOutlined />}
-            size={screens.xs ? "middle" : "large"}
             style={{
-              position: "fixed",
               right: getScrollButtonPosition(),
               bottom: screens.xs ? 80 : 96,
-              zIndex: 100,
-              boxShadow: token.boxShadow,
-              background: token.colorPrimary,
-              color: token.colorBgContainer,
             }}
             onClick={() => {
-              userHasScrolledUpRef.current = false; // Reset flag when user clicks scroll-to-bottom
+              userHasScrolledUpRef.current = false;
               scrollToBottom();
             }}
           />

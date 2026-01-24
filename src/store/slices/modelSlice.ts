@@ -1,5 +1,5 @@
 import { StateCreator } from "zustand";
-import { serviceFactory } from "../../services/ServiceFactory";
+import { modelService } from "../../services/ModelService";
 import type { AppState } from "../";
 
 const SELECTED_MODEL_LS_KEY = "copilot_selected_model_id";
@@ -39,7 +39,7 @@ export const createModelSlice: StateCreator<AppState, [], [], ModelSlice> = (
   fetchModels: async () => {
     set({ isLoadingModels: true, modelsError: null });
     try {
-      const availableModels = await serviceFactory.getModels();
+      const availableModels = await modelService.getModels();
       set((state) => {
         const storedModelId = localStorage.getItem(SELECTED_MODEL_LS_KEY);
         const currentSelected = state.selectedModel;

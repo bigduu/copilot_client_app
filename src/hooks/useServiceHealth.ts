@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 
-import { buildBackendUrl } from "../utils/backendBaseUrl";
+import { healthService } from "../services/HealthService";
 
 interface ServiceHealth {
   isHealthy: boolean;
@@ -19,24 +19,12 @@ export const useServiceHealth = () => {
   const checkHealth = async () => {
     setIsChecking(true);
     try {
-      // Check if the web service is responding
-      const response = await fetch(buildBackendUrl("/models"), {
-        method: "GET",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        signal: AbortSignal.timeout(5000), // 5 second timeout
+      const result = await healthService.checkBackendHealth(5000);
+      setHealth({
+        isHealthy: result.isHealthy,
+        error: result.error,
+        lastChecked: new Date(),
       });
-
-      if (response.ok) {
-        setHealth({ isHealthy: true, lastChecked: new Date() });
-      } else {
-        setHealth({
-          isHealthy: false,
-          error: `Service responded with status ${response.status}`,
-          lastChecked: new Date(),
-        });
-      }
     } catch (error) {
       setHealth({
         isHealthy: false,

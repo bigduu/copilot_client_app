@@ -11,6 +11,8 @@ import {
   Alert,
   Tooltip,
   message,
+  Flex,
+  theme,
 } from "antd";
 import {
   FolderOutlined,
@@ -66,6 +68,7 @@ const WorkspacePicker: React.FC<WorkspacePickerProps> = ({
   className,
   style,
 }) => {
+  const { token } = theme.useToken();
   const [path, setPath] = useState(value);
   const [validationStatus, setValidationStatus] = useState<ValidationStatus>({
     isValidating: false,
@@ -200,14 +203,14 @@ const WorkspacePicker: React.FC<WorkspacePickerProps> = ({
   // Get validation status icon
   const getValidationIcon = () => {
     if (validationStatus.isValidating) {
-      return <LoadingOutlined style={{ color: "#1890ff" }} />;
+      return <LoadingOutlined style={{ color: token.colorPrimary }} />;
     }
 
     if (validationStatus.result) {
       if (validationStatus.result.is_valid) {
-        return <CheckCircleOutlined style={{ color: "#52c41a" }} />;
+        return <CheckCircleOutlined style={{ color: token.colorSuccess }} />;
       } else {
-        return <ExclamationCircleOutlined style={{ color: "#ff4d4f" }} />;
+        return <ExclamationCircleOutlined style={{ color: token.colorError }} />;
       }
     }
 
@@ -218,13 +221,13 @@ const WorkspacePicker: React.FC<WorkspacePickerProps> = ({
   const getSuggestionIcon = (suggestion: PathSuggestion) => {
     switch (suggestion.suggestion_type) {
       case "home":
-        return <HomeOutlined style={{ color: "#1890ff" }} />;
+        return <HomeOutlined style={{ color: token.colorPrimary }} />;
       case "documents":
       case "desktop":
       case "downloads":
-        return <FolderOutlined style={{ color: "#52c41a" }} />;
+        return <FolderOutlined style={{ color: token.colorSuccess }} />;
       case "recent":
-        return <HistoryOutlined style={{ color: "#faad14" }} />;
+        return <HistoryOutlined style={{ color: token.colorWarning }} />;
       default:
         return <FolderOutlined />;
     }
@@ -237,7 +240,7 @@ const WorkspacePicker: React.FC<WorkspacePickerProps> = ({
     const { result } = validationStatus;
 
     return (
-      <div style={{ marginTop: 8 }}>
+      <div style={{ marginTop: token.marginXS }}>
         {result.is_valid ? (
           <Alert
             type="success"
@@ -270,62 +273,56 @@ const WorkspacePicker: React.FC<WorkspacePickerProps> = ({
     if (!showRecentWorkspaces) return null;
 
     return (
-      <div style={{ marginTop: 16 }}>
-        <div style={{ marginBottom: 8 }}>
-          <Space>
-            <HistoryOutlined />
-            <Text strong>最近使用的工作区</Text>
-          </Space>
-        </div>
+      <Flex vertical gap={token.marginXS} style={{ marginTop: token.marginMD }}>
+        <Space>
+          <HistoryOutlined />
+          <Text strong>最近使用的工作区</Text>
+        </Space>
 
         {isLoadingRecent ? (
-          <div style={{ textAlign: "center", padding: 16 }}>
+          <Flex justify="center" style={{ padding: token.paddingSM }}>
             <Spin size="small" />
-          </div>
+          </Flex>
         ) : recentWorkspaces.length === 0 ? (
           <Empty
             description="暂无最近使用的工作区"
             image={Empty.PRESENTED_IMAGE_SIMPLE}
-            style={{ padding: 16 }}
+            style={{ padding: token.paddingSM }}
           />
         ) : (
           <List
             size="small"
             dataSource={recentWorkspaces}
             renderItem={(workspace) => (
-              <List.Item
-                style={{
-                  cursor: "pointer",
-                  padding: "8px 12px",
-                  borderRadius: 6,
-                  transition: "background-color 0.2s",
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.backgroundColor = "#f5f5f5";
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.backgroundColor = "transparent";
-                }}
-                onClick={() => handleWorkspaceSelect(workspace.path)}
-              >
-                <Space>
-                  <FolderOutlined style={{ color: "#faad14" }} />
-                  <div>
-                    <div style={{ fontWeight: 500 }}>
-                      {workspace.workspace_name ||
-                        workspace.path.split("/").pop() ||
-                        "工作区"}
-                    </div>
-                    <Text type="secondary" style={{ fontSize: 12 }}>
-                      {workspace.path}
-                    </Text>
-                  </div>
-                </Space>
+              <List.Item style={{ padding: 0 }}>
+                <Button
+                  type="text"
+                  onClick={() => handleWorkspaceSelect(workspace.path)}
+                  style={{
+                    width: "100%",
+                    textAlign: "left",
+                    padding: `${token.paddingXS}px ${token.paddingSM}px`,
+                  }}
+                >
+                  <Space>
+                    <FolderOutlined style={{ color: token.colorWarning }} />
+                    <Space direction="vertical" size={0}>
+                      <Text strong>
+                        {workspace.workspace_name ||
+                          workspace.path.split("/").pop() ||
+                          "工作区"}
+                      </Text>
+                      <Text type="secondary" style={{ fontSize: 12 }}>
+                        {workspace.path}
+                      </Text>
+                    </Space>
+                  </Space>
+                </Button>
               </List.Item>
             )}
           />
         )}
-      </div>
+      </Flex>
     );
   };
 
@@ -334,58 +331,52 @@ const WorkspacePicker: React.FC<WorkspacePickerProps> = ({
     if (!showSuggestions) return null;
 
     return (
-      <div style={{ marginTop: 16 }}>
-        <div style={{ marginBottom: 8 }}>
-          <Space>
-            <FolderOutlined />
-            <Text strong>建议的工作区</Text>
-          </Space>
-        </div>
+      <Flex vertical gap={token.marginXS} style={{ marginTop: token.marginMD }}>
+        <Space>
+          <FolderOutlined />
+          <Text strong>建议的工作区</Text>
+        </Space>
 
         {isLoadingSuggestions ? (
-          <div style={{ textAlign: "center", padding: 16 }}>
+          <Flex justify="center" style={{ padding: token.paddingSM }}>
             <Spin size="small" />
-          </div>
+          </Flex>
         ) : suggestions.length === 0 ? (
           <Empty
             description="暂无建议"
             image={Empty.PRESENTED_IMAGE_SIMPLE}
-            style={{ padding: 16 }}
+            style={{ padding: token.paddingSM }}
           />
         ) : (
           <List
             size="small"
             dataSource={suggestions}
             renderItem={(suggestion) => (
-              <List.Item
-                style={{
-                  cursor: "pointer",
-                  padding: "8px 12px",
-                  borderRadius: 6,
-                  transition: "background-color 0.2s",
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.backgroundColor = "#f5f5f5";
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.backgroundColor = "transparent";
-                }}
-                onClick={() => handleWorkspaceSelect(suggestion.path)}
-              >
-                <Space>
-                  {getSuggestionIcon(suggestion)}
-                  <div>
-                    <div style={{ fontWeight: 500 }}>{suggestion.name}</div>
-                    <Text type="secondary" style={{ fontSize: 12 }}>
-                      {suggestion.path}
-                    </Text>
-                  </div>
-                </Space>
+              <List.Item style={{ padding: 0 }}>
+                <Button
+                  type="text"
+                  onClick={() => handleWorkspaceSelect(suggestion.path)}
+                  style={{
+                    width: "100%",
+                    textAlign: "left",
+                    padding: `${token.paddingXS}px ${token.paddingSM}px`,
+                  }}
+                >
+                  <Space>
+                    {getSuggestionIcon(suggestion)}
+                    <Space direction="vertical" size={0}>
+                      <Text strong>{suggestion.name}</Text>
+                      <Text type="secondary" style={{ fontSize: 12 }}>
+                        {suggestion.path}
+                      </Text>
+                    </Space>
+                  </Space>
+                </Button>
               </List.Item>
             )}
           />
         )}
-      </div>
+      </Flex>
     );
   };
 

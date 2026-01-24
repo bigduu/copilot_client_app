@@ -1,109 +1,11 @@
 import { invoke } from "@tauri-apps/api/core";
-import { Channel } from "@tauri-apps/api/core";
-import { UtilityService, Message } from "./types";
 
-import { buildBackendUrl } from "../utils/backendBaseUrl";
-
-export class TauriChatService {
-  /**
-   * Execute a prompt with streaming response
-   */
-  async executePrompt(
-    messages: Message[],
-    model?: string,
-    onChunk?: (chunk: string) => void,
-    abortSignal?: AbortSignal
-  ): Promise<void> {
-    const channel = new Channel<string>();
-    let cancelled = false;
-
-    // Handle abort signal
-    if (abortSignal) {
-      abortSignal.addEventListener("abort", () => {
-        cancelled = true;
-        console.log("[Tauri] Request was cancelled");
-
-        // Immediately send cancellation signal
-        if (onChunk) {
-          onChunk("[CANCELLED]");
-        }
-      });
-    }
-
-    if (onChunk) {
-      channel.onmessage = (message) => {
-        // Check if request was cancelled before processing message
-        if (cancelled) {
-          console.log("[Tauri] Ignoring message due to cancellation");
-          return;
-        }
-        onChunk(message);
-      };
-    }
-
-    try {
-      await invoke("execute_prompt", {
-        messages,
-        model,
-        channel,
-      });
-    } catch (error) {
-      if (cancelled) {
-        console.log("[Tauri] Request was cancelled during execution");
-        // Don't send [CANCELLED] here as it's already sent in abort listener
-        return; // Don't throw for cancelled requests
-      }
-      throw error;
-    }
-  }
-
-  /**
-   * Get available models from HTTP API
-   */
-  async getModels(): Promise<string[]> {
-    try {
-      const response = await fetch(buildBackendUrl("/models"));
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-      const data = await response.json();
-      // Extract model IDs from OpenAI-compatible response format
-      // Response format: { object: "list", data: [{ id: "model-name", ... }, ...] }
-      return data.data.map((model: any) => model.id);
-    } catch (error) {
-      console.error("Failed to fetch models from HTTP API:", error);
-      throw error;
-    }
-  }
-}
-
-export class TauriUtilityService implements UtilityService {
+export class TauriUtilityService {
   /**
    * Copy text to clipboard
    */
   async copyToClipboard(text: string): Promise<void> {
     await invoke("copy_to_clipboard", { text });
-  }
-
-  /**
-   * Get MCP servers
-   */
-  async getMcpServers(): Promise<any> {
-    return await invoke("get_mcp_servers");
-  }
-
-  /**
-   * Set MCP servers
-   */
-  async setMcpServers(servers: any): Promise<void> {
-    await invoke("set_mcp_servers", { servers });
-  }
-
-  /**
-   * Get MCP client status
-   */
-  async getMcpClientStatus(name: string): Promise<any> {
-    return await invoke("get_mcp_client_status", { name });
   }
 
   /**

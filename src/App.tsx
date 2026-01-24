@@ -3,7 +3,6 @@ import type { ProfilerOnRenderCallback } from "react";
 import { App as AntApp, ConfigProvider, theme } from "antd";
 import "./App.css";
 import { MainLayout } from "./layouts/MainLayout";
-import { ChatControllerProvider } from "./contexts/ChatControllerContext";
 import { useAppStore } from "./store";
 
 const DARK_MODE_KEY = "copilot_dark_mode";
@@ -59,23 +58,21 @@ function App() {
       }}
     >
       <AntApp>
-        <ChatControllerProvider>
-          <div style={{ position: "relative" }}>
-            {import.meta.env.DEV ? (
-              <Profiler id="MainLayout" onRender={handleProfilerRender}>
-                <MainLayout
-                  themeMode={themeMode}
-                  onThemeModeChange={setThemeMode}
-                />
-              </Profiler>
-            ) : (
+        <div style={{ position: "relative" }}>
+          {import.meta.env.DEV ? (
+            <Profiler id="MainLayout" onRender={handleProfilerRender}>
               <MainLayout
                 themeMode={themeMode}
                 onThemeModeChange={setThemeMode}
               />
-            )}
-          </div>
-        </ChatControllerProvider>
+            </Profiler>
+          ) : (
+            <MainLayout
+              themeMode={themeMode}
+              onThemeModeChange={setThemeMode}
+            />
+          )}
+        </div>
       </AntApp>
     </ConfigProvider>
   );

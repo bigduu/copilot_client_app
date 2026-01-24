@@ -1,23 +1,31 @@
 import React, { useState, useEffect } from "react";
-import { Modal, List, Breadcrumb, Spin, message, Button, Space } from "antd";
+import {
+  Modal,
+  List,
+  Breadcrumb,
+  Spin,
+  message,
+  Button,
+  Space,
+  Card,
+  Empty,
+  Typography,
+  theme,
+} from "antd";
 import {
   FolderOutlined,
   HomeOutlined,
   ArrowLeftOutlined,
   CheckOutlined,
 } from "@ant-design/icons";
-import "./styles.css";
-import { buildBackendUrl } from "../../utils/backendBaseUrl";
+import {
+  workspaceApiService,
+  BrowseFolderResponse,
+} from "../../services/WorkspaceApiService";
 
 interface FolderItem {
   name: string;
   path: string;
-}
-
-interface BrowseFolderResponse {
-  current_path: string;
-  parent_path?: string;
-  folders: FolderItem[];
 }
 
 interface FolderBrowserProps {
@@ -31,6 +39,8 @@ export const FolderBrowser: React.FC<FolderBrowserProps> = ({
   onClose,
   onSelect,
 }) => {
+  const { token } = theme.useToken();
+  const { Text } = Typography;
   const [loading, setLoading] = useState(false);
   const [currentPath, setCurrentPath] = useState("");
   const [parentPath, setParentPath] = useState<string | undefined>();
@@ -47,22 +57,8 @@ export const FolderBrowser: React.FC<FolderBrowserProps> = ({
   const loadDirectory = async (path?: string) => {
     setLoading(true);
     try {
-      const response = await fetch(
-        buildBackendUrl("/workspace/browse-folder"),
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ path }),
-        }
-      );
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      const result: BrowseFolderResponse = await response.json();
+      const result: BrowseFolderResponse =
+        await workspaceApiService.browseFolder(path);
       setCurrentPath(result.current_path);
       setParentPath(result.parent_path);
       setFolders(result.folders);
@@ -125,9 +121,8 @@ export const FolderBrowser: React.FC<FolderBrowserProps> = ({
       width={700}
       footer={null}
     >
-      <div className="folder-browser">
-        {/* Toolbar */}
-        <Space style={{ marginBottom: 16 }}>
+      <Space direction="vertical" size="middle" style={{ width: "100%" }}>
+        <Space>
           <Button icon={<HomeOutlined />} onClick={handleGoHome} size="small">
             主目录
           </Button>
@@ -149,96 +144,65 @@ export const FolderBrowser: React.FC<FolderBrowserProps> = ({
           </Button>
         </Space>
 
-        {/* Breadcrumb */}
-        <Breadcrumb style={{ marginBottom: 16 }}>
+        <Breadcrumb>
           {getPathSegments().map((segment, index) => (
             <Breadcrumb.Item key={index}>
-              <span
+              <Button
+                type="link"
+                size="small"
                 onClick={() => handleBreadcrumbClick(index)}
-                style={{ cursor: "pointer" }}
+                style={{ padding: 0 }}
               >
                 {segment === "/" ? <HomeOutlined /> : segment}
-              </span>
+              </Button>
             </Breadcrumb.Item>
           ))}
         </Breadcrumb>
 
-        {/* Current path display */}
-        <div
-          style={{
-            padding: "8px 12px",
-            background: "#f5f5f5",
-            borderRadius: "4px",
-            marginBottom: 16,
-            fontFamily: "monospace",
-            fontSize: "13px",
-          }}
+        <Card
+          size="small"
+          styles={{ body: { padding: token.paddingXS } }}
         >
-          当前路径: {currentPath}
-        </div>
+          <Text type="secondary" style={{ fontSize: 12 }}>
+            当前路径：
+          </Text>{" "}
+          <Text code>{currentPath}</Text>
+        </Card>
 
-        {/* Folder list */}
         <Spin spinning={loading}>
-          <div
-            style={{
-              maxHeight: "400px",
-              overflowY: "auto",
-              border: "1px solid #d9d9d9",
-              borderRadius: "4px",
-            }}
-          >
-            {folders.length === 0 && !loading ? (
-              <div
-                style={{
-                  padding: "40px",
-                  textAlign: "center",
-                  color: "#999",
-                }}
-              >
-                📂 此文件夹为空
-              </div>
-            ) : (
-              <List
-                dataSource={folders}
-                renderItem={(folder) => (
-                  <List.Item
-                    style={{
-                      padding: "12px 16px",
-                      cursor: "pointer",
-                      transition: "background 0.2s",
-                    }}
+          {folders.length === 0 && !loading ? (
+            <Empty
+              image={Empty.PRESENTED_IMAGE_SIMPLE}
+              description={<Text type="secondary">此文件夹为空</Text>}
+            />
+          ) : (
+            <List
+              dataSource={folders}
+              style={{ maxHeight: 400, overflowY: "auto" }}
+              renderItem={(folder) => (
+                <List.Item style={{ padding: 0 }}>
+                  <Button
+                    type="text"
+                    icon={<FolderOutlined />}
                     onClick={() => handleFolderClick(folder)}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.background = "#f0f0f0";
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.background = "transparent";
+                    style={{
+                      width: "100%",
+                      textAlign: "left",
+                      padding: `${token.paddingXS}px ${token.paddingSM}px`,
                     }}
                   >
-                    <Space>
-                      <FolderOutlined
-                        style={{ fontSize: "18px", color: "#1890ff" }}
-                      />
-                      <span style={{ fontSize: "14px" }}>{folder.name}</span>
-                    </Space>
-                  </List.Item>
-                )}
-              />
-            )}
-          </div>
+                    {folder.name}
+                  </Button>
+                </List.Item>
+              )}
+            />
+          )}
         </Spin>
 
-        {/* Help text */}
-        <div
-          style={{
-            marginTop: 16,
-            fontSize: "12px",
-            color: "#666",
-          }}
-        >
+        <Text type="secondary" style={{ fontSize: 12 }}>
           💡 提示：点击文件夹进入，点击"选择当前文件夹"确认选择
-        </div>
-      </div>
+        </Text>
+      </Space>
     </Modal>
   );
 };

@@ -10,11 +10,24 @@ type StreamingUpdateListener = (update: StreamingMessageUpdate) => void;
 const messageListeners = new Map<string, Set<StreamingMessageListener>>();
 const updateListeners = new Set<StreamingUpdateListener>();
 const latestContent = new Map<string, string>();
+const pendingUpdates = new Map<string, StreamingMessageUpdate>();
+let rafHandle: number | null = null;
 
 const notifyMessage = (messageId: string, content: string | null) => {
   const listeners = messageListeners.get(messageId);
   if (!listeners) return;
   listeners.forEach((listener) => listener(content));
+};
+
+const flushPending = () => {
+  rafHandle = null;
+  if (pendingUpdates.size === 0) return;
+  const updates = Array.from(pendingUpdates.values());
+  pendingUpdates.clear();
+  updates.forEach((update) => {
+    notifyMessage(update.messageId, update.content);
+    updateListeners.forEach((listener) => listener(update));
+  });
 };
 
 export const streamingMessageBus = {
@@ -52,11 +65,14 @@ export const streamingMessageBus = {
     } else {
       latestContent.set(update.messageId, update.content);
     }
-    notifyMessage(update.messageId, update.content);
-    updateListeners.forEach((listener) => listener(update));
+    pendingUpdates.set(update.messageId, update);
+    if (rafHandle === null) {
+      rafHandle = requestAnimationFrame(flushPending);
+    }
   },
   clear(chatId: string, messageId: string) {
     latestContent.delete(messageId);
+    pendingUpdates.delete(messageId);
     notifyMessage(messageId, null);
     updateListeners.forEach((listener) =>
       listener({ chatId, messageId, content: null })

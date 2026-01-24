@@ -5,7 +5,7 @@ import React, {
   useCallback,
   useState,
 } from "react";
-import { Button, Space, theme, message, Typography, Spin } from "antd";
+import { Button, Space, theme, message, Typography, Spin, Flex, Card } from "antd";
 import {
   SendOutlined,
   SyncOutlined,
@@ -313,22 +313,15 @@ export const MessageInput: React.FC<MessageInputProps> = ({
       >
         {/* Compact Image Preview - shown above input when images exist */}
         {allowImages && images.length > 0 && (
-          <div
-            style={{
-              marginBottom: token.marginXS,
-              padding: token.paddingXS,
-              backgroundColor: token.colorFillQuaternary,
-              borderRadius: token.borderRadiusSM,
-              border: `1px solid ${token.colorBorder}`,
-            }}
+          <Card
+            size="small"
+            styles={{ body: { padding: token.paddingXS } }}
+            style={{ marginBottom: token.marginXS }}
           >
-            <div
-              style={{
-                display: "flex",
-                gap: token.marginXS,
-                alignItems: "center",
-                flexWrap: "wrap",
-              }}
+            <Flex
+              align="center"
+              wrap="wrap"
+              gap={token.marginXS}
             >
               <Text
                 type="secondary"
@@ -345,7 +338,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
                     height: 32,
                     borderRadius: token.borderRadiusSM,
                     overflow: "hidden",
-                    border: `1px solid ${token.colorBorder}`,
+                    border: `1px solid ${token.colorBorderSecondary}`,
                     cursor: "pointer",
                   }}
                   onClick={() => handleImagePreview(image)}
@@ -379,8 +372,8 @@ export const MessageInput: React.FC<MessageInputProps> = ({
                 }}
                 title="Clear all images"
               />
-            </div>
-          </div>
+            </Flex>
+          </Card>
         )}
         {isDragOver && (
           <div
@@ -393,7 +386,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
-              backgroundColor: `${token.colorPrimary}10`,
+              backgroundColor: token.colorPrimaryBg,
               borderRadius: token.borderRadius,
               zIndex: 10,
               pointerEvents: "none",
@@ -411,13 +404,12 @@ export const MessageInput: React.FC<MessageInputProps> = ({
         )}
 
         {/* Input with integrated buttons */}
-        <div
+        <Flex
+          align="stretch"
           style={{
-            display: "flex",
-            alignItems: "stretch",
             gap: token.marginXS,
             backgroundColor: token.colorBgContainer,
-            border: `1px solid ${token.colorBorder}`,
+            border: `1px solid ${token.colorBorderSecondary}`,
             borderRadius: token.borderRadius,
             padding: `${token.paddingXS}px ${token.paddingSM}px`,
             transition: "border-color 0.2s",
@@ -427,10 +419,9 @@ export const MessageInput: React.FC<MessageInputProps> = ({
           }}
         >
           {/* Left side buttons */}
-          <div
+          <Flex
+            align="center"
             style={{
-              display: "flex",
-              alignItems: "center",
               alignSelf: "center",
               gap: token.marginXS,
             }}
@@ -482,7 +473,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
                 title="Reference workspace files (@)"
               />
             )}
-          </div>
+          </Flex>
 
           {/* Text input */}
           <div
@@ -569,10 +560,9 @@ export const MessageInput: React.FC<MessageInputProps> = ({
           </div>
 
           {/* Right side buttons */}
-          <div
+          <Flex
+            align="center"
             style={{
-              display: "flex",
-              alignItems: "center",
               alignSelf: "center",
               gap: token.marginXS,
             }}
@@ -617,16 +607,11 @@ export const MessageInput: React.FC<MessageInputProps> = ({
               }}
               title={isStreaming ? "Cancel request" : "Send message"}
             />
-          </div>
-        </div>
+          </Flex>
+        </Flex>
       </div>
 
-      <div
-        style={{
-          marginTop: token.marginXXS,
-          textAlign: "right",
-        }}
-      >
+      <Flex justify="flex-end" style={{ marginTop: token.marginXXS }}>
         <Text
           type={
             isOverCharLimit
@@ -639,7 +624,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
         >
           {charCount.toLocaleString()} / {maxCharCount.toLocaleString()}
         </Text>
-      </div>
+      </Flex>
 
       {/* Image Preview Modal */}
       {allowImages && (
@@ -652,12 +637,10 @@ export const MessageInput: React.FC<MessageInputProps> = ({
       )}
 
       {isProcessingAttachments && (
-        <div style={{ marginTop: token.marginXS }}>
+        <Space size="small" style={{ marginTop: token.marginXS }}>
           <Spin size="small" />
-          <Text type="secondary" style={{ marginLeft: token.marginXS }}>
-            Processing files…
-          </Text>
-        </div>
+          <Text type="secondary">Processing files…</Text>
+        </Space>
       )}
     </>
   );

@@ -81,17 +81,15 @@ export const FavoritesPanel: React.FC = () => {
         const filename = await exportAsMarkdown(chatFavorites);
         message.success({
           content: (
-            <div>
-              <div>✅ Markdown file exported successfully!</div>
-              <div
-                style={{ fontSize: "12px", color: "#666", marginTop: "4px" }}
-              >
+            <Space direction="vertical" size={2}>
+              <Text>✅ Markdown file exported successfully!</Text>
+              <Text type="secondary" style={{ fontSize: 12 }}>
                 File name: {filename}
-              </div>
-              <div style={{ fontSize: "12px", color: "#666" }}>
+              </Text>
+              <Text type="secondary" style={{ fontSize: 12 }}>
                 Saved to: User selected location
-              </div>
-            </div>
+              </Text>
+            </Space>
           ),
           duration: 4,
         });
@@ -99,22 +97,18 @@ export const FavoritesPanel: React.FC = () => {
         const filename = await exportAsPDF(chatFavorites);
         message.success({
           content: (
-            <div>
-              <div>✅ PDF file exported successfully!</div>
-              <div
-                style={{ fontSize: "12px", color: "#666", marginTop: "4px" }}
-              >
+            <Space direction="vertical" size={2}>
+              <Text>✅ PDF file exported successfully!</Text>
+              <Text type="secondary" style={{ fontSize: 12 }}>
                 File name: {filename}
-              </div>
-              <div style={{ fontSize: "12px", color: "#666" }}>
+              </Text>
+              <Text type="secondary" style={{ fontSize: 12 }}>
                 Saved to: User selected location
-              </div>
-              <div
-                style={{ fontSize: "12px", color: "#52c41a", marginTop: "4px" }}
-              >
+              </Text>
+              <Text style={{ fontSize: 12, color: token.colorSuccess }}>
                 💡 File saved to your chosen location, ready to open
-              </div>
-            </div>
+              </Text>
+            </Space>
           ),
           duration: 5,
         });
@@ -278,14 +272,6 @@ export const FavoritesPanel: React.FC = () => {
   });
 
   // Responsive width calculation
-  const getSiderWidth = () => {
-    if (screens.xs) return 300;
-    if (screens.sm) return 350;
-    if (screens.md) return 400;
-    if (screens.lg) return 450;
-    return 500;
-  };
-
   // Copy to clipboard
   const copyToClipboard = async (text: string) => {
     try {
@@ -338,32 +324,30 @@ export const FavoritesPanel: React.FC = () => {
 
   if (collapsed) {
     return (
-      <Flex
-        align="center"
-        justify="center"
+      <Button
+        type="primary"
+        icon={<BookOutlined />}
+        onClick={() => setCollapsed(false)}
         style={{
           position: "fixed",
           right: 0,
           top: "50%",
           transform: "translateY(-50%)",
           zIndex: 1000,
+          borderTopRightRadius: 0,
+          borderBottomRightRadius: 0,
         }}
-      >
-        <Button
-          type="primary"
-          icon={<BookOutlined />}
-          onClick={() => setCollapsed(false)}
-          style={{ borderTopRightRadius: 0, borderBottomRightRadius: 0 }}
-          size={screens.xs ? "small" : "middle"}
-        />
-      </Flex>
+        size={screens.xs ? "small" : "middle"}
+      />
     );
   }
 
   return (
     <>
       <Sider
-        width={getSiderWidth()}
+        breakpoint="md"
+        collapsedWidth={0}
+        width={screens.xs ? 300 : screens.sm ? 350 : screens.md ? 400 : screens.lg ? 450 : 500}
         style={{
           background: token.colorBgContainer,
           borderLeft: `1px solid ${token.colorBorderSecondary}`,
@@ -474,6 +458,7 @@ export const FavoritesPanel: React.FC = () => {
                   <List.Item style={{ padding: token.paddingXS }}>
                     <Card
                       size="small"
+                      variant="outlined"
                       style={{
                         width: "100%",
                         background:
@@ -481,7 +466,6 @@ export const FavoritesPanel: React.FC = () => {
                             ? token.colorPrimaryBg
                             : token.colorBgLayout,
                         borderRadius: token.borderRadiusSM,
-                        boxShadow: token.boxShadowTertiary,
                         border: `1px solid ${token.colorBorderSecondary}`,
                       }}
                       styles={{ body: { padding: token.paddingSM } }}
@@ -516,7 +500,7 @@ export const FavoritesPanel: React.FC = () => {
                         </Flex>
 
                         {/* Content */}
-                        <div style={{ fontSize: token.fontSizeSM }}>
+                        <Flex vertical style={{ fontSize: token.fontSizeSM }}>
                           <ReactMarkdown
                             remarkPlugins={[remarkGfm]}
                             components={{
@@ -556,18 +540,18 @@ export const FavoritesPanel: React.FC = () => {
                                 </li>
                               ),
                               blockquote: ({ children }) => (
-                                <div
+                                <Card
+                                  size="small"
                                   style={{
                                     borderLeft: `3px solid ${token.colorPrimary}`,
                                     background: token.colorPrimaryBg,
-                                    padding: `${token.paddingXS}px ${token.padding}px`,
                                     margin: `${token.marginXS}px 0`,
-                                    color: token.colorTextSecondary,
-                                    fontStyle: "italic",
                                   }}
                                 >
-                                  {children}
-                                </div>
+                                  <Text type="secondary" italic>
+                                    {children}
+                                  </Text>
+                                </Card>
                               ),
                               code({ className, children, ...props }) {
                                 const match = /language-(\w+)/.exec(
@@ -589,11 +573,10 @@ export const FavoritesPanel: React.FC = () => {
                                 }
 
                                 return (
-                                  <div
-                                    style={{
-                                      position: "relative",
-                                      overflowX: "auto",
-                                    }}
+                                  <Card
+                                    size="small"
+                                    styles={{ body: { padding: 0 } }}
+                                    style={{ overflowX: "auto" }}
                                   >
                                     <SyntaxHighlighter
                                       style={oneDark}
@@ -607,25 +590,21 @@ export const FavoritesPanel: React.FC = () => {
                                     >
                                       {codeString}
                                     </SyntaxHighlighter>
-                                  </div>
+                                  </Card>
                                 );
                               },
                             }}
                           >
                             {favorite.content}
                           </ReactMarkdown>
-                        </div>
+                        </Flex>
 
                         {/* Note */}
                         {favorite.note && (
-                          <div
-                            style={{
-                              fontSize: token.fontSizeSM * 0.85,
-                              color: token.colorTextSecondary,
-                              background: token.colorBgTextHover,
-                              padding: token.paddingXS,
-                              borderRadius: token.borderRadiusSM,
-                            }}
+                          <Card
+                            size="small"
+                            style={{ background: token.colorBgTextHover }}
+                            styles={{ body: { padding: token.paddingXS } }}
                           >
                             <Space align="start">
                               <Text
@@ -636,7 +615,7 @@ export const FavoritesPanel: React.FC = () => {
                               </Text>
                               {favorite.note}
                             </Space>
-                          </div>
+                          </Card>
                         )}
 
                         {/* Actions */}

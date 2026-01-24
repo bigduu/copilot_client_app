@@ -9,6 +9,7 @@ import {
   Tag,
   Tooltip,
   Typography,
+  Flex,
   theme,
 } from "antd";
 import {
@@ -130,7 +131,7 @@ const WorkflowResultCardComponent: React.FC<WorkflowResultCardProps> = ({
   return (
     <Card
       size="small"
-      bordered
+      variant="outlined"
       style={{
         borderRadius: token.borderRadiusLG,
         borderColor: token.colorBorderSecondary,
@@ -143,10 +144,7 @@ const WorkflowResultCardComponent: React.FC<WorkflowResultCardProps> = ({
         style={{ width: "100%" }}
         size={token.marginSM}
       >
-        <Space
-          align="center"
-          style={{ width: "100%", justifyContent: "space-between" }}
-        >
+        <Flex align="center" justify="space-between">
           <Space size={token.marginXS} align="center">
             <ApiOutlined style={{ color: token.colorWarning }} />
             <Text strong>User Workflow</Text>
@@ -184,7 +182,7 @@ const WorkflowResultCardComponent: React.FC<WorkflowResultCardProps> = ({
               </Tooltip>
             )}
           </Space>
-        </Space>
+        </Flex>
 
         {timestamp && (
           <Text type="secondary" style={{ fontSize: token.fontSizeSM }}>
@@ -204,7 +202,7 @@ const WorkflowResultCardComponent: React.FC<WorkflowResultCardProps> = ({
           />
         )}
 
-        <div style={{ width: "100%" }}>
+        <Flex vertical style={{ width: "100%" }}>
           {derivedIsLoading ? (
             <Spin tip="Waiting for workflow result..." />
           ) : formattedResult.isJson ? (
@@ -238,10 +236,10 @@ const WorkflowResultCardComponent: React.FC<WorkflowResultCardProps> = ({
               {!isExpanded && preview.isTruncated && "\n…"}
             </pre>
           )}
-        </div>
+        </Flex>
 
         {formattedParameters && (
-          <div style={{ width: "100%" }}>
+          <Flex vertical style={{ width: "100%" }}>
             <Divider style={{ margin: `${token.marginXS}px 0` }}>
               <Space size="small">
                 <Text strong>Parameters</Text>
@@ -284,7 +282,7 @@ const WorkflowResultCardComponent: React.FC<WorkflowResultCardProps> = ({
                 {formattedParameters.formattedText}
               </pre>
             )}
-          </div>
+          </Flex>
         )}
       </Space>
     </Card>

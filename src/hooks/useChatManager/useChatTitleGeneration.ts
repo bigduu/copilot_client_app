@@ -24,8 +24,10 @@ export interface UseChatTitleGeneration {
   isDefaultTitle: (title: string | undefined | null) => boolean;
 }
 
+type ChatTitleState = Pick<UseChatState, "chats" | "updateChat">;
+
 export function useChatTitleGeneration(
-  state: UseChatState
+  state: ChatTitleState
 ): UseChatTitleGeneration {
   const { message: appMessage } = AntApp.useApp();
 

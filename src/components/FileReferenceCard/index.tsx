@@ -1,5 +1,5 @@
 import React, { memo } from "react";
-import { Space, Tag, Typography, theme, Tooltip } from "antd";
+import { Card, Flex, Space, Tag, Typography, theme, Tooltip } from "antd";
 import { FileTextOutlined, FolderOutlined } from "@ant-design/icons";
 
 const { Text } = Typography;
@@ -20,17 +20,10 @@ const FileReferenceCardComponent: React.FC<FileReferenceCardProps> = ({
   const userQuestion = displayText.replace(/@[^\s]+/g, "").trim();
 
   return (
-    <div
-      style={{
-        display: "inline-flex",
-        flexDirection: "column",
-        gap: token.marginXS,
-        padding: `${token.paddingSM}px ${token.paddingMD}px`,
-        backgroundColor: token.colorBgContainer,
-        border: `1px solid ${token.colorBorder}`,
-        borderRadius: token.borderRadiusLG,
-        maxWidth: "100%",
-      }}
+    <Card
+      size="small"
+      styles={{ body: { padding: `${token.paddingSM}px ${token.paddingMD}px` } }}
+      style={{ maxWidth: "100%" }}
     >
       {/* File/Folder list */}
       <Space direction="vertical" size={token.marginXXS}>
@@ -41,7 +34,7 @@ const FileReferenceCardComponent: React.FC<FileReferenceCardProps> = ({
           const isFolder = !fileName.includes(".");
 
           return (
-            <div key={index}>
+            <Flex key={index} vertical>
               {/* File/Folder name row */}
               <Space size={token.marginXS} align="center" wrap>
                 {isFolder ? (
@@ -98,7 +91,7 @@ const FileReferenceCardComponent: React.FC<FileReferenceCardProps> = ({
                   </Space>
                 </Tooltip>
               )}
-            </div>
+            </Flex>
           );
         })}
       </Space>
@@ -117,7 +110,7 @@ const FileReferenceCardComponent: React.FC<FileReferenceCardProps> = ({
           {userQuestion}
         </Text>
       )}
-    </div>
+    </Card>
   );
 };
 

@@ -9,6 +9,7 @@ import {
   Tag,
   Tooltip,
   Typography,
+  Flex,
   theme,
 } from "antd";
 import {
@@ -98,7 +99,7 @@ const ToolResultCardComponent: React.FC<ToolResultCardProps> = ({
   return (
     <Card
       size="small"
-      bordered
+      variant="outlined"
       style={{
         borderRadius: token.borderRadiusLG,
         borderColor: token.colorBorderSecondary,
@@ -111,10 +112,7 @@ const ToolResultCardComponent: React.FC<ToolResultCardProps> = ({
         style={{ width: "100%" }}
         size={token.marginSM}
       >
-        <Space
-          align="center"
-          style={{ width: "100%", justifyContent: "space-between" }}
-        >
+        <Flex align="center" justify="space-between">
           <Space size={token.marginXS} align="center">
             <RobotOutlined style={{ color: token.colorPrimary }} />
             <Text strong>AI Tool</Text>
@@ -142,7 +140,7 @@ const ToolResultCardComponent: React.FC<ToolResultCardProps> = ({
               />
             </Tooltip>
           </Space>
-        </Space>
+        </Flex>
 
         {timestamp && (
           <Text type="secondary" style={{ fontSize: token.fontSizeSM }}>
@@ -162,7 +160,7 @@ const ToolResultCardComponent: React.FC<ToolResultCardProps> = ({
           />
         )}
 
-        <div style={{ width: "100%", overflow: "hidden" }}>
+        <Flex vertical style={{ width: "100%", overflow: "hidden" }}>
           {derivedIsLoading ? (
             <Spin tip="Waiting for tool result..." />
           ) : formatted.isJson ? (
@@ -204,7 +202,7 @@ const ToolResultCardComponent: React.FC<ToolResultCardProps> = ({
               {!isExpanded && preview.isTruncated && "\n…"}
             </pre>
           )}
-        </div>
+        </Flex>
       </Space>
     </Card>
   );

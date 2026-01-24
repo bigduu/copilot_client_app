@@ -1,9 +1,10 @@
 import React from "react";
-import { Image, theme } from "antd";
+import { Card, Flex, Image, theme, Typography } from "antd";
 import { EyeOutlined } from "@ant-design/icons";
 import { MessageImage } from "../../types/chat";
 
 const { useToken } = theme;
+const { Text } = Typography;
 
 export interface ImageGridProps {
   images: MessageImage[];
@@ -28,36 +29,30 @@ export const ImageGrid: React.FC<ImageGridProps> = ({
   }
 
   return (
-    <div
+    <Card
       className={className}
-      style={{
-        marginBottom: token.marginMD,
-        ...style,
-      }}
+      style={{ marginBottom: token.marginMD, ...style }}
+      styles={{ body: { padding: 0 } }}
+      variant="borderless"
     >
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns:
-            images.length === 1
-              ? "1fr"
-              : images.length === 2
-                ? "1fr 1fr"
-                : "repeat(auto-fit, minmax(200px, 1fr))",
-          gap: token.marginSM,
-          maxWidth: "100%",
-        }}
+      <Flex
+        wrap="wrap"
+        gap={token.marginSM}
+        style={{ width: "100%" }}
       >
         {images.map((image) => (
-          <div
+          <Card
+            size="small"
             key={image.id}
             style={{
+              flex: images.length === 1 ? "1 1 100%" : "1 1 200px",
+              overflow: "hidden",
               position: "relative",
               borderRadius: token.borderRadius,
-              overflow: "hidden",
+              border: `1px solid ${token.colorBorderSecondary}`,
               backgroundColor: token.colorBgLayout,
-              border: `1px solid ${token.colorBorder}`,
             }}
+            styles={{ body: { padding: 0 } }}
           >
             <Image
               src={image.base64}
@@ -71,23 +66,25 @@ export const ImageGrid: React.FC<ImageGridProps> = ({
               }}
               preview={{
                 mask: (
-                  <div
+                  <Flex
+                    align="center"
+                    justify="center"
+                    gap={token.marginXS}
                     style={{
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      gap: token.marginXS,
                       color: token.colorTextLightSolid,
                     }}
                   >
                     <EyeOutlined />
-                    <span>Preview</span>
-                  </div>
+                    <Text style={{ color: token.colorTextLightSolid }}>
+                      Preview
+                    </Text>
+                  </Flex>
                 ),
               }}
             />
             {/* Image info overlay */}
-            <div
+            <Flex
+              vertical
               style={{
                 position: "absolute",
                 bottom: 0,
@@ -99,25 +96,28 @@ export const ImageGrid: React.FC<ImageGridProps> = ({
                 fontSize: token.fontSizeSM,
               }}
             >
-              <div style={{ fontWeight: 500 }}>{image.name}</div>
+              <Text style={{ color: token.colorTextLightSolid }} strong>
+                {image.name}
+              </Text>
               {image.size && (
-                <div
+                <Text
                   style={{
                     fontSize: token.fontSizeSM * 0.85,
                     opacity: 0.8,
+                    color: token.colorTextLightSolid,
                   }}
                 >
                   {(image.size / 1024).toFixed(1)} KB
                   {image.width &&
                     image.height &&
                     ` • ${image.width}×${image.height}`}
-                </div>
+                </Text>
               )}
-            </div>
-          </div>
+            </Flex>
+          </Card>
         ))}
-      </div>
-    </div>
+      </Flex>
+    </Card>
   );
 };
 

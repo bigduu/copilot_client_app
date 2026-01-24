@@ -7,6 +7,8 @@ import {
   Radio,
   Alert,
   Tag,
+  Flex,
+  Input,
   theme,
 } from "antd";
 import {
@@ -124,11 +126,11 @@ const QuestionMessageCardComponent: React.FC<QuestionMessageCardProps> = ({
       }
     >
       {/* Question */}
-      <div style={{ marginBottom: token.marginLG }}>
+      <Flex vertical style={{ marginBottom: token.marginLG }}>
         <Title level={5} style={{ marginBottom: token.marginXS }}>
           {question.question}
         </Title>
-      </div>
+      </Flex>
 
       {/* Context */}
       {question.context && (
@@ -142,7 +144,7 @@ const QuestionMessageCardComponent: React.FC<QuestionMessageCardProps> = ({
       )}
 
       {/* Options */}
-      <div style={{ marginBottom: token.marginLG }}>
+      <Flex vertical style={{ marginBottom: token.marginLG }}>
         <Text strong style={{ display: "block", marginBottom: token.marginSM }}>
           Please choose an option:
         </Text>
@@ -174,34 +176,36 @@ const QuestionMessageCardComponent: React.FC<QuestionMessageCardProps> = ({
                 }
               >
                 <Radio value={option.value} style={{ width: "100%" }}>
-                  <div>
-                    <Text strong>{option.label}</Text>
+                  <Flex vertical>
+                    <Flex align="center" gap={token.marginXS} wrap="wrap">
+                      <Text strong>{option.label}</Text>
                     {option.value === question.default && (
                       <Tag color="blue" style={{ marginLeft: token.marginXS }}>
                         Recommended
                       </Tag>
                     )}
+                    </Flex>
                     <Paragraph
                       type="secondary"
                       style={{ marginTop: token.marginXXS, marginBottom: 0 }}
                     >
                       {option.description}
                     </Paragraph>
-                  </div>
+                  </Flex>
                 </Radio>
               </Card>
             ))}
           </Space>
         </Radio.Group>
-      </div>
+      </Flex>
 
       {/* Custom Answer Input (if allowed) */}
       {question.allow_custom && (
-        <div style={{ marginBottom: token.marginMD }}>
+        <Flex vertical style={{ marginBottom: token.marginMD }}>
           <Text type="secondary" style={{ fontSize: 12 }}>
             Or provide a custom answer:
           </Text>
-          <textarea
+          <Input.TextArea
             value={
               selectedAnswer &&
               !question.options.find((o) => o.value === selectedAnswer)
@@ -211,23 +215,14 @@ const QuestionMessageCardComponent: React.FC<QuestionMessageCardProps> = ({
             onChange={(e) => setSelectedAnswer(e.target.value)}
             placeholder="Enter custom answer..."
             disabled={disabled || loading}
-            style={{
-              width: "100%",
-              minHeight: 60,
-              marginTop: token.marginXS,
-              padding: token.paddingSM,
-              borderRadius: token.borderRadius,
-              border: `1px solid ${token.colorBorder}`,
-              fontSize: 14,
-              fontFamily: "inherit",
-              resize: "vertical",
-            }}
+            autoSize={{ minRows: 3, maxRows: 8 }}
+            style={{ marginTop: token.marginXS }}
           />
-        </div>
+        </Flex>
       )}
 
       {/* Submit Button */}
-      <div style={{ textAlign: "right" }}>
+      <Flex justify="flex-end">
         <Button
           type="primary"
           icon={<CheckCircleOutlined />}
@@ -237,7 +232,7 @@ const QuestionMessageCardComponent: React.FC<QuestionMessageCardProps> = ({
         >
           Submit Answer
         </Button>
-      </div>
+      </Flex>
     </Card>
   );
 };

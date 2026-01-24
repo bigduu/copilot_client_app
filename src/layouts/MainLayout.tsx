@@ -1,11 +1,13 @@
 import React, { useEffect, useRef, useState } from "react";
-import { Layout } from "antd";
+import { Button, Flex, Layout, theme } from "antd";
 import { ChatSidebar } from "../components/ChatSidebar";
 import { ChatView } from "../components/ChatView";
 import { FavoritesPanel } from "../components/FavoritesPanel";
-import { AgentSidebar } from "../components/AgentSidebar";
 import { AgentView } from "../components/AgentView";
 import { SystemSettingsPage } from "../components/SystemSettingsPage";
+import { ChatAutoTitleEffect } from "../components/ChatAutoTitleEffect";
+import { ModeSwitcher } from "../components/ModeSwitcher";
+import { SettingOutlined } from "@ant-design/icons";
 import { listen } from "@tauri-apps/api/event";
 import { useAppStore } from "../store";
 import { useChatManager } from "../hooks/useChatManager";
@@ -13,7 +15,6 @@ import { ChatItem } from "../types/chat";
 import { useUiModeStore } from "../store/uiModeStore";
 import { useSettingsViewStore } from "../store/settingsViewStore";
 
-import "./styles.css";
 
 export const MainLayout: React.FC<{
   themeMode: "light" | "dark";
@@ -24,6 +25,8 @@ export const MainLayout: React.FC<{
   const settingsOpen = useSettingsViewStore((s) => s.isOpen);
   const settingsOrigin = useSettingsViewStore((s) => s.origin);
   const closeSettings = useSettingsViewStore((s) => s.close);
+  const openSettings = useSettingsViewStore((s) => s.open);
+  const { token } = theme.useToken();
   // Direct access to Zustand store
   const addChat = useAppStore((state) => state.addChat);
   const selectChat = useAppStore((state) => state.selectChat);
@@ -130,16 +133,42 @@ export const MainLayout: React.FC<{
   }, []);
 
   return (
-    <Layout className="main-layout">
-      {mode === "chat" ? (
-        <ChatSidebar
-          themeMode={themeMode}
-          onThemeModeChange={onThemeModeChange}
-        />
-      ) : (
-        <AgentSidebar />
-      )}
-      <Layout className="content-layout">
+    <Layout
+      style={{
+        minHeight: "100vh",
+        height: "100vh",
+        overflow: "hidden",
+        background: token.colorBgLayout,
+      }}
+    >
+      {mode === "chat" ? <ChatSidebar /> : null}
+      {mode === "chat" ? <ChatAutoTitleEffect /> : null}
+      <Layout
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          background: token.colorBgContainer,
+        }}
+      >
+        <Flex
+          align="center"
+          justify="space-between"
+          style={{
+            padding: token.paddingSM,
+            borderBottom: `1px solid ${token.colorBorderSecondary}`,
+          }}
+        >
+          <ModeSwitcher size="small" />
+          {mode === "agent" && !settingsOpen ? (
+            <Button
+              size="small"
+              icon={<SettingOutlined />}
+              onClick={() => openSettings("agent")}
+            >
+              Settings
+            </Button>
+          ) : null}
+        </Flex>
         {settingsOpen ? (
           <SystemSettingsPage
             themeMode={themeMode}

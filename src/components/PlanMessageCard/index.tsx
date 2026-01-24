@@ -7,6 +7,9 @@ import {
   Tag,
   Space,
   Collapse,
+  Flex,
+  List,
+  Input,
   theme,
 } from "antd";
 import {
@@ -73,17 +76,17 @@ const PlanMessageCardComponent: React.FC<PlanMessageCardProps> = ({
       }
     >
       {/* Goal Section */}
-      <div style={{ marginBottom: token.marginLG }}>
+      <Flex vertical style={{ marginBottom: token.marginLG }}>
         <Title level={5} style={{ marginBottom: token.marginXS }}>
           Goal
         </Title>
         <Paragraph style={{ fontSize: 15, marginBottom: 0 }}>
           {plan.goal}
         </Paragraph>
-      </div>
+      </Flex>
 
       {/* Steps Section */}
-      <div style={{ marginBottom: token.marginLG }}>
+      <Flex vertical style={{ marginBottom: token.marginLG }}>
         <Title level={5} style={{ marginBottom: token.marginMD }}>
           Steps
         </Title>
@@ -97,7 +100,7 @@ const PlanMessageCardComponent: React.FC<PlanMessageCardProps> = ({
               </Text>
             ),
             description: (
-              <div>
+              <Flex vertical>
                 <Paragraph style={{ marginBottom: token.marginXS }}>
                   <Text type="secondary">Reason:</Text> {step.reason}
                 </Paragraph>
@@ -111,41 +114,43 @@ const PlanMessageCardComponent: React.FC<PlanMessageCardProps> = ({
                     </Tag>
                   ))}
                 </Space>
-                <div style={{ marginTop: token.marginXS }}>
+                <Flex style={{ marginTop: token.marginXS }}>
                   <Text type="secondary">
                     <ClockCircleOutlined /> Estimated: {step.estimated_time}
                   </Text>
-                </div>
-              </div>
+                </Flex>
+              </Flex>
             ),
             icon: <Text>{step.step_number}</Text>,
           }))}
         />
-      </div>
+      </Flex>
 
       {/* Metadata Section */}
       <Space
         direction="vertical"
         style={{ width: "100%", marginBottom: token.marginLG }}
       >
-        <div>
+        <Flex align="center" gap={token.marginXS} wrap="wrap">
           <Text type="secondary">
             <ClockCircleOutlined /> Total Estimated Time:{" "}
           </Text>
           <Tag color="blue">{plan.estimated_total_time}</Tag>
-        </div>
+        </Flex>
 
         {plan.prerequisites && plan.prerequisites.length > 0 && (
-          <div>
+          <Flex vertical>
             <Text type="secondary">Prerequisites:</Text>
-            <ul style={{ marginTop: token.marginXS, marginBottom: 0 }}>
-              {plan.prerequisites.map((prereq, idx) => (
-                <li key={idx}>
+            <List
+              size="small"
+              dataSource={plan.prerequisites}
+              renderItem={(prereq, idx) => (
+                <List.Item key={`${prereq}-${idx}`} style={{ padding: 0 }}>
                   <Text>{prereq}</Text>
-                </li>
-              ))}
-            </ul>
-          </div>
+                </List.Item>
+              )}
+            />
+          </Flex>
         )}
       </Space>
 
@@ -164,13 +169,15 @@ const PlanMessageCardComponent: React.FC<PlanMessageCardProps> = ({
                 </Space>
               ),
               children: (
-                <ul style={{ marginBottom: 0 }}>
-                  {plan.risks.map((risk, idx) => (
-                    <li key={idx}>
+                <List
+                  size="small"
+                  dataSource={plan.risks}
+                  renderItem={(risk, idx) => (
+                    <List.Item key={`${risk}-${idx}`} style={{ padding: 0 }}>
                       <Text>{risk}</Text>
-                    </li>
-                  ))}
-                </ul>
+                    </List.Item>
+                  )}
+                />
               ),
             },
           ]}
@@ -206,23 +213,14 @@ const PlanMessageCardComponent: React.FC<PlanMessageCardProps> = ({
 
       {/* Refinement Input */}
       {refineMode && (
-        <div style={{ marginTop: token.marginMD }}>
-          <textarea
+        <Flex vertical style={{ marginTop: token.marginMD }}>
+          <Input.TextArea
             value={feedback}
             onChange={(e) => setFeedback(e.target.value)}
             placeholder="Provide feedback to refine the plan..."
-            style={{
-              width: "100%",
-              minHeight: 100,
-              padding: token.paddingSM,
-              borderRadius: token.borderRadius,
-              border: `1px solid ${token.colorBorder}`,
-              fontSize: 14,
-              fontFamily: "inherit",
-              resize: "vertical",
-            }}
+            autoSize={{ minRows: 4, maxRows: 10 }}
           />
-        </div>
+        </Flex>
       )}
     </Card>
   );

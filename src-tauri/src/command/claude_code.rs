@@ -1,4 +1,5 @@
 use anyhow::{Context, Result};
+use claude_installer::EnvVar;
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::io::{BufRead, BufReader};
@@ -6,7 +7,9 @@ use std::path::PathBuf;
 use std::process::Stdio;
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
+use std::collections::HashSet;
 use tauri::{AppHandle, Emitter, Manager};
+use claude_installer::load_settings;
 use rusqlite::params;
 use tokio::process::{Child, Command};
 use tokio::sync::Mutex;
@@ -319,11 +322,22 @@ fn create_command_with_env(program: &str) -> Command {
     tokio_cmd
 }
 
-fn create_system_command(claude_path: &str, args: Vec<String>, project_path: &str) -> Command {
+fn create_system_command(
+    claude_path: &str,
+    args: Vec<String>,
+    project_path: &str,
+    env_vars: &[(String, String)],
+) -> Command {
     let mut cmd = create_command_with_env(claude_path);
 
     for arg in args {
         cmd.arg(arg);
+    }
+
+    for (key, value) in env_vars {
+        if !key.trim().is_empty() {
+            cmd.env(key, value);
+        }
     }
 
     cmd.current_dir(project_path)
@@ -331,6 +345,75 @@ fn create_system_command(claude_path: &str, args: Vec<String>, project_path: &st
         .stderr(Stdio::piped());
 
     cmd
+}
+
+async fn load_claude_env_vars(app: &AppHandle) -> Result<Vec<(String, String)>, String> {
+    let app_data_dir = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| e.to_string())?;
+    let settings = load_settings(&app_data_dir).await.map_err(|e| e.to_string())?;
+    let mut entries: Vec<(String, String)> = settings
+        .env_vars
+        .into_iter()
+        .filter(|item| !item.key.trim().is_empty())
+        .map(|item| (item.key, item.value))
+        .collect();
+    let mut keys: HashSet<String> = entries.iter().map(|(k, _)| k.clone()).collect();
+    for key in COMMON_CLAUDE_ENV_KEYS {
+        if keys.contains(key) {
+            continue;
+        }
+        if let Ok(value) = std::env::var(key) {
+            if !value.is_empty() {
+                entries.push((key.to_string(), value));
+                keys.insert(key.to_string());
+            }
+        }
+    }
+    Ok(entries)
+}
+
+const COMMON_CLAUDE_ENV_KEYS: [&str; 8] = [
+    "ANTHROPIC_AUTH_TOKEN",
+    "ANTHROPIC_BASE_URL",
+    "ANTHROPIC_DEFAULT_HAIKU_MODEL",
+    "ANTHROPIC_DEFAULT_OPUS_MODEL",
+    "ANTHROPIC_DEFAULT_SONNET_MODEL",
+    "CLAUDE_CODE_ENABLE_TELEMETRY",
+    "ANTHROPIC_MODEL",
+    "DISABLE_COST_WARNINGS",
+];
+
+#[tauri::command]
+pub async fn get_claude_env_vars(app: AppHandle) -> Result<Vec<EnvVar>, String> {
+    let app_data_dir = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| e.to_string())?;
+    let settings = load_settings(&app_data_dir).await.map_err(|e| e.to_string())?;
+
+    let mut keys: HashSet<String> = settings
+        .env_vars
+        .into_iter()
+        .map(|item| item.key)
+        .collect();
+
+    for key in COMMON_CLAUDE_ENV_KEYS {
+        keys.insert(key.to_string());
+    }
+
+    let mut vars = Vec::new();
+    for key in keys {
+        if let Ok(value) = std::env::var(&key) {
+            if !value.is_empty() {
+                vars.push(EnvVar { key, value });
+            }
+        }
+    }
+
+    vars.sort_by(|a, b| a.key.cmp(&b.key));
+    Ok(vars)
 }
 
 fn ensure_project_path(project_path: &str) -> Result<(), String> {
@@ -997,6 +1080,7 @@ pub async fn execute_claude_code(
 
     ensure_project_path(&project_path)?;
     let claude_path = find_claude_binary(&app)?;
+    let env_vars = load_claude_env_vars(&app).await?;
 
     let args = vec![
         "-p".to_string(),
@@ -1009,7 +1093,7 @@ pub async fn execute_claude_code(
         "--dangerously-skip-permissions".to_string(),
     ];
 
-    let cmd = create_system_command(&claude_path, args, &project_path);
+    let cmd = create_system_command(&claude_path, args, &project_path, &env_vars);
     spawn_claude_process(app, cmd, prompt, model, project_path).await
 }
 
@@ -1028,6 +1112,7 @@ pub async fn continue_claude_code(
 
     ensure_project_path(&project_path)?;
     let claude_path = find_claude_binary(&app)?;
+    let env_vars = load_claude_env_vars(&app).await?;
 
     let args = vec![
         "-c".to_string(), // Continue flag
@@ -1041,7 +1126,7 @@ pub async fn continue_claude_code(
         "--dangerously-skip-permissions".to_string(),
     ];
 
-    let cmd = create_system_command(&claude_path, args, &project_path);
+    let cmd = create_system_command(&claude_path, args, &project_path, &env_vars);
     spawn_claude_process(app, cmd, prompt, model, project_path).await
 }
 
@@ -1062,6 +1147,7 @@ pub async fn resume_claude_code(
 
     ensure_project_path(&project_path)?;
     let claude_path = find_claude_binary(&app)?;
+    let env_vars = load_claude_env_vars(&app).await?;
 
     let args = vec![
         "--resume".to_string(),
@@ -1076,7 +1162,7 @@ pub async fn resume_claude_code(
         "--dangerously-skip-permissions".to_string(),
     ];
 
-    let cmd = create_system_command(&claude_path, args, &project_path);
+    let cmd = create_system_command(&claude_path, args, &project_path, &env_vars);
     spawn_claude_process(app, cmd, prompt, model, project_path).await
 }
 

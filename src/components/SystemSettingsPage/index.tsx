@@ -4,6 +4,7 @@ import {
   Card,
   Flex,
   Input,
+  Layout,
   message,
   Popconfirm,
   Select,
@@ -39,6 +40,7 @@ import {
   setBackendBaseUrl,
 } from "../../utils/backendBaseUrl";
 import { ClaudeInstallPanel } from "../ClaudeInstallPanel";
+import { ClaudeEnvironmentPanel } from "../ClaudeEnvironmentPanel";
 
 const SystemPromptManager = lazy(() => import("../SystemPromptManager"));
 
@@ -479,7 +481,7 @@ const SystemSettingsPage = ({
           <Text strong>System Settings</Text>
         </Flex>
       </Flex>
-      <div
+      <Layout.Content
         style={{
           flex: 1,
           minHeight: 0,
@@ -689,16 +691,19 @@ const SystemSettingsPage = ({
               key: "agent",
               label: "Agent",
               children: (
-                <Card size="small">
-                  <Space
-                    direction="vertical"
-                    size={token.marginXS}
-                    style={{ width: "100%" }}
-                  >
-                    <Text strong>Claude Installer</Text>
-                    <ClaudeInstallPanel />
-                  </Space>
-                </Card>
+                <Flex vertical gap={tabGap}>
+                  <Card size="small">
+                    <Space
+                      direction="vertical"
+                      size={token.marginXS}
+                      style={{ width: "100%" }}
+                    >
+                      <Text strong>Claude Installer</Text>
+                      <ClaudeInstallPanel />
+                    </Space>
+                  </Card>
+                  <ClaudeEnvironmentPanel />
+                </Flex>
               ),
             },
             {
@@ -843,7 +848,7 @@ const SystemSettingsPage = ({
             },
           ]}
         />
-      </div>
+      </Layout.Content>
     </Flex>
   );
 };

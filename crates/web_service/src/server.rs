@@ -4,7 +4,10 @@ use log::{error, info};
 use std::{path::PathBuf, sync::Arc};
 use tokio::sync::oneshot;
 
-use crate::controllers::{anthropic_controller, bodhi_controller, mcp_controller, openai_controller};
+use crate::controllers::{
+    anthropic_controller, bodhi_controller, claude_install_controller, mcp_controller,
+    openai_controller, workspace_controller,
+};
 use crate::services::mcp_service::McpRuntime;
 use copilot_client::{config::Config, CopilotClient, CopilotClientTrait};
 
@@ -22,7 +25,9 @@ pub fn app_config(cfg: &mut web::ServiceConfig) {
             .configure(anthropic_controller::config)
             .configure(openai_controller::config)
             .configure(bodhi_controller::config)
-            .configure(mcp_controller::config),
+            .configure(claude_install_controller::config)
+            .configure(mcp_controller::config)
+            .configure(workspace_controller::config),
     );
 }
 

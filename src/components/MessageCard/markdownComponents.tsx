@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Typography, Button, message } from "antd";
+import { Typography, Button, message, Card } from "antd";
 import { CopyOutlined } from "@ant-design/icons";
 import { Components } from "react-markdown";
 import { PrismLight as SyntaxHighlighter } from "react-syntax-highlighter";
@@ -93,7 +93,9 @@ const CodeBlockWithCopy: React.FC<{
   const isSupported = registeredLanguages.includes(normalizedLanguage);
 
   return (
-    <div
+    <Card
+      size="small"
+      styles={{ body: { padding: 0 } }}
       style={{
         position: "relative",
         maxWidth: "100%",
@@ -149,7 +151,7 @@ const CodeBlockWithCopy: React.FC<{
           }}
         />
       )}
-    </div>
+    </Card>
   );
 };
 
@@ -194,7 +196,9 @@ const renderCodeBlock = (
     console.warn("Syntax highlighting failed:", error);
     // Fallback to plain code block with copy functionality
     return (
-      <div
+      <Card
+        size="small"
+        styles={{ body: { padding: 0 } }}
         style={{
           position: "relative",
           margin: `${token.marginXS}px 0`,
@@ -252,7 +256,7 @@ const renderCodeBlock = (
             zIndex: 10,
           }}
         />
-      </div>
+      </Card>
     );
   }
 };
@@ -332,18 +336,19 @@ export const createMarkdownComponents = (
   },
 
   blockquote: ({ children }) => (
-    <div
+    <Card
+      size="small"
+      styles={{ body: { padding: `${token.paddingXS}px ${token.padding}px` } }}
       style={{
         borderLeft: `3px solid ${token.colorPrimary}`,
         background: token.colorPrimaryBg,
-        padding: `${token.paddingXS}px ${token.padding}px`,
         margin: `${token.marginXS}px 0`,
         color: token.colorTextSecondary,
         fontStyle: "italic",
       }}
     >
       {children}
-    </div>
+    </Card>
   ),
 
   a: ({ children, href }) => (
@@ -357,7 +362,11 @@ export const createMarkdownComponents = (
 
   // Enhanced table support for better GFM compatibility
   table: ({ children }) => (
-    <div style={{ overflow: "auto", margin: `${token.marginSM}px 0` }}>
+    <Card
+      size="small"
+      styles={{ body: { padding: 0 } }}
+      style={{ overflow: "auto", margin: `${token.marginSM}px 0` }}
+    >
       <table
         style={{
           width: "100%",
@@ -367,7 +376,7 @@ export const createMarkdownComponents = (
       >
         {children}
       </table>
-    </div>
+    </Card>
   ),
 
   thead: ({ children }) => (

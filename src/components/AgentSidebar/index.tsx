@@ -1,5 +1,17 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react"
-import { Layout, Button, Flex, Input, List, Typography, theme } from "antd"
+import {
+  Alert,
+  Card,
+  Empty,
+  Layout,
+  Button,
+  Flex,
+  Input,
+  Menu,
+  Spin,
+  Typography,
+  theme,
+} from "antd"
 import { FolderOpenOutlined, ReloadOutlined } from "@ant-design/icons"
 
 import {
@@ -123,12 +135,44 @@ export const AgentSidebar: React.FC = () => {
     [projects, selectedProjectId],
   )
 
+  const projectMenuItems = useMemo(
+    () =>
+      filteredProjects.map((item) => ({
+        key: item.id,
+        label: (
+          <Flex vertical style={{ minWidth: 0 }}>
+            <Text ellipsis>{item.path}</Text>
+            <Text type="secondary" style={{ fontSize: 12 }} ellipsis>
+              {item.id}
+            </Text>
+          </Flex>
+        ),
+      })),
+    [filteredProjects],
+  )
+
+  const sessionMenuItems = useMemo(
+    () =>
+      sessions.map((item) => ({
+        key: item.id,
+        label: (
+          <Flex vertical style={{ minWidth: 0 }}>
+            <Text ellipsis>{item.first_message || item.id}</Text>
+            <Text type="secondary" style={{ fontSize: 12 }} ellipsis>
+              {item.id}
+            </Text>
+          </Flex>
+        ),
+      })),
+    [sessions],
+  )
+
   return (
     <Sider
       width={320}
       style={{
-        background: "var(--ant-color-bg-container)",
-        borderRight: "1px solid var(--ant-color-border)",
+        background: token.colorBgContainer,
+        borderRight: `1px solid ${token.colorBorderSecondary}`,
         height: "100vh",
         overflow: "hidden",
       }}
@@ -164,96 +208,76 @@ export const AgentSidebar: React.FC = () => {
           allowClear
         />
 
-        {error ? (
-          <Text type="danger" style={{ display: "block" }}>
-            {error}
-          </Text>
-        ) : null}
+        {error ? <Alert type="error" message={error} showIcon /> : null}
 
         <Flex vertical style={{ flex: 1, minHeight: 0, gap: token.paddingSM }}>
-          <Flex vertical style={{ flex: 1, minHeight: 0 }}>
-            <Text strong>Projects</Text>
-            <div style={{ overflow: "auto", minHeight: 0 }}>
-              <List
-                size="small"
-                loading={isLoadingProjects}
-                dataSource={filteredProjects}
-                renderItem={(item) => {
-                  const isSelected = item.id === selectedProjectId
-                  return (
-                    <List.Item
-                      style={{
-                        cursor: "pointer",
-                        borderRadius: token.borderRadius,
-                        padding: token.paddingXS,
-                        border: "1px solid",
-                        borderColor: isSelected
-                          ? token.colorPrimaryBorder
-                          : "transparent",
-                        background: isSelected
-                          ? token.colorPrimaryBg
-                          : "transparent",
-                      }}
-                      onClick={() => setSelectedProject(item.id, item.path)}
-                    >
-                      <Flex vertical style={{ width: "100%" }}>
-                        <Text ellipsis>{item.path}</Text>
-                        <Text type="secondary" style={{ fontSize: 12 }} ellipsis>
-                          {item.id}
-                        </Text>
-                      </Flex>
-                    </List.Item>
-                  )
-                }}
-              />
-            </div>
-          </Flex>
+          <Card
+            size="small"
+            title="Projects"
+            styles={{ body: { padding: 0, minHeight: 0 } }}
+            style={{ minHeight: 0, flex: 1 }}
+          >
+            <Spin spinning={isLoadingProjects}>
+              {filteredProjects.length ? (
+                <div style={{ maxHeight: "100%", overflow: "auto" }}>
+                  <Menu
+                    mode="inline"
+                    selectedKeys={selectedProjectId ? [selectedProjectId] : []}
+                    items={projectMenuItems}
+                    onSelect={(info) => {
+                      const project = projects.find((p) => p.id === info.key)
+                      if (project) {
+                        setSelectedProject(project.id, project.path)
+                      }
+                    }}
+                    style={{ borderInlineEnd: "none", background: "transparent" }}
+                  />
+                </div>
+              ) : (
+                <Empty
+                  image={Empty.PRESENTED_IMAGE_SIMPLE}
+                  description={
+                    <Text type="secondary">
+                      {query ? "No matches" : "No projects"}
+                    </Text>
+                  }
+                />
+              )}
+            </Spin>
+          </Card>
 
-          <Flex vertical style={{ flex: 1, minHeight: 0 }}>
-            <Text strong>Sessions</Text>
-            <Text type="secondary" style={{ fontSize: 12 }}>
+          <Card
+            size="small"
+            title="Sessions"
+            styles={{ body: { padding: 0, minHeight: 0 } }}
+            style={{ minHeight: 0, flex: 1 }}
+          >
+            <Text type="secondary" style={{ display: "block", padding: "0 12px" }}>
               {selectedProject ? selectedProject.path : "Select a project"}
             </Text>
-            <div style={{ overflow: "auto", minHeight: 0 }}>
-              <List
-                size="small"
-                loading={isLoadingSessions}
-                dataSource={sessions}
-                locale={{
-                  emptyText: selectedProjectId
-                    ? "No sessions"
-                    : "Select a project first",
-                }}
-                renderItem={(item) => {
-                  const isSelected = item.id === selectedSessionId
-                  return (
-                    <List.Item
-                      style={{
-                        cursor: "pointer",
-                        borderRadius: token.borderRadius,
-                        padding: token.paddingXS,
-                        border: "1px solid",
-                        borderColor: isSelected
-                          ? token.colorPrimaryBorder
-                          : "transparent",
-                        background: isSelected
-                          ? token.colorPrimaryBg
-                          : "transparent",
-                      }}
-                      onClick={() => setSelectedSessionId(item.id)}
-                    >
-                      <Flex vertical style={{ width: "100%" }}>
-                        <Text ellipsis>{item.first_message || item.id}</Text>
-                        <Text type="secondary" style={{ fontSize: 12 }} ellipsis>
-                          {item.id}
-                        </Text>
-                      </Flex>
-                    </List.Item>
-                  )
-                }}
-              />
-            </div>
-          </Flex>
+            <Spin spinning={isLoadingSessions}>
+              {sessions.length ? (
+                <div style={{ maxHeight: "100%", overflow: "auto" }}>
+                  <Menu
+                    mode="inline"
+                    selectedKeys={selectedSessionId ? [selectedSessionId] : []}
+                    items={sessionMenuItems}
+                    onSelect={(info) => setSelectedSessionId(info.key)}
+                    style={{ borderInlineEnd: "none", background: "transparent" }}
+                  />
+                </div>
+              ) : (
+                <Empty
+                  image={Empty.PRESENTED_IMAGE_SIMPLE}
+                  description={
+                    <Text type="secondary">
+                      {selectedProjectId ? "No sessions" : "Select a project first"}
+                    </Text>
+                  }
+                />
+              )}
+            </Spin>
+          </Card>
         </Flex>
       </Flex>
     </Sider>

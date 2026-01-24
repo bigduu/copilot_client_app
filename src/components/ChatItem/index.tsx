@@ -1,5 +1,5 @@
 import React, { memo, useState } from "react";
-import { List, Button, Input, Tooltip } from "antd";
+import { List, Button, Input, Tooltip, theme } from "antd";
 import {
   DeleteOutlined,
   PushpinFilled,
@@ -11,7 +11,6 @@ import {
   LoadingOutlined,
 } from "@ant-design/icons";
 import { ChatItem as ChatItemType } from "../../types/chat";
-import theme from "../../styles/theme";
 
 interface ChatItemProps {
   chat: ChatItemType;
@@ -41,6 +40,7 @@ const ChatItemComponent: React.FC<ChatItemProps> = ({
   const [isEditing, setIsEditing] = useState(false);
   const [editValue, setEditValue] = useState(chat.title);
   const [isHovered, setIsHovered] = useState(false);
+  const { token } = theme.useToken();
 
   const handleDelete = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -68,14 +68,14 @@ const ChatItemComponent: React.FC<ChatItemProps> = ({
 
   // Dynamic style calculation
   const itemStyle: React.CSSProperties = {
-    padding: theme.components.chatItem.padding,
-    borderRadius: theme.components.chatItem.borderRadius,
-    marginBottom: theme.components.chatItem.marginBottom,
+    padding: token.paddingXS,
+    borderRadius: token.borderRadiusSM,
+    marginBottom: token.marginXXS,
     cursor: "pointer",
-    transition: theme.components.chatItem.transition,
-    backgroundColor: isSelected ? `var(--ant-color-primary-bg)` : "transparent",
+    transition: "background-color 0.2s ease",
+    backgroundColor: isSelected ? token.colorPrimaryBg : "transparent",
     borderLeft: isSelected
-      ? `3px solid ${theme.colors.primary}`
+      ? `3px solid ${token.colorPrimary}`
       : "3px solid transparent",
   };
 
@@ -84,17 +84,17 @@ const ChatItemComponent: React.FC<ChatItemProps> = ({
     whiteSpace: "nowrap",
     overflow: "hidden",
     textOverflow: "ellipsis",
-    fontSize: theme.components.chatItem.fontSize,
+    fontSize: token.fontSizeSM,
     fontWeight: isSelected
-      ? theme.components.chatItem.selected.fontWeight
+      ? token.fontWeightStrong
       : "normal",
-    color: isSelected ? theme.colors.primary : theme.colors.text,
+    color: isSelected ? token.colorPrimary : token.colorText,
   };
 
   const editInputStyle: React.CSSProperties = {
     flex: 1,
-    fontSize: theme.components.chatItem.editInput.fontSize,
-    marginRight: theme.components.chatItem.editInput.marginRight,
+    fontSize: token.fontSizeSM,
+    marginRight: token.marginSM,
   };
 
   // Build List.Item actions - only show when hovered or editing
@@ -102,17 +102,17 @@ const ChatItemComponent: React.FC<ChatItemProps> = ({
     isHovered || isEditing
       ? [
           // Pin/Unpin button
-          <Tooltip key="pin" title={chat.pinned ? "Unpin" : "Pin"}>
-            <Button
-              type="text"
-              size="small"
-              icon={
-                chat.pinned ? (
-                  <PushpinFilled style={{ color: theme.colors.pinned }} />
-                ) : (
-                  <PushpinOutlined />
-                )
-              }
+                <Tooltip key="pin" title={chat.pinned ? "Unpin" : "Pin"}>
+                  <Button
+                    type="text"
+                    size="small"
+                    icon={
+                      chat.pinned ? (
+                        <PushpinFilled style={{ color: token.colorWarning }} />
+                      ) : (
+                        <PushpinOutlined />
+                      )
+                    }
               onClick={(e) => {
                 e.stopPropagation();
                 chat.pinned ? onUnpin(chat.id) : onPin(chat.id);
@@ -131,7 +131,7 @@ const ChatItemComponent: React.FC<ChatItemProps> = ({
                     type="text"
                     size="small"
                     icon={
-                      <CheckOutlined style={{ color: theme.colors.success }} />
+                      <CheckOutlined style={{ color: token.colorSuccess }} />
                     }
                     onClick={handleSave}
                   />
@@ -141,7 +141,7 @@ const ChatItemComponent: React.FC<ChatItemProps> = ({
                     type="text"
                     size="small"
                     icon={
-                      <CloseOutlined style={{ color: theme.colors.error }} />
+                      <CloseOutlined style={{ color: token.colorError }} />
                     }
                     onClick={handleCancel}
                   />
@@ -162,7 +162,7 @@ const ChatItemComponent: React.FC<ChatItemProps> = ({
                         key="generate-title"
                         title={titleGenerationError || "Generate AI Title"}
                         color={
-                          titleGenerationError ? theme.colors.error : undefined
+                          titleGenerationError ? token.colorError : undefined
                         }
                       >
                         <Button
@@ -175,7 +175,7 @@ const ChatItemComponent: React.FC<ChatItemProps> = ({
                               <BulbOutlined
                                 style={
                                   titleGenerationError
-                                    ? { color: theme.colors.error }
+                                    ? { color: token.colorError }
                                     : undefined
                                 }
                               />
@@ -212,7 +212,6 @@ const ChatItemComponent: React.FC<ChatItemProps> = ({
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
       actions={actions}
-      className="chat-item" // Keep class name for CSS hover effects
     >
       <List.Item.Meta
         title={

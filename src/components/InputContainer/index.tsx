@@ -11,7 +11,8 @@ import { Space, theme, Tag, Alert, message as antdMessage, Spin } from "antd";
 import { ToolOutlined } from "@ant-design/icons";
 import { MessageInput } from "../MessageInput";
 import InputPreview from "./InputPreview";
-import { useChatController } from "../../contexts/ChatControllerContext";
+import { useChatOpenAIStreaming } from "../../hooks/useChatManager/useChatOpenAIStreaming";
+import { useAppStore } from "../../store";
 import { useSystemPrompt } from "../../hooks/useSystemPrompt";
 import { WorkflowManagerService } from "../../services/WorkflowManagerService";
 import { ImageFile } from "../../utils/imageUtils";
@@ -22,6 +23,7 @@ import {
 } from "../../utils/inputHighlight";
 import { useChatInputHistory } from "../../hooks/useChatInputHistory";
 import { WorkspaceFileEntry } from "../../types/workspace";
+import type { UserFileReferenceMessage } from "../../types/chat";
 
 const FilePreview = lazy(() => import("../FilePreview"));
 const WorkflowSelector = lazy(() => import("../WorkflowSelector"));
@@ -49,18 +51,26 @@ export const InputContainer: React.FC<InputContainerProps> = ({
   const [showWorkflowSelector, setShowWorkflowSelector] = useState(false);
   const [workflowSearchText, setWorkflowSearchText] = useState("");
   const { token } = useToken();
-  const {
-    currentMessages,
+  const currentChatId = useAppStore((state) => state.currentChatId);
+  const currentChat = useAppStore(
+    (state) =>
+      state.chats.find((chat) => chat.id === state.currentChatId) || null
+  );
+  const currentMessages = useMemo(
+    () => currentChat?.messages || [],
+    [currentChat]
+  );
+  const updateChat = useAppStore((state) => state.updateChat);
+  const addMessage = useAppStore((state) => state.addMessage);
+  const deleteMessage = useAppStore((state) => state.deleteMessage);
+  const setProcessing = useAppStore((state) => state.setProcessing);
+  const isProcessing = useAppStore((state) => state.isProcessing);
+  const { sendMessage, cancel } = useChatOpenAIStreaming({
     currentChat,
-    currentChatId,
-    interactionState,
-    sendMessage,
-    retryLastMessage,
-    send,
-    updateChat,
-  } = useChatController();
-
-  const isStreaming = interactionState.matches("THINKING");
+    addMessage,
+    setProcessing,
+  });
+  const isStreaming = isProcessing;
   const [messageApi, contextHolder] = antdMessage.useMessage();
 
   // TODO: selectedSystemPromptPresetId needs to be retrieved from the new store
@@ -102,6 +112,36 @@ export const InputContainer: React.FC<InputContainerProps> = ({
   const lastWorkspacePathRef = useRef<string | null>(null);
   const { recordEntry, navigate, acknowledgeManualInput } =
     useChatInputHistory(currentChatId);
+
+  const retryLastMessage = useCallback(async () => {
+    if (!currentChatId || !currentChat) return;
+    const history = [...currentMessages];
+    if (history.length === 0) return;
+
+    const lastMessage = history[history.length - 1];
+    let trimmedHistory = history;
+    if (lastMessage?.role === "assistant") {
+      deleteMessage(currentChatId, lastMessage.id);
+      trimmedHistory = history.slice(0, -1);
+    }
+
+    const lastUser = [...trimmedHistory]
+      .reverse()
+      .find((msg) => msg.role === "user");
+    if (!lastUser) return;
+
+    const content =
+      "content" in lastUser
+        ? lastUser.content
+        : (lastUser as UserFileReferenceMessage).displayText;
+    if (typeof content !== "string") return;
+
+    await sendMessage(content);
+  }, [currentChat, currentChatId, currentMessages, deleteMessage, sendMessage]);
+
+  const handleCancel = useCallback(() => {
+    cancel();
+  }, [cancel]);
 
   // Track file references: map from @token in text to actual file info
   const [fileReferences, setFileReferences] = useState<
@@ -591,7 +631,7 @@ export const InputContainer: React.FC<InputContainerProps> = ({
           hasMessages: currentMessages.length > 0,
           allowRetry: true,
           onRetry: retryLastMessage,
-          onCancel: () => send({ type: "CANCEL" }),
+          onCancel: handleCancel,
           onHistoryNavigate: handleHistoryNavigate,
         }}
       />
