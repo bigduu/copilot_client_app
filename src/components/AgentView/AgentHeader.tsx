@@ -1,6 +1,10 @@
 import React from "react";
 import { Badge, Button, Flex, Tabs, Tag, Typography, theme } from "antd";
-import { FolderOpenOutlined, HistoryOutlined, ToolOutlined } from "@ant-design/icons";
+import {
+  FolderOpenOutlined,
+  HistoryOutlined,
+  ToolOutlined,
+} from "@ant-design/icons";
 
 const { Text } = Typography;
 

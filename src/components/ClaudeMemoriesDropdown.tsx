@@ -15,10 +15,7 @@ import {
   EditOutlined,
 } from "@ant-design/icons";
 
-import {
-  claudeCodeService,
-  ClaudeMdFile,
-} from "../services/ClaudeCodeService";
+import { claudeCodeService, ClaudeMdFile } from "../services/ClaudeCodeService";
 
 const { Text } = Typography;
 
@@ -57,7 +54,9 @@ export const ClaudeMemoriesDropdown: React.FC<ClaudeMemoriesDropdownProps> = ({
       const found = await claudeCodeService.findClaudeMdFiles(projectPath);
       setFiles(found);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to load CLAUDE.md files");
+      setError(
+        e instanceof Error ? e.message : "Failed to load CLAUDE.md files",
+      );
     } finally {
       setLoading(false);
     }
@@ -138,7 +137,10 @@ export const ClaudeMemoriesDropdown: React.FC<ClaudeMemoriesDropdownProps> = ({
                                   {formatFileSize(file.size)}
                                 </Text>
                                 {file.modified ? (
-                                  <Text type="secondary" style={{ fontSize: 12 }}>
+                                  <Text
+                                    type="secondary"
+                                    style={{ fontSize: 12 }}
+                                  >
                                     Modified {formatDateTime(file.modified)}
                                   </Text>
                                 ) : null}

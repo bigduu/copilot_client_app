@@ -361,7 +361,7 @@ const MessageCardComponent: React.FC<MessageCardProps> = ({
 
   const isUserToolCall = useMemo(
     () => role === "user" && messageText.startsWith("/"),
-    [role, messageText]
+    [role, messageText],
   );
 
   // Create markdown components with current theme
@@ -370,7 +370,7 @@ const MessageCardComponent: React.FC<MessageCardProps> = ({
       createMarkdownComponents(token, {
         onFixMermaid,
       }),
-    [token, onFixMermaid]
+    [token, onFixMermaid],
   );
 
   // Standardized plugin configuration for consistency
@@ -584,9 +584,7 @@ const MessageCardComponent: React.FC<MessageCardProps> = ({
 
   // Route to TodoListDisplay for TODO list messages
   if (isTodoListMessage(message)) {
-    return (
-      <TodoListDisplay todoList={message.todoList} />
-    );
+    return <TodoListDisplay todoList={message.todoList} />;
   }
 
   // Route to FileReferenceCard for file reference messages
@@ -595,7 +593,7 @@ const MessageCardComponent: React.FC<MessageCardProps> = ({
       "[MessageCard] Rendering FileReferenceCard for message:",
       message.id,
       "paths:",
-      message.paths
+      message.paths,
     );
     return (
       <Flex justify="flex-end" style={{ width: "100%" }}>
@@ -644,11 +642,7 @@ const MessageCardComponent: React.FC<MessageCardProps> = ({
             size={token.marginXS}
             style={{ width: "100%", maxWidth: "100%" }}
           >
-            <Flex
-              align="baseline"
-              justify="space-between"
-              gap={token.marginXS}
-            >
+            <Flex align="baseline" justify="space-between" gap={token.marginXS}>
               <Text
                 type="secondary"
                 strong
@@ -789,8 +783,7 @@ const MessageCardComponent: React.FC<MessageCardProps> = ({
               ) : (
                 // Case 3: Regular Text Message (User or Assistant)
                 <>
-                  {message.role === "assistant" &&
-                  !messageText ? (
+                  {message.role === "assistant" && !messageText ? (
                     <Text italic>Assistant is thinking...</Text>
                   ) : (
                     <ReactMarkdown

@@ -14,7 +14,7 @@ const StreamingMessageCard: React.FC<StreamingMessageCardProps> = memo(
     const { token } = useToken();
     const messageId = `streaming-${chatId}`;
     const [content, setContent] = useState<string>(
-      () => streamingMessageBus.getLatest(messageId) ?? ""
+      () => streamingMessageBus.getLatest(messageId) ?? "",
     );
 
     useEffect(() => {
@@ -44,7 +44,11 @@ const StreamingMessageCard: React.FC<StreamingMessageCardProps> = memo(
           style={{ width: "100%", maxWidth: "100%" }}
         >
           <Flex align="baseline" justify="space-between" gap={token.marginXS}>
-            <Text type="secondary" strong style={{ fontSize: token.fontSizeSM }}>
+            <Text
+              type="secondary"
+              strong
+              style={{ fontSize: token.fontSizeSM }}
+            >
               Assistant
             </Text>
           </Flex>
@@ -66,7 +70,7 @@ const StreamingMessageCard: React.FC<StreamingMessageCardProps> = memo(
         </Space>
       </Card>
     );
-  }
+  },
 );
 
 StreamingMessageCard.displayName = "StreamingMessageCard";

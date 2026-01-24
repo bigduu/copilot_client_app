@@ -24,7 +24,7 @@ describe("MCP services", () => {
       expect.objectContaining({
         method: "POST",
         headers: { "Content-Type": "application/json" },
-      })
+      }),
     );
     expect(result).toEqual({ mcpServers: {} });
   });

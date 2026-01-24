@@ -33,7 +33,7 @@ export class ServiceFactory {
         this.tauriUtilityService.copyToClipboard(text),
       invoke: <T = any>(
         command: string,
-        args?: Record<string, any>
+        args?: Record<string, any>,
       ): Promise<T> => this.tauriUtilityService.invoke(command, args),
       getMcpServers: () => this.httpUtilityService.getMcpServers(),
       setMcpServers: (servers: any) =>
@@ -78,7 +78,7 @@ export class ServiceFactory {
 
   async invoke<T = any>(
     command: string,
-    args?: Record<string, any>
+    args?: Record<string, any>,
   ): Promise<T> {
     return this.getUtilityService().invoke(command, args);
   }

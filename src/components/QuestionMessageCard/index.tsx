@@ -179,11 +179,14 @@ const QuestionMessageCardComponent: React.FC<QuestionMessageCardProps> = ({
                   <Flex vertical>
                     <Flex align="center" gap={token.marginXS} wrap="wrap">
                       <Text strong>{option.label}</Text>
-                    {option.value === question.default && (
-                      <Tag color="blue" style={{ marginLeft: token.marginXS }}>
-                        Recommended
-                      </Tag>
-                    )}
+                      {option.value === question.default && (
+                        <Tag
+                          color="blue"
+                          style={{ marginLeft: token.marginXS }}
+                        >
+                          Recommended
+                        </Tag>
+                      )}
                     </Flex>
                     <Paragraph
                       type="secondary"

@@ -54,11 +54,11 @@ export const InputContainer: React.FC<InputContainerProps> = ({
   const currentChatId = useAppStore((state) => state.currentChatId);
   const currentChat = useAppStore(
     (state) =>
-      state.chats.find((chat) => chat.id === state.currentChatId) || null
+      state.chats.find((chat) => chat.id === state.currentChatId) || null,
   );
   const currentMessages = useMemo(
     () => currentChat?.messages || [],
-    [currentChat]
+    [currentChat],
   );
   const updateChat = useAppStore((state) => state.updateChat);
   const addMessage = useAppStore((state) => state.addMessage);
@@ -94,13 +94,12 @@ export const InputContainer: React.FC<InputContainerProps> = ({
   // Use the new chat input hook for state management
   // State management for the input itself
   const [content, setContent] = useState("");
-  const [selectedWorkflow, setSelectedWorkflow] = useState<WorkflowDraft | null>(
-    null
-  );
+  const [selectedWorkflow, setSelectedWorkflow] =
+    useState<WorkflowDraft | null>(null);
   const [referenceText, setReferenceText] = useState<string | null>(null);
   const [attachments, setAttachments] = useState<ProcessedFile[]>([]);
   const [workspaceFiles, setWorkspaceFiles] = useState<WorkspaceFileEntry[]>(
-    []
+    [],
   );
   const [isWorkspaceModalVisible, setIsWorkspaceModalVisible] = useState(false);
   const [workspacePathInput, setWorkspacePathInput] = useState("");
@@ -193,7 +192,10 @@ export const InputContainer: React.FC<InputContainerProps> = ({
 
     if (selectedWorkflow?.content) {
       const token = `/${selectedWorkflow.name}`;
-      const hasToken = matchesWorkflowToken(trimmedInput, selectedWorkflow.name);
+      const hasToken = matchesWorkflowToken(
+        trimmedInput,
+        selectedWorkflow.name,
+      );
       if (hasToken) {
         const extraInput = trimmedInput.slice(token.length).trim();
         composedInput = [selectedWorkflow.content, extraInput]
@@ -219,7 +221,7 @@ export const InputContainer: React.FC<InputContainerProps> = ({
     if (fileReferences.size > 0) {
       // Check if message contains file references (@filename)
       const fileRefMatches = Array.from(composedMessage.matchAll(/@([^\s]+)/g));
-      
+
       if (fileRefMatches.length > 0) {
         // ✅ Collect all referenced files
         const referencedFiles: WorkspaceFileEntry[] = [];
@@ -294,7 +296,7 @@ export const InputContainer: React.FC<InputContainerProps> = ({
       lastWorkspacePathRef.current = workspacePath;
       setIsWorkspaceLoading(false);
     },
-    []
+    [],
   );
 
   const handleFileReferenceChange = useCallback(
@@ -329,7 +331,7 @@ export const InputContainer: React.FC<InputContainerProps> = ({
         fetchWorkspaceFiles(currentChatId, workspacePath);
       }
     },
-    [currentChat, currentChatId, fetchWorkspaceFiles, workspaceFiles.length]
+    [currentChat, currentChatId, fetchWorkspaceFiles, workspaceFiles.length],
   );
 
   const handleWorkflowCommandChange = useCallback(
@@ -337,7 +339,7 @@ export const InputContainer: React.FC<InputContainerProps> = ({
       setShowWorkflowSelector(info.isTriggerActive);
       setWorkflowSearchText(info.isTriggerActive ? info.searchText : "");
     },
-    []
+    [],
   );
 
   const handleHistoryNavigate = useCallback(
@@ -348,7 +350,7 @@ export const InputContainer: React.FC<InputContainerProps> = ({
       }
       return result.value;
     },
-    [navigate]
+    [navigate],
   );
 
   const handleWorkflowSelect = useCallback(
@@ -369,7 +371,7 @@ export const InputContainer: React.FC<InputContainerProps> = ({
         clearWorkflowDraft();
       }
     },
-    [clearWorkflowDraft, onWorkflowDraftChange]
+    [clearWorkflowDraft, onWorkflowDraftChange],
   );
 
   const handleWorkflowSelectorCancel = useCallback(() => {
@@ -399,13 +401,13 @@ export const InputContainer: React.FC<InputContainerProps> = ({
       } catch (error) {
         console.error(
           `[InputContainer] Failed to load workflow '${workflowName}' in auto-complete:`,
-          error
+          error,
         );
         setContent(`/${workflowName} `);
         clearWorkflowDraft();
       }
     },
-    [clearWorkflowDraft, onWorkflowDraftChange]
+    [clearWorkflowDraft, onWorkflowDraftChange],
   );
 
   const handleFileReferenceSelect = useCallback(
@@ -414,13 +416,18 @@ export const InputContainer: React.FC<InputContainerProps> = ({
       const atIndex = content.lastIndexOf("@");
       let newContent: string;
 
-      if (atIndex >= 0 && content.substring(atIndex).match(/^@[a-zA-Z0-9._\-\/\\]*$/)) {
+      if (
+        atIndex >= 0 &&
+        content.substring(atIndex).match(/^@[a-zA-Z0-9._\-\/\\]*$/)
+      ) {
         // 如果输入框以 @token 结尾，则替换它
         const before = content.slice(0, atIndex);
         newContent = `${before}@${file.name} `;
       } else {
         // 如果没有 @token，则在末尾添加 @文件名
-        newContent = content.trim() ? `${content.trim()} @${file.name} ` : `@${file.name} `;
+        newContent = content.trim()
+          ? `${content.trim()} @${file.name} `
+          : `@${file.name} `;
       }
 
       setContent(newContent);
@@ -435,7 +442,7 @@ export const InputContainer: React.FC<InputContainerProps> = ({
       setShowFileSelector(false);
       setFileSearchText("");
     },
-    [content]
+    [content],
   );
 
   const handleFileSelectorCancel = useCallback(() => {
@@ -505,7 +512,7 @@ export const InputContainer: React.FC<InputContainerProps> = ({
         setIsSavingWorkspace(false);
       }
     },
-    [currentChat, currentChatId, fetchWorkspaceFiles, messageApi, updateChat]
+    [currentChat, currentChatId, fetchWorkspaceFiles, messageApi, updateChat],
   );
 
   const placeholder = useMemo(() => {

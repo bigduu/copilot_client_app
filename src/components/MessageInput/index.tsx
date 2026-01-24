@@ -5,7 +5,16 @@ import React, {
   useCallback,
   useState,
 } from "react";
-import { Button, Space, theme, message, Typography, Spin, Flex, Card } from "antd";
+import {
+  Button,
+  Space,
+  theme,
+  message,
+  Typography,
+  Spin,
+  Flex,
+  Card,
+} from "antd";
 import {
   SendOutlined,
   SyncOutlined,
@@ -49,7 +58,7 @@ export interface MessageInputInteractionControls {
   onCancel?: () => void;
   onHistoryNavigate?: (
     direction: "previous" | "next",
-    currentValue: string
+    currentValue: string,
   ) => string | null;
 }
 
@@ -141,7 +150,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
         setIsProcessingAttachments(false);
       }
     },
-    [handleImageFiles, messageApi, onAttachmentsAdded]
+    [handleImageFiles, messageApi, onAttachmentsAdded],
   );
 
   const { isDragOver, handleDragOver, handleDragLeave, handleDrop } =
@@ -170,7 +179,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
 
   const highlightSegments = useMemo(
     () => getInputHighlightSegments(value),
-    [value]
+    [value],
   );
 
   const syncOverlayScroll = () => {
@@ -256,7 +265,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
 
     if (isOverCharLimit) {
       messageApi.error(
-        `Message exceeds the maximum length of ${maxCharCount.toLocaleString()} characters.`
+        `Message exceeds the maximum length of ${maxCharCount.toLocaleString()} characters.`,
       );
       return;
     }
@@ -268,7 +277,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
       if (!validation.isValid) {
         // Show error message
         messageApi.error(
-          validation.errorMessage || "Message format is incorrect"
+          validation.errorMessage || "Message format is incorrect",
         );
         return;
       }
@@ -318,11 +327,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
             styles={{ body: { padding: token.paddingXS } }}
             style={{ marginBottom: token.marginXS }}
           >
-            <Flex
-              align="center"
-              wrap="wrap"
-              gap={token.marginXS}
-            >
+            <Flex align="center" wrap="wrap" gap={token.marginXS}>
               <Text
                 type="secondary"
                 style={{ fontSize: token.fontSizeSM, minWidth: "fit-content" }}

@@ -62,7 +62,7 @@ const WorkflowSelector: React.FC<WorkflowSelectorProps> = ({
   // Filter workflows based on search text
   useEffect(() => {
     const filtered = workflows.filter((workflow) =>
-      workflow.name.toLowerCase().includes(searchText.toLowerCase())
+      workflow.name.toLowerCase().includes(searchText.toLowerCase()),
     );
 
     setFilteredWorkflows(filtered);
@@ -102,7 +102,7 @@ const WorkflowSelector: React.FC<WorkflowSelectorProps> = ({
     } catch (error) {
       console.error(
         `[WorkflowSelector] Failed to load workflow '${workflowName}':`,
-        error
+        error,
       );
       // Still call onSelect with empty content to close selector
       onSelect({ name: workflowName, content: "" });
@@ -164,13 +164,7 @@ const WorkflowSelector: React.FC<WorkflowSelectorProps> = ({
 
     document.addEventListener("keydown", handleKeyDown);
     return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [
-    visible,
-    filteredWorkflows,
-    selectedIndex,
-    onCancel,
-    onAutoComplete,
-  ]);
+  }, [visible, filteredWorkflows, selectedIndex, onCancel, onAutoComplete]);
 
   if (!visible) {
     return null;

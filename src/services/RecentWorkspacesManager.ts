@@ -73,7 +73,7 @@ class RecentWorkspacesManager {
 
       return recentWorkspaces;
     } catch (error) {
-      console.error('Failed to get recent workspaces:', error);
+      console.error("Failed to get recent workspaces:", error);
 
       // Return cached data if available, even if expired
       if (this.cache?.recentWorkspaces) {
@@ -89,7 +89,7 @@ class RecentWorkspacesManager {
    */
   async addRecentWorkspace(
     path: string,
-    metadata?: WorkspaceMetadata
+    metadata?: WorkspaceMetadata,
   ): Promise<void> {
     try {
       await this.addRecentWorkspaceToApi(path, metadata);
@@ -97,7 +97,7 @@ class RecentWorkspacesManager {
       // Invalidate cache to force refresh next time
       this.invalidateCache();
     } catch (error) {
-      console.error('Failed to add recent workspace:', error);
+      console.error("Failed to add recent workspace:", error);
       throw error;
     }
   }
@@ -110,7 +110,9 @@ class RecentWorkspacesManager {
       // Note: This would require a DELETE endpoint in the API
       // For now, we'll just update the local cache
       const currentWorkspaces = await this.getRecentWorkspaces();
-      const filteredWorkspaces = currentWorkspaces.filter(w => w.path !== path);
+      const filteredWorkspaces = currentWorkspaces.filter(
+        (w) => w.path !== path,
+      );
 
       // Update cache with filtered list
       this.cache = {
@@ -120,7 +122,7 @@ class RecentWorkspacesManager {
 
       console.log(`Removed workspace from recent list: ${path}`);
     } catch (error) {
-      console.error('Failed to remove recent workspace:', error);
+      console.error("Failed to remove recent workspace:", error);
       throw error;
     }
   }
@@ -134,9 +136,9 @@ class RecentWorkspacesManager {
       // For now, we'll just clear the local cache
       this.cache = null;
 
-      console.log('Cleared recent workspaces cache');
+      console.log("Cleared recent workspaces cache");
     } catch (error) {
-      console.error('Failed to clear recent workspaces:', error);
+      console.error("Failed to clear recent workspaces:", error);
       throw error;
     }
   }
@@ -155,19 +157,19 @@ class RecentWorkspacesManager {
 
       // Sort by relevance (recent first, then common directories)
       return uniqueSuggestions.sort((a, b) => {
-        const aRecent = recentWorkspaces.findIndex(w => w.path === a.path);
-        const bRecent = recentWorkspaces.findIndex(w => w.path === b.path);
+        const aRecent = recentWorkspaces.findIndex((w) => w.path === a.path);
+        const bRecent = recentWorkspaces.findIndex((w) => w.path === b.path);
 
         if (aRecent !== -1 && bRecent !== -1) {
           return aRecent - bRecent; // Both recent, sort by recency
         }
         if (aRecent !== -1) return -1; // A is recent, put first
-        if (bRecent !== -1) return 1;  // B is recent, put first
+        if (bRecent !== -1) return 1; // B is recent, put first
 
-        return (a.workspace_name || '').localeCompare(b.workspace_name || '');
+        return (a.workspace_name || "").localeCompare(b.workspace_name || "");
       });
     } catch (error) {
-      console.error('Failed to get workspace suggestions:', error);
+      console.error("Failed to get workspace suggestions:", error);
 
       // Fallback to cached recent workspaces
       return this.getRecentWorkspaces();
@@ -180,9 +182,9 @@ class RecentWorkspacesManager {
   async validateWorkspacePath(path: string): Promise<WorkspaceInfo> {
     try {
       const response = await fetch(`${this.getApiBaseUrl()}/validate`, {
-        method: 'POST',
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
         body: JSON.stringify({ path }),
         signal: AbortSignal.timeout(this.options.requestTimeoutMs),
@@ -201,7 +203,8 @@ class RecentWorkspacesManager {
       return {
         path,
         is_valid: false,
-        error_message: error instanceof Error ? error.message : 'Validation failed',
+        error_message:
+          error instanceof Error ? error.message : "Validation failed",
       };
     }
   }
@@ -214,7 +217,8 @@ class RecentWorkspacesManager {
       return false;
     }
 
-    const isExpired = Date.now() - this.cache.timestamp > this.options.cacheTimeoutMs;
+    const isExpired =
+      Date.now() - this.cache.timestamp > this.options.cacheTimeoutMs;
     return !isExpired;
   }
 
@@ -230,7 +234,7 @@ class RecentWorkspacesManager {
    */
   private async fetchRecentWorkspaces(): Promise<WorkspaceInfo[]> {
     const response = await fetch(`${this.getApiBaseUrl()}/recent`, {
-      method: 'GET',
+      method: "GET",
       signal: AbortSignal.timeout(this.options.requestTimeoutMs),
     });
 
@@ -246,12 +250,12 @@ class RecentWorkspacesManager {
    */
   private async addRecentWorkspaceToApi(
     path: string,
-    metadata?: WorkspaceMetadata
+    metadata?: WorkspaceMetadata,
   ): Promise<void> {
     const response = await fetch(`${this.getApiBaseUrl()}/recent`, {
-      method: 'POST',
+      method: "POST",
       headers: {
-        'Content-Type': 'application/json',
+        "Content-Type": "application/json",
       },
       body: JSON.stringify({ path, metadata }),
       signal: AbortSignal.timeout(this.options.requestTimeoutMs),
@@ -267,7 +271,7 @@ class RecentWorkspacesManager {
    */
   private async fetchPathSuggestions(): Promise<WorkspaceInfo[]> {
     const response = await fetch(`${this.getApiBaseUrl()}/suggestions`, {
-      method: 'GET',
+      method: "GET",
       signal: AbortSignal.timeout(this.options.requestTimeoutMs),
     });
 
@@ -294,7 +298,7 @@ class RecentWorkspacesManager {
    */
   private deduplicateWorkspaces(workspaces: WorkspaceInfo[]): WorkspaceInfo[] {
     const seen = new Set<string>();
-    return workspaces.filter(workspace => {
+    return workspaces.filter((workspace) => {
       if (seen.has(workspace.path)) {
         return false;
       }
@@ -314,13 +318,15 @@ class RecentWorkspacesManager {
     try {
       // Test API availability
       const response = await fetch(`${this.getApiBaseUrl()}/recent`, {
-        method: 'GET',
+        method: "GET",
         signal: AbortSignal.timeout(2000),
       });
 
       const apiAvailable = response.ok;
       const cacheValid = this.isCacheValid();
-      const recentWorkspaces = cacheValid ? this.cache?.recentWorkspaces || [] : await this.getRecentWorkspaces();
+      const recentWorkspaces = cacheValid
+        ? this.cache?.recentWorkspaces || []
+        : await this.getRecentWorkspaces();
       const recentCount = recentWorkspaces.length;
 
       return {
@@ -342,7 +348,9 @@ class RecentWorkspacesManager {
 export const recentWorkspacesManager = new RecentWorkspacesManager();
 
 // Hook for React components
-export function useRecentWorkspacesManager(options?: RecentWorkspacesManagerOptions) {
+export function useRecentWorkspacesManager(
+  options?: RecentWorkspacesManagerOptions,
+) {
   const manager = new RecentWorkspacesManager(options);
 
   return {

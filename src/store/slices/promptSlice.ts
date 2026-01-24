@@ -100,9 +100,7 @@ export const createPromptSlice: StateCreator<AppState, [], [], PromptSlice> = (
         (prompt) => prompt.id === promptToUpdate.id,
       );
       if (index === -1) {
-        throw new Error(
-          `System prompt '${promptToUpdate.id}' is read-only`,
-        );
+        throw new Error(`System prompt '${promptToUpdate.id}' is read-only`);
       }
       const updated = [...customPrompts];
       updated[index] = {

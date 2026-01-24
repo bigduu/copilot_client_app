@@ -16,7 +16,7 @@ describe("backendBaseUrl", () => {
 
   it("normalizes by trimming and removing trailing slashes", () => {
     expect(normalizeBackendBaseUrl(" http://localhost:8080/v1/ ")).toBe(
-      "http://localhost:8080/v1"
+      "http://localhost:8080/v1",
     );
   });
 
@@ -54,7 +54,7 @@ describe("backendBaseUrl", () => {
     setBackendBaseUrl("http://localhost:8080/v1/");
     expect(buildBackendUrl("/models")).toBe("http://localhost:8080/v1/models");
     expect(buildBackendUrl("workspace/validate")).toBe(
-      "http://localhost:8080/v1/workspace/validate"
+      "http://localhost:8080/v1/workspace/validate",
     );
   });
 });

@@ -18,7 +18,7 @@ export interface UseChatTitleGeneration {
   isUpdatingAutoTitlePreference: boolean;
   generateChatTitle: (
     chatId: string,
-    options?: { force?: boolean }
+    options?: { force?: boolean },
   ) => Promise<void>;
   setAutoGenerateTitlesPreference: (enabled: boolean) => Promise<void>;
   isDefaultTitle: (title: string | undefined | null) => boolean;
@@ -27,17 +27,17 @@ export interface UseChatTitleGeneration {
 type ChatTitleState = Pick<UseChatState, "chats" | "updateChat">;
 
 export function useChatTitleGeneration(
-  state: ChatTitleState
+  state: ChatTitleState,
 ): UseChatTitleGeneration {
   const { message: appMessage } = AntApp.useApp();
 
   const autoGenerateTitles = useAppStore((state) => state.autoGenerateTitles);
   const selectedModel = useAppStore((state) => state.selectedModel);
   const setAutoGenerateTitlesPreference = useAppStore(
-    (state) => state.setAutoGenerateTitlesPreference
+    (state) => state.setAutoGenerateTitlesPreference,
   );
   const isUpdatingAutoTitlePreference = useAppStore(
-    (state) => state.isUpdatingAutoTitlePreference
+    (state) => state.isUpdatingAutoTitlePreference,
   );
 
   const autoTitleGeneratedRef = useRef<Set<string>>(new Set());
@@ -102,7 +102,7 @@ export function useChatTitleGeneration(
       try {
         const candidate = await generateTitleWithAI(
           userAssistantMessages,
-          selectedModel
+          selectedModel,
         );
         if (!candidate) {
           throw new Error("Generated title is empty");
@@ -137,7 +137,7 @@ export function useChatTitleGeneration(
         titleGenerationInFlightRef.current.delete(chatId);
       }
     },
-    [appMessage, autoGenerateTitles, isDefaultTitle, selectedModel, state]
+    [appMessage, autoGenerateTitles, isDefaultTitle, selectedModel, state],
   );
 
   return {
@@ -195,7 +195,7 @@ const normalizeTitle = (title: string): string => {
 
 const generateTitleWithAI = async (
   messages: Message[],
-  model?: string | null
+  model?: string | null,
 ): Promise<string> => {
   const context = buildTitleContext(messages);
   if (!context) {

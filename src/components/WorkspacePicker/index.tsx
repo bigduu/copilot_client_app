@@ -167,7 +167,7 @@ const WorkspacePicker: React.FC<WorkspacePickerProps> = ({
               if (onValidationChange) {
                 onValidationChange(result);
               }
-            }
+            },
           );
       } else {
         setValidationStatus({ isValidating: false, result: null });
@@ -176,7 +176,7 @@ const WorkspacePicker: React.FC<WorkspacePickerProps> = ({
         }
       }
     },
-    [onChange, onValidationChange]
+    [onChange, onValidationChange],
   );
 
   // Handle browse button click - Open unified folder browser
@@ -189,7 +189,7 @@ const WorkspacePicker: React.FC<WorkspacePickerProps> = ({
       handlePathChange(selectedPath);
       message.success("文件夹选择成功");
     },
-    [handlePathChange]
+    [handlePathChange],
   );
 
   // Handle workspace selection from recent/suggestions
@@ -197,7 +197,7 @@ const WorkspacePicker: React.FC<WorkspacePickerProps> = ({
     (workspacePath: string) => {
       handlePathChange(workspacePath);
     },
-    [handlePathChange]
+    [handlePathChange],
   );
 
   // Get validation status icon
@@ -210,7 +210,9 @@ const WorkspacePicker: React.FC<WorkspacePickerProps> = ({
       if (validationStatus.result.is_valid) {
         return <CheckCircleOutlined style={{ color: token.colorSuccess }} />;
       } else {
-        return <ExclamationCircleOutlined style={{ color: token.colorError }} />;
+        return (
+          <ExclamationCircleOutlined style={{ color: token.colorError }} />
+        );
       }
     }
 

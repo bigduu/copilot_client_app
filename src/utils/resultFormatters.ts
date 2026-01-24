@@ -117,7 +117,7 @@ export const formatResultContent = (content: string): FormattedResult => {
  */
 export const shouldCollapseContent = (
   content: string,
-  options: CollapseOptions = {}
+  options: CollapseOptions = {},
 ): boolean => {
   const config: Required<CollapseOptions> = {
     ...DEFAULT_COLLAPSE_OPTIONS,
@@ -141,7 +141,7 @@ export const shouldCollapseContent = (
  */
 export const createContentPreview = (
   content: string,
-  maxLength = 320
+  maxLength = 320,
 ): { preview: string; isTruncated: boolean } => {
   if (!content) {
     return { preview: "", isTruncated: false };

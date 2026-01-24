@@ -22,7 +22,8 @@ const WorkspacePathModal: React.FC<WorkspacePathModalProps> = ({
   onCancel,
 }) => {
   const [path, setPath] = useState(initialPath);
-  const [validationResult, setValidationResult] = useState<WorkspaceValidationResult | null>(null);
+  const [validationResult, setValidationResult] =
+    useState<WorkspaceValidationResult | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
@@ -113,7 +114,11 @@ const WorkspacePathModal: React.FC<WorkspacePathModalProps> = ({
           message="工作区路径说明"
           description={
             <div>
-              <p>指定当前 Chat 关联的项目根目录。后端会基于该目录提供文件列表，以供 @ 文件引用。</p>
+              <p>
+                指定当前 Chat
+                关联的项目根目录。后端会基于该目录提供文件列表，以供 @
+                文件引用。
+              </p>
               <p>建议选择包含项目源代码的根目录，如 Git 仓库的根目录。</p>
             </div>
           }
@@ -135,7 +140,10 @@ const WorkspacePathModal: React.FC<WorkspacePathModalProps> = ({
         {validationResult && !validationResult.is_valid && (
           <Alert
             message="工作区路径检测"
-            description={validationResult.error_message || "路径可能无效，请检查目录是否存在且可访问"}
+            description={
+              validationResult.error_message ||
+              "路径可能无效，请检查目录是否存在且可访问"
+            }
             type="warning"
             showIcon
           />
@@ -146,11 +154,3 @@ const WorkspacePathModal: React.FC<WorkspacePathModalProps> = ({
 };
 
 export default WorkspacePathModal;
-
-
-
-
-
-
-
-

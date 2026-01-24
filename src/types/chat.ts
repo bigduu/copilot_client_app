@@ -247,7 +247,7 @@ export interface ChatItem {
 // --- Utility functions and Type Guards ---
 
 export const isAssistantToolResultMessage = (
-  message: Message
+  message: Message,
 ): message is AssistantToolResultMessage => {
   return (
     message.role === "assistant" &&
@@ -257,7 +257,7 @@ export const isAssistantToolResultMessage = (
 };
 
 export const isAssistantToolCallMessage = (
-  message: Message
+  message: Message,
 ): message is AssistantToolCallMessage => {
   return (
     message.role === "assistant" &&
@@ -267,7 +267,7 @@ export const isAssistantToolCallMessage = (
 };
 
 export const isWorkflowResultMessage = (
-  message: Message
+  message: Message,
 ): message is WorkflowResultMessage => {
   return (
     message.role === "assistant" &&
@@ -277,7 +277,7 @@ export const isWorkflowResultMessage = (
 };
 
 export const isUserFileReferenceMessage = (
-  message: Message
+  message: Message,
 ): message is UserFileReferenceMessage => {
   return (
     message.role === "user" &&
@@ -287,7 +287,7 @@ export const isUserFileReferenceMessage = (
 };
 
 export const isTodoListMessage = (
-  message: Message
+  message: Message,
 ): message is AssistantTodoListMessage => {
   return (
     message.role === "assistant" &&

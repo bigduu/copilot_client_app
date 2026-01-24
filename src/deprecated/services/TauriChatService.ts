@@ -1,18 +1,18 @@
-import { invoke, Channel } from "@tauri-apps/api/core"
-import { buildBackendUrl } from "../../utils/backendBaseUrl"
+import { invoke, Channel } from "@tauri-apps/api/core";
+import { buildBackendUrl } from "../../utils/backendBaseUrl";
 
 interface MessageContent {
-  type: string
-  text?: string
+  type: string;
+  text?: string;
   image_url?: {
-    url: string
-    detail?: string
-  }
+    url: string;
+    detail?: string;
+  };
 }
 
 interface Message {
-  role: string
-  content: string | MessageContent[]
+  role: string;
+  content: string | MessageContent[];
 }
 
 export class TauriChatService {
@@ -22,28 +22,28 @@ export class TauriChatService {
     onChunk?: (chunk: string) => void,
     abortSignal?: AbortSignal,
   ): Promise<void> {
-    const channel = new Channel<string>()
-    let cancelled = false
+    const channel = new Channel<string>();
+    let cancelled = false;
 
     if (abortSignal) {
       abortSignal.addEventListener("abort", () => {
-        cancelled = true
-        console.log("[Tauri] Request was cancelled")
+        cancelled = true;
+        console.log("[Tauri] Request was cancelled");
 
         if (onChunk) {
-          onChunk("[CANCELLED]")
+          onChunk("[CANCELLED]");
         }
-      })
+      });
     }
 
     if (onChunk) {
       channel.onmessage = (message) => {
         if (cancelled) {
-          console.log("[Tauri] Ignoring message due to cancellation")
-          return
+          console.log("[Tauri] Ignoring message due to cancellation");
+          return;
         }
-        onChunk(message)
-      }
+        onChunk(message);
+      };
     }
 
     try {
@@ -51,27 +51,27 @@ export class TauriChatService {
         messages,
         model,
         channel,
-      })
+      });
     } catch (error) {
       if (cancelled) {
-        console.log("[Tauri] Request was cancelled during execution")
-        return
+        console.log("[Tauri] Request was cancelled during execution");
+        return;
       }
-      throw error
+      throw error;
     }
   }
 
   async getModels(): Promise<string[]> {
     try {
-      const response = await fetch(buildBackendUrl("/models"))
+      const response = await fetch(buildBackendUrl("/models"));
       if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`)
+        throw new Error(`HTTP error! status: ${response.status}`);
       }
-      const data = await response.json()
-      return data.data.map((model: any) => model.id)
+      const data = await response.json();
+      return data.data.map((model: any) => model.id);
     } catch (error) {
-      console.error("Failed to fetch models from HTTP API:", error)
-      throw error
+      console.error("Failed to fetch models from HTTP API:", error);
+      throw error;
     }
   }
 }

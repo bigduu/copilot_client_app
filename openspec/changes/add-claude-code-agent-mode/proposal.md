@@ -1,7 +1,9 @@
 ## Why
+
 Bodhi currently provides a chat-focused UI, but it does not offer a first-class GUI for interacting with Claude Code CLI sessions (projects, session history, resume, and live streaming output). Integrating Claude Code in an "Agent" mode enables workflow-style development sessions while keeping the existing chat experience intact.
 
 ## What Changes
+
 - Add a top-level UI mode switch: `Chat` and `Agent`, with separate screens and state.
 - Add an `Agent` mode UI that:
   - Browses Claude Code projects and sessions by reading `~/.claude/projects/**.jsonl`
@@ -17,6 +19,7 @@ Bodhi currently provides a chat-focused UI, but it does not offer a first-class 
   - When ON, invoke Claude Code with `--dangerously-skip-permissions`
 
 ## Impact
+
 - Affected code:
   - Frontend: `src/layouts/MainLayout.tsx` (mode switch + conditional layout), new Agent components/state
   - Tauri backend: `src-tauri/src/lib.rs` (invoke handler), new `src-tauri/src/command/claude_code.rs` (commands + process mgmt)

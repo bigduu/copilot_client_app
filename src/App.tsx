@@ -27,14 +27,14 @@ function App() {
         // eslint-disable-next-line no-console -- Development-only performance trace
         console.info(
           `[Profiler:${id}] phase=${phase} actual=${actualDuration.toFixed(
-            2
+            2,
           )}ms base=${baseDuration.toFixed(2)}ms start=${startTime.toFixed(
-            2
-          )}ms commit=${commitTime.toFixed(2)}ms`
+            2,
+          )}ms commit=${commitTime.toFixed(2)}ms`,
         );
       }
     },
-    []
+    [],
   );
 
   useEffect(() => {

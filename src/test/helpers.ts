@@ -1,6 +1,6 @@
 export function mockFetchResponse(
   data: any,
-  options?: { ok?: boolean; status?: number }
+  options?: { ok?: boolean; status?: number },
 ) {
   return {
     ok: options?.ok ?? true,

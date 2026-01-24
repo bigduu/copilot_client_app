@@ -90,7 +90,7 @@ class WorkspaceValidator {
    */
   validateWorkspaceDebounced(
     path: string,
-    callback: (result: WorkspaceValidationResult) => void
+    callback: (result: WorkspaceValidationResult) => void,
   ): () => void {
     let timeoutId: NodeJS.Timeout;
 
@@ -148,7 +148,7 @@ class WorkspaceValidator {
    */
   private setCachedResult(
     path: string,
-    result: WorkspaceValidationResult
+    result: WorkspaceValidationResult,
   ): void {
     this.cache.set(path, {
       result,
@@ -161,19 +161,16 @@ class WorkspaceValidator {
    */
   private async performValidation(
     path: string,
-    retryCount = 0
+    retryCount = 0,
   ): Promise<WorkspaceValidationResult> {
     try {
-      const response = await fetch(
-        buildBackendUrl("/workspace/validate"),
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ path }),
-        }
-      );
+      const response = await fetch(buildBackendUrl("/workspace/validate"), {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ path }),
+      });
 
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
@@ -220,7 +217,7 @@ class WorkspaceValidator {
    * Validate multiple paths in parallel (with rate limiting)
    */
   async validateMultiplePaths(
-    paths: string[]
+    paths: string[],
   ): Promise<WorkspaceValidationResult[]> {
     const BATCH_SIZE = 5; // Limit concurrent requests
     const results: WorkspaceValidationResult[] = [];
@@ -228,7 +225,7 @@ class WorkspaceValidator {
     for (let i = 0; i < paths.length; i += BATCH_SIZE) {
       const batch = paths.slice(i, i + BATCH_SIZE);
       const batchResults = await Promise.all(
-        batch.map((path) => this.validateWorkspace(path))
+        batch.map((path) => this.validateWorkspace(path)),
       );
       results.push(...batchResults);
 

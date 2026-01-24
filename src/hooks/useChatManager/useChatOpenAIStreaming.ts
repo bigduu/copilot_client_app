@@ -97,7 +97,7 @@ const mapMessageToOpenAI = (message: Message) => {
 };
 
 export function useChatOpenAIStreaming(
-  deps: UseChatOpenAIStreamingDeps
+  deps: UseChatOpenAIStreamingDeps,
 ): UseChatOpenAIStreaming {
   const { modal, message: appMessage } = AntApp.useApp();
   const abortRef = useRef<AbortController | null>(null);
@@ -121,7 +121,7 @@ export function useChatOpenAIStreaming(
   const buildRequestMessages = useCallback(
     (messages: Message[]) => {
       const systemPrompt = getEffectiveSystemPrompt(
-        deps.currentChat?.config?.baseSystemPrompt || ""
+        deps.currentChat?.config?.baseSystemPrompt || "",
       );
       const openaiMessages: any[] = [];
       if (systemPrompt) {
@@ -140,7 +140,7 @@ export function useChatOpenAIStreaming(
 
       return openaiMessages;
     },
-    [deps.currentChat?.config?.baseSystemPrompt]
+    [deps.currentChat?.config?.baseSystemPrompt],
   );
 
   const sendMessage = useCallback(
@@ -200,7 +200,7 @@ export function useChatOpenAIStreaming(
               messages: openaiMessages,
               tools: tools.length > 0 ? tools : undefined,
             },
-            { signal: controller.signal }
+            { signal: controller.signal },
           );
 
           const toolCallsMap = new Map<
@@ -352,8 +352,7 @@ export function useChatOpenAIStreaming(
 
             const parameters = Object.entries(args).map(([name, value]) => ({
               name,
-              value:
-                typeof value === "string" ? value : JSON.stringify(value),
+              value: typeof value === "string" ? value : JSON.stringify(value),
             }));
 
             const result = await toolService.executeTool({
@@ -397,7 +396,10 @@ export function useChatOpenAIStreaming(
         if ((error as any).name === "AbortError") {
           appMessage.info("Request cancelled");
         } else {
-          console.error("[useChatOpenAIStreaming] Failed to send message:", error);
+          console.error(
+            "[useChatOpenAIStreaming] Failed to send message:",
+            error,
+          );
           appMessage.error("Failed to send message. Please try again.");
         }
       } finally {
@@ -417,7 +419,7 @@ export function useChatOpenAIStreaming(
       resolveTools,
       buildRequestMessages,
       selectedModel,
-    ]
+    ],
   );
 
   return {

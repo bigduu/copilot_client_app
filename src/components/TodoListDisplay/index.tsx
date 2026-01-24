@@ -22,7 +22,9 @@ interface TodoListDisplayProps {
   todoList: TodoListMsg;
 }
 
-export const TodoListDisplay: React.FC<TodoListDisplayProps> = ({ todoList }) => {
+export const TodoListDisplay: React.FC<TodoListDisplayProps> = ({
+  todoList,
+}) => {
   const { token } = theme.useToken();
   const { Text } = Typography;
 
@@ -79,7 +81,7 @@ export const TodoListDisplay: React.FC<TodoListDisplayProps> = ({ todoList }) =>
   const completionPercentage = React.useMemo(() => {
     if (todoList.items.length === 0) return 0;
     const completed = todoList.items.filter(
-      (item) => item.status === "completed"
+      (item) => item.status === "completed",
     ).length;
     return Math.round((completed / todoList.items.length) * 100);
   }, [todoList.items]);
@@ -117,9 +119,7 @@ export const TodoListDisplay: React.FC<TodoListDisplayProps> = ({ todoList }) =>
             }
             showInfo
           />
-          <Text type="secondary">
-            {completionPercentage}% Complete
-          </Text>
+          <Text type="secondary">{completionPercentage}% Complete</Text>
         </Space>
 
         <List
@@ -140,7 +140,12 @@ export const TodoListDisplay: React.FC<TodoListDisplayProps> = ({ todoList }) =>
                 }}
               >
                 <Flex vertical style={{ width: "100%" }} gap={4}>
-                  <Flex align="center" justify="space-between" wrap="wrap" gap={8}>
+                  <Flex
+                    align="center"
+                    justify="space-between"
+                    wrap="wrap"
+                    gap={8}
+                  >
                     <Text>{item.description}</Text>
                     {getStatusTag(item.status)}
                   </Flex>

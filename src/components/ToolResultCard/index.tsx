@@ -74,7 +74,7 @@ const ToolResultCardComponent: React.FC<ToolResultCardProps> = ({
 
   const collapseByDefault = useMemo(
     () => shouldCollapseContent(formatted.formattedText),
-    [formatted.formattedText]
+    [formatted.formattedText],
   );
 
   const isCollapsible = formatted.isJson || collapseByDefault;
@@ -82,7 +82,7 @@ const ToolResultCardComponent: React.FC<ToolResultCardProps> = ({
 
   const preview = useMemo(
     () => createContentPreview(formatted.formattedText),
-    [formatted.formattedText]
+    [formatted.formattedText],
   );
 
   const handleCopy = async () => {

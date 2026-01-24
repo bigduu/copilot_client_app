@@ -1,54 +1,65 @@
-import React, { useCallback, useEffect, useState } from "react"
-import { Alert, Button, Card, Flex, Input, List, Select, Typography } from "antd"
+import React, { useCallback, useEffect, useState } from "react";
+import {
+  Alert,
+  Button,
+  Card,
+  Flex,
+  Input,
+  List,
+  Select,
+  Typography,
+} from "antd";
 
-import { claudeCodeService } from "../../services/ClaudeCodeService"
+import { claudeCodeService } from "../../services/ClaudeCodeService";
 
-const { Text } = Typography
+const { Text } = Typography;
 
-type Scope = "project" | "user"
+type Scope = "project" | "user";
 
 export const SlashCommandsPanel: React.FC<{
-  projectPath?: string | null
+  projectPath?: string | null;
 }> = ({ projectPath }) => {
-  const [commands, setCommands] = useState<any[]>([])
-  const [isLoading, setIsLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [scope, setScope] = useState<Scope>("project")
-  const [name, setName] = useState("")
-  const [namespace, setNamespace] = useState("")
-  const [description, setDescription] = useState("")
-  const [allowedTools, setAllowedTools] = useState("")
-  const [content, setContent] = useState("")
+  const [commands, setCommands] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [scope, setScope] = useState<Scope>("project");
+  const [name, setName] = useState("");
+  const [namespace, setNamespace] = useState("");
+  const [description, setDescription] = useState("");
+  const [allowedTools, setAllowedTools] = useState("");
+  const [content, setContent] = useState("");
 
   const loadCommands = useCallback(async () => {
-    setIsLoading(true)
-    setError(null)
+    setIsLoading(true);
+    setError(null);
     try {
       const data = await claudeCodeService.slashCommandsList(
-        scope === "project" ? projectPath ?? undefined : undefined,
-      )
-      setCommands(data ?? [])
+        scope === "project" ? (projectPath ?? undefined) : undefined,
+      );
+      setCommands(data ?? []);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to load slash commands")
+      setError(
+        e instanceof Error ? e.message : "Failed to load slash commands",
+      );
     } finally {
-      setIsLoading(false)
+      setIsLoading(false);
     }
-  }, [projectPath, scope])
+  }, [projectPath, scope]);
 
   useEffect(() => {
-    void loadCommands()
-  }, [loadCommands])
+    void loadCommands();
+  }, [loadCommands]);
 
   const saveCommand = useCallback(async () => {
     if (!name.trim()) {
-      setError("Command name is required")
-      return
+      setError("Command name is required");
+      return;
     }
     if (scope === "project" && !projectPath) {
-      setError("Select a project to save project-scoped commands")
-      return
+      setError("Select a project to save project-scoped commands");
+      return;
     }
-    setError(null)
+    setError(null);
     try {
       await claudeCodeService.slashCommandSave({
         scope,
@@ -60,34 +71,44 @@ export const SlashCommandsPanel: React.FC<{
           .split(",")
           .map((t) => t.trim())
           .filter(Boolean),
-        projectPath: scope === "project" ? projectPath ?? undefined : undefined,
-      })
-      setName("")
-      setNamespace("")
-      setDescription("")
-      setAllowedTools("")
-      setContent("")
-      await loadCommands()
+        projectPath:
+          scope === "project" ? (projectPath ?? undefined) : undefined,
+      });
+      setName("");
+      setNamespace("");
+      setDescription("");
+      setAllowedTools("");
+      setContent("");
+      await loadCommands();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to save command")
+      setError(e instanceof Error ? e.message : "Failed to save command");
     }
-  }, [allowedTools, content, description, loadCommands, name, namespace, projectPath, scope])
+  }, [
+    allowedTools,
+    content,
+    description,
+    loadCommands,
+    name,
+    namespace,
+    projectPath,
+    scope,
+  ]);
 
   const deleteCommand = useCallback(
     async (commandId: string) => {
-      setError(null)
+      setError(null);
       try {
         await claudeCodeService.slashCommandDelete(
           commandId,
-          scope === "project" ? projectPath ?? undefined : undefined,
-        )
-        await loadCommands()
+          scope === "project" ? (projectPath ?? undefined) : undefined,
+        );
+        await loadCommands();
       } catch (e) {
-        setError(e instanceof Error ? e.message : "Failed to delete command")
+        setError(e instanceof Error ? e.message : "Failed to delete command");
       }
     },
     [loadCommands, projectPath, scope],
-  )
+  );
 
   return (
     <Flex vertical style={{ gap: 12 }}>
@@ -104,7 +125,11 @@ export const SlashCommandsPanel: React.FC<{
               { value: "user", label: "User" },
             ]}
           />
-          <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Name" />
+          <Input
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="Name"
+          />
           <Input
             value={namespace}
             onChange={(e) => setNamespace(e.target.value)}
@@ -147,11 +172,13 @@ export const SlashCommandsPanel: React.FC<{
           >
             <Flex vertical style={{ minWidth: 0 }}>
               <Text strong>{item.full_command ?? item.name ?? item.id}</Text>
-              {item.description ? <Text type="secondary">{item.description}</Text> : null}
+              {item.description ? (
+                <Text type="secondary">{item.description}</Text>
+              ) : null}
             </Flex>
           </List.Item>
         )}
       />
     </Flex>
-  )
-}
+  );
+};

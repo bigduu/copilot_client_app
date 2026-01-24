@@ -32,7 +32,7 @@ export class SessionService {
 
   private async request<T>(
     endpoint: string,
-    options: RequestInit = {}
+    options: RequestInit = {},
   ): Promise<T> {
     const response = await fetch(buildBackendUrl(`/session${endpoint}`), {
       headers: {
@@ -45,7 +45,7 @@ export class SessionService {
     if (!response.ok) {
       const text = await response.text();
       throw new Error(
-        `SessionService error: ${response.status} ${response.statusText} - ${text}`
+        `SessionService error: ${response.status} ${response.statusText} - ${text}`,
       );
     }
 

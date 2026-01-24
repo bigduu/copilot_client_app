@@ -75,7 +75,7 @@ export const streamingMessageBus = {
     pendingUpdates.delete(messageId);
     notifyMessage(messageId, null);
     updateListeners.forEach((listener) =>
-      listener({ chatId, messageId, content: null })
+      listener({ chatId, messageId, content: null }),
     );
   },
 };

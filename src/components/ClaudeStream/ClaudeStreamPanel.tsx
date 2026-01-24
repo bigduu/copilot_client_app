@@ -1,38 +1,38 @@
-import React, { useEffect, useMemo, useRef, useState } from "react"
-import { Card, Empty, Flex, Input, Tabs, theme, Typography } from "antd"
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import { Card, Empty, Flex, Input, Tabs, theme, Typography } from "antd";
 
-import { ClaudeEntryCard } from "./ClaudeEntryCard"
-import type { ClaudeStreamMessage } from "./types"
+import { ClaudeEntryCard } from "./ClaudeEntryCard";
+import type { ClaudeStreamMessage } from "./types";
 
-const { Text } = Typography
+const { Text } = Typography;
 
 export const ClaudeStreamPanel: React.FC<{
-  title: string
-  entries: ClaudeStreamMessage[]
-  rawText?: string
-  autoScroll?: boolean
+  title: string;
+  entries: ClaudeStreamMessage[];
+  rawText?: string;
+  autoScroll?: boolean;
 }> = ({ title, entries, rawText, autoScroll = false }) => {
-  const { token } = theme.useToken()
-  const [view, setView] = useState<"rendered" | "raw">("rendered")
-  const containerRef = useRef<HTMLDivElement>(null)
+  const { token } = theme.useToken();
+  const [view, setView] = useState<"rendered" | "raw">("rendered");
+  const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (!autoScroll) return
-    if (view !== "rendered") return
-    const el = containerRef.current
-    if (!el) return
-    el.scrollTop = el.scrollHeight
-  }, [autoScroll, entries.length, view])
+    if (!autoScroll) return;
+    if (view !== "rendered") return;
+    const el = containerRef.current;
+    if (!el) return;
+    el.scrollTop = el.scrollHeight;
+  }, [autoScroll, entries.length, view]);
 
   const resolvedRaw = useMemo(() => {
-    if (typeof rawText === "string") return rawText
-    if (!entries.length) return ""
+    if (typeof rawText === "string") return rawText;
+    if (!entries.length) return "";
     try {
-      return entries.map((e) => JSON.stringify(e)).join("\n")
+      return entries.map((e) => JSON.stringify(e)).join("\n");
     } catch {
-      return ""
+      return "";
     }
-  }, [entries, rawText])
+  }, [entries, rawText]);
 
   return (
     <Card
@@ -87,7 +87,8 @@ export const ClaudeStreamPanel: React.FC<{
                 style={{
                   height: "100%",
                   fontSize: 12,
-                  fontFamily: "SFMono-Regular, Menlo, Monaco, Consolas, monospace",
+                  fontFamily:
+                    "SFMono-Regular, Menlo, Monaco, Consolas, monospace",
                 }}
               />
             ),
@@ -95,5 +96,5 @@ export const ClaudeStreamPanel: React.FC<{
         ]}
       />
     </Card>
-  )
-}
+  );
+};

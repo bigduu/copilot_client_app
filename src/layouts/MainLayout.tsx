@@ -15,7 +15,6 @@ import { ChatItem } from "../types/chat";
 import { useUiModeStore } from "../store/uiModeStore";
 import { useSettingsViewStore } from "../store/settingsViewStore";
 
-
 export const MainLayout: React.FC<{
   themeMode: "light" | "dark";
   onThemeModeChange: (mode: "light" | "dark") => void;
@@ -191,9 +190,7 @@ export const MainLayout: React.FC<{
         !settingsOpen &&
         showFavorites &&
         currentChatId &&
-        currentMessages.length > 0 && (
-        <FavoritesPanel />
-      )}
+        currentMessages.length > 0 && <FavoritesPanel />}
     </Layout>
   );
 };

@@ -1,4 +1,10 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
   FloatButton,
   Card,
@@ -12,46 +18,46 @@ import {
   Input,
   Button,
   Space,
-} from "antd"
-import { DownOutlined } from "@ant-design/icons"
-import ReactMarkdown from "react-markdown"
-import rehypeSanitize from "rehype-sanitize"
-import remarkBreaks from "remark-breaks"
-import remarkGfm from "remark-gfm"
+} from "antd";
+import { DownOutlined } from "@ant-design/icons";
+import ReactMarkdown from "react-markdown";
+import rehypeSanitize from "rehype-sanitize";
+import remarkBreaks from "remark-breaks";
+import remarkGfm from "remark-gfm";
 
-import { createMarkdownComponents } from "../MessageCard/markdownComponents"
-import type { ClaudeContentPart, ClaudeStreamMessage } from "../ClaudeStream"
+import { createMarkdownComponents } from "../MessageCard/markdownComponents";
+import type { ClaudeContentPart, ClaudeStreamMessage } from "../ClaudeStream";
 
-const { Text } = Typography
+const { Text } = Typography;
 
 const normalizeContentParts = (value: any): ClaudeContentPart[] => {
-  if (!value) return []
+  if (!value) return [];
 
   if (Array.isArray(value)) {
-    return value.filter(Boolean) as ClaudeContentPart[]
+    return value.filter(Boolean) as ClaudeContentPart[];
   }
 
   if (typeof value === "string") {
-    return [{ type: "text", text: value }]
+    return [{ type: "text", text: value }];
   }
 
   if (typeof value === "object") {
-    const obj: any = value
+    const obj: any = value;
     if (typeof obj.type !== "string" && typeof obj.text === "string") {
-      return [{ ...obj, type: "text" } as ClaudeContentPart]
+      return [{ ...obj, type: "text" } as ClaudeContentPart];
     }
-    return [obj as ClaudeContentPart]
+    return [obj as ClaudeContentPart];
   }
 
-  return []
-}
+  return [];
+};
 
 const ClaudeMarkdown: React.FC<{ value: string }> = ({ value }) => {
-  const { token } = theme.useToken()
+  const { token } = theme.useToken();
   const components = useMemo(
     () => createMarkdownComponents(token, undefined),
     [token],
-  )
+  );
   return (
     <ReactMarkdown
       remarkPlugins={[remarkGfm, remarkBreaks]}
@@ -60,112 +66,119 @@ const ClaudeMarkdown: React.FC<{ value: string }> = ({ value }) => {
     >
       {value}
     </ReactMarkdown>
-  )
-}
+  );
+};
 
 const formatJson = (value: any): string => {
   try {
-    return JSON.stringify(value, null, 2)
+    return JSON.stringify(value, null, 2);
   } catch {
-    return String(value)
+    return String(value);
   }
-}
+};
 
-const isTextPart = (part: ClaudeContentPart): part is { type: "text"; text?: string } =>
-  (part as any)?.type === "text"
+const isTextPart = (
+  part: ClaudeContentPart,
+): part is { type: "text"; text?: string } => (part as any)?.type === "text";
 
 const getTextValue = (part: any): string => {
-  const raw = part?.text
-  if (typeof raw === "string") return raw
-  if (raw && typeof raw === "object" && typeof raw.text === "string") return raw.text
-  if (raw === undefined || raw === null) return ""
+  const raw = part?.text;
+  if (typeof raw === "string") return raw;
+  if (raw && typeof raw === "object" && typeof raw.text === "string")
+    return raw.text;
+  if (raw === undefined || raw === null) return "";
   try {
-    return JSON.stringify(raw)
+    return JSON.stringify(raw);
   } catch {
-    return String(raw)
+    return String(raw);
   }
-}
+};
 
 const isToolUsePart = (
   part: ClaudeContentPart,
 ): part is Extract<ClaudeContentPart, { type: "tool_use" }> =>
-  (part as any)?.type === "tool_use"
+  (part as any)?.type === "tool_use";
 
 const isToolResultPart = (
   part: ClaudeContentPart,
 ): part is Extract<ClaudeContentPart, { type: "tool_result" }> =>
-  (part as any)?.type === "tool_result"
+  (part as any)?.type === "tool_result";
 
 type AskUserQuestionOption = {
-  label?: string
-  value?: string
-  description?: string
-}
+  label?: string;
+  value?: string;
+  description?: string;
+};
 
 type AskUserQuestionSpec = {
-  id: string
-  header?: string
-  question?: string
-  multiSelect?: boolean
-  allowCustom?: boolean
-  options: AskUserQuestionOption[]
-}
+  id: string;
+  header?: string;
+  question?: string;
+  multiSelect?: boolean;
+  allowCustom?: boolean;
+  options: AskUserQuestionOption[];
+};
 
 const normalizeToolName = (value?: string | null): string => {
-  if (!value) return ""
-  return value.toLowerCase().replace(/[^a-z0-9]/g, "")
-}
+  if (!value) return "";
+  return value.toLowerCase().replace(/[^a-z0-9]/g, "");
+};
 
 const isAskUserQuestionTool = (
   part: Extract<ClaudeContentPart, { type: "tool_use" }>,
-): boolean => normalizeToolName(part.name) === "askuserquestion"
+): boolean => normalizeToolName(part.name) === "askuserquestion";
 
 type SystemInitMeta = {
-  sessionId?: string
-  model?: string
-  cwd?: string
-  tools: string[]
-  rawDetails?: any
-  extraFields: Array<{ label: string; value: string }>
-}
+  sessionId?: string;
+  model?: string;
+  cwd?: string;
+  tools: string[];
+  rawDetails?: any;
+  extraFields: Array<{ label: string; value: string }>;
+};
 
 const toToolList = (value: any): string[] => {
-  if (!Array.isArray(value)) return []
-  return value.filter((item) => typeof item === "string") as string[]
-}
+  if (!Array.isArray(value)) return [];
+  return value.filter((item) => typeof item === "string") as string[];
+};
 
 const extractSystemInitMeta = (entry: ClaudeStreamMessage): SystemInitMeta => {
-  const sessionId = entry.session_id ?? entry.sessionId ?? undefined
-  const model = entry.message?.model ?? (entry as any)?.model
-  const cwd = entry.cwd ?? (entry as any)?.working_directory ?? undefined
-  const rawContent = entry.message?.content
-  let tools: string[] = []
-  let extraFields: Array<{ label: string; value: string }> = []
+  const sessionId = entry.session_id ?? entry.sessionId ?? undefined;
+  const model = entry.message?.model ?? (entry as any)?.model;
+  const cwd = entry.cwd ?? (entry as any)?.working_directory ?? undefined;
+  const rawContent = entry.message?.content;
+  let tools: string[] = [];
+  let extraFields: Array<{ label: string; value: string }> = [];
 
-  if (rawContent && typeof rawContent === "object" && !Array.isArray(rawContent)) {
-    const contentTools = toToolList((rawContent as any).tools)
-    const contentToolNames = toToolList((rawContent as any).tool_names)
+  if (
+    rawContent &&
+    typeof rawContent === "object" &&
+    !Array.isArray(rawContent)
+  ) {
+    const contentTools = toToolList((rawContent as any).tools);
+    const contentToolNames = toToolList((rawContent as any).tool_names);
     if (contentTools.length) {
-      tools = contentTools
+      tools = contentTools;
     } else if (contentToolNames.length) {
-      tools = contentToolNames
+      tools = contentToolNames;
     }
 
     extraFields = Object.entries(rawContent)
       .filter(([key, value]) => {
-        if (key === "tools" || key === "tool_names" || key === "tool_config") return false
+        if (key === "tools" || key === "tool_names" || key === "tool_config")
+          return false;
         return (
           typeof value === "string" ||
           typeof value === "number" ||
           typeof value === "boolean"
-        )
+        );
       })
-      .map(([key, value]) => ({ label: key, value: String(value) }))
+      .map(([key, value]) => ({ label: key, value: String(value) }));
   }
 
-  const entryTools = toToolList((entry as any)?.tools)
+  const entryTools = toToolList((entry as any)?.tools);
   if (entryTools.length) {
-    tools = entryTools
+    tools = entryTools;
   }
 
   return {
@@ -175,27 +188,29 @@ const extractSystemInitMeta = (entry: ClaudeStreamMessage): SystemInitMeta => {
     tools,
     rawDetails: rawContent,
     extraFields,
-  }
-}
+  };
+};
 
-const formatMcpToolName = (toolName: string): { provider: string; method: string } => {
-  const withoutPrefix = toolName.replace(/^mcp__/, "")
-  const parts = withoutPrefix.split("__")
+const formatMcpToolName = (
+  toolName: string,
+): { provider: string; method: string } => {
+  const withoutPrefix = toolName.replace(/^mcp__/, "");
+  const parts = withoutPrefix.split("__");
   if (parts.length >= 2) {
     const provider = parts[0]
       .replace(/_/g, " ")
       .replace(/-/g, " ")
       .split(" ")
       .map((word) => (word ? word[0].toUpperCase() + word.slice(1) : word))
-      .join(" ")
+      .join(" ");
     const method = parts
       .slice(1)
       .join("__")
       .replace(/_/g, " ")
       .split(" ")
       .map((word) => (word ? word[0].toUpperCase() + word.slice(1) : word))
-      .join(" ")
-    return { provider, method }
+      .join(" ");
+    return { provider, method };
   }
   return {
     provider: "MCP",
@@ -204,41 +219,43 @@ const formatMcpToolName = (toolName: string): { provider: string; method: string
       .split(" ")
       .map((word) => (word ? word[0].toUpperCase() + word.slice(1) : word))
       .join(" "),
-  }
-}
+  };
+};
 
-const SystemInitCard: React.FC<{ entry: ClaudeStreamMessage }> = ({ entry }) => {
-  const { token } = theme.useToken()
+const SystemInitCard: React.FC<{ entry: ClaudeStreamMessage }> = ({
+  entry,
+}) => {
+  const { token } = theme.useToken();
   const { sessionId, model, cwd, tools, rawDetails, extraFields } = useMemo(
     () => extractSystemInitMeta(entry),
     [entry],
-  )
+  );
 
   const regularTools = useMemo(
     () => tools.filter((tool) => !tool.startsWith("mcp__")),
     [tools],
-  )
+  );
   const mcpTools = useMemo(
     () => tools.filter((tool) => tool.startsWith("mcp__")),
     [tools],
-  )
+  );
 
   const mcpGroups = useMemo(() => {
-    const groups = new Map<string, string[]>()
+    const groups = new Map<string, string[]>();
     mcpTools.forEach((tool) => {
-      const { provider } = formatMcpToolName(tool)
-      const list = groups.get(provider) ?? []
-      list.push(tool)
-      groups.set(provider, list)
-    })
-    return Array.from(groups.entries())
-  }, [mcpTools])
+      const { provider } = formatMcpToolName(tool);
+      const list = groups.get(provider) ?? [];
+      list.push(tool);
+      groups.set(provider, list);
+    });
+    return Array.from(groups.entries());
+  }, [mcpTools]);
 
   const showRaw =
     (typeof rawDetails === "string" && rawDetails.trim().length > 0) ||
     (rawDetails &&
       typeof rawDetails === "object" &&
-      (!Array.isArray(rawDetails) || rawDetails.length > 0))
+      (!Array.isArray(rawDetails) || rawDetails.length > 0));
 
   return (
     <Card
@@ -317,8 +334,8 @@ const SystemInitCard: React.FC<{ entry: ClaudeStreamMessage }> = ({ entry }) => 
                         <Text type="secondary">{provider}</Text>
                         <Flex gap={6} wrap>
                           {providerTools.map((tool) => {
-                            const { method } = formatMcpToolName(tool)
-                            return <Tag key={tool}>{method}</Tag>
+                            const { method } = formatMcpToolName(tool);
+                            return <Tag key={tool}>{method}</Tag>;
                           })}
                         </Flex>
                       </Flex>
@@ -338,7 +355,9 @@ const SystemInitCard: React.FC<{ entry: ClaudeStreamMessage }> = ({ entry }) => 
                 key: "raw",
                 label: "Details",
                 children: (
-                  <pre style={{ margin: 0, fontSize: 12, whiteSpace: "pre-wrap" }}>
+                  <pre
+                    style={{ margin: 0, fontSize: 12, whiteSpace: "pre-wrap" }}
+                  >
                     {typeof rawDetails === "string"
                       ? rawDetails
                       : formatJson(rawDetails)}
@@ -350,22 +369,23 @@ const SystemInitCard: React.FC<{ entry: ClaudeStreamMessage }> = ({ entry }) => 
         ) : null}
       </Flex>
     </Card>
-  )
-}
+  );
+};
 
 const parseAskUserQuestions = (input: any): AskUserQuestionSpec[] => {
-  if (!input || typeof input !== "object") return []
+  if (!input || typeof input !== "object") return [];
   const rawQuestions: any[] = Array.isArray(input.questions)
     ? input.questions
-    : [input]
-  const parsed = rawQuestions.map((q: any, idx: number): AskUserQuestionSpec => {
+    : [input];
+  const parsed = rawQuestions.map(
+    (q: any, idx: number): AskUserQuestionSpec => {
       const options: AskUserQuestionOption[] = Array.isArray(q?.options)
         ? q.options.map((opt: any) => ({
             label: opt?.label ?? opt?.value ?? opt?.id ?? String(opt),
             value: opt?.value ?? opt?.label ?? opt?.id ?? String(opt),
             description: opt?.description,
           }))
-        : []
+        : [];
       return {
         id: String(q?.id ?? q?.key ?? idx),
         header: q?.header ?? q?.title,
@@ -373,10 +393,11 @@ const parseAskUserQuestions = (input: any): AskUserQuestionSpec[] => {
         multiSelect: Boolean(q?.multiSelect ?? q?.multi_select),
         allowCustom: Boolean(q?.allowCustom ?? q?.allow_custom),
         options,
-      }
-    })
-  return parsed.filter((q) => q.options.length || q.question || q.header)
-}
+      };
+    },
+  );
+  return parsed.filter((q) => q.options.length || q.question || q.header);
+};
 
 const buildAskUserPrompt = (
   toolUseId: string | undefined,
@@ -385,19 +406,19 @@ const buildAskUserPrompt = (
   customAnswers: Record<string, string>,
 ): string => {
   const normalized = questions.map((q) => {
-    const selected = answers[q.id] ?? []
-    const custom = customAnswers[q.id]?.trim()
+    const selected = answers[q.id] ?? [];
+    const custom = customAnswers[q.id]?.trim();
     return {
       id: q.id,
       header: q.header,
       question: q.question,
       answers: custom ? [...selected, custom] : selected,
-    }
-  })
+    };
+  });
   if (questions.length === 1) {
-    const only = normalized[0]
+    const only = normalized[0];
     if (only.answers.length === 1 && !only.question && !only.header) {
-      return only.answers[0]
+      return only.answers[0];
     }
   }
   return JSON.stringify(
@@ -408,55 +429,60 @@ const buildAskUserPrompt = (
     },
     null,
     2,
-  )
-}
+  );
+};
 
 const AskUserQuestionBlock: React.FC<{
-  part: Extract<ClaudeContentPart, { type: "tool_use" }>
-  toolResult?: any
-  sessionId?: string
-  onAnswer?: (payload: { prompt: string; sessionId?: string }) => void
-  isRunning?: boolean
+  part: Extract<ClaudeContentPart, { type: "tool_use" }>;
+  toolResult?: any;
+  sessionId?: string;
+  onAnswer?: (payload: { prompt: string; sessionId?: string }) => void;
+  isRunning?: boolean;
 }> = ({ part, toolResult, sessionId, onAnswer, isRunning }) => {
-  const { token } = theme.useToken()
-  const questions = useMemo(() => parseAskUserQuestions(part.input), [part.input])
-  const [answers, setAnswers] = useState<Record<string, string[]>>({})
-  const [customAnswers, setCustomAnswers] = useState<Record<string, string>>({})
+  const { token } = theme.useToken();
+  const questions = useMemo(
+    () => parseAskUserQuestions(part.input),
+    [part.input],
+  );
+  const [answers, setAnswers] = useState<Record<string, string[]>>({});
+  const [customAnswers, setCustomAnswers] = useState<Record<string, string>>(
+    {},
+  );
 
-  const hasResult = Boolean(toolResult)
-  const disabled = hasResult || !onAnswer
+  const hasResult = Boolean(toolResult);
+  const disabled = hasResult || !onAnswer;
 
   const handleSingleSelect = useCallback((qid: string, value: string) => {
-    setAnswers((prev) => ({ ...prev, [qid]: value ? [value] : [] }))
-  }, [])
+    setAnswers((prev) => ({ ...prev, [qid]: value ? [value] : [] }));
+  }, []);
 
   const handleMultiSelect = useCallback((qid: string, values: string[]) => {
-    setAnswers((prev) => ({ ...prev, [qid]: values }))
-  }, [])
+    setAnswers((prev) => ({ ...prev, [qid]: values }));
+  }, []);
 
   const handleCustomChange = useCallback((qid: string, value: string) => {
-    setCustomAnswers((prev) => ({ ...prev, [qid]: value }))
-  }, [])
+    setCustomAnswers((prev) => ({ ...prev, [qid]: value }));
+  }, []);
 
   const isSubmitDisabled = useMemo(() => {
-    if (disabled || questions.length === 0) return true
+    if (disabled || questions.length === 0) return true;
     return questions.every((q) => {
-      const selected = answers[q.id]?.filter(Boolean) ?? []
-      const custom = customAnswers[q.id]?.trim()
-      return selected.length === 0 && !custom
-    })
-  }, [answers, customAnswers, disabled, questions])
+      const selected = answers[q.id]?.filter(Boolean) ?? [];
+      const custom = customAnswers[q.id]?.trim();
+      return selected.length === 0 && !custom;
+    });
+  }, [answers, customAnswers, disabled, questions]);
 
   const handleSubmit = useCallback(() => {
-    if (!onAnswer) return
+    if (!onAnswer) return;
     const prompt = buildAskUserPrompt(
       part.id,
       questions,
       answers,
       customAnswers,
-    )
-    onAnswer({ prompt, sessionId })
-  }, [answers, customAnswers, onAnswer, part.id, questions, sessionId])
+    );
+    onAnswer({ prompt, sessionId });
+  }, [answers, customAnswers, onAnswer, part.id, questions, sessionId]);
 
   return (
     <Card size="small" styles={{ body: { padding: 12 } }}>
@@ -467,7 +493,7 @@ const AskUserQuestionBlock: React.FC<{
           {isRunning ? <Tag color="processing">Running</Tag> : null}
         </Flex>
         {questions.map((q) => {
-          const values = answers[q.id] ?? []
+          const values = answers[q.id] ?? [];
           return (
             <Card
               key={q.id}
@@ -488,19 +514,17 @@ const AskUserQuestionBlock: React.FC<{
                   >
                     <Space direction="vertical" style={{ width: "100%" }}>
                       {q.options.map((opt, idx) => {
-                        const value = opt.value ?? opt.label ?? String(idx)
+                        const value = opt.value ?? opt.label ?? String(idx);
                         return (
                           <Checkbox key={value} value={value}>
                             <Flex vertical>
                               <Text strong>{opt.label ?? value}</Text>
                               {opt.description ? (
-                                <Text type="secondary">
-                                  {opt.description}
-                                </Text>
+                                <Text type="secondary">{opt.description}</Text>
                               ) : null}
                             </Flex>
                           </Checkbox>
-                        )
+                        );
                       })}
                     </Space>
                   </Checkbox.Group>
@@ -512,19 +536,17 @@ const AskUserQuestionBlock: React.FC<{
                   >
                     <Space direction="vertical" style={{ width: "100%" }}>
                       {q.options.map((opt, idx) => {
-                        const value = opt.value ?? opt.label ?? String(idx)
+                        const value = opt.value ?? opt.label ?? String(idx);
                         return (
                           <Radio key={value} value={value}>
                             <Flex vertical>
                               <Text strong>{opt.label ?? value}</Text>
                               {opt.description ? (
-                                <Text type="secondary">
-                                  {opt.description}
-                                </Text>
+                                <Text type="secondary">{opt.description}</Text>
                               ) : null}
                             </Flex>
                           </Radio>
-                        )
+                        );
                       })}
                     </Space>
                   </Radio.Group>
@@ -540,7 +562,7 @@ const AskUserQuestionBlock: React.FC<{
                 ) : null}
               </Flex>
             </Card>
-          )
+          );
         })}
         {hasResult ? (
           <Card size="small" styles={{ body: { padding: 10 } }}>
@@ -548,24 +570,28 @@ const AskUserQuestionBlock: React.FC<{
           </Card>
         ) : null}
         <Flex justify="flex-end">
-          <Button type="primary" onClick={handleSubmit} disabled={isSubmitDisabled}>
+          <Button
+            type="primary"
+            onClick={handleSubmit}
+            disabled={isSubmitDisabled}
+          >
             Submit Answer
           </Button>
         </Flex>
       </Flex>
     </Card>
-  )
-}
+  );
+};
 
 type ToolDetailRow = {
-  label: string
-  value?: string
-  code?: boolean
-}
+  label: string;
+  value?: string;
+  code?: boolean;
+};
 
 const ToolKeyValueList: React.FC<{ rows: ToolDetailRow[] }> = ({ rows }) => {
-  const filtered = rows.filter((row) => row.value && row.value.trim().length)
-  if (!filtered.length) return null
+  const filtered = rows.filter((row) => row.value && row.value.trim().length);
+  if (!filtered.length) return null;
   return (
     <Flex vertical gap={4}>
       {filtered.map((row, idx) => (
@@ -577,21 +603,21 @@ const ToolKeyValueList: React.FC<{ rows: ToolDetailRow[] }> = ({ rows }) => {
         </Flex>
       ))}
     </Flex>
-  )
-}
+  );
+};
 
 const ToolUseDetails: React.FC<{
-  part: Extract<ClaudeContentPart, { type: "tool_use" }>
+  part: Extract<ClaudeContentPart, { type: "tool_use" }>;
 }> = ({ part }) => {
-  const input = part.input
-  if (!input || typeof input !== "object") return null
-  const tool = normalizeToolName(part.name)
-  const toolName = part.name ?? ""
+  const input = part.input;
+  if (!input || typeof input !== "object") return null;
+  const tool = normalizeToolName(part.name);
+  const toolName = part.name ?? "";
 
   if (toolName.startsWith("mcp__")) {
-    const { provider, method } = formatMcpToolName(toolName)
+    const { provider, method } = formatMcpToolName(toolName);
     const inputString =
-      input && Object.keys(input).length ? JSON.stringify(input, null, 2) : ""
+      input && Object.keys(input).length ? JSON.stringify(input, null, 2) : "";
     return (
       <Card size="small" styles={{ body: { padding: 10 } }}>
         <Flex vertical gap={6}>
@@ -610,7 +636,13 @@ const ToolUseDetails: React.FC<{
                   key: "mcp_input",
                   label: "Parameters",
                   children: (
-                    <pre style={{ margin: 0, fontSize: 12, whiteSpace: "pre-wrap" }}>
+                    <pre
+                      style={{
+                        margin: 0,
+                        fontSize: 12,
+                        whiteSpace: "pre-wrap",
+                      }}
+                    >
                       {inputString}
                     </pre>
                   ),
@@ -620,12 +652,12 @@ const ToolUseDetails: React.FC<{
           ) : null}
         </Flex>
       </Card>
-    )
+    );
   }
 
   if (tool === "task") {
-    const description = (input as any).description ?? (input as any).task
-    const prompt = (input as any).prompt ?? (input as any).instructions
+    const description = (input as any).description ?? (input as any).task;
+    const prompt = (input as any).prompt ?? (input as any).instructions;
     return (
       <Card size="small" styles={{ body: { padding: 10 } }}>
         <Flex vertical gap={8}>
@@ -646,7 +678,13 @@ const ToolUseDetails: React.FC<{
                   key: "task_prompt",
                   label: "Task Instructions",
                   children: (
-                    <pre style={{ margin: 0, fontSize: 12, whiteSpace: "pre-wrap" }}>
+                    <pre
+                      style={{
+                        margin: 0,
+                        fontSize: 12,
+                        whiteSpace: "pre-wrap",
+                      }}
+                    >
                       {String(prompt)}
                     </pre>
                   ),
@@ -656,42 +694,51 @@ const ToolUseDetails: React.FC<{
           ) : null}
         </Flex>
       </Card>
-    )
+    );
   }
 
   if (tool === "bash") {
-    const command = (input as any).command ?? (input as any).cmd
-    const description = (input as any).description
+    const command = (input as any).command ?? (input as any).cmd;
+    const description = (input as any).description;
     return (
       <Card size="small" styles={{ body: { padding: 10 } }}>
         <Flex vertical gap={6}>
           <Text strong>Shell Command</Text>
           <ToolKeyValueList
             rows={[
-              { label: "Command", value: command ? String(command) : "", code: true },
-              { label: "Description", value: description ? String(description) : "" },
+              {
+                label: "Command",
+                value: command ? String(command) : "",
+                code: true,
+              },
+              {
+                label: "Description",
+                value: description ? String(description) : "",
+              },
             ]}
           />
         </Flex>
       </Card>
-    )
+    );
   }
 
   if (tool === "websearch" || tool === "websearchquery") {
-    const query = (input as any).query ?? (input as any).q
+    const query = (input as any).query ?? (input as any).q;
     return (
       <Card size="small" styles={{ body: { padding: 10 } }}>
         <Flex vertical gap={6}>
           <Text strong>Web Search</Text>
-          <ToolKeyValueList rows={[{ label: "Query", value: query ? String(query) : "" }]} />
+          <ToolKeyValueList
+            rows={[{ label: "Query", value: query ? String(query) : "" }]}
+          />
         </Flex>
       </Card>
-    )
+    );
   }
 
   if (tool === "webfetch") {
-    const url = (input as any).url
-    const prompt = (input as any).prompt
+    const url = (input as any).url;
+    const prompt = (input as any).prompt;
     return (
       <Card size="small" styles={{ body: { padding: 10 } }}>
         <Flex vertical gap={6}>
@@ -704,7 +751,7 @@ const ToolUseDetails: React.FC<{
           />
         </Flex>
       </Card>
-    )
+    );
   }
 
   if (
@@ -714,15 +761,16 @@ const ToolUseDetails: React.FC<{
     tool === "edit" ||
     tool === "multiedit"
   ) {
-    const path = (input as any).path ?? (input as any).file_path ?? (input as any).file
-    const pattern = (input as any).pattern
-    const description = (input as any).description
+    const path =
+      (input as any).path ?? (input as any).file_path ?? (input as any).file;
+    const pattern = (input as any).pattern;
+    const description = (input as any).description;
     const rows: ToolDetailRow[] = [
       { label: "Path", value: path ? String(path) : "", code: true },
       { label: "Pattern", value: pattern ? String(pattern) : "" },
       { label: "Description", value: description ? String(description) : "" },
-    ].filter((row) => row.value && row.value.trim().length)
-    if (!rows.length) return null
+    ].filter((row) => row.value && row.value.trim().length);
+    if (!rows.length) return null;
     return (
       <Card size="small" styles={{ body: { padding: 10 } }}>
         <Flex vertical gap={6}>
@@ -730,34 +778,43 @@ const ToolUseDetails: React.FC<{
           <ToolKeyValueList rows={rows} />
         </Flex>
       </Card>
-    )
+    );
   }
 
-  const summaryKeys = ["path", "file_path", "query", "url", "command", "pattern"]
+  const summaryKeys = [
+    "path",
+    "file_path",
+    "query",
+    "url",
+    "command",
+    "pattern",
+  ];
   const rows = summaryKeys
     .map((key) => {
-      const value = (input as any)[key]
-      return value ? { label: key, value: String(value), code: key.includes("path") } : null
+      const value = (input as any)[key];
+      return value
+        ? { label: key, value: String(value), code: key.includes("path") }
+        : null;
     })
-    .filter(Boolean) as ToolDetailRow[]
+    .filter(Boolean) as ToolDetailRow[];
 
-  if (!rows.length) return null
+  if (!rows.length) return null;
   return (
     <Card size="small" styles={{ body: { padding: 10 } }}>
       <ToolKeyValueList rows={rows} />
     </Card>
-  )
-}
+  );
+};
 
-const ToolUseBlock: React.FC<{ part: Extract<ClaudeContentPart, { type: "tool_use" }> }> = ({
-  part,
-}) => {
+const ToolUseBlock: React.FC<{
+  part: Extract<ClaudeContentPart, { type: "tool_use" }>;
+}> = ({ part }) => {
   const summary = useMemo(() => {
-    if (!part.input || typeof part.input !== "object") return null
-    const keys = Object.keys(part.input)
-    if (!keys.length) return null
-    return keys.slice(0, 5).join(", ")
-  }, [part.input])
+    if (!part.input || typeof part.input !== "object") return null;
+    const keys = Object.keys(part.input);
+    if (!keys.length) return null;
+    return keys.slice(0, 5).join(", ");
+  }, [part.input]);
 
   return (
     <Card size="small" styles={{ body: { padding: 10 } }}>
@@ -778,7 +835,9 @@ const ToolUseBlock: React.FC<{ part: Extract<ClaudeContentPart, { type: "tool_us
               key: "input",
               label: "Input",
               children: (
-                <pre style={{ margin: 0, fontSize: 12, whiteSpace: "pre-wrap" }}>
+                <pre
+                  style={{ margin: 0, fontSize: 12, whiteSpace: "pre-wrap" }}
+                >
                   {formatJson(part.input)}
                 </pre>
               ),
@@ -787,192 +846,196 @@ const ToolUseBlock: React.FC<{ part: Extract<ClaudeContentPart, { type: "tool_us
         />
       ) : null}
     </Card>
-  )
-}
+  );
+};
 
 const tryParseJson = (value: string): any | null => {
   try {
-    return JSON.parse(value)
+    return JSON.parse(value);
   } catch {
-    return null
+    return null;
   }
-}
+};
 
 type TreeNode = {
-  name: string
-  type: "file" | "directory"
-  children: TreeNode[]
-}
+  name: string;
+  type: "file" | "directory";
+  children: TreeNode[];
+};
 
 const parseDirectoryTree = (rawContent: string): TreeNode[] => {
-  const lines = rawContent.split("\n")
-  const roots: TreeNode[] = []
-  const stack: Array<{ level: number; node: TreeNode }> = []
+  const lines = rawContent.split("\n");
+  const roots: TreeNode[] = [];
+  const stack: Array<{ level: number; node: TreeNode }> = [];
 
   for (const line of lines) {
-    if (line.startsWith("NOTE:")) break
-    if (!line.trim()) continue
-    const indentMatch = line.match(/^(\s*)/)?.[1] ?? ""
-    const level = Math.floor(indentMatch.length / 2)
-    const entryMatch = line.match(/^\s*-\s+(.+?)(\/$)?$/)
-    if (!entryMatch) continue
-    const fullName = entryMatch[1]
-    const isDirectory = line.trim().endsWith("/")
+    if (line.startsWith("NOTE:")) break;
+    if (!line.trim()) continue;
+    const indentMatch = line.match(/^(\s*)/)?.[1] ?? "";
+    const level = Math.floor(indentMatch.length / 2);
+    const entryMatch = line.match(/^\s*-\s+(.+?)(\/$)?$/);
+    if (!entryMatch) continue;
+    const fullName = entryMatch[1];
+    const isDirectory = line.trim().endsWith("/");
     const node: TreeNode = {
       name: fullName,
       type: isDirectory ? "directory" : "file",
       children: [],
-    }
+    };
 
     while (stack.length && stack[stack.length - 1].level >= level) {
-      stack.pop()
+      stack.pop();
     }
     if (stack.length) {
-      stack[stack.length - 1].node.children.push(node)
+      stack[stack.length - 1].node.children.push(node);
     } else {
-      roots.push(node)
+      roots.push(node);
     }
     if (isDirectory) {
-      stack.push({ level, node })
+      stack.push({ level, node });
     }
   }
 
-  return roots
-}
+  return roots;
+};
 
 const renderTreeNodes = (nodes: TreeNode[], level = 0): React.ReactNode => {
   return nodes.map((node, idx) => (
-    <div key={`${node.name}-${level}-${idx}`} style={{ marginLeft: level * 16 }}>
+    <div
+      key={`${node.name}-${level}-${idx}`}
+      style={{ marginLeft: level * 16 }}
+    >
       <Flex align="center" gap={6}>
         <Text code>{node.type === "directory" ? "dir" : "file"}</Text>
         <Text style={{ fontFamily: "monospace" }}>{node.name}</Text>
       </Flex>
       {node.children.length ? renderTreeNodes(node.children, level + 1) : null}
     </div>
-  ))
-}
+  ));
+};
 
 const parseNumberedCode = (
   rawContent: string,
 ): { code: string; startLine: number } => {
-  const lines = rawContent.split("\n")
-  const nonEmpty = lines.filter((line) => line.trim() !== "")
+  const lines = rawContent.split("\n");
+  const nonEmpty = lines.filter((line) => line.trim() !== "");
   if (!nonEmpty.length) {
-    return { code: rawContent, startLine: 1 }
+    return { code: rawContent, startLine: 1 };
   }
 
-  const numberedLines = nonEmpty.filter((line) => /^\s*\d+→/.test(line)).length
-  const likelyNumbered = numberedLines / nonEmpty.length > 0.5
+  const numberedLines = nonEmpty.filter((line) => /^\s*\d+→/.test(line)).length;
+  const likelyNumbered = numberedLines / nonEmpty.length > 0.5;
   if (!likelyNumbered) {
-    return { code: rawContent, startLine: 1 }
+    return { code: rawContent, startLine: 1 };
   }
 
-  const codeLines: string[] = []
-  let minLine = Number.POSITIVE_INFINITY
+  const codeLines: string[] = [];
+  let minLine = Number.POSITIVE_INFINITY;
 
   for (const rawLine of lines) {
-    const trimmed = rawLine.trimStart()
-    const match = trimmed.match(/^(\d+)→(.*)$/)
+    const trimmed = rawLine.trimStart();
+    const match = trimmed.match(/^(\d+)→(.*)$/);
     if (match) {
-      const lineNumber = parseInt(match[1], 10)
+      const lineNumber = parseInt(match[1], 10);
       if (minLine === Number.POSITIVE_INFINITY) {
-        minLine = lineNumber
+        minLine = lineNumber;
       }
-      codeLines.push(match[2])
+      codeLines.push(match[2]);
     } else if (rawLine.trim() === "") {
-      codeLines.push("")
+      codeLines.push("");
     } else {
-      codeLines.push("")
+      codeLines.push("");
     }
   }
 
   while (codeLines.length && codeLines[codeLines.length - 1] === "") {
-    codeLines.pop()
+    codeLines.pop();
   }
 
   return {
     code: codeLines.join("\n"),
     startLine: minLine === Number.POSITIVE_INFINITY ? 1 : minLine,
-  }
-}
+  };
+};
 
 const parseEditResult = (
   rawContent: string,
 ): { filePath: string; code: string; startLine: number } | null => {
-  const lines = rawContent.split("\n")
-  let filePath = ""
-  const codeLines: string[] = []
-  let minLine = Number.POSITIVE_INFINITY
-  let inCode = false
+  const lines = rawContent.split("\n");
+  let filePath = "";
+  const codeLines: string[] = [];
+  let minLine = Number.POSITIVE_INFINITY;
+  let inCode = false;
 
   for (const rawLine of lines) {
-    const line = rawLine.replace(/\r$/, "")
+    const line = rawLine.replace(/\r$/, "");
     if (line.includes("The file") && line.includes("has been updated")) {
-      const match = line.match(/The file (.+) has been updated/)
+      const match = line.match(/The file (.+) has been updated/);
       if (match) {
-        filePath = match[1]
+        filePath = match[1];
       }
-      continue
+      continue;
     }
     const match =
-      line.match(/^\s*(\d+)→(.*)$/) || line.match(/^\s*(\d+)\t?(.*)$/)
+      line.match(/^\s*(\d+)→(.*)$/) || line.match(/^\s*(\d+)\t?(.*)$/);
     if (match) {
-      inCode = true
-      const lineNumber = parseInt(match[1], 10)
+      inCode = true;
+      const lineNumber = parseInt(match[1], 10);
       if (minLine === Number.POSITIVE_INFINITY) {
-        minLine = lineNumber
+        minLine = lineNumber;
       }
-      codeLines.push(match[2])
-      continue
+      codeLines.push(match[2]);
+      continue;
     }
     if (inCode) {
       if (line.trim() === "") {
-        codeLines.push("")
+        codeLines.push("");
       }
     }
   }
 
-  if (!codeLines.length) return null
+  if (!codeLines.length) return null;
   return {
     filePath,
     code: codeLines.join("\n"),
     startLine: minLine === Number.POSITIVE_INFINITY ? 1 : minLine,
-  }
-}
+  };
+};
 
 const parseMultiEditResult = (
   rawContent: string,
 ): Array<{ filePath: string; code: string; startLine: number }> => {
-  const sections: Array<{ filePath: string; code: string; startLine: number }> = []
-  const lines = rawContent.split("\n")
-  let currentBlock: string[] = []
+  const sections: Array<{ filePath: string; code: string; startLine: number }> =
+    [];
+  const lines = rawContent.split("\n");
+  let currentBlock: string[] = [];
 
   const flushBlock = () => {
-    if (!currentBlock.length) return
-    const blockContent = currentBlock.join("\n")
-    const parsed = parseEditResult(blockContent)
+    if (!currentBlock.length) return;
+    const blockContent = currentBlock.join("\n");
+    const parsed = parseEditResult(blockContent);
     if (parsed) {
-      sections.push(parsed)
+      sections.push(parsed);
     }
-    currentBlock = []
-  }
+    currentBlock = [];
+  };
 
   for (const line of lines) {
     if (line.includes("The file") && line.includes("has been updated")) {
-      flushBlock()
+      flushBlock();
     }
-    currentBlock.push(line)
+    currentBlock.push(line);
   }
-  flushBlock()
-  return sections
-}
+  flushBlock();
+  return sections;
+};
 
 const NumberedCodeBlock: React.FC<{
-  code: string
-  startLine: number
-  header?: React.ReactNode
+  code: string;
+  startLine: number;
+  header?: React.ReactNode;
 }> = ({ code, startLine, header }) => {
-  const lines = code.split("\n")
+  const lines = code.split("\n");
   return (
     <Card size="small" styles={{ body: { padding: 0 } }}>
       {header ? (
@@ -1013,34 +1076,34 @@ const NumberedCodeBlock: React.FC<{
         </table>
       </div>
     </Card>
-  )
-}
+  );
+};
 
 const getToolResultText = (value: any): string => {
-  if (value === undefined || value === null) return ""
-  if (typeof value === "string") return value
+  if (value === undefined || value === null) return "";
+  if (typeof value === "string") return value;
   if (typeof value === "object") {
-    if (typeof (value as any).result === "string") return (value as any).result
-    if (typeof (value as any).output === "string") return (value as any).output
+    if (typeof (value as any).result === "string") return (value as any).result;
+    if (typeof (value as any).output === "string") return (value as any).output;
   }
-  return formatJson(value)
-}
+  return formatJson(value);
+};
 
 const ToolResultDetails: React.FC<{
-  toolUse?: Extract<ClaudeContentPart, { type: "tool_use" }>
-  part: any
+  toolUse?: Extract<ClaudeContentPart, { type: "tool_use" }>;
+  part: any;
 }> = ({ toolUse, part }) => {
-  const tool = normalizeToolName(toolUse?.name)
-  const content = part?.content
-  const text = getToolResultText(content)
-  const parsedJson = typeof text === "string" ? tryParseJson(text) : null
+  const tool = normalizeToolName(toolUse?.name);
+  const content = part?.content;
+  const text = getToolResultText(content);
+  const parsedJson = typeof text === "string" ? tryParseJson(text) : null;
 
   if (!tool) {
-    return null
+    return null;
   }
 
   if (tool === "ls") {
-    const nodes = parseDirectoryTree(text)
+    const nodes = parseDirectoryTree(text);
     return (
       <Card size="small" styles={{ body: { padding: 10 } }}>
         <Flex vertical gap={6}>
@@ -1054,13 +1117,13 @@ const ToolResultDetails: React.FC<{
           )}
         </Flex>
       </Card>
-    )
+    );
   }
 
   if (tool === "read") {
     const path =
-      toolUse?.input?.path ?? toolUse?.input?.file_path ?? toolUse?.input?.file
-    const parsed = parseNumberedCode(text)
+      toolUse?.input?.path ?? toolUse?.input?.file_path ?? toolUse?.input?.file;
+    const parsed = parseNumberedCode(text);
     return (
       <NumberedCodeBlock
         code={parsed.code}
@@ -1072,13 +1135,13 @@ const ToolResultDetails: React.FC<{
           </Flex>
         }
       />
-    )
+    );
   }
 
   if (tool === "edit") {
     const path =
-      toolUse?.input?.path ?? toolUse?.input?.file_path ?? toolUse?.input?.file
-    const parsed = parseEditResult(text)
+      toolUse?.input?.path ?? toolUse?.input?.file_path ?? toolUse?.input?.file;
+    const parsed = parseEditResult(text);
     if (parsed) {
       return (
         <NumberedCodeBlock
@@ -1088,11 +1151,13 @@ const ToolResultDetails: React.FC<{
             <Flex gap={8} align="center" wrap>
               <Text strong>Edit Result</Text>
               {parsed.filePath ? <Text code>{parsed.filePath}</Text> : null}
-              {!parsed.filePath && path ? <Text code>{String(path)}</Text> : null}
+              {!parsed.filePath && path ? (
+                <Text code>{String(path)}</Text>
+              ) : null}
             </Flex>
           }
         />
-      )
+      );
     }
     return (
       <Card size="small" styles={{ body: { padding: 10 } }}>
@@ -1108,11 +1173,11 @@ const ToolResultDetails: React.FC<{
           </pre>
         </Flex>
       </Card>
-    )
+    );
   }
 
   if (tool === "multiedit") {
-    const sections = parseMultiEditResult(text)
+    const sections = parseMultiEditResult(text);
     if (sections.length) {
       return (
         <Flex vertical gap={12}>
@@ -1124,13 +1189,15 @@ const ToolResultDetails: React.FC<{
               header={
                 <Flex gap={8} align="center" wrap>
                   <Text strong>Multi-Edit Result</Text>
-                  {section.filePath ? <Text code>{section.filePath}</Text> : null}
+                  {section.filePath ? (
+                    <Text code>{section.filePath}</Text>
+                  ) : null}
                 </Flex>
               }
             />
           ))}
         </Flex>
-      )
+      );
     }
     return (
       <Card size="small" styles={{ body: { padding: 10 } }}>
@@ -1139,12 +1206,12 @@ const ToolResultDetails: React.FC<{
           {text}
         </pre>
       </Card>
-    )
+    );
   }
 
   if (tool === "write") {
     const path =
-      toolUse?.input?.path ?? toolUse?.input?.file_path ?? toolUse?.input?.file
+      toolUse?.input?.path ?? toolUse?.input?.file_path ?? toolUse?.input?.file;
     return (
       <Card size="small" styles={{ body: { padding: 10 } }}>
         <Flex vertical gap={6}>
@@ -1159,7 +1226,7 @@ const ToolResultDetails: React.FC<{
           </pre>
         </Flex>
       </Card>
-    )
+    );
   }
 
   if (tool === "bash") {
@@ -1170,7 +1237,7 @@ const ToolResultDetails: React.FC<{
           {text}
         </pre>
       </Card>
-    )
+    );
   }
 
   if (tool === "websearch") {
@@ -1181,7 +1248,7 @@ const ToolResultDetails: React.FC<{
           {text}
         </pre>
       </Card>
-    )
+    );
   }
 
   if (tool === "webfetch") {
@@ -1192,7 +1259,7 @@ const ToolResultDetails: React.FC<{
           {text}
         </pre>
       </Card>
-    )
+    );
   }
 
   if (parsedJson) {
@@ -1202,17 +1269,17 @@ const ToolResultDetails: React.FC<{
           {formatJson(parsedJson)}
         </pre>
       </Card>
-    )
+    );
   }
 
-  return null
-}
+  return null;
+};
 
-const ToolResultBlock: React.FC<{ part: any; toolUse?: Extract<ClaudeContentPart, { type: "tool_use" }> }> = ({
-  part,
-  toolUse,
-}) => {
-  const isError = Boolean(part?.is_error)
+const ToolResultBlock: React.FC<{
+  part: any;
+  toolUse?: Extract<ClaudeContentPart, { type: "tool_use" }>;
+}> = ({ part, toolUse }) => {
+  const isError = Boolean(part?.is_error);
   return (
     <Card size="small" styles={{ body: { padding: 10 } }}>
       <Flex gap={8} align="center" wrap>
@@ -1229,7 +1296,9 @@ const ToolResultBlock: React.FC<{ part: any; toolUse?: Extract<ClaudeContentPart
               key: "output",
               label: "Output",
               children: (
-                <pre style={{ margin: 0, fontSize: 12, whiteSpace: "pre-wrap" }}>
+                <pre
+                  style={{ margin: 0, fontSize: 12, whiteSpace: "pre-wrap" }}
+                >
                   {typeof part.content === "string"
                     ? part.content
                     : formatJson(part.content)}
@@ -1240,48 +1309,56 @@ const ToolResultBlock: React.FC<{ part: any; toolUse?: Extract<ClaudeContentPart
         />
       ) : null}
     </Card>
-  )
-}
+  );
+};
 
 const isToolResultOnlyUserEntry = (entry: ClaudeStreamMessage): boolean => {
-  const parts = normalizeContentParts(entry.message?.content)
-  if (!parts.length) return false
-  if (entry.message?.role !== "user") return false
-  return parts.every((p) => (p as any)?.type === "tool_result")
-}
+  const parts = normalizeContentParts(entry.message?.content);
+  if (!parts.length) return false;
+  if (entry.message?.role !== "user") return false;
+  return parts.every((p) => (p as any)?.type === "tool_result");
+};
 
 const extractTextFromParts = (parts: ClaudeContentPart[]): string[] => {
   return parts
     .filter((p) => isTextPart(p))
     .map((p: any) => getTextValue(p))
-    .filter((t) => t.trim().length > 0)
-}
+    .filter((t) => t.trim().length > 0);
+};
 
-const buildToolResultsMap = (entries: ClaudeStreamMessage[]): Map<string, any> => {
-  const map = new Map<string, any>()
+const buildToolResultsMap = (
+  entries: ClaudeStreamMessage[],
+): Map<string, any> => {
+  const map = new Map<string, any>();
   entries.forEach((entry) => {
-    const parts = normalizeContentParts(entry.message?.content)
+    const parts = normalizeContentParts(entry.message?.content);
     parts.forEach((part: any) => {
-      if (part?.type === "tool_result" && typeof part.tool_use_id === "string") {
-        map.set(part.tool_use_id, part)
+      if (
+        part?.type === "tool_result" &&
+        typeof part.tool_use_id === "string"
+      ) {
+        map.set(part.tool_use_id, part);
       }
-    })
-  })
-  return map
-}
+    });
+  });
+  return map;
+};
 
-const getStableEntryKey = (entry: ClaudeStreamMessage, fallbackIdx: number): string => {
-  const sid = entry.session_id ?? entry.sessionId ?? ""
-  const uuid = (entry as any)?.uuid as string | undefined
-  if (uuid) return `${sid}|uuid|${uuid}`
-  const messageId = entry.message?.id
-  if (messageId) return `${sid}|mid|${messageId}`
-  const ts = entry.timestamp ?? ""
-  const type = entry.type ?? ""
-  const subtype = entry.subtype ?? ""
-  if (ts || type || subtype || sid) return `${sid}|${type}|${subtype}|${ts}`
-  return `fallback-${fallbackIdx}`
-}
+const getStableEntryKey = (
+  entry: ClaudeStreamMessage,
+  fallbackIdx: number,
+): string => {
+  const sid = entry.session_id ?? entry.sessionId ?? "";
+  const uuid = (entry as any)?.uuid as string | undefined;
+  if (uuid) return `${sid}|uuid|${uuid}`;
+  const messageId = entry.message?.id;
+  if (messageId) return `${sid}|mid|${messageId}`;
+  const ts = entry.timestamp ?? "";
+  const type = entry.type ?? "";
+  const subtype = entry.subtype ?? "";
+  if (ts || type || subtype || sid) return `${sid}|${type}|${subtype}|${ts}`;
+  return `fallback-${fallbackIdx}`;
+};
 
 const renderAssistantParts = (
   parts: ClaudeContentPart[],
@@ -1294,14 +1371,14 @@ const renderAssistantParts = (
   return (
     <Flex vertical gap={8}>
       {parts.map((part, idx) => {
-        const key = `${keyPrefix}-${idx}`
+        const key = `${keyPrefix}-${idx}`;
         if (isTextPart(part)) {
-          const value = getTextValue(part)
-          if (!value.trim()) return null
-          return <ClaudeMarkdown key={key} value={value} />
+          const value = getTextValue(part);
+          if (!value.trim()) return null;
+          return <ClaudeMarkdown key={key} value={value} />;
         }
         if (isToolUsePart(part)) {
-          const result = part.id ? toolResults.get(part.id) : null
+          const result = part.id ? toolResults.get(part.id) : null;
           if (isAskUserQuestionTool(part)) {
             return (
               <AskUserQuestionBlock
@@ -1312,21 +1389,21 @@ const renderAssistantParts = (
                 onAnswer={onAskUserAnswer}
                 isRunning={isRunning}
               />
-            )
+            );
           }
           return (
             <Flex key={key} vertical gap={8}>
               <ToolUseBlock part={part} />
               {result ? <ToolResultBlock part={result} toolUse={part} /> : null}
             </Flex>
-          )
+          );
         }
         if (isToolResultPart(part)) {
-          return null
+          return null;
         }
         if ((part as any)?.type === "thinking") {
-          const thinking = (part as any)?.thinking
-          if (typeof thinking !== "string" || !thinking.trim()) return null
+          const thinking = (part as any)?.thinking;
+          if (typeof thinking !== "string" || !thinking.trim()) return null;
           return (
             <Collapse
               key={key}
@@ -1336,77 +1413,88 @@ const renderAssistantParts = (
                   key: "thinking",
                   label: "Thinking",
                   children: (
-                    <pre style={{ margin: 0, fontSize: 12, whiteSpace: "pre-wrap" }}>
+                    <pre
+                      style={{
+                        margin: 0,
+                        fontSize: 12,
+                        whiteSpace: "pre-wrap",
+                      }}
+                    >
                       {thinking}
                     </pre>
                   ),
                 },
               ]}
             />
-          )
+          );
         }
         return (
-          <pre key={key} style={{ margin: 0, fontSize: 12, whiteSpace: "pre-wrap" }}>
+          <pre
+            key={key}
+            style={{ margin: 0, fontSize: 12, whiteSpace: "pre-wrap" }}
+          >
             {formatJson(part)}
           </pre>
-        )
+        );
       })}
     </Flex>
-  )
-}
+  );
+};
 
-const inferRole = (entry: ClaudeStreamMessage): "user" | "assistant" | "system" => {
+const inferRole = (
+  entry: ClaudeStreamMessage,
+): "user" | "assistant" | "system" => {
   const role =
     entry.message?.role ??
-    (entry.type === "user" || entry.type === "assistant" ? entry.type : null)
-  if (role === "user" || role === "assistant") return role
-  return "system"
-}
+    (entry.type === "user" || entry.type === "assistant" ? entry.type : null);
+  if (role === "user" || role === "assistant") return role;
+  return "system";
+};
 
 const isSystemInitEntry = (entry: ClaudeStreamMessage): boolean =>
-  entry.type === "system" && entry.subtype === "init"
+  entry.type === "system" && entry.subtype === "init";
 
 export const AgentChatView: React.FC<{
-  entries: ClaudeStreamMessage[]
-  autoScrollToken?: any
-  onAskUserAnswer?: (payload: { prompt: string; sessionId?: string }) => void
-  isRunning?: boolean
+  entries: ClaudeStreamMessage[];
+  autoScrollToken?: any;
+  onAskUserAnswer?: (payload: { prompt: string; sessionId?: string }) => void;
+  isRunning?: boolean;
 }> = ({ entries, autoScrollToken, onAskUserAnswer, isRunning }) => {
-  const { token } = theme.useToken()
-  const scrollRef = useRef<HTMLDivElement>(null)
-  const [showScrollToBottom, setShowScrollToBottom] = useState(false)
+  const { token } = theme.useToken();
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const [showScrollToBottom, setShowScrollToBottom] = useState(false);
 
-  const toolResults = useMemo(() => buildToolResultsMap(entries), [entries])
+  const toolResults = useMemo(() => buildToolResultsMap(entries), [entries]);
 
   const scrollToBottom = useCallback(() => {
-    const el = scrollRef.current
-    if (!el) return
-    el.scrollTop = el.scrollHeight
-  }, [])
+    const el = scrollRef.current;
+    if (!el) return;
+    el.scrollTop = el.scrollHeight;
+  }, []);
 
   const updateScrollState = useCallback(() => {
-    const el = scrollRef.current
-    if (!el) return
-    const threshold = 48
-    const distance = el.scrollHeight - el.scrollTop - el.clientHeight
-    setShowScrollToBottom(distance > threshold)
-  }, [])
+    const el = scrollRef.current;
+    if (!el) return;
+    const threshold = 48;
+    const distance = el.scrollHeight - el.scrollTop - el.clientHeight;
+    setShowScrollToBottom(distance > threshold);
+  }, []);
 
   useEffect(() => {
-    if (autoScrollToken === undefined) return
-    scrollToBottom()
-    setShowScrollToBottom(false)
-  }, [autoScrollToken, scrollToBottom])
+    if (autoScrollToken === undefined) return;
+    scrollToBottom();
+    setShowScrollToBottom(false);
+  }, [autoScrollToken, scrollToBottom]);
 
   useEffect(() => {
-    const el = scrollRef.current
-    if (!el) return
-    updateScrollState()
-    el.addEventListener("scroll", updateScrollState, { passive: true })
+    const el = scrollRef.current;
+    if (!el) return;
+    updateScrollState();
+    el.addEventListener("scroll", updateScrollState, { passive: true });
     return () => {
-      el.removeEventListener("scroll", updateScrollState)
-    }
-  }, [updateScrollState, entries.length])
+      el.removeEventListener("scroll", updateScrollState);
+    };
+  }, [updateScrollState, entries.length]);
 
   return (
     <div style={{ position: "relative", height: "100%", overflow: "hidden" }}>
@@ -1422,35 +1510,39 @@ export const AgentChatView: React.FC<{
         <Flex vertical gap={token.marginSM}>
           {entries.map((entry, idx) => {
             if (isToolResultOnlyUserEntry(entry)) {
-              return null
+              return null;
             }
 
-            const role = inferRole(entry)
-            const align = role === "user" ? "flex-end" : "flex-start"
+            const role = inferRole(entry);
+            const align = role === "user" ? "flex-end" : "flex-start";
             const bubbleBg =
-              role === "user" ? token.colorPrimaryBg : token.colorBgElevated
-            const headerTags: React.ReactNode[] = []
+              role === "user" ? token.colorPrimaryBg : token.colorBgElevated;
+            const headerTags: React.ReactNode[] = [];
             headerTags.push(
               <Tag
                 key="type"
                 color={
-                  role === "user" ? "blue" : role === "assistant" ? "purple" : "default"
+                  role === "user"
+                    ? "blue"
+                    : role === "assistant"
+                      ? "purple"
+                      : "default"
                 }
               >
                 {role}
               </Tag>,
-            )
+            );
             if (entry.subtype) {
               headerTags.push(
                 <Tag key="subtype" color="geekblue">
                   {entry.subtype}
                 </Tag>,
-              )
+              );
             }
 
-            const parts = normalizeContentParts(entry.message?.content)
-            const key = getStableEntryKey(entry, idx)
-            const sessionId = entry.session_id ?? entry.sessionId
+            const parts = normalizeContentParts(entry.message?.content);
+            const key = getStableEntryKey(entry, idx);
+            const sessionId = entry.session_id ?? entry.sessionId;
 
             if (isSystemInitEntry(entry)) {
               return (
@@ -1459,23 +1551,26 @@ export const AgentChatView: React.FC<{
                     <SystemInitCard entry={entry} />
                   </div>
                 </Flex>
-              )
+              );
             }
 
             if (role === "system") {
-              const maybeText = extractTextFromParts(parts).join("\n").trim()
+              const maybeText = extractTextFromParts(parts).join("\n").trim();
               if (!maybeText) {
-                return null
+                return null;
               }
               return (
                 <Flex key={key} justify="center">
-                  <Card size="small" styles={{ body: { padding: token.paddingXS } }}>
+                  <Card
+                    size="small"
+                    styles={{ body: { padding: token.paddingXS } }}
+                  >
                     <Text type="secondary" style={{ fontSize: 12 }}>
                       {maybeText}
                     </Text>
                   </Card>
                 </Flex>
-              )
+              );
             }
 
             return (
@@ -1503,8 +1598,8 @@ export const AgentChatView: React.FC<{
                         ) : null}
                       </Flex>
 
-                      {parts.length ? (
-                        role === "assistant"
+                      {parts.length
+                        ? role === "assistant"
                           ? renderAssistantParts(
                               parts,
                               toolResults,
@@ -1521,12 +1616,12 @@ export const AgentChatView: React.FC<{
                               onAskUserAnswer,
                               isRunning,
                             )
-                      ) : null}
+                        : null}
                     </Flex>
                   </Card>
                 </div>
               </Flex>
-            )
+            );
           })}
         </Flex>
       </div>
@@ -1544,5 +1639,5 @@ export const AgentChatView: React.FC<{
         />
       ) : null}
     </div>
-  )
-}
+  );
+};

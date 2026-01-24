@@ -1,48 +1,48 @@
-import { buildBackendUrl } from "../utils/backendBaseUrl"
+import { buildBackendUrl } from "../utils/backendBaseUrl";
 
 export interface BodhiSystemPrompt {
-  id: string
-  name?: string
-  content?: string
-  description?: string
+  id: string;
+  name?: string;
+  content?: string;
+  description?: string;
 }
 
 export interface BodhiSystemPromptsResponse {
-  prompts: BodhiSystemPrompt[]
+  prompts: BodhiSystemPrompt[];
 }
 
 export interface BodhiToolsResponse {
-  tools: any[]
+  tools: any[];
 }
 
 export class BodhiConfigService {
-  private static instance: BodhiConfigService
+  private static instance: BodhiConfigService;
 
   private constructor() {}
 
   static getInstance(): BodhiConfigService {
     if (!BodhiConfigService.instance) {
-      BodhiConfigService.instance = new BodhiConfigService()
+      BodhiConfigService.instance = new BodhiConfigService();
     }
-    return BodhiConfigService.instance
+    return BodhiConfigService.instance;
   }
 
   async getSystemPrompts(): Promise<BodhiSystemPromptsResponse> {
     return {
       prompts: [],
-    }
+    };
   }
 
   async getTools(): Promise<BodhiToolsResponse> {
     try {
-      const response = await fetch(buildBackendUrl("/mcp/tools"))
+      const response = await fetch(buildBackendUrl("/mcp/tools"));
       if (!response.ok) {
-        throw new Error(`Failed to fetch MCP tools: ${response.status}`)
+        throw new Error(`Failed to fetch MCP tools: ${response.status}`);
       }
-      return await response.json()
+      return await response.json();
     } catch (error) {
-      console.error("Failed to fetch MCP tools:", error)
-      return { tools: [] }
+      console.error("Failed to fetch MCP tools:", error);
+      return { tools: [] };
     }
   }
 }

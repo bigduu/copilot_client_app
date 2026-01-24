@@ -51,22 +51,22 @@ export function useChatState(): UseChatState {
   // --- DERIVED STATE ---
   const currentChat = useMemo(
     () => chats.find((chat) => chat.id === currentChatId) || null,
-    [chats, currentChatId]
+    [chats, currentChatId],
   );
 
   const baseMessages = useMemo(
     () => currentChat?.messages || [],
-    [currentChat]
+    [currentChat],
   );
 
   const pinnedChats = useMemo(
     () => chats.filter((chat) => chat.pinned),
-    [chats]
+    [chats],
   );
 
   const unpinnedChats = useMemo(
     () => chats.filter((chat) => !chat.pinned),
-    [chats]
+    [chats],
   );
 
   const chatCount = chats.length;

@@ -24,7 +24,8 @@ const getDisplayPath = (path: string, maxLength = 40): string => {
   if (path.includes("/Users/") || path.includes("/home/")) {
     const parts = path.split("/");
     const idx = parts.findIndex(
-      (_part, i) => i > 0 && (parts[i - 1] === "Users" || parts[i - 1] === "home"),
+      (_part, i) =>
+        i > 0 && (parts[i - 1] === "Users" || parts[i - 1] === "home"),
     );
     if (idx > 0) {
       const relative = parts.slice(idx + 1).join("/");
@@ -33,7 +34,9 @@ const getDisplayPath = (path: string, maxLength = 40): string => {
   }
   if (displayPath.length > maxLength) {
     const start = displayPath.slice(0, Math.floor(maxLength / 2) - 2);
-    const end = displayPath.slice(displayPath.length - Math.floor(maxLength / 2) + 2);
+    const end = displayPath.slice(
+      displayPath.length - Math.floor(maxLength / 2) + 2,
+    );
     return `${start}...${end}`;
   }
   return displayPath;
@@ -124,7 +127,10 @@ export const AgentProjectsPage: React.FC<AgentProjectsPageProps> = ({
                   >
                     <Flex justify="space-between" style={{ width: "100%" }}>
                       <Text strong>{getProjectName(project.path)}</Text>
-                      <Text type="secondary" style={{ fontFamily: "monospace" }}>
+                      <Text
+                        type="secondary"
+                        style={{ fontFamily: "monospace" }}
+                      >
                         {getDisplayPath(project.path)}
                       </Text>
                     </Flex>

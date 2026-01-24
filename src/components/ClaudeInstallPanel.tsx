@@ -53,7 +53,9 @@ export const ClaudeInstallPanel: React.FC<{ projectPath?: string | null }> = ({
       const data = await claudeInstallerService.getSettings();
       setSettings(normalizeSettings(data));
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to load installer settings");
+      setError(
+        e instanceof Error ? e.message : "Failed to load installer settings",
+      );
     }
   }, []);
 
@@ -69,7 +71,9 @@ export const ClaudeInstallPanel: React.FC<{ projectPath?: string | null }> = ({
       const saved = await claudeInstallerService.updateSettings(settings);
       setSettings(saved);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to save installer settings");
+      setError(
+        e instanceof Error ? e.message : "Failed to save installer settings",
+      );
     } finally {
       setIsSaving(false);
     }
@@ -121,7 +125,10 @@ export const ClaudeInstallPanel: React.FC<{ projectPath?: string | null }> = ({
           {
             scope: settings.install_scope,
             package: pkg,
-            projectPath: settings.install_scope === "project" ? projectPath ?? undefined : undefined,
+            projectPath:
+              settings.install_scope === "project"
+                ? (projectPath ?? undefined)
+                : undefined,
           },
           handleEvent,
         );
@@ -163,7 +170,10 @@ export const ClaudeInstallPanel: React.FC<{ projectPath?: string | null }> = ({
           <Input
             value={settings.claude_router_package}
             onChange={(e) =>
-              setSettings({ ...settings, claude_router_package: e.target.value })
+              setSettings({
+                ...settings,
+                claude_router_package: e.target.value,
+              })
             }
             placeholder={DEFAULT_CLAUDE_ROUTER_PACKAGE}
           />
@@ -196,7 +206,8 @@ export const ClaudeInstallPanel: React.FC<{ projectPath?: string | null }> = ({
             Last install (code): {settings.last_installed?.claude_code ?? "-"}
           </Text>
           <Text type="secondary">
-            Last install (router): {settings.last_installed?.claude_router ?? "-"}
+            Last install (router):{" "}
+            {settings.last_installed?.claude_router ?? "-"}
           </Text>
         </Flex>
       </Card>

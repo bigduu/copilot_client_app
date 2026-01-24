@@ -1,7 +1,9 @@
 ## 1. Proposal Validation
+
 - [ ] 1.1 Run `openspec validate add-claude-code-agent-mode --strict` and fix all findings
 
 ## 2. Backend (Tauri) - Claude Code Integration
+
 - [ ] 2.1 Add Claude Code binary discovery with optional manual override (persisted)
 - [ ] 2.2 Implement filesystem readers for:
   - `~/.claude/projects` project listing
@@ -25,11 +27,13 @@
   - safe project/session path handling does not allow path traversal
 
 ## 3. Frontend - Mode Switch
+
 - [ ] 3.1 Add global mode state (`Chat` | `Agent`) with persisted preference
 - [ ] 3.2 Update `MainLayout` to render Chat UI or Agent UI based on mode
 - [ ] 3.3 Ensure Chat state is preserved when toggling away and back
 
 ## 4. Frontend - Agent UI (Claude Code)
+
 - [ ] 4.1 Add Agent sidebar/browser:
   - project list
   - session list for selected project
@@ -44,6 +48,7 @@
 - [ ] 4.4 Add TypeScript tests for stream-json parsing/render mapping (Vitest)
 
 ## 5. End-to-End Validation
+
 - [ ] 5.1 Manual smoke test in Tauri dev:
   - list projects/sessions from a real `~/.claude`
   - start + continue + resume

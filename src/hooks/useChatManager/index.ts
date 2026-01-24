@@ -1,6 +1,6 @@
 /**
  * Main useChatManager hook - Orchestrator
- * 
+ *
  * This hook composes all sub-hooks to provide a unified interface
  * for chat management. It follows the composition pattern to keep
  * each hook focused on a single responsibility.
@@ -78,7 +78,8 @@ export const useChatManager = () => {
     // State from useChatTitleGeneration
     titleGenerationState: titleGeneration.titleGenerationState,
     autoGenerateTitles: titleGeneration.autoGenerateTitles,
-    isUpdatingAutoTitlePreference: titleGeneration.isUpdatingAutoTitlePreference,
+    isUpdatingAutoTitlePreference:
+      titleGeneration.isUpdatingAutoTitlePreference,
 
     // Actions from useChatState
     addMessage: state.addMessage,
@@ -93,7 +94,8 @@ export const useChatManager = () => {
 
     // Actions from useChatTitleGeneration
     generateChatTitle: titleGeneration.generateChatTitle,
-    setAutoGenerateTitlesPreference: titleGeneration.setAutoGenerateTitlesPreference,
+    setAutoGenerateTitlesPreference:
+      titleGeneration.setAutoGenerateTitlesPreference,
 
     // Actions from useChatOperations
     createNewChat: operations.createNewChat,

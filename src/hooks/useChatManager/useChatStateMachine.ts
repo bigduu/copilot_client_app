@@ -27,10 +27,13 @@ export function useChatStateMachine(
     onCancel?: () => void;
     onRetry?: (content: string) => Promise<void>;
     isProcessing?: boolean;
-  }
+  },
 ): UseChatStateMachine {
   const isProcessing = options?.isProcessing ?? false;
-  const currentMessages = useMemo(() => state.baseMessages, [state.baseMessages]);
+  const currentMessages = useMemo(
+    () => state.baseMessages,
+    [state.baseMessages],
+  );
   const interactionState = useMemo(() => {
     const value: "IDLE" | "THINKING" | "AWAITING_APPROVAL" = isProcessing
       ? "THINKING"
@@ -53,7 +56,7 @@ export function useChatStateMachine(
         options?.onCancel?.();
       }
     },
-    [options]
+    [options],
   );
 
   const retryLastMessage = useCallback(async () => {
@@ -68,9 +71,9 @@ export function useChatStateMachine(
       trimmedHistory = history.slice(0, -1);
     }
 
-    const lastUser = [...trimmedHistory].reverse().find(
-      (msg) => msg.role === "user"
-    );
+    const lastUser = [...trimmedHistory]
+      .reverse()
+      .find((msg) => msg.role === "user");
     if (!lastUser) return;
 
     const content =

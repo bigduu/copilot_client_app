@@ -1,27 +1,27 @@
-import { create } from "zustand"
-import { persist } from "zustand/middleware"
+import { create } from "zustand";
+import { persist } from "zustand/middleware";
 
 export type ClaudeModel =
   | "claude-3-5-sonnet"
   | "claude-3-5-haiku"
   | "claude-3-opus"
-  | string
+  | string;
 
 interface AgentState {
-  selectedProjectId: string | null
-  selectedProjectPath: string | null
-  selectedSessionId: string | null
-  model: ClaudeModel
-  promptDraft: string
-  sessionsRefreshNonce: number
+  selectedProjectId: string | null;
+  selectedProjectPath: string | null;
+  selectedSessionId: string | null;
+  model: ClaudeModel;
+  promptDraft: string;
+  sessionsRefreshNonce: number;
 
-  setSelectedProject: (id: string | null, path: string | null) => void
-  setSelectedProjectId: (id: string | null) => void
-  setSelectedProjectPath: (path: string | null) => void
-  setSelectedSessionId: (id: string | null) => void
-  setModel: (model: ClaudeModel) => void
-  setPromptDraft: (value: string) => void
-  bumpSessionsRefreshNonce: () => void
+  setSelectedProject: (id: string | null, path: string | null) => void;
+  setSelectedProjectId: (id: string | null) => void;
+  setSelectedProjectPath: (path: string | null) => void;
+  setSelectedSessionId: (id: string | null) => void;
+  setModel: (model: ClaudeModel) => void;
+  setPromptDraft: (value: string) => void;
+  bumpSessionsRefreshNonce: () => void;
 }
 
 export const useAgentStore = create<AgentState>()(
@@ -54,8 +54,10 @@ export const useAgentStore = create<AgentState>()(
       setModel: (model) => set({ model }),
       setPromptDraft: (value) => set({ promptDraft: value }),
       bumpSessionsRefreshNonce: () =>
-        set((prev) => ({ sessionsRefreshNonce: prev.sessionsRefreshNonce + 1 })),
+        set((prev) => ({
+          sessionsRefreshNonce: prev.sessionsRefreshNonce + 1,
+        })),
     }),
     { name: "bodhi_agent_state" },
   ),
-)
+);

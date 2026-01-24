@@ -245,7 +245,10 @@ export const MermaidChart: React.FC<MermaidChartProps> = React.memo(
 
           let renderedSvg;
           try {
-            const renderResult = await mermaid.render(uniqueId, normalizedChart);
+            const renderResult = await mermaid.render(
+              uniqueId,
+              normalizedChart,
+            );
             renderedSvg = renderResult.svg;
             console.log("✅ Mermaid render successful");
           } catch (renderError) {

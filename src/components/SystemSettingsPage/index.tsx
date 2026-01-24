@@ -157,13 +157,12 @@ const SystemSettingsPage = ({
   const [mermaidEnhancementEnabled, setMermaidEnhancementEnabledState] =
     useState(isMermaidEnhancementEnabled());
   const [todoEnhancementEnabled, setTodoEnhancementEnabledState] = useState(
-    isTodoEnhancementEnabled()
+    isTodoEnhancementEnabled(),
   );
-  const [backendBaseUrl, setBackendBaseUrlState] = useState(
-    getBackendBaseUrl()
-  );
+  const [backendBaseUrl, setBackendBaseUrlState] =
+    useState(getBackendBaseUrl());
   const [hasBackendOverride, setHasBackendOverride] = useState(
-    hasBackendBaseUrlOverride()
+    hasBackendBaseUrlOverride(),
   );
   const [mcpConfigJson, setMcpConfigJson] = useState("");
   const [mcpConfigError, setMcpConfigError] = useState<string | null>(null);
@@ -202,7 +201,7 @@ const SystemSettingsPage = ({
       msgApi.success(
         checked
           ? "Auto title generation enabled"
-          : "Auto title generation disabled"
+          : "Auto title generation disabled",
       );
     } catch (error) {
       msgApi.error("Failed to update auto title preference");
@@ -299,7 +298,7 @@ const SystemSettingsPage = ({
         } catch {
           return [name, null] as const;
         }
-      })
+      }),
     );
     setMcpStatuses(Object.fromEntries(entries));
   };
@@ -333,7 +332,7 @@ const SystemSettingsPage = ({
       setMcpConfigError(
         error instanceof Error
           ? error.message
-          : "Failed to load MCP configuration"
+          : "Failed to load MCP configuration",
       );
     } finally {
       setIsLoadingMcp(false);
@@ -348,7 +347,7 @@ const SystemSettingsPage = ({
       await applyBodhiConfig(config, true);
     } catch (error) {
       setBodhiConfigError(
-        error instanceof Error ? error.message : "Failed to load Bodhi config"
+        error instanceof Error ? error.message : "Failed to load Bodhi config",
       );
     } finally {
       setIsLoadingBodhiConfig(false);
@@ -396,7 +395,7 @@ const SystemSettingsPage = ({
       msgApi.error(
         error instanceof Error
           ? error.message
-          : "Failed to save MCP configuration"
+          : "Failed to save MCP configuration",
       );
     }
   };
@@ -411,7 +410,7 @@ const SystemSettingsPage = ({
       await loadBodhiConfig();
     } catch (error) {
       msgApi.error(
-        error instanceof Error ? error.message : "Failed to save Bodhi config"
+        error instanceof Error ? error.message : "Failed to save Bodhi config",
       );
     }
   };
@@ -527,7 +526,10 @@ const SystemSettingsPage = ({
                         >
                           Reset to Default
                         </Button>
-                        <Button type="primary" onClick={handleSaveBackendBaseUrl}>
+                        <Button
+                          type="primary"
+                          onClick={handleSaveBackendBaseUrl}
+                        >
                           Save
                         </Button>
                       </Flex>
@@ -566,7 +568,7 @@ const SystemSettingsPage = ({
                               msgApi.error(
                                 error instanceof Error
                                   ? error.message
-                                  : "Failed to reload MCP configuration"
+                                  : "Failed to reload MCP configuration",
                               );
                             } finally {
                               setIsLoadingMcp(false);
@@ -594,7 +596,9 @@ const SystemSettingsPage = ({
                       }}
                       placeholder='{"mcpServers":{}}'
                     />
-                    {mcpConfigError && <Text type="danger">{mcpConfigError}</Text>}
+                    {mcpConfigError && (
+                      <Text type="danger">{mcpConfigError}</Text>
+                    )}
                     {Object.keys(mcpStatuses).length > 0 && (
                       <Space
                         direction="vertical"
@@ -602,11 +606,17 @@ const SystemSettingsPage = ({
                         style={{ width: "100%" }}
                       >
                         {Object.entries(mcpStatuses).map(([name, status]) => (
-                          <Flex key={name} justify="space-between" align="center">
+                          <Flex
+                            key={name}
+                            justify="space-between"
+                            align="center"
+                          >
                             <Text code>{name}</Text>
                             <Text
                               type={
-                                status?.status === "error" ? "danger" : "secondary"
+                                status?.status === "error"
+                                  ? "danger"
+                                  : "secondary"
                               }
                             >
                               {formatMcpStatus(status)}
@@ -615,10 +625,13 @@ const SystemSettingsPage = ({
                         ))}
                       </Space>
                     )}
-                    <Text type="secondary" style={{ fontSize: token.fontSizeSM }}>
-                      Edit <Text code>~/.bodhi/mcp_servers.json</Text> directly or
-                      use this editor. The UI refreshes periodically; use Reload to
-                      apply file changes or Save to persist edits.
+                    <Text
+                      type="secondary"
+                      style={{ fontSize: token.fontSizeSM }}
+                    >
+                      Edit <Text code>~/.bodhi/mcp_servers.json</Text> directly
+                      or use this editor. The UI refreshes periodically; use
+                      Reload to apply file changes or Save to persist edits.
                     </Text>
                   </Space>
                 </Card>
@@ -647,7 +660,7 @@ const SystemSettingsPage = ({
                               msgApi.error(
                                 error instanceof Error
                                   ? error.message
-                                  : "Failed to reload Bodhi config"
+                                  : "Failed to reload Bodhi config",
                               );
                             } finally {
                               setIsLoadingBodhiConfig(false);
@@ -678,10 +691,13 @@ const SystemSettingsPage = ({
                     {bodhiConfigError && (
                       <Text type="danger">{bodhiConfigError}</Text>
                     )}
-                    <Text type="secondary" style={{ fontSize: token.fontSizeSM }}>
-                      Edit <Text code>~/.bodhi/config.json</Text> directly or use
-                      this editor. The UI refreshes periodically; use Reload to
-                      apply file changes or Save to persist edits.
+                    <Text
+                      type="secondary"
+                      style={{ fontSize: token.fontSizeSM }}
+                    >
+                      Edit <Text code>~/.bodhi/config.json</Text> directly or
+                      use this editor. The UI refreshes periodically; use Reload
+                      to apply file changes or Save to persist edits.
                     </Text>
                   </Space>
                 </Card>
@@ -790,8 +806,8 @@ const SystemSettingsPage = ({
                       type="secondary"
                       style={{ fontSize: token.fontSizeSM }}
                     >
-                      When enabled, the app generates a descriptive title after the
-                      first assistant response.
+                      When enabled, the app generates a descriptive title after
+                      the first assistant response.
                     </Text>
                     <Flex align="center" gap={token.marginSM}>
                       <Text strong>Dark Mode</Text>

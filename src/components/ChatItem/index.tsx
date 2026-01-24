@@ -85,9 +85,7 @@ const ChatItemComponent: React.FC<ChatItemProps> = ({
     overflow: "hidden",
     textOverflow: "ellipsis",
     fontSize: token.fontSizeSM,
-    fontWeight: isSelected
-      ? token.fontWeightStrong
-      : "normal",
+    fontWeight: isSelected ? token.fontWeightStrong : "normal",
     color: isSelected ? token.colorPrimary : token.colorText,
   };
 
@@ -102,17 +100,17 @@ const ChatItemComponent: React.FC<ChatItemProps> = ({
     isHovered || isEditing
       ? [
           // Pin/Unpin button
-                <Tooltip key="pin" title={chat.pinned ? "Unpin" : "Pin"}>
-                  <Button
-                    type="text"
-                    size="small"
-                    icon={
-                      chat.pinned ? (
-                        <PushpinFilled style={{ color: token.colorWarning }} />
-                      ) : (
-                        <PushpinOutlined />
-                      )
-                    }
+          <Tooltip key="pin" title={chat.pinned ? "Unpin" : "Pin"}>
+            <Button
+              type="text"
+              size="small"
+              icon={
+                chat.pinned ? (
+                  <PushpinFilled style={{ color: token.colorWarning }} />
+                ) : (
+                  <PushpinOutlined />
+                )
+              }
               onClick={(e) => {
                 e.stopPropagation();
                 chat.pinned ? onUnpin(chat.id) : onPin(chat.id);
@@ -140,9 +138,7 @@ const ChatItemComponent: React.FC<ChatItemProps> = ({
                   <Button
                     type="text"
                     size="small"
-                    icon={
-                      <CloseOutlined style={{ color: token.colorError }} />
-                    }
+                    icon={<CloseOutlined style={{ color: token.colorError }} />}
                     onClick={handleCancel}
                   />
                 </Tooltip>,
@@ -241,7 +237,7 @@ const ChatItemComponent: React.FC<ChatItemProps> = ({
 // Custom comparison function to ensure re-render when title changes
 const arePropsEqual = (
   prevProps: ChatItemProps,
-  nextProps: ChatItemProps
+  nextProps: ChatItemProps,
 ): boolean => {
   // Return true if props are equal (skip re-render)
   // Return false if props are different (re-render)

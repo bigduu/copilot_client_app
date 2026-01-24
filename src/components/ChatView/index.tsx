@@ -25,14 +25,14 @@ export const ChatView: React.FC = () => {
   const currentChatId = useAppStore((state) => state.currentChatId);
   const currentChat = useAppStore(
     (state) =>
-      state.chats.find((chat) => chat.id === state.currentChatId) || null
+      state.chats.find((chat) => chat.id === state.currentChatId) || null,
   );
   const deleteMessage = useAppStore((state) => state.deleteMessage);
   const updateChat = useAppStore((state) => state.updateChat);
   const isProcessing = useAppStore((state) => state.isProcessing);
   const currentMessages = useMemo(
     () => currentChat?.messages || [],
-    [currentChat]
+    [currentChat],
   );
   const interactionState = useMemo(() => {
     const value: "IDLE" | "THINKING" | "AWAITING_APPROVAL" = isProcessing
@@ -57,7 +57,7 @@ export const ChatView: React.FC = () => {
         deleteMessage(currentChatId, messageId);
       }
     },
-    [currentChatId, deleteMessage]
+    [currentChatId, deleteMessage],
   );
   const messagesListRef = useRef<HTMLDivElement>(null);
   const { token } = useToken();
@@ -68,7 +68,9 @@ export const ChatView: React.FC = () => {
   const lastChatIdRef = useRef<string | null>(null);
   // Scroll-to-bottom button state
   const [showScrollToBottom, setShowScrollToBottom] = useState(false);
-  const [workflowDraft, setWorkflowDraft] = useState<WorkflowDraft | null>(null);
+  const [workflowDraft, setWorkflowDraft] = useState<WorkflowDraft | null>(
+    null,
+  );
   // Track if user has manually scrolled up (to prevent auto-scroll interruption)
   const userHasScrolledUpRef = useRef(false);
 
@@ -125,7 +127,7 @@ export const ChatView: React.FC = () => {
   const systemPromptMessage = useMemo(() => {
     // First, check if there's already a system message in the messages
     const existingSystemMessage = currentMessages.find(
-      (msg: Message) => msg.role === "system"
+      (msg: Message) => msg.role === "system",
     );
     if (existingSystemMessage) {
       return existingSystemMessage as Message;
@@ -175,7 +177,7 @@ export const ChatView: React.FC = () => {
 
   const convertRenderableEntry = useCallback(
     (
-      entry: RenderableEntry
+      entry: RenderableEntry,
     ): {
       message: Message;
       align: "flex-start" | "flex-end";
@@ -207,7 +209,7 @@ export const ChatView: React.FC = () => {
         messageType: resolvedType,
       };
     },
-    []
+    [],
   );
 
   const renderableMessages = useMemo<RenderableEntry[]>(() => {
@@ -301,7 +303,7 @@ export const ChatView: React.FC = () => {
       }
 
       const targetIndex = renderableMessages.findIndex(
-        (item) => item.message.id === messageId
+        (item) => item.message.id === messageId,
       );
 
       if (targetIndex === -1) {
@@ -324,12 +326,12 @@ export const ChatView: React.FC = () => {
 
     window.addEventListener(
       "navigate-to-message",
-      handleMessageNavigation as EventListener
+      handleMessageNavigation as EventListener,
     );
     return () => {
       window.removeEventListener(
         "navigate-to-message",
-        handleMessageNavigation as EventListener
+        handleMessageNavigation as EventListener,
       );
     };
   }, [renderableMessages, rowVirtualizer]);
@@ -386,7 +388,7 @@ export const ChatView: React.FC = () => {
     // User sent a message: state changed from IDLE to THINKING
     if (previousState === "IDLE" && currentState === "THINKING") {
       console.log(
-        "[ChatView] User sent message, resetting scroll flag and scrolling to bottom"
+        "[ChatView] User sent message, resetting scroll flag and scrolling to bottom",
       );
       userHasScrolledUpRef.current = false; // Reset flag
       scrollToBottom(); // Scroll to bottom immediately
@@ -525,7 +527,10 @@ export const ChatView: React.FC = () => {
             )}
           {interactionState.matches("THINKING") && currentChatId && (
             <div style={{ paddingTop: rowGap }}>
-              <Flex justify="flex-start" style={{ width: "100%", maxWidth: "100%" }}>
+              <Flex
+                justify="flex-start"
+                style={{ width: "100%", maxWidth: "100%" }}
+              >
                 <div
                   style={{
                     width: "100%",

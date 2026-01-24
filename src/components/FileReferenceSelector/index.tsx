@@ -64,7 +64,7 @@ const FileReferenceSelector: React.FC<FileReferenceSelectorProps> = ({
       if (event.key === "ArrowDown" || (event.key === "n" && event.ctrlKey)) {
         event.preventDefault();
         setActiveIndex((prev) =>
-          filteredFiles.length === 0 ? 0 : (prev + 1) % filteredFiles.length
+          filteredFiles.length === 0 ? 0 : (prev + 1) % filteredFiles.length,
         );
       } else if (
         event.key === "ArrowUp" ||
@@ -74,7 +74,7 @@ const FileReferenceSelector: React.FC<FileReferenceSelectorProps> = ({
         setActiveIndex((prev) =>
           filteredFiles.length === 0
             ? 0
-            : (prev - 1 + filteredFiles.length) % filteredFiles.length
+            : (prev - 1 + filteredFiles.length) % filteredFiles.length,
         );
       } else if (event.key === "Enter") {
         if (filteredFiles[activeIndex]) {

@@ -28,7 +28,7 @@ export interface UseChatTitleGeneration {
   isUpdatingAutoTitlePreference: boolean;
   generateChatTitle: (
     chatId: string,
-    options?: { force?: boolean }
+    options?: { force?: boolean },
   ) => Promise<void>;
   setAutoGenerateTitlesPreference: (enabled: boolean) => Promise<void>;
   isDefaultTitle: (title: string | undefined | null) => boolean;
@@ -37,7 +37,7 @@ export interface UseChatTitleGeneration {
 export interface UseChatOperations {
   createNewChat: (
     title?: string,
-    options?: Partial<Omit<any, "id">>
+    options?: Partial<Omit<any, "id">>,
   ) => Promise<void>;
   createChatWithSystemPrompt: (prompt: any) => Promise<void>;
   toggleChatPin: (chatId: string) => void;

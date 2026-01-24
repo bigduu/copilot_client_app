@@ -347,7 +347,17 @@ export const FavoritesPanel: React.FC = () => {
       <Sider
         breakpoint="md"
         collapsedWidth={0}
-        width={screens.xs ? 300 : screens.sm ? 350 : screens.md ? 400 : screens.lg ? 450 : 500}
+        width={
+          screens.xs
+            ? 300
+            : screens.sm
+              ? 350
+              : screens.md
+                ? 400
+                : screens.lg
+                  ? 450
+                  : 500
+        }
         style={{
           background: token.colorBgContainer,
           borderLeft: `1px solid ${token.colorBorderSecondary}`,

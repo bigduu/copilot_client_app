@@ -26,7 +26,13 @@ export interface PathSuggestion {
   path: string;
   name: string;
   description?: string;
-  suggestion_type: 'recent' | 'common' | 'home' | 'documents' | 'desktop' | 'downloads';
+  suggestion_type:
+    | "recent"
+    | "common"
+    | "home"
+    | "documents"
+    | "desktop"
+    | "downloads";
 }
 
 export interface PathSuggestionsResponse {
@@ -76,7 +82,7 @@ class WorkspaceApiService {
       timeoutMs: options.timeoutMs ?? 10000,
       retries: options.retries ?? 3,
       headers: {
-        'Content-Type': 'application/json',
+        "Content-Type": "application/json",
         ...options.headers,
       },
       onRequest: options.onRequest ?? (() => {}),
@@ -92,44 +98,54 @@ class WorkspaceApiService {
   /**
    * Validate a workspace path
    */
-  async validateWorkspacePath(path: string): Promise<WorkspaceValidationResult> {
-    return this.post<WorkspaceValidationResult>('/validate', { path });
+  async validateWorkspacePath(
+    path: string,
+  ): Promise<WorkspaceValidationResult> {
+    return this.post<WorkspaceValidationResult>("/validate", { path });
   }
 
   /**
    * Get recent workspaces
    */
   async getRecentWorkspaces(): Promise<WorkspaceValidationResult[]> {
-    return this.get<WorkspaceValidationResult[]>('/recent');
+    return this.get<WorkspaceValidationResult[]>("/recent");
   }
 
   /**
    * Add a workspace to recent workspaces
    */
-  async addRecentWorkspace(path: string, metadata?: WorkspaceMetadata): Promise<void> {
-    await this.post<void>('/recent', { path, metadata });
+  async addRecentWorkspace(
+    path: string,
+    metadata?: WorkspaceMetadata,
+  ): Promise<void> {
+    await this.post<void>("/recent", { path, metadata });
   }
 
   /**
    * Get path suggestions
    */
   async getPathSuggestions(): Promise<PathSuggestionsResponse> {
-    return this.get<PathSuggestionsResponse>('/suggestions');
+    return this.get<PathSuggestionsResponse>("/suggestions");
   }
 
   /**
    * Browse folders for workspace selection
    */
   async browseFolder(path?: string): Promise<BrowseFolderResponse> {
-    return this.post<BrowseFolderResponse>('/browse-folder', { path });
+    return this.post<BrowseFolderResponse>("/browse-folder", { path });
   }
 
   /**
    * Generic GET request
    */
-  private async get<T>(endpoint: string, queryParams?: Record<string, string>): Promise<T> {
+  private async get<T>(
+    endpoint: string,
+    queryParams?: Record<string, string>,
+  ): Promise<T> {
     const baseUrl = this.getBaseUrl();
-    const cleanEndpoint = endpoint.startsWith('/') ? endpoint.slice(1) : endpoint;
+    const cleanEndpoint = endpoint.startsWith("/")
+      ? endpoint.slice(1)
+      : endpoint;
     const url = `${baseUrl}/${cleanEndpoint}`;
 
     const finalUrl = new URL(url);
@@ -143,7 +159,7 @@ class WorkspaceApiService {
     }
 
     return this.request<T>(finalUrl.toString(), {
-      method: 'GET',
+      method: "GET",
     });
   }
 
@@ -152,11 +168,13 @@ class WorkspaceApiService {
    */
   private async post<T>(endpoint: string, data?: any): Promise<T> {
     const baseUrl = this.getBaseUrl();
-    const cleanEndpoint = endpoint.startsWith('/') ? endpoint.slice(1) : endpoint;
+    const cleanEndpoint = endpoint.startsWith("/")
+      ? endpoint.slice(1)
+      : endpoint;
     const url = `${baseUrl}/${cleanEndpoint}`;
 
     return this.request<T>(url, {
-      method: 'POST',
+      method: "POST",
       body: data ? JSON.stringify(data) : undefined,
     });
   }
@@ -168,7 +186,11 @@ class WorkspaceApiService {
   /**
    * Core request method with retry logic and error handling
    */
-  private async request<T>(url: string, options: RequestInit, retryCount = 0): Promise<T> {
+  private async request<T>(
+    url: string,
+    options: RequestInit,
+    retryCount = 0,
+  ): Promise<T> {
     const requestOptions: RequestInit = {
       ...options,
       headers: {
@@ -193,9 +215,9 @@ class WorkspaceApiService {
       }
 
       // Handle empty responses
-      const contentType = response.headers.get('content-type');
-      if (contentType && contentType.includes('application/json')) {
-        return await response.json() as T;
+      const contentType = response.headers.get("content-type");
+      if (contentType && contentType.includes("application/json")) {
+        return (await response.json()) as T;
       } else {
         return {} as T;
       }
@@ -223,11 +245,11 @@ class WorkspaceApiService {
     if (error instanceof Error) {
       // Network errors and 5xx server errors are retryable
       return (
-        error.message.includes('Failed to fetch') ||
-        error.message.includes('NetworkError') ||
-        error.message.includes('AbortError') ||
+        error.message.includes("Failed to fetch") ||
+        error.message.includes("NetworkError") ||
+        error.message.includes("AbortError") ||
         /^HTTP 5\d{2}/.test(error.message) ||
-        error.message.includes('timeout')
+        error.message.includes("timeout")
       );
     }
     return false;
@@ -237,7 +259,7 @@ class WorkspaceApiService {
    * Utility function for delays
    */
   private delay(ms: number): Promise<void> {
-    return new Promise(resolve => setTimeout(resolve, ms));
+    return new Promise((resolve) => setTimeout(resolve, ms));
   }
 
   /**
@@ -259,7 +281,7 @@ class WorkspaceApiService {
 
     try {
       // Use a lightweight endpoint for health check
-      await this.get('/recent');
+      await this.get("/recent");
       const latency = Date.now() - startTime;
 
       return {
@@ -269,7 +291,7 @@ class WorkspaceApiService {
     } catch (error) {
       return {
         available: false,
-        error: error instanceof Error ? error.message : 'Unknown error',
+        error: error instanceof Error ? error.message : "Unknown error",
       };
     }
   }
@@ -278,14 +300,14 @@ class WorkspaceApiService {
    * Batch multiple requests for better performance
    */
   async batchRequests<T extends any[]>(
-    requests: Array<() => Promise<T[number]>>
+    requests: Array<() => Promise<T[number]>>,
   ): Promise<T> {
     const BATCH_SIZE = 5;
     const results: any[] = [];
 
     for (let i = 0; i < requests.length; i += BATCH_SIZE) {
       const batch = requests.slice(i, i + BATCH_SIZE);
-      const batchResults = await Promise.all(batch.map(request => request()));
+      const batchResults = await Promise.all(batch.map((request) => request()));
       results.push(...batchResults);
 
       // Small delay between batches to avoid overwhelming the server
@@ -300,9 +322,13 @@ class WorkspaceApiService {
   /**
    * Upload files (for future use - workspace file upload)
    */
-  async uploadFile(endpoint: string, file: File, additionalData?: Record<string, any>): Promise<any> {
+  async uploadFile(
+    endpoint: string,
+    file: File,
+    additionalData?: Record<string, any>,
+  ): Promise<any> {
     const formData = new FormData();
-    formData.append('file', file);
+    formData.append("file", file);
 
     if (additionalData) {
       Object.entries(additionalData).forEach(([key, value]) => {
@@ -311,15 +337,19 @@ class WorkspaceApiService {
     }
 
     const baseUrl = this.getBaseUrl();
-    const cleanEndpoint = endpoint.startsWith('/') ? endpoint.slice(1) : endpoint;
+    const cleanEndpoint = endpoint.startsWith("/")
+      ? endpoint.slice(1)
+      : endpoint;
     const url = `${baseUrl}/${cleanEndpoint}`;
 
     return this.request(url, {
-      method: 'POST',
+      method: "POST",
       body: formData,
       // Don't set Content-Type header for FormData (browser sets it with boundary)
       headers: Object.fromEntries(
-        Object.entries(this.options.headers).filter(([key]) => key.toLowerCase() !== 'content-type')
+        Object.entries(this.options.headers).filter(
+          ([key]) => key.toLowerCase() !== "content-type",
+        ),
       ),
     });
   }
@@ -327,15 +357,20 @@ class WorkspaceApiService {
   /**
    * Stream responses (for future use - workspace sync)
    */
-  async *streamResponse(endpoint: string, data?: any): AsyncGenerator<any, void, unknown> {
+  async *streamResponse(
+    endpoint: string,
+    data?: any,
+  ): AsyncGenerator<any, void, unknown> {
     const baseUrl = this.getBaseUrl();
-    const cleanEndpoint = endpoint.startsWith('/') ? endpoint.slice(1) : endpoint;
+    const cleanEndpoint = endpoint.startsWith("/")
+      ? endpoint.slice(1)
+      : endpoint;
     const url = `${baseUrl}/${cleanEndpoint}`;
 
     const response = await fetch(url, {
-      method: 'POST',
+      method: "POST",
       headers: {
-        'Content-Type': 'application/json',
+        "Content-Type": "application/json",
         ...this.options.headers,
       },
       body: data ? JSON.stringify(data) : undefined,
@@ -346,7 +381,7 @@ class WorkspaceApiService {
     }
 
     if (!response.body) {
-      throw new Error('Response body is null');
+      throw new Error("Response body is null");
     }
 
     const reader = response.body.getReader();
@@ -358,7 +393,7 @@ class WorkspaceApiService {
         if (done) break;
 
         const chunk = decoder.decode(value, { stream: true });
-        const lines = chunk.split('\n').filter(line => line.trim());
+        const lines = chunk.split("\n").filter((line) => line.trim());
 
         for (const line of lines) {
           try {
@@ -366,7 +401,7 @@ class WorkspaceApiService {
             yield data;
           } catch (error) {
             // Ignore invalid JSON lines
-            console.warn('Failed to parse streaming response line:', line);
+            console.warn("Failed to parse streaming response line:", line);
           }
         }
       }

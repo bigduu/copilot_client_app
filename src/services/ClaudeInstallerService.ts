@@ -37,7 +37,9 @@ export class ClaudeInstallerService {
     return await response.json();
   }
 
-  async updateSettings(settings: InstallerSettings): Promise<InstallerSettings> {
+  async updateSettings(
+    settings: InstallerSettings,
+  ): Promise<InstallerSettings> {
     const response = await fetch(buildBackendUrl("/claude/install/settings"), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -66,16 +68,19 @@ export class ClaudeInstallerService {
     },
     onEvent?: (event: InstallEvent) => void,
   ): Promise<void> {
-    const response = await fetch(buildBackendUrl("/claude/install/npm/install"), {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        target,
-        scope: options.scope,
-        package: options.package,
-        project_path: options.projectPath,
-      }),
-    });
+    const response = await fetch(
+      buildBackendUrl("/claude/install/npm/install"),
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          target,
+          scope: options.scope,
+          package: options.package,
+          project_path: options.projectPath,
+        }),
+      },
+    );
 
     if (!response.ok) {
       const text = await response.text();

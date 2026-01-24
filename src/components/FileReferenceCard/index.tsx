@@ -22,7 +22,9 @@ const FileReferenceCardComponent: React.FC<FileReferenceCardProps> = ({
   return (
     <Card
       size="small"
-      styles={{ body: { padding: `${token.paddingSM}px ${token.paddingMD}px` } }}
+      styles={{
+        body: { padding: `${token.paddingSM}px ${token.paddingMD}px` },
+      }}
       style={{ maxWidth: "100%" }}
     >
       {/* File/Folder list */}

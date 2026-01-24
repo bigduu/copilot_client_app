@@ -62,7 +62,7 @@ describe("systemPromptEnhancement", () => {
         "User enhancement",
         getMermaidEnhancementPrompt().trim(),
         getTodoEnhancementPrompt().trim(),
-      ].join("\n\n")
+      ].join("\n\n"),
     );
   });
 
@@ -70,7 +70,7 @@ describe("systemPromptEnhancement", () => {
     setTodoEnhancementEnabled(true);
 
     expect(getSystemPromptEnhancementText()).toBe(
-      getTodoEnhancementPrompt().trim()
+      getTodoEnhancementPrompt().trim(),
     );
   });
 });

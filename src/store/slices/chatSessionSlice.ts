@@ -28,7 +28,7 @@ export interface ChatSlice {
   updateMessage: (
     chatId: string,
     messageId: string,
-    updates: Partial<Message>
+    updates: Partial<Message>,
   ) => void;
   deleteMessage: (chatId: string, messageId: string) => void;
 
@@ -40,7 +40,7 @@ export interface ChatSlice {
 
 export const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (
   set,
-  get
+  get,
 ) => ({
   // Initial state
   chats: [],
@@ -142,7 +142,7 @@ export const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (
   updateChat: (chatId, updates) => {
     set((state) => {
       const chats = state.chats.map((chat) =>
-        chat.id === chatId ? { ...chat, ...updates } : chat
+        chat.id === chatId ? { ...chat, ...updates } : chat,
       );
       persistChats(chats);
       return {
@@ -200,7 +200,7 @@ export const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (
     const chat = get().chats.find((c) => c.id === chatId);
     if (chat) {
       const updatedMessages = chat.messages.filter(
-        (msg) => msg.id !== messageId
+        (msg) => msg.id !== messageId,
       );
       get().updateChat(chatId, { messages: updatedMessages });
     }
@@ -243,7 +243,7 @@ export const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (
     } catch (error) {
       console.warn(
         "[ChatSlice] Failed to update auto-generate titles preference:",
-        error
+        error,
       );
       set({ autoGenerateTitles: previousValue });
       throw error;

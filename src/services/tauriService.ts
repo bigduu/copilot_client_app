@@ -13,7 +13,7 @@ export class TauriUtilityService {
    */
   async invoke<T = any>(
     command: string,
-    args?: Record<string, any>
+    args?: Record<string, any>,
   ): Promise<T> {
     return await invoke(command, args);
   }

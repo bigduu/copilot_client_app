@@ -1,12 +1,12 @@
-import React, { useState } from "react"
-import { Button, Flex, Input, Typography, theme, Card } from "antd"
+import React, { useState } from "react";
+import { Button, Flex, Input, Typography, theme, Card } from "antd";
 
-const { Text } = Typography
+const { Text } = Typography;
 
 export const PreviewPanel: React.FC = () => {
-  const { token } = theme.useToken()
-  const [url, setUrl] = useState("")
-  const [activeUrl, setActiveUrl] = useState("")
+  const { token } = theme.useToken();
+  const [url, setUrl] = useState("");
+  const [activeUrl, setActiveUrl] = useState("");
 
   return (
     <Flex vertical style={{ gap: token.marginSM, height: "100%" }}>
@@ -16,9 +16,7 @@ export const PreviewPanel: React.FC = () => {
           onChange={(e) => setUrl(e.target.value)}
           placeholder="Enter URL to preview"
         />
-        <Button onClick={() => setActiveUrl(url.trim())}>
-          Preview
-        </Button>
+        <Button onClick={() => setActiveUrl(url.trim())}>Preview</Button>
       </Flex>
       {activeUrl ? (
         <Card
@@ -41,5 +39,5 @@ export const PreviewPanel: React.FC = () => {
         <Text type="secondary">Enter a URL to open a live preview.</Text>
       )}
     </Flex>
-  )
-}
+  );
+};

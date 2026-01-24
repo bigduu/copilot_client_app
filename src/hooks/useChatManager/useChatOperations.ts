@@ -10,7 +10,7 @@ import type { UseChatState } from "./types";
 export interface UseChatOperations {
   createNewChat: (
     title?: string,
-    options?: Partial<Omit<ChatItem, "id">>
+    options?: Partial<Omit<ChatItem, "id">>,
   ) => Promise<void>;
   createChatWithSystemPrompt: (prompt: UserSystemPrompt) => Promise<void>;
   toggleChatPin: (chatId: string) => void;
@@ -22,14 +22,14 @@ export interface UseChatOperations {
 export function useChatOperations(state: UseChatState): UseChatOperations {
   const addChat = useAppStore((state) => state.addChat);
   const lastSelectedPromptId = useAppStore(
-    (state) => state.lastSelectedPromptId
+    (state) => state.lastSelectedPromptId,
   );
   const systemPrompts = useAppStore((state) => state.systemPrompts);
 
   const createNewChat = useCallback(
     async (title?: string, options?: Partial<Omit<ChatItem, "id">>) => {
       const selectedPrompt = systemPrompts.find(
-        (p) => p.id === lastSelectedPromptId
+        (p) => p.id === lastSelectedPromptId,
       );
 
       // Use actual prompt ID or undefined (no hardcoded defaults)
@@ -59,14 +59,14 @@ export function useChatOperations(state: UseChatState): UseChatOperations {
       };
       await addChat(newChatData);
     },
-    [addChat, lastSelectedPromptId, systemPrompts]
+    [addChat, lastSelectedPromptId, systemPrompts],
   );
 
   const createChatWithSystemPrompt = useCallback(
     async (prompt: UserSystemPrompt) => {
       console.log(
         "[useChatOperations] createChatWithSystemPrompt started with prompt:",
-        prompt
+        prompt,
       );
       const newChatData: Omit<ChatItem, "id"> = {
         title: `New Chat - ${prompt.name}`,
@@ -81,11 +81,11 @@ export function useChatOperations(state: UseChatState): UseChatOperations {
       };
       console.log(
         "[useChatOperations] Calling addChat with newChatData.config:",
-        newChatData.config
+        newChatData.config,
       );
       await addChat(newChatData);
     },
-    [addChat]
+    [addChat],
   );
 
   const toggleChatPin = useCallback(
@@ -95,14 +95,14 @@ export function useChatOperations(state: UseChatState): UseChatOperations {
         chat.pinned ? state.unpinChat(chatId) : state.pinChat(chatId);
       }
     },
-    [state]
+    [state],
   );
 
   const updateChatTitle = useCallback(
     (chatId: string, newTitle: string) => {
       state.updateChat(chatId, { title: newTitle });
     },
-    [state]
+    [state],
   );
 
   const deleteEmptyChats = useCallback(() => {

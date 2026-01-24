@@ -30,7 +30,7 @@ const SystemMessageCard: React.FC<SystemMessageCardProps> = ({ message }) => {
 
   const systemPromptService = React.useMemo(
     () => SystemPromptService.getInstance(),
-    []
+    [],
   );
   const systemMessageContent =
     message.role === "system" && typeof message.content === "string"
@@ -41,16 +41,16 @@ const SystemMessageCard: React.FC<SystemMessageCardProps> = ({ message }) => {
   useEffect(() => {
     if (message.role === "system") {
       console.log(
-        "[SystemMessageCard] ========== SYSTEM MESSAGE CHANGED =========="
+        "[SystemMessageCard] ========== SYSTEM MESSAGE CHANGED ==========",
       );
       console.log("[SystemMessageCard] Message ID:", message.id);
       console.log(
         "[SystemMessageCard] Message content length:",
-        systemMessageContent.length
+        systemMessageContent.length,
       );
       console.log("[SystemMessageCard] Message timestamp:", message.createdAt);
       console.log(
-        "[SystemMessageCard] ============================================="
+        "[SystemMessageCard] =============================================",
       );
 
       // Reset enhanced prompt when system message changes
@@ -93,7 +93,6 @@ const SystemMessageCard: React.FC<SystemMessageCardProps> = ({ message }) => {
             setCategoryDescription(preset.description);
           }
         }
-
       } catch (error) {
         console.error("Failed to load base prompt:", error);
       }

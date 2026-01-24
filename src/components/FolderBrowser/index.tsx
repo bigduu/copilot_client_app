@@ -159,10 +159,7 @@ export const FolderBrowser: React.FC<FolderBrowserProps> = ({
           ))}
         </Breadcrumb>
 
-        <Card
-          size="small"
-          styles={{ body: { padding: token.paddingXS } }}
-        >
+        <Card size="small" styles={{ body: { padding: token.paddingXS } }}>
           <Text type="secondary" style={{ fontSize: 12 }}>
             当前路径：
           </Text>{" "}

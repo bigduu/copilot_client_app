@@ -35,11 +35,7 @@ export const ImageGrid: React.FC<ImageGridProps> = ({
       styles={{ body: { padding: 0 } }}
       variant="borderless"
     >
-      <Flex
-        wrap="wrap"
-        gap={token.marginSM}
-        style={{ width: "100%" }}
-      >
+      <Flex wrap="wrap" gap={token.marginSM} style={{ width: "100%" }}>
         {images.map((image) => (
           <Card
             size="small"

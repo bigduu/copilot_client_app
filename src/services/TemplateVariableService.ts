@@ -156,9 +156,3 @@ export class TemplateVariableService {
     }
   }
 }
-
-
-
-
-
-

@@ -55,7 +55,7 @@ export const ChatSidebar: React.FC = () => {
   const updateChat = useAppStore((state) => state.updateChat);
   const addChat = useAppStore((state) => state.addChat);
   const lastSelectedPromptId = useAppStore(
-    (state) => state.lastSelectedPromptId
+    (state) => state.lastSelectedPromptId,
   );
 
   const systemPrompts = useAppStore((state) => state.systemPrompts);
@@ -69,7 +69,7 @@ export const ChatSidebar: React.FC = () => {
   const createNewChat = useCallback(
     async (title?: string, options?: Partial<Omit<ChatItem, "id">>) => {
       const selectedPrompt = systemPrompts.find(
-        (p) => p.id === lastSelectedPromptId
+        (p) => p.id === lastSelectedPromptId,
       );
 
       const systemPromptId =
@@ -98,7 +98,7 @@ export const ChatSidebar: React.FC = () => {
       };
       await addChat(newChatData);
     },
-    [addChat, lastSelectedPromptId, systemPrompts]
+    [addChat, lastSelectedPromptId, systemPrompts],
   );
 
   const [isNewChatSelectorOpen, setIsNewChatSelectorOpen] = useState(false);
@@ -107,7 +107,7 @@ export const ChatSidebar: React.FC = () => {
 
   // Collapse/expand state management
   const [expandedDates, setExpandedDates] = useState<Set<string>>(
-    new Set(["Today"]) // Expand Today by default
+    new Set(["Today"]), // Expand Today by default
   );
   const footerRef = useRef<HTMLDivElement>(null);
   const screens = useBreakpoint();
@@ -115,7 +115,7 @@ export const ChatSidebar: React.FC = () => {
   // Collapse/expand helper functions
   const expandedKeys = React.useMemo(
     () => Array.from(expandedDates),
-    [expandedDates]
+    [expandedDates],
   );
 
   const handleCollapseChange = (keys: string | string[]) => {
@@ -194,7 +194,15 @@ export const ChatSidebar: React.FC = () => {
           label: chat.title,
         };
       }),
-    [chats, currentChatId, screens.xs, token.colorFillTertiary, token.colorPrimary, token.colorTextLightSolid, token.colorTextSecondary]
+    [
+      chats,
+      currentChatId,
+      screens.xs,
+      token.colorFillTertiary,
+      token.colorPrimary,
+      token.colorTextLightSolid,
+      token.colorTextSecondary,
+    ],
   );
 
   const handleDelete = (chatId: string) => {
@@ -264,9 +272,7 @@ export const ChatSidebar: React.FC = () => {
               style={{
                 fontSize: 14,
                 color:
-                  dateKey === "Today"
-                    ? token.colorPrimary
-                    : token.colorText,
+                  dateKey === "Today" ? token.colorPrimary : token.colorText,
               }}
             >
               {dateKey} ({totalChatsInDate})

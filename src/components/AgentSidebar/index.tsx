@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react"
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Alert,
   Card,
@@ -11,129 +11,132 @@ import {
   Spin,
   Typography,
   theme,
-} from "antd"
-import { FolderOpenOutlined, ReloadOutlined } from "@ant-design/icons"
+} from "antd";
+import { FolderOpenOutlined, ReloadOutlined } from "@ant-design/icons";
 
 import {
   claudeCodeService,
   ClaudeProject,
   ClaudeSession,
-} from "../../services/ClaudeCodeService"
-import { useAgentStore } from "../../store/agentStore"
-import { ModeSwitcher } from "../ModeSwitcher"
-import { serviceFactory } from "../../services/ServiceFactory"
+} from "../../services/ClaudeCodeService";
+import { useAgentStore } from "../../store/agentStore";
+import { ModeSwitcher } from "../ModeSwitcher";
+import { serviceFactory } from "../../services/ServiceFactory";
 
-const { Sider } = Layout
-const { Text } = Typography
+const { Sider } = Layout;
+const { Text } = Typography;
 
 export const AgentSidebar: React.FC = () => {
-  const { token } = theme.useToken()
-  const selectedProjectId = useAgentStore((s) => s.selectedProjectId)
-  const selectedSessionId = useAgentStore((s) => s.selectedSessionId)
-  const sessionsRefreshNonce = useAgentStore((s) => s.sessionsRefreshNonce)
-  const setSelectedProject = useAgentStore((s) => s.setSelectedProject)
-  const setSelectedSessionId = useAgentStore((s) => s.setSelectedSessionId)
+  const { token } = theme.useToken();
+  const selectedProjectId = useAgentStore((s) => s.selectedProjectId);
+  const selectedSessionId = useAgentStore((s) => s.selectedSessionId);
+  const sessionsRefreshNonce = useAgentStore((s) => s.sessionsRefreshNonce);
+  const setSelectedProject = useAgentStore((s) => s.setSelectedProject);
+  const setSelectedSessionId = useAgentStore((s) => s.setSelectedSessionId);
 
   const debugLog = useCallback((...args: any[]) => {
-    if (!import.meta.env.DEV) return
-    console.log("[AgentSidebar]", ...args)
-  }, [])
+    if (!import.meta.env.DEV) return;
+    console.log("[AgentSidebar]", ...args);
+  }, []);
 
-  const [projects, setProjects] = useState<ClaudeProject[]>([])
-  const [sessions, setSessions] = useState<ClaudeSession[]>([])
-  const [isLoadingProjects, setIsLoadingProjects] = useState(false)
-  const [isLoadingSessions, setIsLoadingSessions] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [query, setQuery] = useState("")
+  const [projects, setProjects] = useState<ClaudeProject[]>([]);
+  const [sessions, setSessions] = useState<ClaudeSession[]>([]);
+  const [isLoadingProjects, setIsLoadingProjects] = useState(false);
+  const [isLoadingSessions, setIsLoadingSessions] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [query, setQuery] = useState("");
 
   const loadProjects = useCallback(async () => {
-    setIsLoadingProjects(true)
-    setError(null)
+    setIsLoadingProjects(true);
+    setError(null);
     try {
-      debugLog("loadProjects")
-      const data = await claudeCodeService.listProjects()
-      setProjects(data)
+      debugLog("loadProjects");
+      const data = await claudeCodeService.listProjects();
+      setProjects(data);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to load Claude projects")
+      setError(
+        e instanceof Error ? e.message : "Failed to load Claude projects",
+      );
     } finally {
-      setIsLoadingProjects(false)
+      setIsLoadingProjects(false);
     }
-  }, [])
+  }, []);
 
   const openProject = useCallback(async () => {
-    setError(null)
+    setError(null);
     try {
-      const path = await serviceFactory.invoke<string | null>("pick_folder")
-      if (!path) return
-      await claudeCodeService.createProject(path)
-      await loadProjects()
+      const path = await serviceFactory.invoke<string | null>("pick_folder");
+      if (!path) return;
+      await claudeCodeService.createProject(path);
+      await loadProjects();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to open project")
+      setError(e instanceof Error ? e.message : "Failed to open project");
     }
-  }, [loadProjects])
+  }, [loadProjects]);
 
-  const loadSessions = useCallback(async (projectId: string) => {
-    setIsLoadingSessions(true)
-    setError(null)
-    try {
-      debugLog("loadSessions", { projectId })
-      const data = await claudeCodeService.listProjectSessions(projectId)
-      setSessions(data)
-    } catch (e) {
-      const message =
-        e instanceof Error
-          ? e.message
-          : typeof e === "string"
-            ? e
-            : (e as any)?.message
-              ? String((e as any).message)
-              : JSON.stringify(e)
-      setError(message || "Failed to load project sessions")
-      setSessions([])
-    } finally {
-      setIsLoadingSessions(false)
-    }
-  }, [debugLog])
+  const loadSessions = useCallback(
+    async (projectId: string) => {
+      setIsLoadingSessions(true);
+      setError(null);
+      try {
+        debugLog("loadSessions", { projectId });
+        const data = await claudeCodeService.listProjectSessions(projectId);
+        setSessions(data);
+      } catch (e) {
+        const message =
+          e instanceof Error
+            ? e.message
+            : typeof e === "string"
+              ? e
+              : (e as any)?.message
+                ? String((e as any).message)
+                : JSON.stringify(e);
+        setError(message || "Failed to load project sessions");
+        setSessions([]);
+      } finally {
+        setIsLoadingSessions(false);
+      }
+    },
+    [debugLog],
+  );
 
   useEffect(() => {
-    loadProjects()
-  }, [loadProjects])
+    loadProjects();
+  }, [loadProjects]);
 
   useEffect(() => {
     if (!selectedProjectId) {
-      setSessions([])
-      return
+      setSessions([]);
+      return;
     }
-    loadSessions(selectedProjectId)
-  }, [loadSessions, selectedProjectId])
+    loadSessions(selectedProjectId);
+  }, [loadSessions, selectedProjectId]);
 
   useEffect(() => {
-    if (!selectedProjectId) return
-    if (!sessions.length) return
-    if (selectedSessionId) return
-    setSelectedSessionId(sessions[0].id)
-  }, [selectedProjectId, selectedSessionId, sessions, setSelectedSessionId])
+    if (!selectedProjectId) return;
+    if (!sessions.length) return;
+    if (selectedSessionId) return;
+    setSelectedSessionId(sessions[0].id);
+  }, [selectedProjectId, selectedSessionId, sessions, setSelectedSessionId]);
 
   useEffect(() => {
-    if (!selectedProjectId) return
-    debugLog("sessionsRefreshNonce changed", sessionsRefreshNonce)
-    loadSessions(selectedProjectId)
-  }, [loadSessions, selectedProjectId, sessionsRefreshNonce])
+    if (!selectedProjectId) return;
+    debugLog("sessionsRefreshNonce changed", sessionsRefreshNonce);
+    loadSessions(selectedProjectId);
+  }, [loadSessions, selectedProjectId, sessionsRefreshNonce]);
 
   const filteredProjects = useMemo(() => {
-    const q = query.trim().toLowerCase()
-    if (!q) return projects
+    const q = query.trim().toLowerCase();
+    if (!q) return projects;
     return projects.filter((p) => {
-      return (
-        p.id.toLowerCase().includes(q) || p.path.toLowerCase().includes(q)
-      )
-    })
-  }, [projects, query])
+      return p.id.toLowerCase().includes(q) || p.path.toLowerCase().includes(q);
+    });
+  }, [projects, query]);
 
   const selectedProject = useMemo(
     () => projects.find((p) => p.id === selectedProjectId) ?? null,
     [projects, selectedProjectId],
-  )
+  );
 
   const projectMenuItems = useMemo(
     () =>
@@ -149,7 +152,7 @@ export const AgentSidebar: React.FC = () => {
         ),
       })),
     [filteredProjects],
-  )
+  );
 
   const sessionMenuItems = useMemo(
     () =>
@@ -165,7 +168,7 @@ export const AgentSidebar: React.FC = () => {
         ),
       })),
     [sessions],
-  )
+  );
 
   return (
     <Sider
@@ -185,7 +188,11 @@ export const AgentSidebar: React.FC = () => {
           gap: token.paddingSM,
         }}
       >
-        <Flex justify="space-between" align="center" style={{ gap: token.marginSM }}>
+        <Flex
+          justify="space-between"
+          align="center"
+          style={{ gap: token.marginSM }}
+        >
           <ModeSwitcher size="small" />
           <Flex style={{ gap: token.marginXS }}>
             <Button
@@ -225,12 +232,15 @@ export const AgentSidebar: React.FC = () => {
                     selectedKeys={selectedProjectId ? [selectedProjectId] : []}
                     items={projectMenuItems}
                     onSelect={(info) => {
-                      const project = projects.find((p) => p.id === info.key)
+                      const project = projects.find((p) => p.id === info.key);
                       if (project) {
-                        setSelectedProject(project.id, project.path)
+                        setSelectedProject(project.id, project.path);
                       }
                     }}
-                    style={{ borderInlineEnd: "none", background: "transparent" }}
+                    style={{
+                      borderInlineEnd: "none",
+                      background: "transparent",
+                    }}
                   />
                 </div>
               ) : (
@@ -252,7 +262,10 @@ export const AgentSidebar: React.FC = () => {
             styles={{ body: { padding: 0, minHeight: 0 } }}
             style={{ minHeight: 0, flex: 1 }}
           >
-            <Text type="secondary" style={{ display: "block", padding: "0 12px" }}>
+            <Text
+              type="secondary"
+              style={{ display: "block", padding: "0 12px" }}
+            >
               {selectedProject ? selectedProject.path : "Select a project"}
             </Text>
             <Spin spinning={isLoadingSessions}>
@@ -263,7 +276,10 @@ export const AgentSidebar: React.FC = () => {
                     selectedKeys={selectedSessionId ? [selectedSessionId] : []}
                     items={sessionMenuItems}
                     onSelect={(info) => setSelectedSessionId(info.key)}
-                    style={{ borderInlineEnd: "none", background: "transparent" }}
+                    style={{
+                      borderInlineEnd: "none",
+                      background: "transparent",
+                    }}
                   />
                 </div>
               ) : (
@@ -271,7 +287,9 @@ export const AgentSidebar: React.FC = () => {
                   image={Empty.PRESENTED_IMAGE_SIMPLE}
                   description={
                     <Text type="secondary">
-                      {selectedProjectId ? "No sessions" : "Select a project first"}
+                      {selectedProjectId
+                        ? "No sessions"
+                        : "Select a project first"}
                     </Text>
                   }
                 />
@@ -281,5 +299,5 @@ export const AgentSidebar: React.FC = () => {
         </Flex>
       </Flex>
     </Sider>
-  )
-}
+  );
+};

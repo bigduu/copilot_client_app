@@ -3,7 +3,7 @@ import { buildBackendUrl } from "../utils/backendBaseUrl";
 export interface WorkflowMetadata {
   name: string;
   filename: string;
-  source: 'global' | 'workspace';
+  source: "global" | "workspace";
   modified_at?: string;
   size: number;
 }
@@ -31,7 +31,7 @@ export class WorkflowManagerService {
 
   async listWorkflows(): Promise<WorkflowMetadata[]> {
     try {
-      console.log('[WorkflowManagerService] Listing workflows');
+      console.log("[WorkflowManagerService] Listing workflows");
       const response = await fetch(buildBackendUrl("/bodhi/workflows"));
 
       if (!response.ok) {
@@ -40,17 +40,22 @@ export class WorkflowManagerService {
 
       const data = await response.json();
       const workflows = Array.isArray(data) ? data : [];
-      console.log('[WorkflowManagerService] Listed workflows:', workflows);
+      console.log("[WorkflowManagerService] Listed workflows:", workflows);
 
       return workflows.map((workflow: any) => ({
-        name: String(workflow.name || ''),
-        filename: String(workflow.filename || `${workflow.name || 'workflow'}.md`),
+        name: String(workflow.name || ""),
+        filename: String(
+          workflow.filename || `${workflow.name || "workflow"}.md`,
+        ),
         size: Number(workflow.size || 0),
         modified_at: workflow.modified_at,
-        source: 'global',
+        source: "global",
       }));
     } catch (error) {
-      console.error('[WorkflowManagerService] Failed to list workflows:', error);
+      console.error(
+        "[WorkflowManagerService] Failed to list workflows:",
+        error,
+      );
       throw error;
     }
   }
@@ -76,16 +81,19 @@ export class WorkflowManagerService {
         filename: String(data?.filename || `${resolvedName}.md`),
         size: Number(data?.size || 0),
         modified_at: data?.modified_at,
-        source: 'global',
+        source: "global",
       };
       console.log(`[WorkflowManagerService] Got workflow:`, data);
       return {
         name: resolvedName,
-        content: String(data?.content || ''),
+        content: String(data?.content || ""),
         metadata,
       };
     } catch (error) {
-      console.error(`[WorkflowManagerService] Failed to get workflow '${name}':`, error);
+      console.error(
+        `[WorkflowManagerService] Failed to get workflow '${name}':`,
+        error,
+      );
       throw error;
     }
   }

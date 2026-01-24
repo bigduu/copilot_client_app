@@ -1,90 +1,96 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react"
-import { Alert, Button, Card, Flex, Input, List, Typography } from "antd"
+import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { Alert, Button, Card, Flex, Input, List, Typography } from "antd";
 
-import { claudeCodeService } from "../../services/ClaudeCodeService"
+import { claudeCodeService } from "../../services/ClaudeCodeService";
 
-const { Text } = Typography
+const { Text } = Typography;
 
 export const TimelinePanel: React.FC<{
-  sessionId?: string | null
-  projectId?: string | null
-  projectPath?: string | null
+  sessionId?: string | null;
+  projectId?: string | null;
+  projectPath?: string | null;
 }> = ({ sessionId, projectId, projectPath }) => {
-  const [checkpoints, setCheckpoints] = useState<any[]>([])
-  const [timeline, setTimeline] = useState<any | null>(null)
-  const [isLoading, setIsLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [newDescription, setNewDescription] = useState("")
-  const [forkName, setForkName] = useState("")
+  const [checkpoints, setCheckpoints] = useState<any[]>([]);
+  const [timeline, setTimeline] = useState<any | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [newDescription, setNewDescription] = useState("");
+  const [forkName, setForkName] = useState("");
 
-  const canLoad = Boolean(sessionId && projectId && projectPath)
+  const canLoad = Boolean(sessionId && projectId && projectPath);
 
   const loadData = useCallback(async () => {
-    if (!canLoad) return
-    setIsLoading(true)
-    setError(null)
+    if (!canLoad) return;
+    setIsLoading(true);
+    setError(null);
     try {
       const [checkpointList, timelineData] = await Promise.all([
         claudeCodeService.listCheckpoints(sessionId!, projectId!, projectPath!),
-        claudeCodeService.getSessionTimeline(sessionId!, projectId!, projectPath!),
-      ])
-      setCheckpoints(checkpointList ?? [])
-      setTimeline(timelineData ?? null)
+        claudeCodeService.getSessionTimeline(
+          sessionId!,
+          projectId!,
+          projectPath!,
+        ),
+      ]);
+      setCheckpoints(checkpointList ?? []);
+      setTimeline(timelineData ?? null);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to load checkpoints")
+      setError(e instanceof Error ? e.message : "Failed to load checkpoints");
     } finally {
-      setIsLoading(false)
+      setIsLoading(false);
     }
-  }, [canLoad, projectId, projectPath, sessionId])
+  }, [canLoad, projectId, projectPath, sessionId]);
 
   useEffect(() => {
-    void loadData()
-  }, [loadData])
+    void loadData();
+  }, [loadData]);
 
   const createCheckpoint = useCallback(async () => {
-    if (!canLoad) return
-    setError(null)
+    if (!canLoad) return;
+    setError(null);
     try {
       await claudeCodeService.createCheckpoint(
         sessionId!,
         projectId!,
         projectPath!,
         newDescription || undefined,
-      )
-      setNewDescription("")
-      await loadData()
+      );
+      setNewDescription("");
+      await loadData();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to create checkpoint")
+      setError(e instanceof Error ? e.message : "Failed to create checkpoint");
     }
-  }, [canLoad, loadData, newDescription, projectId, projectPath, sessionId])
+  }, [canLoad, loadData, newDescription, projectId, projectPath, sessionId]);
 
   const restoreCheckpoint = useCallback(
     async (checkpointId: string) => {
-      if (!canLoad) return
-      setError(null)
+      if (!canLoad) return;
+      setError(null);
       try {
         await claudeCodeService.restoreCheckpoint(
           checkpointId,
           sessionId!,
           projectId!,
           projectPath!,
-        )
-        await loadData()
+        );
+        await loadData();
       } catch (e) {
-        setError(e instanceof Error ? e.message : "Failed to restore checkpoint")
+        setError(
+          e instanceof Error ? e.message : "Failed to restore checkpoint",
+        );
       }
     },
     [canLoad, loadData, projectId, projectPath, sessionId],
-  )
+  );
 
   const forkCheckpoint = useCallback(
     async (checkpointId: string) => {
-      if (!canLoad) return
+      if (!canLoad) return;
       if (!forkName.trim()) {
-        setError("Enter a new session name")
-        return
+        setError("Enter a new session name");
+        return;
       }
-      setError(null)
+      setError(null);
       try {
         await claudeCodeService.forkFromCheckpoint(
           checkpointId,
@@ -92,27 +98,27 @@ export const TimelinePanel: React.FC<{
           projectId!,
           projectPath!,
           forkName.trim(),
-        )
-        setForkName("")
-        await loadData()
+        );
+        setForkName("");
+        await loadData();
       } catch (e) {
-        setError(e instanceof Error ? e.message : "Failed to fork checkpoint")
+        setError(e instanceof Error ? e.message : "Failed to fork checkpoint");
       }
     },
     [canLoad, forkName, loadData, projectId, projectPath, sessionId],
-  )
+  );
 
   const summary = useMemo(() => {
-    if (!timeline) return null
+    if (!timeline) return null;
     return {
       total: timeline.totalCheckpoints ?? timeline.total_checkpoints ?? 0,
       strategy: timeline.checkpointStrategy ?? timeline.checkpoint_strategy,
       current: timeline.currentCheckpointId ?? timeline.current_checkpoint_id,
-    }
-  }, [timeline])
+    };
+  }, [timeline]);
 
   if (!canLoad) {
-    return <Alert type="info" message="Select a session to view timeline" />
+    return <Alert type="info" message="Select a session to view timeline" />;
   }
 
   return (
@@ -162,7 +168,9 @@ export const TimelinePanel: React.FC<{
         loading={isLoading}
         dataSource={checkpoints}
         renderItem={(item) => {
-          const ts = item?.timestamp ? new Date(item.timestamp).toLocaleString() : ""
+          const ts = item?.timestamp
+            ? new Date(item.timestamp).toLocaleString()
+            : "";
           return (
             <List.Item
               actions={[
@@ -190,9 +198,9 @@ export const TimelinePanel: React.FC<{
                 ) : null}
               </Flex>
             </List.Item>
-          )
+          );
         }}
       />
     </Flex>
-  )
-}
+  );
+};

@@ -1,13 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import {
-  Button,
-  Card,
-  Empty,
-  Flex,
-  Pagination,
-  Tag,
-  Typography,
-} from "antd";
+import { Button, Card, Empty, Flex, Pagination, Tag, Typography } from "antd";
 import {
   ArrowLeftOutlined,
   ClockCircleOutlined,
@@ -98,7 +90,11 @@ export const AgentSessionsPage: React.FC<AgentSessionsPageProps> = ({
   return (
     <div style={{ height: "100%", overflow: "auto" }}>
       <div style={{ maxWidth: 1200, margin: "0 auto", padding: 24 }}>
-        <Flex justify="space-between" align="center" style={{ marginBottom: 24 }}>
+        <Flex
+          justify="space-between"
+          align="center"
+          style={{ marginBottom: 24 }}
+        >
           <Flex align="center" gap={12}>
             <Button icon={<ArrowLeftOutlined />} onClick={onBackToProjects} />
             <div>
@@ -110,7 +106,11 @@ export const AgentSessionsPage: React.FC<AgentSessionsPageProps> = ({
           </Flex>
           <Flex align="center" gap={12}>
             <Button onClick={onRefresh}>Refresh</Button>
-            <Button type="primary" icon={<PlusOutlined />} onClick={onNewSession}>
+            <Button
+              type="primary"
+              icon={<PlusOutlined />}
+              onClick={onNewSession}
+            >
               New session
             </Button>
           </Flex>
@@ -145,7 +145,9 @@ export const AgentSessionsPage: React.FC<AgentSessionsPageProps> = ({
                   <Flex align="center" justify="space-between">
                     <Flex align="center" gap={6}>
                       <ClockCircleOutlined />
-                      <Text strong>Session on {formatSessionDate(session)}</Text>
+                      <Text strong>
+                        Session on {formatSessionDate(session)}
+                      </Text>
                     </Flex>
                     {session.todo_data ? <Tag color="blue">Todo</Tag> : null}
                   </Flex>
@@ -158,7 +160,11 @@ export const AgentSessionsPage: React.FC<AgentSessionsPageProps> = ({
                       No messages yet
                     </Text>
                   )}
-                  <Flex justify="space-between" align="center" style={{ marginTop: "auto" }}>
+                  <Flex
+                    justify="space-between"
+                    align="center"
+                    style={{ marginTop: "auto" }}
+                  >
                     <Text type="secondary" style={{ fontFamily: "monospace" }}>
                       {session.id.slice(-8)}
                     </Text>
