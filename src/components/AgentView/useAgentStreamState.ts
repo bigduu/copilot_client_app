@@ -124,7 +124,6 @@ export const useAgentStreamState = ({
       setError,
       setIsRunning,
       setRunSessionId,
-      setSelectedProject,
       setSelectedSessionId,
       updateLocalPromptSessionId,
     });

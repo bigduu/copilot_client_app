@@ -5,7 +5,7 @@ import type { ChatItem, Message } from "../../types/chat";
 interface UseMessageCardMermaidFixProps {
   message: Message;
   messageId: string;
-  selectedModel: string | null;
+  selectedModel?: string | null;
   currentChatId?: string | null;
   currentChat?: ChatItem | null;
   updateChat: (chatId: string, update: Partial<ChatItem>) => void;

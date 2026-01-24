@@ -12,7 +12,7 @@ interface UseInputContainerHistoryProps {
     currentValue: string,
   ) => {
     applied: boolean;
-    value: string;
+    value: string | null;
   };
 }
 

@@ -1,4 +1,3 @@
-import React from "react";
 import { Card, Typography } from "antd";
 import type { Components } from "react-markdown";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";

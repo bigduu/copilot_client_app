@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { Dispatch, SetStateAction } from "react";
 
 import type { ClaudeStreamMessage } from "../ClaudeStream";
 
 type UseAgentStreamBuffersArgs = {
   selectedSessionId: string | null;
   debugLog: (...args: any[]) => void;
-  setError: (value: string | null) => void;
+  setError: Dispatch<SetStateAction<string | null>>;
 };
 
 export const useAgentStreamBuffers = ({

@@ -6,6 +6,7 @@ import {
   DeleteOutlined,
   StarOutlined,
 } from "@ant-design/icons";
+import type { MenuProps } from "antd";
 
 interface UseMessageCardActionsProps {
   messageText: string;
@@ -111,7 +112,7 @@ export const useMessageCardActions = ({
   );
 
   const contextMenuItems = useMemo(() => {
-    const baseItems = [
+    const baseItems: NonNullable<MenuProps["items"]> = [
       {
         key: "copy",
         label: "Copy",

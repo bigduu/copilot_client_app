@@ -3,6 +3,7 @@ import type { MutableRefObject } from "react";
 import { listen } from "@tauri-apps/api/event";
 
 import type { ClaudeStreamMessage } from "../ClaudeStream";
+import { AgentSessionPersistenceService } from "../../services/AgentSessionPersistenceService";
 import { deriveProjectId } from "./agentViewUtils";
 
 type UseAgentStreamListenersArgs = {
@@ -23,7 +24,6 @@ type UseAgentStreamListenersArgs = {
   ) => void;
   setIsRunning: (value: boolean) => void;
   setRunSessionId: (value: string | null) => void;
-  setSelectedProject: (id: string | null, path: string | null) => void;
   setSelectedSessionId: (id: string | null) => void;
   updateLocalPromptSessionId: (sid: string) => void;
 };
@@ -44,7 +44,6 @@ export const useAgentStreamListeners = ({
   setError,
   setIsRunning,
   setRunSessionId,
-  setSelectedProject,
   setSelectedSessionId,
   updateLocalPromptSessionId,
 }: UseAgentStreamListenersArgs) => {

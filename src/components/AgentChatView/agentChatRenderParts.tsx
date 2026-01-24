@@ -1,4 +1,3 @@
-import React from "react";
 import { Collapse, Flex } from "antd";
 
 import type { ClaudeContentPart } from "../ClaudeStream";

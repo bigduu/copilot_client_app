@@ -4,7 +4,6 @@ import type { WorkflowCommandInfo } from "../../utils/inputHighlight";
 import type { WorkflowDraft } from "./index";
 
 interface UseInputContainerWorkflowProps {
-  content: string;
   setContent: (value: string) => void;
   onWorkflowDraftChange?: (workflow: WorkflowDraft | null) => void;
   acknowledgeManualInput: () => void;
@@ -12,7 +11,6 @@ interface UseInputContainerWorkflowProps {
 }
 
 export const useInputContainerWorkflow = ({
-  content,
   setContent,
   onWorkflowDraftChange,
   acknowledgeManualInput,

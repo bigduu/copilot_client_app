@@ -39,6 +39,7 @@ const FavoriteCard: React.FC<FavoriteCardProps> = ({
     () => createFavoritesMarkdownComponents(token),
     [token],
   );
+  const messageId = favorite.messageId;
 
   return (
     <Card
@@ -124,13 +125,13 @@ const FavoriteCard: React.FC<FavoriteCardProps> = ({
               onClick={() => onReference(favorite.content)}
             />
           </Tooltip>
-          {favorite.messageId && (
+          {messageId && (
             <Tooltip title="Locate Message">
               <Button
                 icon={<EnvironmentOutlined />}
                 size="small"
                 type="text"
-                onClick={() => onLocateMessage(favorite.messageId)}
+                onClick={() => onLocateMessage(messageId)}
               />
             </Tooltip>
           )}

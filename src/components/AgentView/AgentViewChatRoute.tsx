@@ -1,7 +1,6 @@
 import React from "react";
 import { Alert, Flex, Layout } from "antd";
 
-import type { ClaudeProject } from "../../services/ClaudeCodeService";
 import type { ClaudeStreamMessage } from "../ClaudeStream";
 import { AgentChatView } from "../AgentChatView";
 import { ClaudeStreamPanel } from "../ClaudeStream";
@@ -50,7 +49,6 @@ type AgentViewChatRouteProps = {
   onCloseTools: () => void;
   onToolsTabChange: (next: string) => void;
   selectedProjectId: string | null;
-  projects: ClaudeProject[];
   deriveProjectId: (path?: string | null) => string;
 };
 
@@ -92,7 +90,6 @@ export const AgentViewChatRoute: React.FC<AgentViewChatRouteProps> = ({
   onCloseTools,
   onToolsTabChange,
   selectedProjectId,
-  projects,
   deriveProjectId,
 }) => {
   return (

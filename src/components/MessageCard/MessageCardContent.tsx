@@ -2,7 +2,7 @@ import React from "react";
 import { Card, Flex, Space, Typography } from "antd";
 import ReactMarkdown from "react-markdown";
 import type { Components } from "react-markdown";
-import type { PluggableList } from "react-markdown/lib/react-markdown";
+import type { PluggableList } from "unified";
 import {
   isAssistantToolCallMessage,
   isAssistantToolResultMessage,

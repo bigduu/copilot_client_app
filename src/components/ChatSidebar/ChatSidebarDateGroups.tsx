@@ -23,7 +23,7 @@ type ChatSidebarDateGroupsProps = {
   onGenerateTitle: (chatId: string) => void;
   titleGenerationState: Record<
     string,
-    { status: "loading" | "error" | "success"; error?: string }
+    { status: "loading" | "error" | "idle"; error?: string }
   >;
   token: any;
 };

@@ -8,6 +8,15 @@ import type {
   ClaudeSession,
 } from "./claudeCodeTypes";
 
+export type {
+  ClaudeEnvVar,
+  ClaudeExecuteParams,
+  ClaudeMdFile,
+  ClaudeProject,
+  ClaudeResumeParams,
+  ClaudeSession,
+} from "./claudeCodeTypes";
+
 export class ClaudeCodeService {
   private static instance: ClaudeCodeService;
 

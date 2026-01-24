@@ -5,6 +5,7 @@ import { getOpenAIClient } from "../../services/openaiClient";
 import { useAppStore } from "../../store";
 import type { Message, UserMessage } from "../../types/chat";
 import type { ImageFile } from "../../utils/imageUtils";
+import { streamingMessageBus } from "../../utils/streamingMessageBus";
 import { buildRequestMessages } from "./openAiMessageMapping";
 import { streamOpenAIWithTools } from "./openAiStreamingRunner";
 
@@ -84,7 +85,6 @@ export function useChatOpenAIStreaming(
       deps.setProcessing(true);
       const controller = new AbortController();
       abortRef.current = controller;
-      const streamingMessageId = `streaming-${chatId}`;
 
       try {
         const client = getOpenAIClient();

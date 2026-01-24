@@ -255,7 +255,6 @@ export const AgentView: React.FC = () => {
       onCloseTools={handleCloseTools}
       onToolsTabChange={handleToolsTabChange}
       selectedProjectId={selectedProjectId}
-      projects={projects}
       deriveProjectId={deriveProjectId}
     />
   );

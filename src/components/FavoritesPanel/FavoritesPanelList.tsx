@@ -1,5 +1,5 @@
 import React from "react";
-import { Empty, Flex, List } from "antd";
+import { Empty, List } from "antd";
 import type { FavoriteItem } from "../../types/chat";
 import FavoriteCard from "./FavoriteCard";
 import { formatFavoriteDate } from "./favoritesUtils";

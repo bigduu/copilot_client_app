@@ -82,7 +82,6 @@ export const InputContainer: React.FC<InputContainerProps> = ({
   } = useInputContainerAttachments();
 
   const workflowState = useInputContainerWorkflow({
-    content,
     setContent,
     onWorkflowDraftChange,
     acknowledgeManualInput,

@@ -1,4 +1,9 @@
-import type { Message, PlanMessage, QuestionMessage } from "../../types/chat";
+import type {
+  Message,
+  MessageType,
+  PlanMessage,
+  QuestionMessage,
+} from "../../types/chat";
 
 const extractJsonFromText = (text: string): string | null => {
   if (text.includes("```json")) {
@@ -17,6 +22,13 @@ const extractJsonFromText = (text: string): string | null => {
   return null;
 };
 
+const isMessageType = (value: unknown): value is MessageType =>
+  value === "text" ||
+  value === "plan" ||
+  value === "question" ||
+  value === "tool_call" ||
+  value === "tool_result";
+
 export const detectMessageType = (
   message: Message,
   messageType?: "text" | "plan" | "question" | "tool_call" | "tool_result",
@@ -24,7 +36,10 @@ export const detectMessageType = (
   if (messageType) return messageType;
 
   if ("message_type" in message && message.message_type) {
-    return message.message_type;
+    const candidate = (message as any).message_type;
+    if (isMessageType(candidate)) {
+      return candidate;
+    }
   }
 
   if (message.role === "assistant" && message.type === "text") {

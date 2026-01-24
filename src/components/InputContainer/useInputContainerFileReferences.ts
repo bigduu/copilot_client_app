@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { App } from "antd";
+import type { MessageInstance } from "antd/es/message/interface";
 import type { FileReferenceInfo } from "../../utils/inputHighlight";
 import type { WorkspaceFileEntry } from "../../types/workspace";
 
@@ -9,7 +9,7 @@ interface UseInputContainerFileReferencesProps {
   currentChatId: string | null;
   currentChat: any | null;
   updateChat: (chatId: string, update: any) => void;
-  messageApi: App["message"];
+  messageApi: MessageInstance;
 }
 
 export const useInputContainerFileReferences = ({
