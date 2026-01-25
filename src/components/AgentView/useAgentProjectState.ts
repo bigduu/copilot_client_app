@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { claudeCodeService } from "../../services/ClaudeCodeService";
+import { AgentSessionPersistenceService } from "../../services/AgentSessionPersistenceService";
 import { serviceFactory } from "../../services/ServiceFactory";
 import { getErrorMessage } from "./agentViewUtils";
 
@@ -156,6 +157,15 @@ export const useAgentProjectState = ({
         const data =
           await claudeCodeService.listProjectSessions(selectedProjectId);
         setSessions(data);
+        data.forEach((session) => {
+          if (session.id && session.project_id && session.project_path) {
+            AgentSessionPersistenceService.saveSession(
+              session.id,
+              session.project_id,
+              session.project_path,
+            );
+          }
+        });
       } catch (e) {
         const message = getErrorMessage(e, "Failed to load project sessions");
         setSessionsError(message || "Failed to load project sessions");

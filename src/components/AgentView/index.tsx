@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { theme } from "antd";
 
 import type {
@@ -6,7 +6,8 @@ import type {
   ClaudeSession,
 } from "../../services/ClaudeCodeService";
 import { useAgentStore } from "../../store/agentStore";
-import { deriveProjectId } from "./agentViewUtils";
+import { AgentSessionPersistenceService } from "../../services/AgentSessionPersistenceService";
+import { deriveProjectId, extractSessionId } from "./agentViewUtils";
 import { AgentViewChatRoute } from "./AgentViewChatRoute";
 import { AgentViewProjectsRoute } from "./AgentViewProjectsRoute";
 import { AgentViewSessionsRoute } from "./AgentViewSessionsRoute";
@@ -19,10 +20,12 @@ export const AgentView: React.FC = () => {
   const selectedProjectPath = useAgentStore((s) => s.selectedProjectPath);
   const selectedSessionId = useAgentStore((s) => s.selectedSessionId);
   const model = useAgentStore((s) => s.model);
+  const thinkingMode = useAgentStore((s) => s.thinkingMode);
   const promptDraft = useAgentStore((s) => s.promptDraft);
 
   const setPromptDraft = useAgentStore((s) => s.setPromptDraft);
   const setModel = useAgentStore((s) => s.setModel);
+  const setThinkingMode = useAgentStore((s) => s.setThinkingMode);
   const setSelectedProject = useAgentStore((s) => s.setSelectedProject);
   const setSelectedProjectPath = useAgentStore((s) => s.setSelectedProjectPath);
   const setSelectedSessionId = useAgentStore((s) => s.setSelectedSessionId);
@@ -41,6 +44,7 @@ export const AgentView: React.FC = () => {
           : "sessions"
         : "projects",
   );
+  const [openedSessionIds, setOpenedSessionIds] = useState<string[]>([]);
 
   const {
     projectsIndex,
@@ -73,6 +77,8 @@ export const AgentView: React.FC = () => {
     error,
     view,
     queuedPrompts,
+    runningSessions,
+    runningSessionIds,
     handleViewChange,
     handleSendPrompt,
     handleAskUserAnswer,
@@ -82,6 +88,7 @@ export const AgentView: React.FC = () => {
     cancelRun,
     handleRemoveQueuedPrompt,
     loadSessionHistory,
+    switchSession,
     clearChatState,
   } = useAgentStreamState({
     selectedProjectId,
@@ -89,11 +96,13 @@ export const AgentView: React.FC = () => {
     resolvedProjectPath,
     projectPathStatus,
     model,
+    thinkingMode,
     promptDraft,
     setPromptDraft,
     setSelectedProject,
     setSelectedSessionId,
     bumpSessionsRefreshNonce,
+    sessionsRefreshNonce,
   });
 
   const handleOpenTools = useCallback(() => {
@@ -115,12 +124,109 @@ export const AgentView: React.FC = () => {
     [setModel],
   );
 
+  const handleThinkingModeChange = useCallback(
+    (value: string) => {
+      setThinkingMode(value);
+    },
+    [setThinkingMode],
+  );
+
   const handlePromptChange = useCallback(
     (value: string) => {
       setPromptDraft(value);
     },
     [setPromptDraft],
   );
+
+  useEffect(() => {
+    if (!selectedSessionId) return;
+    setOpenedSessionIds((prev) =>
+      prev.includes(selectedSessionId) ? prev : [...prev, selectedSessionId],
+    );
+  }, [selectedSessionId]);
+
+  const sessionTabs = useMemo(() => {
+    const resolveProjectName = (
+      path?: string | null,
+      projectId?: string | null,
+    ) => {
+      if (path) {
+        const parts = path.split("/").filter(Boolean);
+        return parts[parts.length - 1] || projectId || "Project";
+      }
+      if (projectId) {
+        const project = projects.find((p) => p.id === projectId);
+        if (project?.path) {
+          const parts = project.path.split("/").filter(Boolean);
+          return parts[parts.length - 1] || projectId;
+        }
+        return projectId;
+      }
+      return "Project";
+    };
+
+    const tabs: Array<{
+      key: string;
+      label: string;
+      running: boolean;
+      isProject?: boolean;
+    }> = [{ key: "projects", label: "Projects", running: false, isProject: true }];
+    const runningSorted = [...runningSessions].sort((a, b) => {
+      const aTime = new Date(a.started_at ?? a.startedAt ?? 0).getTime();
+      const bTime = new Date(b.started_at ?? b.startedAt ?? 0).getTime();
+      return bTime - aTime;
+    });
+    const runningIds = new Set(runningSessionIds);
+
+    const sessionLabel = (
+      sessionId: string,
+      projectPath?: string | null,
+      projectId?: string | null,
+    ) => {
+      const projectName = resolveProjectName(projectPath, projectId);
+      return `${projectName} · ${sessionId.slice(-8)}`;
+    };
+
+    runningSorted.forEach((info) => {
+      const id = extractSessionId(info);
+      if (!id) return;
+      const projectPath = info.project_path ?? info.projectPath ?? null;
+      tabs.push({
+        key: id,
+        label: sessionLabel(id, projectPath),
+        running: true,
+      });
+    });
+
+    const nonRunningOpened = openedSessionIds.filter(
+      (id) => !runningIds.has(id),
+    );
+    nonRunningOpened.forEach((sessionId) => {
+      const cached = AgentSessionPersistenceService.loadSession(sessionId);
+      const isActive = sessionId === selectedSessionId;
+      const projectPath =
+        cached?.projectPath ??
+        (isActive ? resolvedProjectPath ?? selectedProjectPath : null);
+      tabs.push({
+        key: sessionId,
+        label: sessionLabel(sessionId, projectPath, cached?.projectId),
+        running: false,
+      });
+    });
+
+    return tabs;
+  }, [
+    openedSessionIds,
+    projects,
+    resolvedProjectPath,
+    runningSessionIds,
+    runningSessions,
+    selectedProjectId,
+    selectedProjectPath,
+    selectedSessionId,
+  ]);
+
+  const activeSessionTab = selectedSessionId ?? "projects";
 
   const handleSelectProject = useCallback(
     (project: ClaudeProject) => {
@@ -139,29 +245,45 @@ export const AgentView: React.FC = () => {
     setAgentPage("projects");
   }, [clearChatState, setSelectedProject, setSelectedSessionId]);
 
-  const handleBackToSessions = useCallback(() => {
-    clearChatState();
-    if (!selectedProjectId) {
-      setAgentPage("projects");
-      return;
-    }
-    setAgentPage("sessions");
-  }, [clearChatState, selectedProjectId]);
+  const handleSelectSessionTab = useCallback(
+    async (key: string) => {
+      if (key === "projects") {
+        handleBackToProjects();
+        return;
+      }
+      const cached = AgentSessionPersistenceService.loadSession(key);
+      await switchSession(
+        key,
+        cached
+          ? { projectId: cached.projectId, projectPath: cached.projectPath }
+          : undefined,
+      );
+    },
+    [handleBackToProjects, switchSession],
+  );
 
   const handleSelectSession = useCallback(
     (session: ClaudeSession) => {
-      clearChatState();
-      setSelectedSessionId(session.id);
       setAgentPage("chat");
+      if (session.project_id && session.project_path) {
+        AgentSessionPersistenceService.saveSession(
+          session.id,
+          session.project_id,
+          session.project_path,
+        );
+      }
+      void switchSession(session.id, {
+        projectId: session.project_id,
+        projectPath: session.project_path,
+      });
     },
-    [clearChatState, setSelectedSessionId],
+    [switchSession],
   );
 
   const handleNewSession = useCallback(() => {
-    clearChatState();
-    setSelectedSessionId(null);
     setAgentPage("chat");
-  }, [clearChatState, setSelectedSessionId]);
+    void switchSession(null);
+  }, [switchSession]);
 
   useEffect(() => {
     if (!selectedProjectId) {
@@ -222,17 +344,13 @@ export const AgentView: React.FC = () => {
       view={view}
       onViewChange={handleViewChange}
       onOpenTools={handleOpenTools}
+      sessionTabs={sessionTabs}
+      activeSessionTab={activeSessionTab}
+      onSessionTabChange={handleSelectSessionTab}
       onReloadHistory={loadSessionHistory}
       onCancelRun={cancelRun}
       canReloadHistory={Boolean(selectedSessionId)}
       isRunning={isRunning}
-      onGoProjects={handleBackToProjects}
-      onGoSessions={selectedProjectId ? handleBackToSessions : undefined}
-      projectLabel={
-        selectedProjectId
-          ? (projects.find((p) => p.id === selectedProjectId)?.id ?? "Sessions")
-          : null
-      }
       projectPathStatus={projectPathStatus}
       error={error}
       history={history}
@@ -242,13 +360,12 @@ export const AgentView: React.FC = () => {
       liveTick={liveTick}
       onAskUserAnswer={handleAskUserAnswer}
       model={model}
+      thinkingMode={thinkingMode}
       promptDraft={promptDraft}
       onModelChange={handleModelChange}
+      onThinkingModeChange={handleThinkingModeChange}
       onPromptChange={handlePromptChange}
       onSendPrompt={handleSendPrompt}
-      onStartRun={startRun}
-      onContinueRun={continueRun}
-      onResumeRun={resumeRun}
       onRemoveQueuedPrompt={handleRemoveQueuedPrompt}
       toolsOpen={toolsOpen}
       toolsTab={toolsTab}
