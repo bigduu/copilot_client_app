@@ -291,8 +291,9 @@ export const useAgentStreamState = ({
         null;
       const infoProjectId =
         overrideProjectId ??
+        (infoProjectPath ? deriveProjectId(infoProjectPath) : null) ??
         cached?.projectId ??
-        (infoProjectPath ? deriveProjectId(infoProjectPath) : null);
+        null;
 
       if (infoProjectId && infoProjectPath) {
         setSelectedProject(infoProjectId, infoProjectPath);

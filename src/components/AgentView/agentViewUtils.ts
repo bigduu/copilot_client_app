@@ -1,6 +1,6 @@
 export const deriveProjectId = (path?: string | null) => {
   if (!path) return "";
-  return path.replace(/[^a-zA-Z0-9]/g, "-");
+  return path.replace(/\//g, "-");
 };
 
 export const getErrorMessage = (e: unknown, fallback: string) => {
