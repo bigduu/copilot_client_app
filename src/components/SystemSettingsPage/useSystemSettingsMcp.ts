@@ -1,6 +1,68 @@
 import { useEffect, useRef, useState } from "react";
 import { serviceFactory } from "../../services/ServiceFactory";
 
+const SECRET_MASK = "***";
+
+const cloneJson = (value: any) => {
+  try {
+    return JSON.parse(JSON.stringify(value ?? {}));
+  } catch {
+    return {};
+  }
+};
+
+const maskProxyAuth = (auth: any) => {
+  if (!auth || typeof auth !== "object") {
+    return auth;
+  }
+  const next = { ...auth };
+  if (typeof next.password === "string" && next.password.length > 0) {
+    next.password = SECRET_MASK;
+  }
+  return next;
+};
+
+const maskBodhiConfig = (config: any) => {
+  const next = cloneJson(config);
+  if (next.http_proxy_auth) {
+    next.http_proxy_auth = maskProxyAuth(next.http_proxy_auth);
+  }
+  if (next.https_proxy_auth) {
+    next.https_proxy_auth = maskProxyAuth(next.https_proxy_auth);
+  }
+  return next;
+};
+
+const resolveMaskedProxyAuth = (draft: any, previous: any) => {
+  if (!draft || typeof draft !== "object") {
+    return draft;
+  }
+  if (draft.password !== SECRET_MASK) {
+    return draft;
+  }
+  if (typeof previous?.password === "string") {
+    return { ...draft, password: previous.password };
+  }
+  return { ...draft, password: "" };
+};
+
+const resolveMaskedBodhiConfig = (draft: any, previous: any) => {
+  const next = cloneJson(draft);
+  if (next.http_proxy_auth) {
+    next.http_proxy_auth = resolveMaskedProxyAuth(
+      next.http_proxy_auth,
+      previous?.http_proxy_auth,
+    );
+  }
+  if (next.https_proxy_auth) {
+    next.https_proxy_auth = resolveMaskedProxyAuth(
+      next.https_proxy_auth,
+      previous?.https_proxy_auth,
+    );
+  }
+  return next;
+};
+
 export interface McpStatusResponse {
   name: string;
   status: string;
@@ -30,6 +92,7 @@ export const useSystemSettingsMcp = ({ msgApi }: UseSystemSettingsMcpProps) => {
   const bodhiConfigPollingRef = useRef<number | null>(null);
   const bodhiConfigDirtyRef = useRef(false);
   const bodhiConfigLastRef = useRef("");
+  const bodhiConfigSecretsRef = useRef<any>({});
 
   const fetchMcpConfig = async () => {
     const config = await serviceFactory.getMcpServers();
@@ -71,12 +134,14 @@ export const useSystemSettingsMcp = ({ msgApi }: UseSystemSettingsMcpProps) => {
   };
 
   const applyBodhiConfig = async (config: any, force = false) => {
-    const json = JSON.stringify(config ?? {}, null, 2);
+    const raw = JSON.stringify(config ?? {}, null, 2);
+    const masked = JSON.stringify(maskBodhiConfig(config ?? {}), null, 2);
     if (force || !bodhiConfigDirtyRef.current) {
-      setBodhiConfigJson(json);
+      setBodhiConfigJson(masked);
     }
     bodhiConfigDirtyRef.current = false;
-    bodhiConfigLastRef.current = json;
+    bodhiConfigLastRef.current = raw;
+    bodhiConfigSecretsRef.current = cloneJson(config ?? {});
   };
 
   const loadMcpConfig = async () => {
@@ -136,8 +201,8 @@ export const useSystemSettingsMcp = ({ msgApi }: UseSystemSettingsMcpProps) => {
   const pollBodhiConfig = async () => {
     try {
       const config = await fetchBodhiConfig();
-      const json = JSON.stringify(config ?? {}, null, 2);
-      if (!bodhiConfigDirtyRef.current && json !== bodhiConfigLastRef.current) {
+      const raw = JSON.stringify(config ?? {}, null, 2);
+      if (!bodhiConfigDirtyRef.current && raw !== bodhiConfigLastRef.current) {
         await applyBodhiConfig(config, true);
         return;
       }
@@ -165,10 +230,14 @@ export const useSystemSettingsMcp = ({ msgApi }: UseSystemSettingsMcpProps) => {
   const handleSaveBodhiConfig = async () => {
     try {
       const parsed = JSON.parse(bodhiConfigJson || "{}");
-      await serviceFactory.setBodhiConfig(parsed);
+      const resolved = resolveMaskedBodhiConfig(
+        parsed,
+        bodhiConfigSecretsRef.current,
+      );
+      await serviceFactory.setBodhiConfig(resolved);
       msgApi.success("Bodhi config saved");
       bodhiConfigDirtyRef.current = false;
-      bodhiConfigLastRef.current = JSON.stringify(parsed, null, 2);
+      bodhiConfigLastRef.current = JSON.stringify(resolved, null, 2);
       await loadBodhiConfig();
     } catch (error) {
       msgApi.error(

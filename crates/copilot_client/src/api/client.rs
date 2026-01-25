@@ -8,7 +8,7 @@ use tokio::sync::mpsc::Sender;
 
 use crate::api::models::{ChatCompletionRequest, ChatCompletionStreamChunk};
 use crate::auth::auth_handler::CopilotAuthHandler;
-use crate::config::Config;
+use crate::config::{Config, ProxyAuth};
 use crate::utils::http_utils::execute_request_with_vision;
 use eventsource_stream::Eventsource;
 use futures_util::StreamExt;
@@ -19,6 +19,16 @@ use crate::client_trait::CopilotClientTrait;
 use async_trait::async_trait;
 
 const DEFAULT_COPILOT_MODEL: &str = "gpt-5-mini";
+
+fn apply_proxy_auth(proxy: Proxy, auth: Option<&ProxyAuth>) -> Proxy {
+    let Some(auth) = auth else {
+        return proxy;
+    };
+    if auth.username.is_empty() {
+        return proxy;
+    }
+    proxy.basic_auth(&auth.username, &auth.password)
+}
 
 // Main Copilot Client struct
 #[derive(Debug, Clone)]
@@ -33,10 +43,14 @@ impl CopilotClient {
     pub fn new(config: Config, app_data_dir: PathBuf) -> Self {
         let mut builder = Client::builder().default_headers(Self::get_default_headers());
         if !config.http_proxy.is_empty() {
-            builder = builder.proxy(Proxy::http(&config.http_proxy).unwrap());
+            let mut proxy = Proxy::http(&config.http_proxy).unwrap();
+            proxy = apply_proxy_auth(proxy, config.http_proxy_auth.as_ref());
+            builder = builder.proxy(proxy);
         }
         if !config.https_proxy.is_empty() {
-            builder = builder.proxy(Proxy::https(&config.https_proxy).unwrap());
+            let mut proxy = Proxy::https(&config.https_proxy).unwrap();
+            proxy = apply_proxy_auth(proxy, config.https_proxy_auth.as_ref());
+            builder = builder.proxy(proxy);
         }
         let client: Client = builder.build().unwrap();
         let shared_client = Arc::new(client);

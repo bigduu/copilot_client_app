@@ -1,9 +1,14 @@
 use serde::{Deserialize, Serialize};
+use std::path::PathBuf;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Config {
     pub http_proxy: String,
     pub https_proxy: String,
+    #[serde(default)]
+    pub http_proxy_auth: Option<ProxyAuth>,
+    #[serde(default)]
+    pub https_proxy_auth: Option<ProxyAuth>,
     pub api_key: Option<String>,
     pub api_base: Option<String>,
     pub model: Option<String>,
@@ -11,7 +16,25 @@ pub struct Config {
     pub headless_auth: bool,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ProxyAuth {
+    pub username: String,
+    pub password: String,
+}
+
 const CONFIG_FILE_PATH: &str = "config.toml";
+
+fn bodhi_dir() -> PathBuf {
+    std::env::var_os("HOME")
+        .or_else(|| std::env::var_os("USERPROFILE"))
+        .map(PathBuf::from)
+        .unwrap_or_else(|| std::env::temp_dir())
+        .join(".bodhi")
+}
+
+fn bodhi_config_json_path() -> PathBuf {
+    bodhi_dir().join("config.json")
+}
 
 fn parse_bool_env(value: &str) -> bool {
     matches!(
@@ -31,15 +54,26 @@ impl Config {
         let mut config = Config {
             http_proxy: String::new(),
             https_proxy: String::new(),
+            http_proxy_auth: None,
+            https_proxy_auth: None,
             api_key: None,
             api_base: None,
             model: None,
             headless_auth: false,
         };
 
-        //detect the config file exists
-        if std::path::Path::new(CONFIG_FILE_PATH).exists() {
-            // Try to read from config.toml first
+        let mut loaded = false;
+        let json_path = bodhi_config_json_path();
+        if json_path.exists() {
+            if let Ok(content) = std::fs::read_to_string(&json_path) {
+                if let Ok(file_config) = serde_json::from_str::<Config>(&content) {
+                    config = file_config;
+                    loaded = true;
+                }
+            }
+        }
+
+        if !loaded && std::path::Path::new(CONFIG_FILE_PATH).exists() {
             if let Ok(content) = std::fs::read_to_string(CONFIG_FILE_PATH) {
                 if let Ok(file_config) = toml::from_str::<Config>(&content) {
                     config = file_config;
