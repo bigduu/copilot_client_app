@@ -1,6 +1,5 @@
 use actix_web::{get, post, put, delete, web, HttpResponse};
 use serde::{Deserialize, Serialize};
-use std::sync::Arc;
 
 use crate::error::AppError;
 use crate::server::AppState;
@@ -94,10 +93,16 @@ pub async fn list_skills(
     app_state: web::Data<AppState>,
     query: web::Query<ListSkillsQuery>,
 ) -> Result<HttpResponse, AppError> {
-    let filter = SkillFilter::new()
-        .with_optional_category(query.category.clone())
-        .with_optional_search(query.search.clone())
-        .with_enabled_only(query.enabled_only.unwrap_or(false));
+    let mut filter = SkillFilter::new();
+    if let Some(category) = query.category.clone() {
+        filter = filter.with_category(category);
+    }
+    if let Some(search) = query.search.clone() {
+        filter = filter.with_search(search);
+    }
+    if query.enabled_only.unwrap_or(false) {
+        filter = filter.enabled_only();
+    }
 
     let skills = app_state.skill_manager.store().list_skills(Some(filter)).await;
 
@@ -119,7 +124,7 @@ pub async fn get_skill(
         .store()
         .get_skill(&id)
         .await
-        .map_err(|e| AppError::NotFound(format!("Skill '{}' not found", id)))?;
+        .map_err(|_| AppError::NotFound(format!("Skill '{}' not found", id)))?;
 
     Ok(HttpResponse::Ok().json(skill))
 }
@@ -135,18 +140,25 @@ pub async fn create_skill(
     // Generate ID from name if not provided
     let id = req.id.unwrap_or_else(|| generate_id_from_name(&req.name));
 
-    let skill = SkillDefinition::new(
+    let mut skill = SkillDefinition::new(
         id,
         req.name,
         req.description,
         req.category,
         req.prompt,
     )
-    .with_tags(req.tags)
-    .with_tool_refs(req.tool_refs)
-    .with_workflow_refs(req.workflow_refs)
     .with_visibility(req.visibility.unwrap_or(SkillVisibility::Public))
     .with_enabled_by_default(req.enabled_by_default);
+
+    for tag in req.tags {
+        skill = skill.with_tag(tag);
+    }
+    for tool_ref in req.tool_refs {
+        skill = skill.with_tool_ref(tool_ref);
+    }
+    for workflow_ref in req.workflow_refs {
+        skill = skill.with_workflow_ref(workflow_ref);
+    }
 
     let created = app_state
         .skill_manager
@@ -287,13 +299,15 @@ pub async fn disable_skill(
             .skill_manager
             .store()
             .disable_skill_for_chat(&id, &chat_id)
-            .await;
+            .await
+            .map_err(|e| AppError::InternalError(anyhow::anyhow!("Failed to disable skill: {}", e)))?;
     } else {
         app_state
             .skill_manager
             .store()
             .disable_skill_global(&id)
-            .await;
+            .await
+            .map_err(|e| AppError::InternalError(anyhow::anyhow!("Failed to disable skill: {}", e)))?;
     }
 
     Ok(HttpResponse::Ok().json(SkillEnablementResponse {
@@ -376,7 +390,7 @@ pub async fn get_filtered_tools(
 /// GET /v1/skills/available-workflows - Get available workflows
 #[get("/v1/skills/available-workflows")]
 pub async fn get_available_workflows(
-    app_state: web::Data<AppState>,
+    _app_state: web::Data<AppState>,
 ) -> Result<HttpResponse, AppError> {
     // Get workflows from bodhi directory
     let workflows = crate::services::skill_service::list_workflows().await
@@ -393,25 +407,4 @@ fn generate_id_from_name(name: &str) -> String {
         .replace("--", "-")
         .trim_matches('-')
         .to_string()
-}
-
-impl SkillFilter {
-    fn with_optional_category(mut self, category: Option<String>) -> Self {
-        if let Some(cat) = category {
-            self.category = Some(cat);
-        }
-        self
-    }
-
-    fn with_optional_search(mut self, search: Option<String>) -> Self {
-        if let Some(s) = search {
-            self.search = Some(s);
-        }
-        self
-    }
-
-    fn with_enabled_only(mut self, enabled_only: bool) -> Self {
-        self.enabled_only = enabled_only;
-        self
-    }
 }
