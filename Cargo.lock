@@ -5563,6 +5563,24 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "56199f7ddabf13fe5074ce809e7d3f42b42ae711800501b5b16ea82ad029c39d"
 
 [[package]]
+name = "skill_manager"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "chrono",
+ "dirs 5.0.1",
+ "log",
+ "mockall",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "thiserror 1.0.69",
+ "tokio",
+ "tokio-test",
+]
+
+[[package]]
 name = "slab"
 version = "0.4.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -7102,6 +7120,7 @@ dependencies = [
  "bytes",
  "claude_installer",
  "copilot_client",
+ "dirs 5.0.1",
  "futures-util",
  "log",
  "mcp_client",
@@ -7109,6 +7128,7 @@ dependencies = [
  "rmcp 0.1.5",
  "serde",
  "serde_json",
+ "skill_manager",
  "tempfile",
  "thiserror 1.0.69",
  "tokio",

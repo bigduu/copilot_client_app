@@ -5,12 +5,14 @@ import { ModelSlice, createModelSlice } from "./slices/modelSlice";
 import { PromptSlice, createPromptSlice } from "./slices/promptSlice";
 import { FavoritesSlice, createFavoritesSlice } from "./slices/favoritesSlice";
 import { SessionSlice, createSessionSlice } from "./slices/appSettingsSlice";
+import { SkillSlice, createSkillSlice } from "./slices/skillSlice";
 
 export type AppState = ChatSlice &
   ModelSlice &
   PromptSlice &
   FavoritesSlice &
-  SessionSlice;
+  SessionSlice &
+  SkillSlice;
 
 export const useAppStore = create<AppState>()(
   devtools(
@@ -20,6 +22,7 @@ export const useAppStore = create<AppState>()(
       ...createPromptSlice(...a),
       ...createFavoritesSlice(...a),
       ...createSessionSlice(...a),
+      ...createSkillSlice(...a),
     })),
     { name: "AppStore" },
   ),

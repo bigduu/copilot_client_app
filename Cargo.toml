@@ -6,6 +6,7 @@ members = [
     "crates/workflow_system",
     "crates/mcp_client",
     "crates/web_service",
+    "crates/skill_manager",
     "src-tauri",
     "crates/web_service_standalone",
 ]

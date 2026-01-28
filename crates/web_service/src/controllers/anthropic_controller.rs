@@ -173,10 +173,14 @@ struct AnthropicErrorDetail {
 pub async fn messages(
     app_state: web::Data<AppState>,
     req: web::Json<AnthropicMessagesRequest>,
+    query: web::Query<std::collections::HashMap<String, String>>,
 ) -> Result<HttpResponse, AppError> {
     let stream = req.stream.unwrap_or(false);
     let request = req.into_inner();
     let response_model = request.model.clone();
+
+    // Extract chat_id from query params for skill context
+    let chat_id = query.get("chat_id").map(|s| s.as_str());
 
     let resolution = match resolve_model(&response_model).await {
         Ok(resolution) => resolution,
@@ -188,6 +192,12 @@ pub async fn messages(
         Err(err) => return Ok(anthropic_error_response(err)),
     };
     openai_request.model = resolution.mapped_model.clone();
+
+    // Inject skill context into system prompt
+    let skill_context = app_state.skill_manager.build_skill_context(chat_id).await;
+    if !skill_context.is_empty() {
+        inject_skill_context(&mut openai_request, &skill_context);
+    }
 
     if stream {
         let (tx, rx) = mpsc::channel(10);
@@ -1384,4 +1394,54 @@ fn map_completion_stream_chunk(chunk: &ChatCompletionStreamChunk, model: &str) -
     }
 
     output
+}
+
+/// Inject skill context into the system message of a chat completion request
+fn inject_skill_context(request: &mut ChatCompletionRequest, skill_context: &str) {
+    if skill_context.is_empty() {
+        return;
+    }
+
+    // Find existing system message or create new one
+    let mut found_system = false;
+    for message in &mut request.messages {
+        if message.role == Role::System {
+            // Append skill context to existing system message
+            match &message.content {
+                Content::Text(text) => {
+                    message.content = Content::Text(format!("{}\n{}", text, skill_context));
+                }
+                Content::Parts(parts) => {
+                    // Find text part and append
+                    let mut new_parts = parts.clone();
+                    if let Some(last_text) = new_parts.iter_mut().find_map(|p| match p {
+                        ContentPart::Text { text } => Some(text),
+                        _ => None,
+                    }) {
+                        *last_text = format!("{}\n{}", last_text, skill_context);
+                    } else {
+                        new_parts.push(ContentPart::Text {
+                            text: skill_context.to_string(),
+                        });
+                    }
+                    message.content = Content::Parts(new_parts);
+                }
+            }
+            found_system = true;
+            break;
+        }
+    }
+
+    // If no system message found, prepend one
+    if !found_system {
+        request.messages.insert(
+            0,
+            ChatMessage {
+                role: Role::System,
+                content: Content::Text(skill_context.to_string()),
+                tool_calls: None,
+                tool_call_id: None,
+            },
+        );
+    }
 }

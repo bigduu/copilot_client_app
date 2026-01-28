@@ -1,0 +1,65 @@
+{
+  "version": "1.0",
+  "skills": [
+    {
+      "id": "file-analysis",
+      "name": "File Analysis",
+      "description": "Read and analyze files to produce summaries and key insights",
+      "category": "analysis",
+      "tags": ["files", "analysis"],
+      "prompt": "You are a file analysis expert. Use read_file to inspect the file and provide: 1) file type and purpose, 2) concise summary, 3) key snippets or data, 4) potential issues or improvements.",
+      "tool_refs": ["default::read_file", "default::search"],
+      "workflow_refs": [],
+      "visibility": "public",
+      "enabled_by_default": true,
+      "version": "1.0.0",
+      "created_at": "2024-01-01T00:00:00Z",
+      "updated_at": "2024-01-01T00:00:00Z"
+    },
+    {
+      "id": "code-review",
+      "name": "Code Review",
+      "description": "Review code changes to spot defects, risks, and improvements",
+      "category": "development",
+      "tags": ["code", "review"],
+      "prompt": "You are a code review expert. Focus on correctness, readability, security, performance, and test coverage. Provide prioritized findings and actionable fixes.",
+      "tool_refs": ["default::read_file", "default::search", "default::run_command"],
+      "workflow_refs": [],
+      "visibility": "public",
+      "enabled_by_default": true,
+      "version": "1.0.0",
+      "created_at": "2024-01-01T00:00:00Z",
+      "updated_at": "2024-01-01T00:00:00Z"
+    },
+    {
+      "id": "project-setup",
+      "name": "Project Setup",
+      "description": "Guide new project initialization and configuration",
+      "category": "development",
+      "tags": ["project", "setup"],
+      "prompt": "You are a project setup expert. Clarify requirements, propose structure, generate starter configs, and list next steps.",
+      "tool_refs": ["default::run_command"],
+      "workflow_refs": ["create-project"],
+      "visibility": "public",
+      "enabled_by_default": false,
+      "version": "1.0.0",
+      "created_at": "2024-01-01T00:00:00Z",
+      "updated_at": "2024-01-01T00:00:00Z"
+    },
+    {
+      "id": "api-docs",
+      "name": "API Documentation",
+      "description": "Create or improve API documentation based on code and schemas",
+      "category": "documentation",
+      "tags": ["docs", "api"],
+      "prompt": "You are an API documentation specialist. Summarize endpoints, inputs, outputs, and error cases. Provide examples and keep the format consistent.",
+      "tool_refs": ["default::read_file", "default::search"],
+      "workflow_refs": [],
+      "visibility": "public",
+      "enabled_by_default": false,
+      "version": "1.0.0",
+      "created_at": "2024-01-01T00:00:00Z",
+      "updated_at": "2024-01-01T00:00:00Z"
+    }
+  ]
+}
