@@ -3,7 +3,7 @@
  * Workflows are user-invoked actions with explicit parameter forms
  */
 
-import { buildBackendUrl } from "../../utils/backendBaseUrl";
+import { buildBackendUrl } from "../../shared/utils/backendBaseUrl";
 
 export interface WorkflowParameter {
   name: string;

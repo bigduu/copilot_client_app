@@ -7,7 +7,6 @@ edition = "2021"
 # Serialization
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-toml = "0.8.22"
 
 # HTTP Client & Async
 reqwest = { version = "0.12", features = [
@@ -31,6 +30,7 @@ eventsource-stream = "0.2"
 
 # Logging
 log = { version = "0.4", features = ["std"] }
+chat_core = { path = "../chat_core" }
 
 # Tauri
 tauri = { version = "2.5.1", features = [] }

@@ -5,14 +5,12 @@
 //! - Tool calls (blocking)
 //! - MCP tool calls (blocking)  
 //! - Workflow steps (blocking)
-//! - Sub-contexts (async)
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use super::execution::{TodoExecution, TodoStatus};
-use crate::agent::AgentRole;
 
 /// Universal execution unit - everything becomes a TodoItem
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -112,17 +110,6 @@ pub enum TodoItemType {
         streaming_message_id: Option<Uuid>,
     },
 
-    /// Nested chat context - async, like starting a new conversation
-    /// Execution: Async
-    SubContext {
-        /// ID of the child context
-        context_id: Uuid,
-        /// Role for the sub-context
-        role: AgentRole,
-        /// Optional title for the sub-context
-        title: Option<String>,
-    },
-
     /// Tool execution
     /// Execution: Blocking
     ToolCall {
@@ -166,16 +153,15 @@ impl TodoItemType {
     }
 
     /// Returns true if this item is streaming/async
-    /// Chat and SubContext are async
+    /// Chat is async
     pub fn is_async(&self) -> bool {
-        matches!(self, Self::Chat { .. } | Self::SubContext { .. })
+        matches!(self, Self::Chat { .. })
     }
 
     /// Get a short label for display
     pub fn label(&self) -> &str {
         match self {
             Self::Chat { .. } => "Chat",
-            Self::SubContext { .. } => "Sub-task",
             Self::ToolCall { tool_name, .. } => tool_name,
             Self::McpTool { tool_name, .. } => tool_name,
             Self::WorkflowStep { workflow_name, .. } => workflow_name,

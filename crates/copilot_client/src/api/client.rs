@@ -1,22 +1,22 @@
+use std::{path::PathBuf, sync::Arc};
+
 use anyhow::anyhow;
+use async_trait::async_trait;
 use bytes::Bytes;
+use chat_core::config::{Config, ProxyAuth};
+use eventsource_stream::Eventsource;
+use futures_util::StreamExt;
 use log::{error, info, warn};
 use reqwest::{Client, Proxy, Response};
-use std::{path::PathBuf, sync::Arc};
 use tauri::http::HeaderMap;
 use tokio::sync::mpsc::Sender;
 
-use crate::api::models::{ChatCompletionRequest, ChatCompletionStreamChunk};
+use crate::api::models::{ChatCompletionRequest, ChatCompletionStreamChunk, Content, ContentPart};
 use crate::auth::auth_handler::CopilotAuthHandler;
-use crate::config::{Config, ProxyAuth};
 use crate::utils::http_utils::execute_request_with_vision;
-use eventsource_stream::Eventsource;
-use futures_util::StreamExt;
+use crate::client_trait::CopilotClientTrait;
 
 use super::models_handler::CopilotModelsHandler;
-use crate::api::models::{Content, ContentPart};
-use crate::client_trait::CopilotClientTrait;
-use async_trait::async_trait;
 
 const DEFAULT_COPILOT_MODEL: &str = "gpt-5-mini";
 

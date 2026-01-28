@@ -17,6 +17,7 @@ async-stream = "0.3"
 futures-util = "0.3"
 bytes = "1"
 claude_installer = { path = "../claude_installer" }
+chat_core = { path = "../chat_core" }
 copilot_client = { path = "../copilot_client" }
 mcp_client = { path = "../mcp_client" }
 rmcp = { version = "0.1", features = ["transport-child-process", "client"] }

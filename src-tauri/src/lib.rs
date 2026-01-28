@@ -11,7 +11,7 @@ use crate::command::claude_code::{
     open_new_session, read_claude_md_file, resume_claude_code, restore_checkpoint,
     save_claude_md_file, save_claude_settings, save_system_prompt, search_files,
     set_claude_binary_path, track_checkpoint_message, track_session_messages,
-    update_checkpoint_settings, update_hooks_config, validate_hook_command, ClaudeProcessState,
+    update_checkpoint_settings, update_hooks_config, validate_hook_command,
     get_system_prompt, get_claude_env_vars,
 };
 use crate::command::copy::copy_to_clipboard;
@@ -62,7 +62,6 @@ fn setup<R: Runtime>(_app: &mut App<R>) -> std::result::Result<(), Box<dyn std::
     }
     _app.manage(checkpoint_state);
     _app.manage(ProcessRegistryState::default());
-    _app.manage(ClaudeProcessState::default());
 
     let server_data_dir = app_data_dir.clone();
     tauri::async_runtime::spawn(async {
