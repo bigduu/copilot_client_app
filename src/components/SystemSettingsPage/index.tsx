@@ -24,6 +24,7 @@ import SystemSettingsPromptsTab from "./SystemSettingsPromptsTab";
 import SystemSettingsAppTab from "./SystemSettingsAppTab";
 import { useSystemSettingsMcp } from "./useSystemSettingsMcp";
 import { useSystemSettingsBackend } from "./useSystemSettingsBackend";
+import { SkillManager } from "../Skill";
 
 const { Text } = Typography;
 const { useToken } = theme;
@@ -255,6 +256,11 @@ const SystemSettingsPage = ({
                   onSaveEnhancement={handleSaveEnhancement}
                 />
               ),
+            },
+            {
+              key: "skills",
+              label: "Skills",
+              children: <SkillManager />,
             },
             {
               key: "app",

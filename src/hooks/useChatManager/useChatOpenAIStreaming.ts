@@ -1,6 +1,7 @@
 import { useCallback, useRef } from "react";
 import { App as AntApp } from "antd";
 import { BodhiConfigService } from "../../services/BodhiConfigService";
+import { skillService } from "../../services/SkillService";
 import { getOpenAIClient } from "../../services/openaiClient";
 import { useAppStore } from "../../store";
 import type { Message, UserMessage } from "../../types/chat";
@@ -34,8 +35,27 @@ export function useChatOpenAIStreaming(
     abortRef.current?.abort();
   }, []);
 
-  const resolveTools = useCallback(async () => {
+  const resolveTools = useCallback(async (chatId?: string) => {
     if (toolsCacheRef.current) return toolsCacheRef.current;
+    
+    // Try to get filtered tools based on enabled skills
+    try {
+      const filteredTools = await skillService.getFilteredTools(chatId);
+      if (filteredTools && filteredTools.length > 0) {
+        // Convert tool names to OpenAI tool format
+        const configService = BodhiConfigService.getInstance();
+        const allTools = await configService.getTools();
+        const toolDefs = allTools.tools.filter((t: any) => 
+          filteredTools.includes(t.function?.name)
+        );
+        toolsCacheRef.current = toolDefs;
+        return toolDefs;
+      }
+    } catch (e) {
+      console.log("[useChatOpenAIStreaming] Failed to get filtered tools, falling back to all tools");
+    }
+    
+    // Fallback to all tools
     const configService = BodhiConfigService.getInstance();
     const data = await configService.getTools();
     toolsCacheRef.current = data.tools;
@@ -88,7 +108,7 @@ export function useChatOpenAIStreaming(
 
       try {
         const client = getOpenAIClient();
-        const tools = await resolveTools();
+        const tools = await resolveTools(chatId);
         const model = selectedModel || "gpt-4o-mini";
         const openaiMessages = buildMessages(updatedMessages);
 
