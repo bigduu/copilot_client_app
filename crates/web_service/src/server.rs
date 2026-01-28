@@ -9,14 +9,16 @@ use tokio::sync::oneshot;
 
 use crate::controllers::{
     anthropic_controller, bodhi_controller, claude_install_controller, mcp_controller,
-    openai_controller, workspace_controller,
+    openai_controller, skill_controller, workspace_controller,
 };
 use crate::services::mcp_service::McpRuntime;
+use skill_manager::SkillManager;
 
 pub struct AppState {
     pub copilot_client: Arc<dyn CopilotClientTrait>,
     pub app_data_dir: PathBuf,
     pub mcp_runtime: Arc<McpRuntime>,
+    pub skill_manager: SkillManager,
 }
 
 const DEFAULT_WORKER_COUNT: usize = 10;
@@ -29,6 +31,7 @@ pub fn app_config(cfg: &mut web::ServiceConfig) {
             .configure(bodhi_controller::config)
             .configure(claude_install_controller::config)
             .configure(mcp_controller::config)
+            .configure(skill_controller::config)
             .configure(workspace_controller::config),
     );
 }
@@ -40,10 +43,14 @@ pub async fn run(app_data_dir: PathBuf, port: u16) -> Result<(), String> {
     let copilot_client: Arc<dyn CopilotClientTrait> =
         Arc::new(CopilotClient::new(config, app_data_dir.clone()));
     let mcp_runtime = Arc::new(McpRuntime::new(app_data_dir.clone()).await);
+    let skill_manager = SkillManager::new();
+    skill_manager.initialize().await.map_err(|e| format!("Failed to initialize skill manager: {e}"))?;
+    
     let app_state = web::Data::new(AppState {
         copilot_client,
         app_data_dir,
         mcp_runtime,
+        skill_manager,
     });
 
     let server = HttpServer::new(move || {
@@ -94,10 +101,14 @@ impl WebService {
         let copilot_client: Arc<dyn CopilotClientTrait> =
             Arc::new(CopilotClient::new(config, self.app_data_dir.clone()));
         let mcp_runtime = Arc::new(McpRuntime::new(self.app_data_dir.clone()).await);
+        let skill_manager = SkillManager::new();
+        skill_manager.initialize().await.map_err(|e| format!("Failed to initialize skill manager: {e}"))?;
+        
         let app_state = web::Data::new(AppState {
             copilot_client,
             app_data_dir: self.app_data_dir.clone(),
             mcp_runtime,
+            skill_manager,
         });
 
         let server = HttpServer::new(move || {
