@@ -117,6 +117,7 @@ impl ProcessRegistry {
         project_path: String,
         task: String,
         model: String,
+        child: Arc<Mutex<Option<Child>>>,
     ) -> Result<i64, String> {
         let run_id = self.generate_id()?;
 
@@ -134,7 +135,7 @@ impl ProcessRegistry {
 
         let process_handle = ProcessHandle {
             info: process_info,
-            child: Arc::new(Mutex::new(None)),
+            child,
             live_output: Arc::new(Mutex::new(String::new())),
         };
 
@@ -502,6 +503,7 @@ mod tests {
                 "/tmp/project".to_string(),
                 "task".to_string(),
                 "model".to_string(),
+                Arc::new(Mutex::new(None)),
             )
             .unwrap();
 

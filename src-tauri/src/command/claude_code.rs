@@ -5,26 +5,13 @@ use std::fs;
 use std::io::{BufRead, BufReader};
 use std::path::PathBuf;
 use std::process::Stdio;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::time::{SystemTime, UNIX_EPOCH};
 use std::collections::HashSet;
 use tauri::{AppHandle, Emitter, Manager};
 use claude_installer::load_settings;
 use rusqlite::params;
 use tokio::process::{Child, Command};
-use tokio::sync::Mutex;
-
-pub struct ClaudeProcessState {
-    pub current_process: Arc<Mutex<Option<Child>>>,
-}
-
-impl Default for ClaudeProcessState {
-    fn default() -> Self {
-        Self {
-            current_process: Arc::new(Mutex::new(None)),
-        }
-    }
-}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Project {
@@ -345,6 +332,27 @@ fn create_system_command(
         .stderr(Stdio::piped());
 
     cmd
+}
+
+fn format_cli_command(program: &str, args: &[String]) -> String {
+    let mut parts = Vec::with_capacity(args.len() + 1);
+    parts.push(shell_quote(program));
+    for arg in args {
+        parts.push(shell_quote(arg));
+    }
+    parts.join(" ")
+}
+
+fn shell_quote(value: &str) -> String {
+    if value.is_empty() {
+        return "\"\"".to_string();
+    }
+    let needs_quotes = value.chars().any(|c| c.is_whitespace() || c == '"' || c == '\\');
+    if !needs_quotes {
+        return value.to_string();
+    }
+    let escaped = value.replace('\\', "\\\\").replace('"', "\\\"");
+    format!("\"{}\"", escaped)
 }
 
 async fn load_claude_env_vars(app: &AppHandle) -> Result<Vec<(String, String)>, String> {
@@ -1093,6 +1101,11 @@ pub async fn execute_claude_code(
         "--dangerously-skip-permissions".to_string(),
     ];
 
+    log::info!(
+        "Claude CLI command: {}",
+        format_cli_command(&claude_path, &args)
+    );
+
     let cmd = create_system_command(&claude_path, args, &project_path, &env_vars);
     spawn_claude_process(app, cmd, prompt, model, project_path).await
 }
@@ -1125,6 +1138,11 @@ pub async fn continue_claude_code(
         "--verbose".to_string(),
         "--dangerously-skip-permissions".to_string(),
     ];
+
+    log::info!(
+        "Claude CLI command: {}",
+        format_cli_command(&claude_path, &args)
+    );
 
     let cmd = create_system_command(&claude_path, args, &project_path, &env_vars);
     spawn_claude_process(app, cmd, prompt, model, project_path).await
@@ -1161,6 +1179,11 @@ pub async fn resume_claude_code(
         "--verbose".to_string(),
         "--dangerously-skip-permissions".to_string(),
     ];
+
+    log::info!(
+        "Claude CLI command: {}",
+        format_cli_command(&claude_path, &args)
+    );
 
     let cmd = create_system_command(&claude_path, args, &project_path, &env_vars);
     spawn_claude_process(app, cmd, prompt, model, project_path).await
@@ -1213,59 +1236,27 @@ pub async fn cancel_claude_execution(
         }
     }
 
-    if !killed {
-        let claude_state = app.state::<ClaudeProcessState>();
-        let mut current_process = claude_state.current_process.lock().await;
-
-        if let Some(mut child) = current_process.take() {
-            let pid = child.id();
-            log::info!(
-                "Attempting to kill Claude process via ClaudeProcessState with PID: {:?}",
-                pid
-            );
-
-            match child.kill().await {
-                Ok(_) => {
-                    log::info!("Successfully killed Claude process via ClaudeProcessState");
-                    killed = true;
-                }
-                Err(e) => {
-                    log::error!(
-                        "Failed to kill Claude process via ClaudeProcessState: {}",
-                        e
-                    );
-
-                    if let Some(pid) = pid {
-                        log::info!("Attempting system kill as last resort for PID: {}", pid);
-                        let kill_result = if cfg!(target_os = "windows") {
-                            std::process::Command::new("taskkill")
-                                .args(["/F", "/PID", &pid.to_string()])
-                                .output()
-                        } else {
-                            std::process::Command::new("kill")
-                                .args(["-KILL", &pid.to_string()])
-                                .output()
-                        };
-
-                        match kill_result {
-                            Ok(output) if output.status.success() => {
-                                log::info!("Successfully killed process via system command");
+    if !killed && session_id.is_none() {
+        let registry = app.state::<crate::process::ProcessRegistryState>();
+        match registry.0.get_running_claude_sessions() {
+            Ok(running) => {
+                for info in running {
+                    match registry.0.kill_process(info.run_id).await {
+                        Ok(success) => {
+                            if success {
                                 killed = true;
                             }
-                            Ok(output) => {
-                                let stderr = String::from_utf8_lossy(&output.stderr);
-                                log::error!("System kill failed: {}", stderr);
-                            }
-                            Err(e) => {
-                                log::error!("Failed to execute system kill command: {}", e);
-                            }
+                        }
+                        Err(e) => {
+                            log::warn!("Failed to kill running session {}: {}", info.run_id, e);
                         }
                     }
                 }
+                attempted_methods.push("registry_all");
             }
-            attempted_methods.push("claude_state");
-        } else {
-            log::warn!("No active Claude process in ClaudeProcessState");
+            Err(e) => {
+                log::warn!("Failed to list running sessions: {}", e);
+            }
         }
     }
 
@@ -1318,7 +1309,6 @@ async fn spawn_claude_process(
     model: String,
     project_path: String,
 ) -> Result<(), String> {
-    use std::sync::Mutex;
     use tokio::io::{AsyncBufReadExt, BufReader};
 
     let mut child = cmd
@@ -1334,24 +1324,16 @@ async fn spawn_claude_process(
     let stdout_reader = BufReader::new(stdout);
     let stderr_reader = BufReader::new(stderr);
 
+    let child_arc: Arc<Mutex<Option<Child>>> = Arc::new(Mutex::new(Some(child)));
     let session_id_holder: Arc<Mutex<Option<String>>> = Arc::new(Mutex::new(None));
     let run_id_holder: Arc<Mutex<Option<i64>>> = Arc::new(Mutex::new(None));
-
-    let claude_state = app.state::<ClaudeProcessState>();
-    {
-        let mut current_process = claude_state.current_process.lock().await;
-        if let Some(mut existing_child) = current_process.take() {
-            log::warn!("Killing existing Claude process before starting new one");
-            let _ = existing_child.kill().await;
-        }
-        *current_process = Some(child);
-    }
 
     let app_handle = app.clone();
     let session_id_holder_clone = session_id_holder.clone();
     let run_id_holder_clone = run_id_holder.clone();
     let registry = app.state::<crate::process::ProcessRegistryState>();
     let registry_clone = registry.0.clone();
+    let child_arc_clone = child_arc.clone();
     let project_path_clone = project_path.clone();
     let prompt_clone = prompt.clone();
     let model_clone = model.clone();
@@ -1374,6 +1356,7 @@ async fn spawn_claude_process(
                                 project_path_clone.clone(),
                                 prompt_clone.clone(),
                                 model_clone.clone(),
+                                child_arc_clone.clone(),
                             ) {
                                 Ok(run_id) => {
                                     log::info!("Registered Claude session with run_id: {}", run_id);
@@ -1414,7 +1397,7 @@ async fn spawn_claude_process(
     });
 
     let app_handle_wait = app.clone();
-    let claude_state_wait = claude_state.current_process.clone();
+    let child_arc_wait = child_arc.clone();
     let session_id_holder_clone3 = session_id_holder.clone();
     let run_id_holder_clone2 = run_id_holder.clone();
     let registry_clone2 = registry.0.clone();
@@ -1422,8 +1405,11 @@ async fn spawn_claude_process(
         let _ = stdout_task.await;
         let _ = stderr_task.await;
 
-        let mut current_process = claude_state_wait.lock().await;
-        if let Some(mut child) = current_process.take() {
+        let child_opt = {
+            let mut guard = child_arc_wait.lock().unwrap();
+            guard.take()
+        };
+        if let Some(mut child) = child_opt {
             match child.wait().await {
                 Ok(status) => {
                     log::info!("Claude process exited with status: {}", status);
@@ -1449,8 +1435,6 @@ async fn spawn_claude_process(
         if let Some(run_id) = *run_id_holder_clone2.lock().unwrap() {
             let _ = registry_clone2.unregister_process(run_id);
         }
-
-        *current_process = None;
     });
 
     Ok(())

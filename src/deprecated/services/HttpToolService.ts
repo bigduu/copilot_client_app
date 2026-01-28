@@ -1,4 +1,4 @@
-import { buildBackendUrl } from "../../utils/backendBaseUrl";
+import { buildBackendUrl } from "../../shared/utils/backendBaseUrl";
 
 export class HttpToolService {
   async getAvailableTools(): Promise<any[]> {

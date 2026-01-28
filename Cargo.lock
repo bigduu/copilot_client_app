@@ -963,7 +963,7 @@ dependencies = [
  "chrono",
  "serde",
  "serde_json",
- "thiserror 1.0.69",
+ "toml 0.8.23",
  "uuid",
 ]
 
@@ -1158,6 +1158,7 @@ dependencies = [
  "arboard",
  "async-trait",
  "bytes",
+ "chat_core",
  "chrono",
  "dirs 5.0.1",
  "eventsource-stream",
@@ -1175,7 +1176,6 @@ dependencies = [
  "thiserror 2.0.17",
  "tokio",
  "tokio-test",
- "toml 0.8.23",
  "uuid",
  "webbrowser",
  "wiremock",
@@ -7100,6 +7100,7 @@ dependencies = [
  "async-stream",
  "async-trait",
  "bytes",
+ "chat_core",
  "claude_installer",
  "copilot_client",
  "futures-util",

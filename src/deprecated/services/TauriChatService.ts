@@ -1,5 +1,5 @@
 import { invoke, Channel } from "@tauri-apps/api/core";
-import { buildBackendUrl } from "../../utils/backendBaseUrl";
+import { buildBackendUrl } from "../../shared/utils/backendBaseUrl";
 
 interface MessageContent {
   type: string;

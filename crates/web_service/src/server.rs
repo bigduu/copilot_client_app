@@ -1,7 +1,10 @@
+use std::{path::PathBuf, sync::Arc};
+
 use actix_cors::Cors;
 use actix_web::{web, App, HttpServer};
+use chat_core::Config;
+use copilot_client::{CopilotClient, CopilotClientTrait};
 use log::{error, info};
-use std::{path::PathBuf, sync::Arc};
 use tokio::sync::oneshot;
 
 use crate::controllers::{
@@ -9,7 +12,6 @@ use crate::controllers::{
     openai_controller, workspace_controller,
 };
 use crate::services::mcp_service::McpRuntime;
-use copilot_client::{config::Config, CopilotClient, CopilotClientTrait};
 
 pub struct AppState {
     pub copilot_client: Arc<dyn CopilotClientTrait>,

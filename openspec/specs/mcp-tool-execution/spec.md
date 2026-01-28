@@ -3,9 +3,7 @@
 ## Purpose
 
 TBD - created by archiving change add-mcp-support. Update Purpose after archive.
-
 ## Requirements
-
 ### Requirement: MCP tool discovery
 
 The system SHALL discover tools from enabled MCP servers and register them in the tool pipeline using a namespaced format to avoid collisions.
@@ -17,12 +15,14 @@ The system SHALL discover tools from enabled MCP servers and register them in th
 
 ### Requirement: MCP tool execution
 
-The system SHALL execute MCP tool calls by routing the tool request to the configured MCP server and returning the tool result to the agent loop.
+The system SHALL execute MCP tool calls by routing the tool request to the
+configured MCP server and returning the tool result to the frontend agent runtime.
 
-#### Scenario: Execute an MCP tool call
+#### Scenario: Execute an MCP tool call from the frontend agent
 
-- **WHEN** the agent issues a tool call to `example::search` with parameters
-- **THEN** the backend routes the request to the `example` MCP server and returns the result as a tool response
+- **WHEN** the frontend agent issues a tool call to `example::search` with parameters
+- **THEN** the system routes the request to the `example` MCP server and returns the
+  result to the frontend agent runtime
 
 ### Requirement: MCP tool error handling
 
@@ -32,3 +32,4 @@ The system SHALL return a tool error when an MCP tool call targets a missing or 
 
 - **WHEN** the agent issues a tool call to a tool hosted by a disabled MCP server
 - **THEN** the tool call fails with a clear error describing that the server is disabled
+
