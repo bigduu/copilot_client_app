@@ -4,7 +4,8 @@
 //! and enablement state.
 
 use crate::types::*;
-use log::{debug, error, info, warn};
+use log::{debug, info, warn};
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::PathBuf;
 use tokio::fs;
@@ -104,10 +105,10 @@ impl SkillStore {
         let builtins = vec![
             SkillDefinition::new(
                 "builtin-file-analysis",
-                "文件分析",
-                "读取并分析文件内容，提供摘要和关键信息",
+                "File Analysis",
+                "Read and analyze file contents, providing summaries and key information",
                 "analysis",
-                "你是一个文件分析专家。使用 read_file 工具读取文件，然后提供结构化的分析，包括：\n1. 文件类型和用途\n2. 主要内容摘要\n3. 关键代码/数据片段\n4. 潜在问题或改进建议",
+                "You are a file analysis expert. Use the read_file tool to read files, then provide a structured analysis including:\n1. File type and purpose\n2. Main content summary\n3. Key code/data snippets\n4. Potential issues or improvements",
             )
             .with_tool_ref("default::read_file")
             .with_tool_ref("default::search")
@@ -117,10 +118,10 @@ impl SkillStore {
 
             SkillDefinition::new(
                 "builtin-code-review",
-                "代码审查",
-                "审查代码变更，识别潜在问题和改进机会",
+                "Code Review",
+                "Review code changes to identify potential issues and improvement opportunities",
                 "development",
-                "你是一个代码审查专家。分析代码变更时，关注：\n1. 代码质量和可读性\n2. 潜在bug和安全问题\n3. 性能影响\n4. 是否符合最佳实践\n5. 测试覆盖率",
+                "You are a code review expert. When analyzing code changes, focus on:\n1. Code quality and readability\n2. Potential bugs and security issues\n3. Performance impact\n4. Alignment with best practices\n5. Test coverage",
             )
             .with_tool_ref("default::read_file")
             .with_tool_ref("default::search")
@@ -131,10 +132,10 @@ impl SkillStore {
 
             SkillDefinition::new(
                 "builtin-project-setup",
-                "项目初始化",
-                "帮助设置新项目，创建必要的配置文件和目录结构",
+                "Project Setup",
+                "Help set up new projects by creating necessary configuration files and directory structures",
                 "development",
-                "你是一个项目初始化专家。帮助用户设置新项目时：\n1. 分析项目类型和需求\n2. 创建推荐的目录结构\n3. 生成基础配置文件\n4. 提供下一步建议",
+                "You are a project setup expert. When helping users set up a new project:\n1. Analyze project type and requirements\n2. Create a recommended directory structure\n3. Generate basic configuration files\n4. Provide next-step guidance",
             )
             .with_workflow_ref("create-project")
             .with_tag("project")
