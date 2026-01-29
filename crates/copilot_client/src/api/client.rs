@@ -4,6 +4,7 @@ use anyhow::anyhow;
 use async_trait::async_trait;
 use bytes::Bytes;
 use chat_core::config::{Config, ProxyAuth};
+use chat_core::keyword_masking::KeywordMaskingConfig;
 use eventsource_stream::Eventsource;
 use futures_util::StreamExt;
 use log::{error, info, warn};
@@ -13,6 +14,7 @@ use tokio::sync::mpsc::Sender;
 
 use crate::api::models::{ChatCompletionRequest, ChatCompletionStreamChunk, Content, ContentPart};
 use crate::auth::auth_handler::CopilotAuthHandler;
+use crate::masking::apply_masking;
 use crate::utils::http_utils::execute_request_with_vision;
 use crate::client_trait::CopilotClientTrait;
 

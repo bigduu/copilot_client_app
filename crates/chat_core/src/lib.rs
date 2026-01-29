@@ -5,8 +5,10 @@
 //! - `todo` - TodoItem, TodoList for task tracking
 
 pub mod config;
+pub mod keyword_masking;
 pub mod todo;
 
 // Re-export commonly used types
 pub use config::{Config, ProxyAuth};
+pub use keyword_masking::{KeywordEntry, KeywordMaskingConfig, MatchType};
 pub use todo::{TodoExecution, TodoItem, TodoItemType, TodoList, TodoListStatus, TodoStatus};

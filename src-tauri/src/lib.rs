@@ -16,6 +16,9 @@ use crate::command::claude_code::{
 };
 use crate::command::copy::copy_to_clipboard;
 use crate::command::file_picker::pick_folder;
+use crate::command::keyword_masking::{
+    get_keyword_masking_config, update_keyword_masking_config, validate_keyword_entries,
+};
 use crate::command::slash_commands::{
     slash_command_delete, slash_command_get, slash_command_save, slash_commands_list,
 };
@@ -144,7 +147,10 @@ pub fn run() {
             slash_commands_list,
             slash_command_get,
             slash_command_save,
-            slash_command_delete
+            slash_command_delete,
+            get_keyword_masking_config,
+            update_keyword_masking_config,
+            validate_keyword_entries
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
