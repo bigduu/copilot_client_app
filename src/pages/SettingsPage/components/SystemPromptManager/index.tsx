@@ -11,7 +11,7 @@ import {
 } from "antd";
 import { EditOutlined, DeleteOutlined, PlusOutlined } from "@ant-design/icons";
 import { useAppStore } from "../../../ChatPage/store";
-import { UserSystemPrompt } from "../../types/chat";
+import { UserSystemPrompt } from "../../../ChatPage/types/chat";
 
 const SystemPromptManager = () => {
   const systemPrompts = useAppStore((state) => state.systemPrompts);

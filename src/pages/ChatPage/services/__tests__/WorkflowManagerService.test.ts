@@ -1,6 +1,6 @@
 import { beforeEach, afterEach, describe, expect, it, vi } from "vitest";
 import { WorkflowManagerService } from "../WorkflowManagerService";
-import { mockFetchError, mockFetchResponse } from "../../test/helpers";
+import { mockFetchError, mockFetchResponse } from "../../../../test/helpers";
 
 describe("WorkflowManagerService", () => {
   let service: WorkflowManagerService;
