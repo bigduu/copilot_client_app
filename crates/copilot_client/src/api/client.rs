@@ -39,6 +39,7 @@ pub struct CopilotClient {
     auth_handler: CopilotAuthHandler,
     models_handler: CopilotModelsHandler,
     config: Config,
+    keyword_masking_config: KeywordMaskingConfig,
 }
 
 impl CopilotClient {
@@ -65,12 +66,63 @@ impl CopilotClient {
         );
         let models_handler = CopilotModelsHandler::new(Arc::clone(&shared_client));
 
+        // Load keyword masking config from settings database
+        let keyword_masking_config = Self::load_keyword_masking_config(&app_data_dir);
+
         CopilotClient {
             client: shared_client,
             auth_handler,
             models_handler,
             config,
+            keyword_masking_config,
         }
+    }
+
+    /// Load keyword masking config from the app settings database
+    fn load_keyword_masking_config(app_data_dir: &PathBuf) -> KeywordMaskingConfig {
+        let db_path = app_data_dir.join("agents.db");
+        
+        if let Ok(conn) = rusqlite::Connection::open(&db_path) {
+            let result: Result<Option<String>, rusqlite::Error> = conn.query_row(
+                "SELECT value FROM app_settings WHERE key = 'keyword_masking_config'",
+                [],
+                |row| row.get(0),
+            );
+            
+            if let Ok(Some(config_json)) = result {
+                if let Ok(config) = serde_json::from_str::<KeywordMaskingConfig>(&config_json) {
+                    log::info!("Loaded keyword masking config with {} entries", config.entries.len());
+                    return config;
+                }
+            }
+        }
+        
+        log::debug!("No keyword masking config found, using default empty config");
+        KeywordMaskingConfig::default()
+    }
+
+    /// Apply keyword masking to all message content in the request
+    fn apply_keyword_masking_to_request(&self, request: &mut ChatCompletionRequest) {
+        if self.keyword_masking_config.entries.is_empty() {
+            return;
+        }
+
+        for message in &mut request.messages {
+            match &mut message.content {
+                Content::Text(text) => {
+                    *text = self.keyword_masking_config.apply_masking(text);
+                }
+                Content::Parts(parts) => {
+                    for part in parts {
+                        if let ContentPart::Text { text } = part {
+                            *text = self.keyword_masking_config.apply_masking(text);
+                        }
+                    }
+                }
+            }
+        }
+
+        log::debug!("Applied keyword masking to {} messages", request.messages.len());
     }
 
     pub async fn get_models(&self) -> anyhow::Result<Vec<String>> {
@@ -102,6 +154,9 @@ impl CopilotClientTrait for CopilotClient {
         if request.model.is_empty() {
             request.model = DEFAULT_COPILOT_MODEL.to_string();
         }
+
+        // Apply keyword masking to message content
+        self.apply_keyword_masking_to_request(&mut request);
 
         info!("=== EXCHANGE_CHAT_COMPLETION START ===");
         let access_token = self.auth_handler.get_chat_token().await.map_err(|e| {
