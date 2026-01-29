@@ -1,3 +1,4 @@
+pub mod agent_controller;
 pub mod anthropic_controller;
 pub mod bodhi_controller;
 pub mod claude_install_controller;

@@ -7103,6 +7103,7 @@ dependencies = [
  "chat_core",
  "claude_installer",
  "copilot_client",
+ "dirs 5.0.1",
  "futures-util",
  "log",
  "mcp_client",

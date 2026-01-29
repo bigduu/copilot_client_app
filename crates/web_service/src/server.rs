@@ -8,8 +8,8 @@ use log::{error, info};
 use tokio::sync::oneshot;
 
 use crate::controllers::{
-    anthropic_controller, bodhi_controller, claude_install_controller, mcp_controller,
-    openai_controller, workspace_controller,
+    agent_controller, anthropic_controller, bodhi_controller, claude_install_controller,
+    mcp_controller, openai_controller, workspace_controller,
 };
 use crate::services::mcp_service::McpRuntime;
 
@@ -24,6 +24,7 @@ const DEFAULT_WORKER_COUNT: usize = 10;
 pub fn app_config(cfg: &mut web::ServiceConfig) {
     cfg.service(
         web::scope("/v1")
+            .configure(agent_controller::config)
             .configure(anthropic_controller::config)
             .configure(openai_controller::config)
             .configure(bodhi_controller::config)
