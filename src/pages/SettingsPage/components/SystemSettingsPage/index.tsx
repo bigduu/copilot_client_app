@@ -24,7 +24,7 @@ import SystemSettingsPromptsTab from "./SystemSettingsPromptsTab";
 import SystemSettingsAppTab from "./SystemSettingsAppTab";
 import { useSystemSettingsMcp } from "./useSystemSettingsMcp";
 import { useSystemSettingsBackend } from "./useSystemSettingsBackend";
-import { SkillManager } from "../Skill";
+import { SkillManager } from "../../../../components/Skill";
 
 const { Text } = Typography;
 const { useToken } = theme;

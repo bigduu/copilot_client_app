@@ -65,19 +65,26 @@ impl SkillStore {
         debug!("Loading skills from {:?}", self.config.storage_path);
 
         let content = fs::read_to_string(&self.config.storage_path).await?;
-        let data: SkillStorageData = serde_json::from_str(&content)?;
+        let mut data: SkillStorageData = serde_json::from_str(&content)?;
+        let updated_builtins = Self::apply_builtin_overrides(&mut data.skills);
 
-        let mut skills = self.skills.write().await;
-        *skills = data.skills;
+        {
+            let mut skills = self.skills.write().await;
+            *skills = data.skills;
 
-        let mut enablement = self.enablement.write().await;
-        *enablement = data.enablement;
+            let mut enablement = self.enablement.write().await;
+            *enablement = data.enablement;
 
-        info!(
-            "Loaded {} skills, {} globally enabled",
-            skills.len(),
-            enablement.enabled_skill_ids.len()
-        );
+            info!(
+                "Loaded {} skills, {} globally enabled",
+                skills.len(),
+                enablement.enabled_skill_ids.len()
+            );
+        }
+
+        if updated_builtins {
+            self.save().await?;
+        }
 
         Ok(())
     }
@@ -102,45 +109,7 @@ impl SkillStore {
     async fn create_builtin_skills(&self) -> SkillResult<()> {
         info!("Creating built-in skills...");
 
-        let builtins = vec![
-            SkillDefinition::new(
-                "builtin-file-analysis",
-                "File Analysis",
-                "Read and analyze file contents, providing summaries and key information",
-                "analysis",
-                "You are a file analysis expert. Use the read_file tool to read files, then provide a structured analysis including:\n1. File type and purpose\n2. Main content summary\n3. Key code/data snippets\n4. Potential issues or improvements",
-            )
-            .with_tool_ref("default::read_file")
-            .with_tool_ref("default::search")
-            .with_tag("files")
-            .with_tag("analysis")
-            .with_enabled_by_default(true),
-
-            SkillDefinition::new(
-                "builtin-code-review",
-                "Code Review",
-                "Review code changes to identify potential issues and improvement opportunities",
-                "development",
-                "You are a code review expert. When analyzing code changes, focus on:\n1. Code quality and readability\n2. Potential bugs and security issues\n3. Performance impact\n4. Alignment with best practices\n5. Test coverage",
-            )
-            .with_tool_ref("default::read_file")
-            .with_tool_ref("default::search")
-            .with_tool_ref("default::run_command")
-            .with_tag("code")
-            .with_tag("review")
-            .with_enabled_by_default(true),
-
-            SkillDefinition::new(
-                "builtin-project-setup",
-                "Project Setup",
-                "Help set up new projects by creating necessary configuration files and directory structures",
-                "development",
-                "You are a project setup expert. When helping users set up a new project:\n1. Analyze project type and requirements\n2. Create a recommended directory structure\n3. Generate basic configuration files\n4. Provide next-step guidance",
-            )
-            .with_workflow_ref("create-project")
-            .with_tag("project")
-            .with_tag("setup"),
-        ];
+        let builtins = Self::builtin_skills();
 
         let mut skills = self.skills.write().await;
         for skill in builtins {
@@ -162,6 +131,105 @@ impl SkillStore {
 
         info!("Built-in skills created");
         Ok(())
+    }
+
+    fn builtin_skills() -> Vec<SkillDefinition> {
+        vec![
+            SkillDefinition::new(
+                "builtin-file-analysis",
+                "File Analysis",
+                "Read and analyze file contents, providing summaries and key information",
+                "analysis",
+                "You are a file analysis expert. Use the read_file tool to read files, then provide a structured analysis including:\n1. File type and purpose\n2. Main content summary\n3. Key code/data snippets\n4. Potential issues or improvements",
+            )
+            .with_tool_ref("default::read_file")
+            .with_tool_ref("default::search")
+            .with_tag("files")
+            .with_tag("analysis")
+            .with_enabled_by_default(true),
+            SkillDefinition::new(
+                "builtin-code-review",
+                "Code Review",
+                "Review code changes to identify potential issues and improvement opportunities",
+                "development",
+                "You are a code review expert. When analyzing code changes, focus on:\n1. Code quality and readability\n2. Potential bugs and security issues\n3. Performance impact\n4. Alignment with best practices\n5. Test coverage",
+            )
+            .with_tool_ref("default::read_file")
+            .with_tool_ref("default::search")
+            .with_tool_ref("default::run_command")
+            .with_tag("code")
+            .with_tag("review")
+            .with_enabled_by_default(true),
+            SkillDefinition::new(
+                "builtin-project-setup",
+                "Project Setup",
+                "Help set up new projects by creating necessary configuration files and directory structures",
+                "development",
+                "You are a project setup expert. When helping users set up a new project:\n1. Analyze project type and requirements\n2. Create a recommended directory structure\n3. Generate basic configuration files\n4. Provide next-step guidance",
+            )
+            .with_workflow_ref("create-project")
+            .with_tag("project")
+            .with_tag("setup"),
+        ]
+    }
+
+    fn apply_builtin_overrides(
+        skills: &mut HashMap<SkillId, SkillDefinition>,
+    ) -> bool {
+        let mut changed = false;
+
+        for builtin in Self::builtin_skills() {
+            let builtin_id = builtin.id.clone();
+            if let Some(existing) = skills.get_mut(&builtin_id) {
+                let mut updated = false;
+                if existing.name != builtin.name {
+                    existing.name = builtin.name;
+                    updated = true;
+                }
+                if existing.description != builtin.description {
+                    existing.description = builtin.description;
+                    updated = true;
+                }
+                if existing.category != builtin.category {
+                    existing.category = builtin.category;
+                    updated = true;
+                }
+                if existing.tags != builtin.tags {
+                    existing.tags = builtin.tags;
+                    updated = true;
+                }
+                if existing.prompt != builtin.prompt {
+                    existing.prompt = builtin.prompt;
+                    updated = true;
+                }
+                if existing.tool_refs != builtin.tool_refs {
+                    existing.tool_refs = builtin.tool_refs;
+                    updated = true;
+                }
+                if existing.workflow_refs != builtin.workflow_refs {
+                    existing.workflow_refs = builtin.workflow_refs;
+                    updated = true;
+                }
+                if existing.visibility != builtin.visibility {
+                    existing.visibility = builtin.visibility;
+                    updated = true;
+                }
+                if existing.enabled_by_default != builtin.enabled_by_default {
+                    existing.enabled_by_default = builtin.enabled_by_default;
+                    updated = true;
+                }
+                if existing.version != builtin.version {
+                    existing.version = builtin.version;
+                    updated = true;
+                }
+                if updated {
+                    existing.touch();
+                    changed = true;
+                }
+            }
+        }
+
+        changed
     }
 
     // ==================== CRUD Operations ====================

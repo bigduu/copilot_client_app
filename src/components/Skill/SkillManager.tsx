@@ -21,8 +21,8 @@ import {
   PlusOutlined,
   SearchOutlined,
 } from "@ant-design/icons";
-import { useAppStore } from "../../store";
-import type { SkillDefinition, SkillFilter } from "../../types/skill";
+import { useAppStore } from "../../pages/ChatPage/store";
+import type { SkillDefinition, SkillFilter } from "../../pages/ChatPage/types/skill";
 import { SkillCard } from "./SkillCard";
 import { SkillEditor } from "./SkillEditor";
 

@@ -1,7 +1,7 @@
 import React from "react";
 import { Button, Card, Flex, Popconfirm, Space, Switch, Tag, Typography, theme } from "antd";
 import { DeleteOutlined, EditOutlined } from "@ant-design/icons";
-import type { SkillDefinition } from "../../types/skill";
+import type { SkillDefinition } from "../../pages/ChatPage/types/skill";
 
 const { Text } = Typography;
 

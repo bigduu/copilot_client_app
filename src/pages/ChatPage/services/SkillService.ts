@@ -1,4 +1,4 @@
-import { buildBackendUrl } from "../utils/backendBaseUrl";
+import { buildBackendUrl } from "../../../shared/utils/backendBaseUrl";
 import type {
   SkillDefinition,
   CreateSkillRequest,

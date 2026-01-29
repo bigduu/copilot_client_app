@@ -1,7 +1,7 @@
 import React, { useEffect } from "react";
 import { Button, Form, Input, Radio, Select, Space, Switch, message } from "antd";
-import { useAppStore } from "../../store";
-import type { SkillDefinition } from "../../types/skill";
+import { useAppStore } from "../../pages/ChatPage/store";
+import type { SkillDefinition } from "../../pages/ChatPage/types/skill";
 
 interface SkillEditorProps {
   skill: SkillDefinition | null;

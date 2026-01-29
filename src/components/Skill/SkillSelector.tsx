@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo } from "react";
 import { Select, Space, Tag } from "antd";
-import { useAppStore } from "../../store";
+import { useAppStore } from "../../pages/ChatPage/store";
 
 interface SkillSelectorProps {
   selectedSkillIds: string[];
