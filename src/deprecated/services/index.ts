@@ -1,9 +1,8 @@
-export { SystemPromptService } from "./SystemPromptService";
-export { BodhiConfigService } from "./BodhiConfigService";
-export { ToolService } from "./ToolService";
-export { StorageService } from "./StorageService";
-export { TauriUtilityService } from "./TauriService";
-export { ClaudeCodeService } from "./ClaudeCodeService";
-export { ClaudeInstallerService } from "./ClaudeInstallerService";
+export { AgentApprovalService } from "./AgentApprovalService";
 export { HealthService } from "./HealthService";
-export { ModelService } from "./ModelService";
+export { HttpToolService } from "./HttpToolService";
+export { SessionService } from "./SessionService";
+export { TauriChatService } from "./TauriChatService";
+export { TemplateVariableService } from "./TemplateVariableService";
+export { UserPreferenceService } from "./UserPreferenceService";
+export { WorkflowService } from "./WorkflowService";

@@ -5,24 +5,17 @@ import {
   Input,
   List,
   Modal,
-  Form,
   Select,
   Switch,
-  Tag,
   message,
   Spin,
   Empty,
   Row,
   Col,
 } from "antd";
-import {
-  EditOutlined,
-  DeleteOutlined,
-  PlusOutlined,
-  SearchOutlined,
-} from "@ant-design/icons";
+import { PlusOutlined, SearchOutlined } from "@ant-design/icons";
 import { useAppStore } from "../../pages/ChatPage/store";
-import type { SkillDefinition, SkillFilter } from "../../pages/ChatPage/types/skill";
+import type { SkillDefinition } from "../../pages/ChatPage/types/skill";
 import { SkillCard } from "./SkillCard";
 import { SkillEditor } from "./SkillEditor";
 
