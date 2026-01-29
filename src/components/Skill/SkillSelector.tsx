@@ -5,7 +5,6 @@ import { useAppStore } from "../../store";
 interface SkillSelectorProps {
   selectedSkillIds: string[];
   onChange: (skillIds: string[]) => void;
-  chatId?: string;
 }
 
 export const SkillSelector: React.FC<SkillSelectorProps> = ({
