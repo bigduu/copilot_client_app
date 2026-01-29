@@ -1,4 +1,4 @@
-import { useCallback, useRef } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import { App as AntApp } from "antd";
 import { BodhiConfigService } from "../../services/BodhiConfigService";
 import { skillService } from "../../services/SkillService";
@@ -30,6 +30,12 @@ export function useChatOpenAIStreaming(
   const streamingMessageIdRef = useRef<string | null>(null);
   const streamingContentRef = useRef<string>("");
   const selectedModel = useAppStore((state) => state.selectedModel);
+  const enabledSkillIds = useAppStore((state) => state.enabledSkillIds);
+
+  // Clear tools cache when enabled skills change
+  useEffect(() => {
+    toolsCacheRef.current = null;
+  }, [enabledSkillIds]);
 
   const cancel = useCallback(() => {
     abortRef.current?.abort();
