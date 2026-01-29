@@ -76,9 +76,7 @@ pub async fn set_mcp_servers(
 }
 
 #[post("/mcp/reload")]
-pub async fn reload_mcp_servers(
-    app_state: web::Data<AppState>,
-) -> Result<HttpResponse, AppError> {
+pub async fn reload_mcp_servers(app_state: web::Data<AppState>) -> Result<HttpResponse, AppError> {
     let config = app_state
         .mcp_runtime
         .reload_from_file()
@@ -94,7 +92,10 @@ pub async fn get_mcp_status(
 ) -> Result<HttpResponse, AppError> {
     let name = name.into_inner();
     let Some(status) = app_state.mcp_runtime.get_status(&name).await else {
-        return Err(AppError::NotFound(format!("MCP server '{}' not found", name)));
+        return Err(AppError::NotFound(format!(
+            "MCP server '{}' not found",
+            name
+        )));
     };
     let (status_label, message) = match status {
         mcp_client::client::McpClientStatus::Starting => ("starting".to_string(), None),

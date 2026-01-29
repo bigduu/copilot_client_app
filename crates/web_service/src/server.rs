@@ -42,8 +42,11 @@ pub async fn run(app_data_dir: PathBuf, port: u16) -> Result<(), String> {
         Arc::new(CopilotClient::new(config, app_data_dir.clone()));
     let mcp_runtime = Arc::new(McpRuntime::new(app_data_dir.clone()).await);
     let skill_manager = SkillManager::new();
-    skill_manager.initialize().await.map_err(|e| format!("Failed to initialize skill manager: {e}"))?;
-    
+    skill_manager
+        .initialize()
+        .await
+        .map_err(|e| format!("Failed to initialize skill manager: {e}"))?;
+
     let app_state = web::Data::new(AppState {
         copilot_client,
         app_data_dir,
@@ -100,8 +103,11 @@ impl WebService {
             Arc::new(CopilotClient::new(config, self.app_data_dir.clone()));
         let mcp_runtime = Arc::new(McpRuntime::new(self.app_data_dir.clone()).await);
         let skill_manager = SkillManager::new();
-        skill_manager.initialize().await.map_err(|e| format!("Failed to initialize skill manager: {e}"))?;
-        
+        skill_manager
+            .initialize()
+            .await
+            .map_err(|e| format!("Failed to initialize skill manager: {e}"))?;
+
         let app_state = web::Data::new(AppState {
             copilot_client,
             app_data_dir: self.app_data_dir.clone(),

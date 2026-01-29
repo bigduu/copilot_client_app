@@ -107,7 +107,7 @@ export function useChatOpenAIStreaming(
       abortRef.current = controller;
 
       try {
-        const client = getOpenAIClient();
+        const client = getOpenAIClient(chatId);
         const tools = await resolveTools(chatId);
         const model = selectedModel || "gpt-4o-mini";
         const openaiMessages = buildMessages(updatedMessages);

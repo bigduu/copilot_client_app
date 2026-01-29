@@ -1,11 +1,11 @@
-use std::collections::HashMap;
-use std::path::PathBuf;
 use anyhow::Result;
 use log::error;
 use mcp_client::client::{McpClient, McpClientManager, McpClientStatus};
 use mcp_client::model::McpServersConfig;
 use rmcp::model::CallToolRequestParam;
 use serde_json::Map;
+use std::collections::HashMap;
+use std::path::PathBuf;
 use tokio::fs;
 use tokio::sync::RwLock;
 
@@ -70,9 +70,7 @@ impl McpRuntime {
         self.manager.read().await.get_status(name)
     }
 
-    pub async fn list_tools(
-        &self,
-    ) -> Result<Vec<(String, rmcp::model::Tool)>> {
+    pub async fn list_tools(&self) -> Result<Vec<(String, rmcp::model::Tool)>> {
         let clients: Vec<(String, std::sync::Arc<McpClient>)> = {
             let manager = self.manager.read().await;
             manager

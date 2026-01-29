@@ -1,4 +1,4 @@
-use actix_web::{get, post, put, delete, web, HttpResponse};
+use actix_web::{delete, get, post, put, web, HttpResponse};
 use serde::{Deserialize, Serialize};
 
 use crate::error::AppError;
@@ -104,7 +104,11 @@ pub async fn list_skills(
         filter = filter.enabled_only();
     }
 
-    let skills = app_state.skill_manager.store().list_skills(Some(filter)).await;
+    let skills = app_state
+        .skill_manager
+        .store()
+        .list_skills(Some(filter))
+        .await;
 
     Ok(HttpResponse::Ok().json(SkillListResponse {
         total: skills.len(),
@@ -140,15 +144,9 @@ pub async fn create_skill(
     // Generate ID from name if not provided
     let id = req.id.unwrap_or_else(|| generate_id_from_name(&req.name));
 
-    let mut skill = SkillDefinition::new(
-        id,
-        req.name,
-        req.description,
-        req.category,
-        req.prompt,
-    )
-    .with_visibility(req.visibility.unwrap_or(SkillVisibility::Public))
-    .with_enabled_by_default(req.enabled_by_default);
+    let mut skill = SkillDefinition::new(id, req.name, req.description, req.category, req.prompt)
+        .with_visibility(req.visibility.unwrap_or(SkillVisibility::Public))
+        .with_enabled_by_default(req.enabled_by_default);
 
     for tag in req.tags {
         skill = skill.with_tag(tag);
@@ -264,14 +262,18 @@ pub async fn enable_skill(
             .store()
             .enable_skill_for_chat(&id, &chat_id)
             .await
-            .map_err(|e| AppError::InternalError(anyhow::anyhow!("Failed to enable skill: {}", e)))?;
+            .map_err(|e| {
+                AppError::InternalError(anyhow::anyhow!("Failed to enable skill: {}", e))
+            })?;
     } else {
         app_state
             .skill_manager
             .store()
             .enable_skill_global(&id)
             .await
-            .map_err(|e| AppError::InternalError(anyhow::anyhow!("Failed to enable skill: {}", e)))?;
+            .map_err(|e| {
+                AppError::InternalError(anyhow::anyhow!("Failed to enable skill: {}", e))
+            })?;
     }
 
     Ok(HttpResponse::Ok().json(SkillEnablementResponse {
@@ -300,14 +302,18 @@ pub async fn disable_skill(
             .store()
             .disable_skill_for_chat(&id, &chat_id)
             .await
-            .map_err(|e| AppError::InternalError(anyhow::anyhow!("Failed to disable skill: {}", e)))?;
+            .map_err(|e| {
+                AppError::InternalError(anyhow::anyhow!("Failed to disable skill: {}", e))
+            })?;
     } else {
         app_state
             .skill_manager
             .store()
             .disable_skill_global(&id)
             .await
-            .map_err(|e| AppError::InternalError(anyhow::anyhow!("Failed to disable skill: {}", e)))?;
+            .map_err(|e| {
+                AppError::InternalError(anyhow::anyhow!("Failed to disable skill: {}", e))
+            })?;
     }
 
     Ok(HttpResponse::Ok().json(SkillEnablementResponse {
@@ -322,9 +328,7 @@ pub async fn disable_skill(
 
 /// GET /v1/skills/available-tools - Get available MCP tools
 #[get("/v1/skills/available-tools")]
-pub async fn get_available_tools(
-    app_state: web::Data<AppState>,
-) -> Result<HttpResponse, AppError> {
+pub async fn get_available_tools(app_state: web::Data<AppState>) -> Result<HttpResponse, AppError> {
     // Get tools from MCP runtime
     let tools = app_state
         .mcp_runtime
@@ -332,7 +336,10 @@ pub async fn get_available_tools(
         .await
         .map_err(|e| AppError::InternalError(anyhow::anyhow!("Failed to list tools: {}", e)))?;
 
-    let tool_names: Vec<String> = tools.into_iter().map(|(_, tool)| tool.name.to_string()).collect();
+    let tool_names: Vec<String> = tools
+        .into_iter()
+        .map(|(_, tool)| tool.name.to_string())
+        .collect();
 
     Ok(HttpResponse::Ok().json(AvailableToolsResponse { tools: tool_names }))
 }
@@ -356,12 +363,14 @@ pub async fn get_filtered_tools(
 
     // If no skills enabled, return all tools
     if allowed_tools.is_empty() {
-        let tools = app_state
-            .mcp_runtime
-            .list_tools()
-            .await
-            .map_err(|e| AppError::InternalError(anyhow::anyhow!("Failed to list tools: {}", e)))?;
-        let tool_names: Vec<String> = tools.into_iter().map(|(_, tool)| tool.name.to_string()).collect();
+        let tools =
+            app_state.mcp_runtime.list_tools().await.map_err(|e| {
+                AppError::InternalError(anyhow::anyhow!("Failed to list tools: {}", e))
+            })?;
+        let tool_names: Vec<String> = tools
+            .into_iter()
+            .map(|(_, tool)| tool.name.to_string())
+            .collect();
         return Ok(HttpResponse::Ok().json(AvailableToolsResponse { tools: tool_names }));
     }
 
@@ -384,7 +393,9 @@ pub async fn get_filtered_tools(
         .map(|(_, tool)| tool.name.to_string())
         .collect();
 
-    Ok(HttpResponse::Ok().json(AvailableToolsResponse { tools: filtered_tools }))
+    Ok(HttpResponse::Ok().json(AvailableToolsResponse {
+        tools: filtered_tools,
+    }))
 }
 
 /// GET /v1/skills/available-workflows - Get available workflows
@@ -393,7 +404,8 @@ pub async fn get_available_workflows(
     _app_state: web::Data<AppState>,
 ) -> Result<HttpResponse, AppError> {
     // Get workflows from bodhi directory
-    let workflows = crate::services::skill_service::list_workflows().await
+    let workflows = crate::services::skill_service::list_workflows()
+        .await
         .map_err(|e| AppError::InternalError(anyhow::anyhow!("Failed to list workflows: {}", e)))?;
 
     Ok(HttpResponse::Ok().json(AvailableWorkflowsResponse { workflows }))
