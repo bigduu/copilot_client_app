@@ -10,7 +10,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use std::collections::HashSet;
 use tauri::{AppHandle, Emitter, Manager};
 use claude_installer::load_settings;
-use rusqlite::params;
+use crate::bodhi_settings::{config_json_path, read_claude_binary_path, update_claude_config, write_config_json};
 use tokio::process::{Child, Command};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -98,28 +98,6 @@ fn get_claude_dir() -> Result<PathBuf> {
         .context("Could not find ~/.claude directory")
 }
 
-fn open_settings_db(app_handle: &AppHandle) -> Result<rusqlite::Connection, String> {
-    let app_data_dir = app_handle
-        .path()
-        .app_data_dir()
-        .map_err(|e| e.to_string())?;
-    if let Some(parent) = app_data_dir.parent() {
-        let _ = fs::create_dir_all(parent);
-    }
-    let _ = fs::create_dir_all(&app_data_dir);
-    let db_path = app_data_dir.join("agents.db");
-    let conn = rusqlite::Connection::open(&db_path).map_err(|e| e.to_string())?;
-    conn.execute(
-        "CREATE TABLE IF NOT EXISTS app_settings (\n            key TEXT PRIMARY KEY,\n            value TEXT NOT NULL,\n            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,\n            updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP\n        )",
-        [],
-    )
-    .map_err(|e| e.to_string())?;
-    let _ = conn.execute(
-        "CREATE TRIGGER IF NOT EXISTS update_app_settings_timestamp \n         AFTER UPDATE ON app_settings \n         FOR EACH ROW\n         BEGIN\n             UPDATE app_settings SET updated_at = CURRENT_TIMESTAMP WHERE key = NEW.key;\n         END",
-        [],
-    );
-    Ok(conn)
-}
 
 fn get_project_path_from_sessions(project_dir: &PathBuf) -> Result<String, String> {
     let entries = fs::read_dir(project_dir)
@@ -710,21 +688,13 @@ pub async fn get_claude_settings() -> Result<ClaudeSettings, String> {
 }
 
 #[tauri::command]
-pub async fn get_claude_binary_path(app: AppHandle) -> Result<Option<String>, String> {
-    let conn = open_settings_db(&app)?;
-    match conn.query_row(
-        "SELECT value FROM app_settings WHERE key = 'claude_binary_path'",
-        [],
-        |row| row.get::<_, String>(0),
-    ) {
-        Ok(path) => Ok(Some(path)),
-        Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
-        Err(e) => Err(format!("Failed to get Claude binary path: {}", e)),
-    }
+pub async fn get_claude_binary_path(_app: AppHandle) -> Result<Option<String>, String> {
+    let path = config_json_path();
+    read_claude_binary_path(&path)
 }
 
 #[tauri::command]
-pub async fn set_claude_binary_path(app: AppHandle, path: String) -> Result<(), String> {
+pub async fn set_claude_binary_path(_app: AppHandle, path: String) -> Result<(), String> {
     let path_buf = std::path::PathBuf::from(&path);
     if !path_buf.exists() {
         return Err(format!("File does not exist: {}", path));
@@ -2259,6 +2229,7 @@ pub async fn get_session_jsonl(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::bodhi_settings::read_claude_binary_path;
     use std::io::Write;
     use tempfile::TempDir;
 
@@ -2403,6 +2374,16 @@ mod tests {
     fn test_decode_project_path() {
         let decoded = decode_project_path("Users-test-project");
         assert_eq!(decoded, "Users/test/project");
+    }
+
+    #[test]
+    fn get_claude_binary_path_reads_from_config_json() {
+        let dir = TempDir::new().unwrap();
+        let path = dir.path().join("config.json");
+        std::fs::write(&path, r#"{\"claude\":{\"binary_path\":\"/bin/claude\"}}"#).unwrap();
+
+        let loaded = read_claude_binary_path(&path).unwrap();
+        assert_eq!(loaded, Some("/bin/claude".to_string()));
     }
 
     #[test]
