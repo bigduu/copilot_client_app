@@ -14,7 +14,6 @@ use tokio::sync::mpsc::Sender;
 
 use crate::api::models::{ChatCompletionRequest, ChatCompletionStreamChunk, Content, ContentPart};
 use crate::auth::auth_handler::CopilotAuthHandler;
-use crate::masking::apply_masking;
 use crate::utils::http_utils::execute_request_with_vision;
 use crate::client_trait::CopilotClientTrait;
 
