@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   Button,
   Card,
@@ -23,35 +23,6 @@ import { invoke } from "@tauri-apps/api/core";
 const { Text } = Typography;
 const { useToken } = theme;
 
-const DEFAULT_PREVIEW_INPUT = "Example: secret-token";
-
-const exampleOptions = [
-  {
-    label: "Mask a literal token (sk-)",
-    value: "literal-token",
-    pattern: "sk-",
-    match_type: "exact",
-  },
-  {
-    label: "Mask GitHub tokens",
-    value: "github-token",
-    pattern: "ghp_[A-Za-z0-9]+",
-    match_type: "regex",
-  },
-  {
-    label: "Mask AWS access keys",
-    value: "aws-access-key",
-    pattern: "AKIA[0-9A-Z]{16}",
-    match_type: "regex",
-  },
-  {
-    label: "Mask email addresses",
-    value: "emails",
-    pattern: "[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}",
-    match_type: "regex",
-  },
-] as const;
-
 interface KeywordEntry {
   pattern: string;
   match_type: "exact" | "regex";
@@ -71,29 +42,8 @@ const SystemSettingsKeywordMaskingTab: React.FC = () => {
   const [editPattern, setEditPattern] = useState("");
   const [editMatchType, setEditMatchType] = useState<"exact" | "regex">("exact");
   const [editEnabled, setEditEnabled] = useState(true);
-  const [previewInput, setPreviewInput] = useState(DEFAULT_PREVIEW_INPUT);
 
-  const preview = useMemo(() => {
-    if (!editEnabled || !editPattern.trim()) {
-      return { output: previewInput, error: null as string | null };
-    }
-
-    if (editMatchType === "exact") {
-      return {
-        output: previewInput.split(editPattern).join("[MASKED]"),
-        error: null as string | null,
-      };
-    }
-
-    try {
-      const regex = new RegExp(editPattern, "g");
-      return { output: previewInput.replace(regex, "[MASKED]"), error: null };
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "Invalid regex pattern";
-      return { output: previewInput, error: message };
-    }
-  }, [editEnabled, editMatchType, editPattern, previewInput]);
-
+  // Load keyword masking config on mount
   useEffect(() => {
     loadConfig();
   }, []);
@@ -115,6 +65,7 @@ const SystemSettingsKeywordMaskingTab: React.FC = () => {
 
   const saveConfig = async (newEntries: KeywordEntry[]) => {
     try {
+      // Validate first
       const validationResult = await invoke<void | ValidationError[]>(
         "validate_keyword_entries",
         { entries: newEntries }
@@ -128,6 +79,7 @@ const SystemSettingsKeywordMaskingTab: React.FC = () => {
         return false;
       }
 
+      // Save if validation passes
       await invoke<{ entries: KeywordEntry[] }>(
         "update_keyword_masking_config",
         { entries: newEntries }
@@ -150,13 +102,13 @@ const SystemSettingsKeywordMaskingTab: React.FC = () => {
       enabled: true,
     };
     const newEntries = [...entries, newEntry];
-
+    
+    // Don't save empty entry, just set editing mode
     setEntries(newEntries);
     setEditingIndex(newEntries.length - 1);
     setEditPattern("");
     setEditMatchType("exact");
     setEditEnabled(true);
-    setPreviewInput(DEFAULT_PREVIEW_INPUT);
   };
 
   const handleEditEntry = (index: number) => {
@@ -165,7 +117,6 @@ const SystemSettingsKeywordMaskingTab: React.FC = () => {
     setEditPattern(entry.pattern);
     setEditMatchType(entry.match_type);
     setEditEnabled(entry.enabled);
-    setPreviewInput(DEFAULT_PREVIEW_INPUT);
   };
 
   const handleSaveEdit = async () => {
@@ -190,6 +141,7 @@ const SystemSettingsKeywordMaskingTab: React.FC = () => {
   };
 
   const handleCancelEdit = () => {
+    // Remove the entry if it was a new empty one
     if (editingIndex !== null && !entries[editingIndex]?.pattern) {
       setEntries(entries.filter((_, i) => i !== editingIndex));
     }
@@ -205,13 +157,6 @@ const SystemSettingsKeywordMaskingTab: React.FC = () => {
     const newEntries = [...entries];
     newEntries[index] = { ...newEntries[index], enabled: checked };
     await saveConfig(newEntries);
-  };
-
-  const handleExampleSelect = (value: string) => {
-    const selected = exampleOptions.find((option) => option.value === value);
-    if (!selected) return;
-    setEditPattern(selected.pattern);
-    setEditMatchType(selected.match_type);
   };
 
   return (
@@ -230,9 +175,9 @@ const SystemSettingsKeywordMaskingTab: React.FC = () => {
     >
       <Space direction="vertical" style={{ width: "100%" }} size="large">
         <Text type="secondary">
-          Configure keywords to be masked before sending to Copilot API. Use exact
-          match for literal strings or regex for pattern matching. All matches will
-          be replaced with [MASKED].
+          Configure keywords to be masked before sending to Copilot API. 
+          Use exact match for literal strings or regex for pattern matching.
+          All matches will be replaced with [MASKED].
         </Text>
 
         <List
@@ -277,6 +222,7 @@ const SystemSettingsKeywordMaskingTab: React.FC = () => {
             >
               <Flex vertical style={{ width: "100%" }} gap={8}>
                 {editingIndex === index ? (
+                  // Edit mode
                   <>
                     <Input
                       placeholder="Enter pattern to match"
@@ -285,16 +231,6 @@ const SystemSettingsKeywordMaskingTab: React.FC = () => {
                       autoFocus
                     />
                     <Flex gap={8} align="center">
-                      <Select
-                        placeholder="Examples"
-                        onChange={handleExampleSelect}
-                        options={exampleOptions.map((option) => ({
-                          value: option.value,
-                          label: option.label,
-                        }))}
-                        style={{ width: 220 }}
-                        data-testid="keyword-example-select"
-                      />
                       <Select
                         value={editMatchType}
                         onChange={setEditMatchType}
@@ -311,21 +247,9 @@ const SystemSettingsKeywordMaskingTab: React.FC = () => {
                         unCheckedChildren="Disabled"
                       />
                     </Flex>
-                    <Flex vertical gap={6}>
-                      <Text type="secondary">Preview</Text>
-                      <Input
-                        placeholder="Sample text"
-                        value={previewInput}
-                        onChange={(e) => setPreviewInput(e.target.value)}
-                      />
-                      {preview.error ? (
-                        <Text type="danger">{preview.error}</Text>
-                      ) : (
-                        <Text code>{preview.output}</Text>
-                      )}
-                    </Flex>
                   </>
                 ) : (
+                  // View mode
                   <Flex justify="space-between" align="center">
                     <Flex vertical gap={4}>
                       <Text strong>{item.pattern || "(empty)"}</Text>
@@ -344,7 +268,9 @@ const SystemSettingsKeywordMaskingTab: React.FC = () => {
                     </Flex>
                     <Switch
                       checked={item.enabled}
-                      onChange={(checked) => handleToggleEnabled(index, checked)}
+                      onChange={(checked) =>
+                        handleToggleEnabled(index, checked)
+                      }
                       size="small"
                     />
                   </Flex>
