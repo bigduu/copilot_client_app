@@ -78,27 +78,35 @@ impl CopilotClient {
         }
     }
 
-    /// Load keyword masking config from the app settings database
+    /// Load keyword masking config from the app settings JSON file
     fn load_keyword_masking_config(app_data_dir: &PathBuf) -> KeywordMaskingConfig {
-        let db_path = app_data_dir.join("agents.db");
-        
-        if let Ok(conn) = rusqlite::Connection::open(&db_path) {
-            let result: Result<Option<String>, rusqlite::Error> = conn.query_row(
-                "SELECT value FROM app_settings WHERE key = 'keyword_masking_config'",
-                [],
-                |row| row.get(0),
-            );
-            
-            if let Ok(Some(config_json)) = result {
-                if let Ok(config) = serde_json::from_str::<KeywordMaskingConfig>(&config_json) {
-                    log::info!("Loaded keyword masking config with {} entries", config.entries.len());
-                    return config;
-                }
+        let path = app_data_dir.join("keyword_masking.json");
+        if !path.exists() {
+            log::debug!("No keyword masking config found, using default empty config");
+            return KeywordMaskingConfig::default();
+        }
+
+        let content = match std::fs::read_to_string(&path) {
+            Ok(content) => content,
+            Err(err) => {
+                log::warn!("Failed to read keyword masking config: {}", err);
+                return KeywordMaskingConfig::default();
+            }
+        };
+
+        match serde_json::from_str::<KeywordMaskingConfig>(&content) {
+            Ok(config) => {
+                log::info!(
+                    "Loaded keyword masking config with {} entries",
+                    config.entries.len()
+                );
+                config
+            }
+            Err(err) => {
+                log::warn!("Failed to parse keyword masking config: {}", err);
+                KeywordMaskingConfig::default()
             }
         }
-        
-        log::debug!("No keyword masking config found, using default empty config");
-        KeywordMaskingConfig::default()
     }
 
     /// Apply keyword masking to all message content in the request

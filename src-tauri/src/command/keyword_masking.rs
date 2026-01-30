@@ -1,9 +1,9 @@
 use chat_core::keyword_masking::{KeywordEntry, KeywordMaskingConfig};
 use serde::{Deserialize, Serialize};
+use std::path::Path;
 use tauri::AppHandle;
-use tauri::Manager;
 
-const KEYWORD_MASKING_KEY: &str = "keyword_masking_config";
+use crate::bodhi_settings::keyword_masking_json_path;
 
 /// Response for keyword masking configuration
 #[derive(Debug, Serialize, Deserialize)]
@@ -18,67 +18,34 @@ pub struct ValidationError {
     pub message: String,
 }
 
-fn open_settings_db(app_handle: &AppHandle) -> Result<rusqlite::Connection, String> {
-    let app_data_dir = app_handle
-        .path()
-        .app_data_dir()
-        .map_err(|e| e.to_string())?;
-    
-    if let Some(parent) = app_data_dir.parent() {
-        let _ = std::fs::create_dir_all(parent);
+pub fn load_keyword_masking_config(path: &Path) -> Result<KeywordMaskingConfig, String> {
+    if !path.exists() {
+        return Ok(KeywordMaskingConfig::default());
     }
-    let _ = std::fs::create_dir_all(&app_data_dir);
-    
-    let db_path = app_data_dir.join("agents.db");
-    let conn = rusqlite::Connection::open(&db_path).map_err(|e| e.to_string())?;
-    
-    conn.execute(
-        "CREATE TABLE IF NOT EXISTS app_settings (
-            key TEXT PRIMARY KEY,
-            value TEXT NOT NULL,
-            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-            updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
-        )",
-        [],
-    )
-    .map_err(|e| e.to_string())?;
-    
-    let _ = conn.execute(
-        "CREATE TRIGGER IF NOT EXISTS update_app_settings_timestamp 
-         AFTER UPDATE ON app_settings 
-         FOR EACH ROW
-         BEGIN
-             UPDATE app_settings SET updated_at = CURRENT_TIMESTAMP WHERE key = NEW.key;
-         END",
-        [],
-    );
-    
-    Ok(conn)
+    let content = std::fs::read_to_string(path).map_err(|e| e.to_string())?;
+    serde_json::from_str(&content)
+        .map_err(|e| format!("Failed to parse keyword_masking.json: {e}"))
+}
+
+pub fn save_keyword_masking_config(
+    path: &Path,
+    config: &KeywordMaskingConfig,
+) -> Result<(), String> {
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+    }
+    let content = serde_json::to_string_pretty(config).map_err(|e| e.to_string())?;
+    std::fs::write(path, content).map_err(|e| e.to_string())
 }
 
 /// Get the global keyword masking configuration
 #[tauri::command]
-pub async fn get_keyword_masking_config(app: AppHandle) -> Result<KeywordMaskingResponse, String> {
+pub async fn get_keyword_masking_config(_app: AppHandle) -> Result<KeywordMaskingResponse, String> {
     log::info!("Getting keyword masking configuration");
-    
-    let conn = open_settings_db(&app)?;
-    
-    let config_json: Option<String> = conn
-        .query_row(
-            "SELECT value FROM app_settings WHERE key = ?1",
-            [KEYWORD_MASKING_KEY],
-            |row| row.get(0),
-        )
-        .ok();
-    
-    let config = match config_json {
-        Some(json) => {
-            serde_json::from_str(&json)
-                .map_err(|e| format!("Failed to parse keyword masking config: {}", e))?
-        }
-        None => KeywordMaskingConfig::default(),
-    };
-    
+
+    let path = keyword_masking_json_path();
+    let config = load_keyword_masking_config(&path)?;
+
     Ok(KeywordMaskingResponse {
         entries: config.entries,
     })
@@ -87,14 +54,14 @@ pub async fn get_keyword_masking_config(app: AppHandle) -> Result<KeywordMasking
 /// Update the global keyword masking configuration
 #[tauri::command]
 pub async fn update_keyword_masking_config(
-    app: AppHandle,
+    _app: AppHandle,
     entries: Vec<KeywordEntry>,
 ) -> Result<KeywordMaskingResponse, String> {
     log::info!("Updating keyword masking configuration with {} entries", entries.len());
-    
+
     // Validate all entries
     let config = KeywordMaskingConfig { entries };
-    
+
     if let Err(errors) = config.validate() {
         let error_messages: Vec<String> = errors
             .into_iter()
@@ -102,21 +69,12 @@ pub async fn update_keyword_masking_config(
             .collect();
         return Err(format!("Validation failed: {}", error_messages.join(", ")));
     }
-    
-    // Save to database
-    let conn = open_settings_db(&app)?;
-    let config_json = serde_json::to_string(&config)
-        .map_err(|e| format!("Failed to serialize config: {}", e))?;
-    
-    conn.execute(
-        "INSERT INTO app_settings (key, value) VALUES (?1, ?2)
-         ON CONFLICT(key) DO UPDATE SET value = excluded.value",
-        [KEYWORD_MASKING_KEY, &config_json],
-    )
-    .map_err(|e| format!("Failed to save config: {}", e))?;
-    
+
+    let path = keyword_masking_json_path();
+    save_keyword_masking_config(&path, &config)?;
+
     log::info!("Keyword masking configuration saved successfully");
-    
+
     Ok(KeywordMaskingResponse {
         entries: config.entries,
     })
@@ -126,7 +84,7 @@ pub async fn update_keyword_masking_config(
 #[tauri::command]
 pub async fn validate_keyword_entries(entries: Vec<KeywordEntry>) -> Result<(), Vec<ValidationError>> {
     let config = KeywordMaskingConfig { entries };
-    
+
     match config.validate() {
         Ok(()) => Ok(()),
         Err(errors) => {
@@ -139,5 +97,19 @@ pub async fn validate_keyword_entries(entries: Vec<KeywordEntry>) -> Result<(), 
                 .collect();
             Err(validation_errors)
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn load_keyword_masking_defaults_when_missing() {
+        let dir = tempfile::TempDir::new().unwrap();
+        let path = dir.path().join("keyword_masking.json");
+
+        let config = load_keyword_masking_config(&path).unwrap();
+        assert!(config.entries.is_empty());
     }
 }
