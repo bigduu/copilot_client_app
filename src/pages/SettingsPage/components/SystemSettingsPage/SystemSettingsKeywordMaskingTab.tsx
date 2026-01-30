@@ -34,6 +34,45 @@ interface ValidationError {
   message: string;
 }
 
+const keywordExamples = [
+  { value: "literal-token", label: "Mask a literal token", match_type: "exact", pattern: "sk-" },
+  {
+    value: "github",
+    label: "Mask GitHub tokens",
+    match_type: "regex",
+    pattern: "ghp_[A-Za-z0-9]+",
+  },
+  { value: "aws", label: "Mask AWS keys", match_type: "regex", pattern: "AKIA[0-9A-Z]{16}" },
+  {
+    value: "email",
+    label: "Mask email addresses",
+    match_type: "regex",
+    pattern: "[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}",
+  },
+] as const;
+
+const applyPreviewMasking = (
+  text: string,
+  pattern: string,
+  matchType: "exact" | "regex"
+): { masked: string; error?: string } => {
+  if (!pattern) {
+    return { masked: text };
+  }
+  if (matchType === "exact") {
+    return { masked: text.split(pattern).join("[MASKED]") };
+  }
+  try {
+    const regex = new RegExp(pattern, "g");
+    return { masked: text.replace(regex, "[MASKED]") };
+  } catch (error) {
+    return {
+      masked: text,
+      error: error instanceof Error ? error.message : "Invalid regex pattern",
+    };
+  }
+};
+
 const SystemSettingsKeywordMaskingTab: React.FC = () => {
   const { token } = useToken();
   const [entries, setEntries] = useState<KeywordEntry[]>([]);
@@ -42,6 +81,8 @@ const SystemSettingsKeywordMaskingTab: React.FC = () => {
   const [editPattern, setEditPattern] = useState("");
   const [editMatchType, setEditMatchType] = useState<"exact" | "regex">("exact");
   const [editEnabled, setEditEnabled] = useState(true);
+  const [exampleValue, setExampleValue] = useState<string | undefined>();
+  const [previewText, setPreviewText] = useState("My token is sk-123");
 
   // Load keyword masking config on mount
   useEffect(() => {
@@ -109,6 +150,7 @@ const SystemSettingsKeywordMaskingTab: React.FC = () => {
     setEditPattern("");
     setEditMatchType("exact");
     setEditEnabled(true);
+    setExampleValue(undefined);
   };
 
   const handleEditEntry = (index: number) => {
@@ -117,6 +159,7 @@ const SystemSettingsKeywordMaskingTab: React.FC = () => {
     setEditPattern(entry.pattern);
     setEditMatchType(entry.match_type);
     setEditEnabled(entry.enabled);
+    setExampleValue(undefined);
   };
 
   const handleSaveEdit = async () => {
@@ -158,6 +201,8 @@ const SystemSettingsKeywordMaskingTab: React.FC = () => {
     newEntries[index] = { ...newEntries[index], enabled: checked };
     await saveConfig(newEntries);
   };
+
+  const preview = applyPreviewMasking(previewText, editPattern, editMatchType);
 
   return (
     <Card
@@ -230,7 +275,26 @@ const SystemSettingsKeywordMaskingTab: React.FC = () => {
                       onChange={(e) => setEditPattern(e.target.value)}
                       autoFocus
                     />
-                    <Flex gap={8} align="center">
+                    <Flex gap={8} align="center" wrap="wrap">
+                      <Select
+                        aria-label="Examples"
+                        placeholder="Examples"
+                        value={exampleValue}
+                        onChange={(value) => {
+                          setExampleValue(value);
+                          const example = keywordExamples.find(
+                            (item) => item.value === value
+                          );
+                          if (!example) return;
+                          setEditPattern(example.pattern);
+                          setEditMatchType(example.match_type);
+                        }}
+                        options={keywordExamples.map((example) => ({
+                          value: example.value,
+                          label: example.label,
+                        }))}
+                        style={{ minWidth: 220 }}
+                      />
                       <Select
                         value={editMatchType}
                         onChange={setEditMatchType}
@@ -246,6 +310,23 @@ const SystemSettingsKeywordMaskingTab: React.FC = () => {
                         checkedChildren="Enabled"
                         unCheckedChildren="Disabled"
                       />
+                    </Flex>
+                    <Flex vertical gap={6}>
+                      <Text type="secondary">Sample text</Text>
+                      <Input
+                        placeholder="Enter sample text"
+                        value={previewText}
+                        onChange={(e) => setPreviewText(e.target.value)}
+                      />
+                      <Text type="secondary">Masked preview</Text>
+                      <Input
+                        readOnly
+                        value={preview.masked}
+                        status={preview.error ? "error" : undefined}
+                      />
+                      {preview.error && (
+                        <Text type="danger">{preview.error}</Text>
+                      )}
                     </Flex>
                   </>
                 ) : (
