@@ -2377,7 +2377,7 @@ mod tests {
     fn get_claude_binary_path_reads_from_config_json() {
         let dir = TempDir::new().unwrap();
         let path = dir.path().join("config.json");
-        std::fs::write(&path, r#"{\"claude\":{\"binary_path\":\"/bin/claude\"}}"#).unwrap();
+        std::fs::write(&path, r#"{"claude":{"binary_path":"/bin/claude"}}"#).unwrap();
 
         let loaded = read_claude_binary_path(&path).unwrap();
         assert_eq!(loaded, Some("/bin/claude".to_string()));
