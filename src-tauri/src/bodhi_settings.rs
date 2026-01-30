@@ -85,7 +85,7 @@ mod tests {
     fn updates_claude_settings_without_clobbering() {
         let dir = tempfile::TempDir::new().unwrap();
         let path = dir.path().join("config.json");
-        std::fs::write(&path, r#"{\"api_base\":\"https://example.com\"}"#).unwrap();
+        std::fs::write(&path, r#"{"api_base":"https://example.com"}"#).unwrap();
 
         let updated = update_claude_config(
             &path,
