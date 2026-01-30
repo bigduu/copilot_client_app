@@ -31,6 +31,7 @@ use tauri_plugin_log::{Target, TargetKind};
 use web_service::server::run as start_server;
 
 pub mod claude_binary;
+pub mod bodhi_settings;
 pub mod checkpoint;
 pub mod command;
 pub mod process;
