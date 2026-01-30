@@ -1,4 +1,20 @@
-use std::path::Path;
+use std::path::{Path, PathBuf};
+
+pub fn bodhi_dir() -> PathBuf {
+    std::env::var_os("HOME")
+        .or_else(|| std::env::var_os("USERPROFILE"))
+        .map(PathBuf::from)
+        .unwrap_or_else(|| std::env::temp_dir())
+        .join(".bodhi")
+}
+
+pub fn config_json_path() -> PathBuf {
+    bodhi_dir().join("config.json")
+}
+
+pub fn keyword_masking_json_path() -> PathBuf {
+    bodhi_dir().join("keyword_masking.json")
+}
 
 pub fn load_config_json(path: &Path) -> Result<serde_json::Value, String> {
     if !path.exists() {
@@ -41,6 +57,24 @@ pub fn update_claude_config(
     }
 
     Ok(root)
+}
+
+pub fn read_claude_binary_path(path: &Path) -> Result<Option<String>, String> {
+    let root = load_config_json(path)?;
+    Ok(root
+        .get("claude")
+        .and_then(|v| v.get("binary_path"))
+        .and_then(|v| v.as_str())
+        .map(|v| v.to_string()))
+}
+
+pub fn read_claude_installation_preference(path: &Path) -> Result<Option<String>, String> {
+    let root = load_config_json(path)?;
+    Ok(root
+        .get("claude")
+        .and_then(|v| v.get("installation_preference"))
+        .and_then(|v| v.as_str())
+        .map(|v| v.to_string()))
 }
 
 #[cfg(test)]

@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use std::cmp::Ordering;
 use std::path::PathBuf;
 use std::process::Command;
-use tauri::Manager;
+use crate::bodhi_settings::{config_json_path, read_claude_binary_path, read_claude_installation_preference};
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum InstallationType {
@@ -23,33 +23,29 @@ pub struct ClaudeInstallation {
 pub fn find_claude_binary(app_handle: &tauri::AppHandle) -> Result<String, String> {
     info!("Searching for claude binary...");
 
-    if let Ok(app_data_dir) = app_handle.path().app_data_dir() {
-        let db_path = app_data_dir.join("agents.db");
-        if db_path.exists() {
-            if let Ok(conn) = rusqlite::Connection::open(&db_path) {
-                if let Ok(stored_path) = conn.query_row(
-                    "SELECT value FROM app_settings WHERE key = 'claude_binary_path'",
-                    [],
-                    |row| row.get::<_, String>(0),
-                ) {
-                    info!("Found stored claude path in database: {}", stored_path);
-
-                    let path_buf = PathBuf::from(&stored_path);
-                    if path_buf.exists() && path_buf.is_file() {
-                        return Ok(stored_path);
-                    } else {
-                        warn!("Stored claude path no longer exists: {}", stored_path);
-                    }
-                }
-
-                let preference = conn.query_row(
-                    "SELECT value FROM app_settings WHERE key = 'claude_installation_preference'",
-                    [],
-                    |row| row.get::<_, String>(0),
-                ).unwrap_or_else(|_| "system".to_string());
-
-                info!("User preference for Claude installation: {}", preference);
+    let config_path = config_json_path();
+    match read_claude_binary_path(&config_path) {
+        Ok(Some(stored_path)) => {
+            info!("Found stored claude path in config: {}", stored_path);
+            let path_buf = PathBuf::from(&stored_path);
+            if path_buf.exists() && path_buf.is_file() {
+                return Ok(stored_path);
             }
+            warn!("Stored claude path no longer exists: {}", stored_path);
+        }
+        Ok(None) => {}
+        Err(err) => {
+            warn!("Failed to read claude config: {}", err);
+        }
+    }
+
+    match read_claude_installation_preference(&config_path) {
+        Ok(Some(preference)) => {
+            info!("User preference for Claude installation: {}", preference);
+        }
+        Ok(None) => {}
+        Err(err) => {
+            warn!("Failed to read claude installation preference: {}", err);
         }
     }
 
