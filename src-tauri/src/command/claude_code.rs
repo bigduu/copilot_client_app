@@ -710,12 +710,9 @@ pub async fn set_claude_binary_path(_app: AppHandle, path: String) -> Result<(),
         }
     }
 
-    let conn = open_settings_db(&app)?;
-    conn.execute(
-        "INSERT INTO app_settings (key, value) VALUES ('claude_binary_path', ?1)\n         ON CONFLICT(key) DO UPDATE SET value = ?1",
-        params![path],
-    )
-    .map_err(|e| format!("Failed to save Claude binary path: {}", e))?;
+    let config_path = config_json_path();
+    let updated = update_claude_config(&config_path, Some(path), None)?;
+    write_config_json(&config_path, &updated)?;
 
     Ok(())
 }

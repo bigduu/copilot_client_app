@@ -22,6 +22,7 @@ copilot_client = { path = "../crates/copilot_client" }
 mcp_client = { path = "../crates/mcp_client" }
 web_service = { path = "../crates/web_service" }
 claude_installer = { path = "../crates/claude_installer" }
+chat_core = { path = "../crates/chat_core" }
 # Tauri core and plugins
 tauri = { version = "2.5.1", features = [] }
 
@@ -44,7 +45,6 @@ tauri-plugin-log = "2.7.0"
 chrono = { version = "0.4", features = ["serde"] }
 dirs = "5.0.1"
 regex = "1.11.2"
-rusqlite = { version = "0.32", features = ["bundled"] }
 sha2 = "0.10.9"
 zstd = "0.13.2"
 

@@ -20,7 +20,7 @@ pub struct ClaudeInstallation {
     pub installation_type: InstallationType,
 }
 
-pub fn find_claude_binary(app_handle: &tauri::AppHandle) -> Result<String, String> {
+pub fn find_claude_binary(_app_handle: &tauri::AppHandle) -> Result<String, String> {
     info!("Searching for claude binary...");
 
     let config_path = config_json_path();
