@@ -6,22 +6,7 @@ const host = process.env.TAURI_DEV_HOST;
 
 // https://vitejs.dev/config/
 export default defineConfig(async () => ({
-  plugins: [
-    react({
-      babel: {
-        plugins: [
-          [
-            'babel-plugin-import',
-            {
-              libraryName: 'antd',
-              libraryDirectory: 'es',
-              style: false, // antd 5.x uses CSS-in-JS, no separate CSS files
-            },
-          ],
-        ],
-      },
-    }),
-  ],
+  plugins: [react()],
 
   build: {
     chunkSizeWarningLimit: 1000,
