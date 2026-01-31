@@ -6,21 +6,52 @@ const host = process.env.TAURI_DEV_HOST;
 
 // https://vitejs.dev/config/
 export default defineConfig(async () => ({
-  plugins: [react()],
+  plugins: [
+    react({
+      babel: {
+        plugins: [
+          [
+            'babel-plugin-import',
+            {
+              libraryName: 'antd',
+              libraryDirectory: 'es',
+              style: false, // antd 5.x uses CSS-in-JS, no separate CSS files
+            },
+          ],
+        ],
+      },
+    }),
+  ],
 
   build: {
+    chunkSizeWarningLimit: 1000,
     rollupOptions: {
       input: {
         main: "index.html",
       },
+      output: {
+        manualChunks(id) {
+          // 将 node_modules 中的依赖分离到 vendor chunks
+          if (id.includes('node_modules')) {
+            if (id.includes('react') || id.includes('react-dom')) {
+              return 'vendor-react';
+            }
+            if (id.includes('antd')) {
+              return 'vendor-ui';
+            }
+            if (id.includes('mermaid')) {
+              return 'vendor-chart';
+            }
+            if (id.includes('jspdf') || id.includes('html2canvas')) {
+              return 'vendor-pdf';
+            }
+          }
+        },
+      },
     },
   },
 
-  // Vite options tailored for Tauri development and only applied in `tauri dev` or `tauri build`
-  //
-  // 1. prevent vite from obscuring rust errors
   clearScreen: false,
-  // 2. tauri expects a fixed port, fail if that port is not available
   server: {
     port: 1420,
     strictPort: true,
@@ -33,7 +64,6 @@ export default defineConfig(async () => ({
         }
       : undefined,
     watch: {
-      // 3. tell vite to ignore watching `src-tauri` 123
       ignored: ["**/src-tauri/**"],
     },
   },
