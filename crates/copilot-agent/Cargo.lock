@@ -507,8 +507,10 @@ version = "0.1.0"
 dependencies = [
  "async-trait",
  "copilot-agent-core",
+ "dirs",
  "eventsource-stream",
  "futures",
+ "log",
  "reqwest",
  "serde",
  "serde_json",

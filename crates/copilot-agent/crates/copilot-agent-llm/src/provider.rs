@@ -18,6 +18,9 @@ pub enum LLMError {
     
     #[error("API error: {0}")]
     Api(String),
+    
+    #[error("Authentication error: {0}")]
+    Auth(String),
 }
 
 pub type Result<T> = std::result::Result<T, LLMError>;
