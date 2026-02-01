@@ -1,6 +1,5 @@
 use reqwest::Client;
 use serde::Deserialize;
-use std::collections::HashMap;
 use tokio::time::{sleep, Duration};
 
 const ACCESS_TOKEN_URL: &str = "https://github.com/login/oauth/access_token";

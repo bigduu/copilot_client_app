@@ -8,6 +8,7 @@ use copilot_agent_core::agent::events::TokenUsage;
 use copilot_agent_core::tools::{ToolExecutor, ToolCall};
 use copilot_agent_llm::{LLMProvider, LLMChunk};
 use crate::logging::{DebugLogger, Timer};
+use uuid::Uuid;
 
 pub type Result<T> = std::result::Result<T, AgentError>;
 
@@ -21,7 +22,7 @@ pub struct AgentLoopConfig {
 impl Default for AgentLoopConfig {
     fn default() -> Self {
         Self {
-            max_rounds: 3,
+            max_rounds: 50,
             system_prompt: None,
             additional_tool_schemas: Vec::new(),
         }
@@ -61,6 +62,8 @@ pub async fn run_agent_loop_with_config(
     log::debug!("[{}] Added user message, total messages: {}", session_id, session.messages.len());
 
     // 2. 循环最多 max_rounds 轮
+    let mut sent_complete = false;
+
     for round in 0..config.max_rounds {
         log::debug!("[{}] Starting round {}/{}", session_id, round + 1, config.max_rounds);
         debug_logger.log_event(&session_id, "round_start", serde_json::json!({
@@ -183,6 +186,7 @@ pub async fn run_agent_loop_with_config(
                     total_tokens: token_count as u32,
                 },
             }).await;
+            sent_complete = true;
 
             debug_logger.log_event(&session_id, "agent_loop_complete", serde_json::json!({
                 "rounds": round + 1,
@@ -208,8 +212,12 @@ pub async fn run_agent_loop_with_config(
                 session_id, idx + 1, accumulated_tool_calls.len(), tool_call.function.name);
             
             // 解析参数
-            let args: serde_json::Value = serde_json::from_str(&tool_call.function.arguments)
-                .unwrap_or_else(|_| serde_json::json!({}));
+            let args_raw = tool_call.function.arguments.trim();
+            let args: serde_json::Value = if args_raw.is_empty() {
+                serde_json::json!({})
+            } else {
+                serde_json::from_str(args_raw).unwrap_or_else(|_| serde_json::json!({}))
+            };
             
             log::debug!("[{}] Tool {} arguments: {}", session_id, tool_call.function.name, args);
             
@@ -290,6 +298,16 @@ pub async fn run_agent_loop_with_config(
         // 继续下一轮循环
     }
 
+    if !sent_complete {
+        let _ = event_tx.send(AgentEvent::Complete {
+            usage: TokenUsage {
+                prompt_tokens: 0,
+                completion_tokens: 0,
+                total_tokens: 0,
+            },
+        }).await;
+    }
+
     log::debug!("[{}] Agent loop completed, final message count: {}", 
         session_id, session.messages.len());
     
@@ -300,7 +318,6 @@ pub async fn run_agent_loop_with_config(
 // 部分工具调用累积结构
 #[derive(Clone)]
 struct PartialToolCall {
-    index: usize,
     id: String,
     tool_type: String,
     name: String,
@@ -308,17 +325,51 @@ struct PartialToolCall {
 }
 
 fn update_partial_tool_call(parts: &mut Vec<PartialToolCall>, call: ToolCall) {
+    if call.id.is_empty()
+        && call.function.name.is_empty()
+        && call.function.arguments.is_empty()
+    {
+        return;
+    }
+
+    if call.id.is_empty() && call.function.name.is_empty() {
+        if let Some(last) = parts.last_mut() {
+            last.arguments.push_str(&call.function.arguments);
+        } else {
+            parts.push(PartialToolCall {
+                id: String::new(),
+                tool_type: call.tool_type.clone(),
+                name: String::new(),
+                arguments: call.function.arguments.clone(),
+            });
+        }
+        return;
+    }
+
     // 查找现有部分或创建新的
-    if let Some(existing) = parts.iter_mut().find(|p| p.id == call.id) {
+    let existing = if !call.id.is_empty() {
+        parts.iter_mut().find(|p| p.id == call.id)
+    } else if !call.function.name.is_empty() {
+        parts.iter_mut().find(|p| {
+            (p.id.is_empty() && p.name == call.function.name)
+                || (p.id.is_empty() && p.name.is_empty())
+        })
+    } else {
+        None
+    };
+
+    if let Some(existing) = existing {
         // 累积参数
         existing.arguments.push_str(&call.function.arguments);
         if !call.function.name.is_empty() {
             existing.name = call.function.name.clone();
         }
+        if !call.tool_type.is_empty() {
+            existing.tool_type = call.tool_type.clone();
+        }
     } else {
         log::debug!("New tool call part: id={}, name={}", call.id, call.function.name);
         parts.push(PartialToolCall {
-            index: 0,
             id: call.id.clone(),
             tool_type: call.tool_type.clone(),
             name: call.function.name.clone(),
@@ -330,11 +381,20 @@ fn update_partial_tool_call(parts: &mut Vec<PartialToolCall>, call: ToolCall) {
 fn finalize_tool_calls(parts: Vec<PartialToolCall>) -> Vec<ToolCall> {
     parts
         .into_iter()
+        .filter(|p| !p.name.trim().is_empty())
         .map(|p| {
             log::debug!("Finalizing tool call: {} (args length: {})", p.name, p.arguments.len());
             ToolCall {
-                id: p.id,
-                tool_type: p.tool_type,
+                id: if p.id.is_empty() {
+                    format!("call_{}", Uuid::new_v4())
+                } else {
+                    p.id
+                },
+                tool_type: if p.tool_type.is_empty() {
+                    "function".to_string()
+                } else {
+                    p.tool_type
+                },
                 function: copilot_agent_core::tools::FunctionCall {
                     name: p.name,
                     arguments: p.arguments,
@@ -345,6 +405,7 @@ fn finalize_tool_calls(parts: Vec<PartialToolCall>) -> Vec<ToolCall> {
 }
 
 /// Backward-compatible wrapper for run_agent_loop
+#[allow(dead_code)]
 pub async fn run_agent_loop(
     session: &mut Session,
     initial_message: String,

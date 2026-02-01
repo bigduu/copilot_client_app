@@ -1,10 +1,11 @@
 use std::collections::HashMap;
+use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::sync::{RwLock, mpsc};
 use copilot_agent_core::{Session, AgentEvent, storage::JsonlStorage};
-use copilot_agent_llm::{OpenAIProvider, CopilotProvider};
+use copilot_agent_llm::OpenAIProvider;
 use copilot_agent_core::tools::ToolExecutor;
-use crate::skill_loader::{SkillLoader, SkillDefinition};
+use crate::skill_loader::SkillDefinition;
 
 pub struct AppState {
     pub sessions: Arc<RwLock<HashMap<String, Session>>>,
@@ -12,17 +13,19 @@ pub struct AppState {
     pub llm: Arc<dyn copilot_agent_llm::LLMProvider>,
     pub tools: Arc<dyn ToolExecutor>,
     pub cancel_tokens: Arc<RwLock<HashMap<String, tokio_util::sync::CancellationToken>>>,
-    pub skill_loader: SkillLoader,
     pub loaded_skills: Vec<SkillDefinition>,
 }
 
 impl AppState {
+    #[allow(dead_code)]
     pub async fn new() -> Self {
         Self::new_with_config(
             "openai",
             "http://localhost:12123".to_string(),
             "kimi-for-coding".to_string(),
             "sk-test".to_string(),
+            None,
+            false,
         ).await
     }
 
@@ -31,10 +34,17 @@ impl AppState {
         llm_base_url: String,
         model: String,
         api_key: String,
+        app_data_dir: Option<PathBuf>,
+        tauri_mode: bool,
     ) -> Self {
-        let data_dir = dirs::home_dir()
-            .unwrap_or_else(|| std::env::temp_dir())
-            .join(".copilot-agent");
+        let app_data_root = app_data_dir.unwrap_or_else(bodhi_dir);
+        let data_dir = if tauri_mode {
+            app_data_root.join("copilot-agent")
+        } else {
+            dirs::home_dir()
+                .unwrap_or_else(|| std::env::temp_dir())
+                .join(".copilot-agent")
+        };
         
         let storage = JsonlStorage::new(&data_dir);
         storage.init().await.expect("Failed to init storage");
@@ -95,7 +105,8 @@ impl AppState {
         
         // 加载 skills
         let skill_loader = crate::skill_loader::SkillLoader::new();
-        let loaded_skills: Vec<crate::skill_loader::SkillDefinition> = skill_loader.load_skills().await;
+        let loaded_skills: Vec<crate::skill_loader::SkillDefinition> =
+            skill_loader.load_skills().await;
         
         if !loaded_skills.is_empty() {
             log::info!("Loaded {} skills", loaded_skills.len());
@@ -110,11 +121,11 @@ impl AppState {
             llm,
             tools,
             cancel_tokens: Arc::new(RwLock::new(HashMap::new())),
-            skill_loader,
             loaded_skills,
         }
     }
 
+    #[allow(dead_code)]
     pub async fn save_event(&self, session_id: &str, event: &AgentEvent) {
         let _ = self.storage.append_event(session_id, event).await;
     }
@@ -138,6 +149,14 @@ impl AppState {
     pub fn build_system_prompt(&self, base_prompt: &str) -> String {
         crate::skill_loader::SkillLoader::build_system_prompt(base_prompt, &self.loaded_skills)
     }
+}
+
+fn bodhi_dir() -> PathBuf {
+    std::env::var_os("HOME")
+        .or_else(|| std::env::var_os("USERPROFILE"))
+        .map(PathBuf::from)
+        .unwrap_or_else(|| std::env::temp_dir())
+        .join(".bodhi")
 }
 
 /// 启动 SSE 流发送器

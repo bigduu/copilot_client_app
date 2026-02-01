@@ -5,7 +5,6 @@ use tokio_util::sync::CancellationToken;
 use std::time::Instant;
 
 use crate::state::{AppState, spawn_sse_sender};
-use crate::skill_loader::SkillLoader;
 use crate::agent_runner::{run_agent_loop_with_config, AgentLoopConfig};
 use crate::logging::DebugLogger;
 
@@ -16,26 +15,44 @@ pub async fn handler(
 ) -> impl Responder {
     let session_id = path.into_inner();
     let start_time = Instant::now();
-    let debug_logger = DebugLogger::new(log::log_enabled!(log::Level::Debug));
+    DebugLogger::new(log::log_enabled!(log::Level::Debug));
     
     log::debug!("[{}] SSE stream request received", session_id);
 
-    // 获取或创建会话
     let session = {
         let sessions = state.sessions.read().await;
-        match sessions.get(&session_id) {
-            Some(s) => {
-                log::debug!("[{}] Found existing session with {} messages", 
-                    session_id, s.messages.len());
-                s.clone()
+        sessions.get(&session_id).cloned()
+    };
+
+    let session = match session {
+        Some(session) => {
+            log::debug!(
+                "[{}] Found existing session with {} messages",
+                session_id,
+                session.messages.len()
+            );
+            session
+        }
+        None => match state.storage.load_session(&session_id).await {
+            Ok(Some(session)) => {
+                log::debug!(
+                    "[{}] Loaded session from storage with {} messages",
+                    session_id,
+                    session.messages.len()
+                );
+                {
+                    let mut sessions = state.sessions.write().await;
+                    sessions.insert(session_id.clone(), session.clone());
+                }
+                session
             }
-            None => {
+            _ => {
                 log::warn!("[{}] Session not found", session_id);
                 return HttpResponse::NotFound().json(serde_json::json!({
                     "error": "Session not found"
                 }));
             }
-        }
+        },
     };
 
     // 创建 SSE 流
@@ -46,7 +63,6 @@ pub async fn handler(
     
     // 包装 spawn_sse_sender 以添加 debug 日志
     let (debug_event_tx, mut debug_event_rx) = mpsc::channel::<copilot_agent_core::AgentEvent>(100);
-    let session_id_for_debug = session_id.clone();
     
     // 启动事件转发任务（用于统计和日志）
     let event_stats = tokio::spawn({
@@ -140,7 +156,7 @@ pub async fn handler(
                 state_clone.tools.clone(),
                 cancel_token,
                 AgentLoopConfig {
-                    max_rounds: 3,
+                    max_rounds: 50,
                     system_prompt: Some(system_prompt),
                     additional_tool_schemas: all_tool_schemas,
                 },
@@ -213,15 +229,12 @@ pub async fn handler(
 // 为 AppState 实现 Clone（用于线程间传递）
 impl Clone for AppState {
     fn clone(&self) -> Self {
-        use crate::skill_loader::SkillLoader;
-        
         Self {
             sessions: self.sessions.clone(),
             storage: self.storage.clone(),
             llm: self.llm.clone(),
             tools: self.tools.clone(),
             cancel_tokens: self.cancel_tokens.clone(),
-            skill_loader: SkillLoader::new(), // 新建 loader，因为不能 Clone
             loaded_skills: self.loaded_skills.clone(),
         }
     }

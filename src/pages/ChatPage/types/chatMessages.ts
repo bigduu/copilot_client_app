@@ -164,6 +164,7 @@ export interface ChatItem {
     lastUsedEnhancedPrompt: string | null;
     agentRole?: AgentRole;
     workspacePath?: string;
+    agentSessionId?: string;
   };
   currentInteraction: {
     machineState: StateValue;

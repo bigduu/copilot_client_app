@@ -9,7 +9,7 @@ use crate::provider::{LLMProvider, LLMError, Result, LLMStream};
 use crate::types::LLMChunk;
 use crate::auth::{
     get_device_code, present_device_code, poll_access_token, 
-    get_copilot_token, TokenCache, CopilotToken
+    get_copilot_token, TokenCache
 };
 use copilot_agent_core::{Message, tools::ToolSchema, tools::ToolCall, tools::FunctionCall};
 
@@ -327,6 +327,7 @@ struct CopilotChunk {
 #[derive(Debug, Deserialize)]
 struct CopilotChoice {
     delta: CopilotDelta,
+    #[allow(dead_code)]
     #[serde(rename = "finish_reason")]
     finish_reason: Option<String>,
 }
@@ -336,11 +337,13 @@ struct CopilotDelta {
     content: Option<String>,
     #[serde(rename = "tool_calls")]
     tool_calls: Option<Vec<CopilotToolCall>>,
+    #[allow(dead_code)]
     role: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
 struct CopilotToolCall {
+    #[allow(dead_code)]
     index: usize,
     id: Option<String>,
     #[serde(rename = "type")]

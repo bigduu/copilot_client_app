@@ -26,18 +26,28 @@ pub async fn handler(
 ) -> impl Responder {
     let session_id = req.session_id.clone()
         .unwrap_or_else(|| Uuid::new_v4().to_string());
-    
-    // 获取或创建会话
-    let mut sessions = state.sessions.write().await;
-    let session = sessions.entry(session_id.clone()).or_insert_with(|| {
-        Session::new(session_id.clone())
-    });
+ 
+    let existing_session = {
+        let sessions = state.sessions.read().await;
+        sessions.get(&session_id).cloned()
+    };
 
-    // 添加用户消息到会话
+    let mut session = match existing_session {
+        Some(session) => session,
+        None => match state.storage.load_session(&session_id).await {
+            Ok(Some(session)) => session,
+            _ => Session::new(session_id.clone()),
+        },
+    };
+
     session.add_message(copilot_agent_core::Message::user(req.message.clone()));
 
-    // 保存会话
-    let _ = state.storage.save_session(session).await;
+    {
+        let mut sessions = state.sessions.write().await;
+        sessions.insert(session_id.clone(), session.clone());
+    }
+
+    let _ = state.storage.save_session(&session).await;
     
     HttpResponse::Created().json(ChatResponse {
         session_id: session_id.clone(),

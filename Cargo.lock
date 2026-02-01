@@ -1147,8 +1147,10 @@ version = "0.1.0"
 dependencies = [
  "async-trait",
  "copilot-agent-core",
+ "dirs 5.0.1",
  "eventsource-stream",
  "futures",
+ "log",
  "reqwest",
  "serde",
  "serde_json",
@@ -1173,6 +1175,7 @@ dependencies = [
 name = "copilot-agent-server"
 version = "0.1.0"
 dependencies = [
+ "actix-cors",
  "actix-web",
  "async-stream",
  "chrono",
@@ -1201,6 +1204,7 @@ dependencies = [
  "chat_core",
  "chrono",
  "claude_installer",
+ "copilot-agent-server",
  "copilot_client",
  "crossbeam",
  "dirs 5.0.1",

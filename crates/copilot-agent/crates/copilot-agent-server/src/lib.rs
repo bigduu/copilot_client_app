@@ -5,6 +5,11 @@ pub mod agent_runner;
 pub mod logging;
 pub mod skill_loader;
 
-pub use server::{run_server, run_server_with_config};
+pub use server::{
+    run_server,
+    run_server_with_config,
+    run_server_with_config_and_mode,
+    start_server_in_thread,
+};
 pub use skill_loader::{SkillLoader, SkillDefinition, SkillVisibility};
 pub use agent_runner::{run_agent_loop, run_agent_loop_with_config, AgentLoopConfig};
