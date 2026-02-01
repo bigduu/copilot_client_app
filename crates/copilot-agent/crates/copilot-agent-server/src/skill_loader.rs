@@ -1,4 +1,3 @@
-use std::collections::HashMap;
 use std::path::PathBuf;
 use tokio::fs;
 use serde::{Deserialize, Serialize};
@@ -54,6 +53,7 @@ impl SkillLoader {
     }
     
     /// Create skill loader with custom directory
+    #[allow(dead_code)]
     pub fn with_dir(path: PathBuf) -> Self {
         Self {
             skills_dir: path,

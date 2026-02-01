@@ -28,6 +28,7 @@ use std::path::PathBuf;
 use tauri::{App, Runtime};
 use tauri::Manager;
 use tauri_plugin_log::{Target, TargetKind};
+use copilot_agent_server::start_server_in_thread;
 use web_service::server::run as start_server;
 
 pub mod claude_binary;
@@ -71,6 +72,18 @@ fn setup<R: Runtime>(_app: &mut App<R>) -> std::result::Result<(), Box<dyn std::
     tauri::async_runtime::spawn(async {
         let _ = start_server(server_data_dir, 8080).await;
     });
+
+    let agent_data_dir = app_data_dir.clone();
+    let base_url = "http://127.0.0.1:8080/v1".to_string();
+    start_server_in_thread(
+        8081,
+        "openai",
+        base_url,
+        "".to_string(),
+        "tauri".to_string(),
+        Some(agent_data_dir),
+        true,
+    );
 
     Ok(())
 }

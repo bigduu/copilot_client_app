@@ -22,6 +22,7 @@ interface UseChatStreamingDeps {
   currentChat: any | null;
   addMessage: (chatId: string, message: any) => Promise<void>;
   setProcessing: (isProcessing: boolean) => void;
+  updateChat: (chatId: string, updates: any) => void;
 }
 
 /**
@@ -47,16 +48,32 @@ export function useChatStreaming(
   // Track Agent availability
   const [agentAvailable, setAgentAvailable] = useState<boolean | null>(null);
   const [isUsingAgent, setIsUsingAgent] = useState(false);
+  const lastAgentAvailableRef = useRef<boolean | null>(null);
 
   // Check Agent availability on mount
   useEffect(() => {
     const checkAgent = async () => {
-      const available = await agentClientRef.current.healthCheck();
-      setAgentAvailable(available);
-      console.log(`[useChatStreaming] Agent Server ${available ? "available" : "not available"}`);
+      try {
+        const available = await agentClientRef.current.healthCheck();
+        setAgentAvailable(available);
+        if (lastAgentAvailableRef.current && !available) {
+          appMessage.warning("Agent unavailable, falling back to Direct Mode");
+        }
+        lastAgentAvailableRef.current = available;
+        console.log(`[useChatStreaming] Agent Server ${available ? "available" : "not available"}`);
+      } catch (error) {
+        setAgentAvailable(false);
+        if (lastAgentAvailableRef.current) {
+          appMessage.warning("Agent unavailable, falling back to Direct Mode");
+        }
+        lastAgentAvailableRef.current = false;
+        console.warn("[useChatStreaming] Agent health check failed:", error);
+      }
     };
     checkAgent();
-  }, []);
+    const interval = setInterval(checkAgent, 10000);
+    return () => clearInterval(interval);
+  }, [appMessage]);
 
   // Clear tools cache when enabled skills change
   useEffect(() => {
@@ -102,6 +119,12 @@ export function useChatStreaming(
     [deps.currentChat?.config?.baseSystemPrompt],
   );
 
+  const resolveDisplayPreference = (value?: string) => {
+    if (value === "Hidden") return "Hidden";
+    if (value === "Collapsible") return "Collapsible";
+    return "Default";
+  };
+
   /**
    * Send message using Agent Server
    */
@@ -114,9 +137,19 @@ export function useChatStreaming(
         // Step 1: Send message to Agent
         const response = await agentClientRef.current.sendMessage({
           message: content,
+          session_id: deps.currentChat?.config?.agentSessionId,
         });
 
         const { session_id } = response;
+        const currentConfig = deps.currentChat?.config;
+        if (currentConfig && currentConfig.agentSessionId !== session_id) {
+          deps.updateChat(chatId, {
+            config: {
+              ...currentConfig,
+              agentSessionId: session_id,
+            },
+          });
+        }
 
         // Step 2: Setup streaming
         const streamingMessageId = `streaming-${chatId}`;
@@ -130,7 +163,10 @@ export function useChatStreaming(
         });
 
         // Track tool calls
-        const toolCallsInProgress = new Map<string, { name: string }>();
+        const toolCallsInProgress = new Map<
+          string,
+          { name: string; args: Record<string, unknown> }
+        >();
 
         // Step 3: Stream events
         await agentClientRef.current.streamEvents(
@@ -145,45 +181,72 @@ export function useChatStreaming(
               });
             },
 
-            onToolStart: (toolCallId: string, toolName: string) => {
-              toolCallsInProgress.set(toolCallId, { name: toolName });
-              
-              const indicator = `\n\n🔧 **Using tool**: ${toolName}\n`;
-              streamingContentRef.current += indicator;
-              streamingMessageBus.publish({
-                chatId,
-                messageId: streamingMessageId,
-                content: streamingContentRef.current,
+            onToolStart: (
+              toolCallId: string,
+              toolName: string,
+              args: Record<string, unknown>,
+            ) => {
+              toolCallsInProgress.set(toolCallId, { name: toolName, args });
+
+              void deps.addMessage(chatId, {
+                id: crypto.randomUUID(),
+                role: "assistant",
+                type: "tool_call",
+                toolCalls: [
+                  {
+                    toolCallId,
+                    toolName,
+                    parameters: args || {},
+                  },
+                ],
+                createdAt: new Date().toISOString(),
               });
             },
 
             onToolComplete: (toolCallId: string, result: any) => {
               const toolCall = toolCallsInProgress.get(toolCallId);
-              if (toolCall) {
-                toolCallsInProgress.delete(toolCallId);
-                
-                const successIcon = result?.success ? "✅" : "❌";
-                const resultPreview = result?.result?.substring(0, 200) || "";
-                const indicator = `${successIcon} **Result**: \`\`\`\n${resultPreview}\n\`\`\`\n\n`;
-                
-                streamingContentRef.current += indicator;
-                streamingMessageBus.publish({
-                  chatId,
-                  messageId: streamingMessageId,
-                  content: streamingContentRef.current,
-                });
-              }
+              toolCallsInProgress.delete(toolCallId);
+
+              const toolName = toolCall?.name || result?.tool_name || "unknown";
+              const displayPreference = resolveDisplayPreference(
+                result?.display_preference,
+              );
+
+              void deps.addMessage(chatId, {
+                id: crypto.randomUUID(),
+                role: "assistant",
+                type: "tool_result",
+                toolName,
+                toolCallId,
+                result: {
+                  tool_name: toolName,
+                  result: result?.result ?? "",
+                  display_preference: displayPreference,
+                },
+                isError: !result?.success,
+                createdAt: new Date().toISOString(),
+              });
             },
 
             onToolError: (toolCallId: string, error: string) => {
+              const toolCall = toolCallsInProgress.get(toolCallId);
               toolCallsInProgress.delete(toolCallId);
-              
-              const indicator = `\n\n❌ **Tool Error**: ${error}\n\n`;
-              streamingContentRef.current += indicator;
-              streamingMessageBus.publish({
-                chatId,
-                messageId: streamingMessageId,
-                content: streamingContentRef.current,
+
+              const toolName = toolCall?.name || "unknown";
+
+              void deps.addMessage(chatId, {
+                id: crypto.randomUUID(),
+                role: "assistant",
+                type: "tool_result",
+                toolName,
+                toolCallId,
+                result: {
+                  tool_name: toolName,
+                  result: error,
+                  display_preference: "Default",
+                },
+                isError: true,
+                createdAt: new Date().toISOString(),
               });
             },
 
@@ -192,6 +255,7 @@ export function useChatStreaming(
                 await deps.addMessage(chatId, {
                   id: `assistant-${Date.now()}`,
                   role: "assistant",
+                  type: "text",
                   content: streamingContentRef.current,
                   createdAt: new Date().toISOString(),
                   metadata: {
@@ -200,9 +264,10 @@ export function useChatStreaming(
                   },
                 });
               }
-              
+              streamingMessageBus.clear(chatId, streamingMessageId);
               streamingMessageIdRef.current = null;
               streamingContentRef.current = "";
+              deps.setProcessing(false);
             },
 
             onError: async (errorMessage: string) => {
@@ -211,13 +276,15 @@ export function useChatStreaming(
               await deps.addMessage(chatId, {
                 id: `error-${Date.now()}`,
                 role: "assistant",
+                type: "text",
                 content: `❌ **Error**: ${errorMessage}`,
                 createdAt: new Date().toISOString(),
                 isError: true,
               });
-              
+              streamingMessageBus.clear(chatId, streamingMessageId);
               streamingMessageIdRef.current = null;
               streamingContentRef.current = "";
+              deps.setProcessing(false);
             },
           },
           controller
@@ -301,6 +368,7 @@ export function useChatStreaming(
           setIsUsingAgent(true);
           console.log("[useChatStreaming] Using Agent Server");
           await sendWithAgent(content, chatId, userMessage);
+          deps.setProcessing(false);
           return;
         } catch (error) {
           console.warn("[useChatStreaming] Agent failed, falling back to OpenAI:", error);

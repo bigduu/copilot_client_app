@@ -29,7 +29,7 @@ pub struct AgentConfig {
 impl Default for AgentConfig {
     fn default() -> Self {
         Self {
-            max_rounds: 3,
+            max_rounds: 50,
             model: "gpt-4o-mini".to_string(),
         }
     }
@@ -37,6 +37,7 @@ impl Default for AgentConfig {
 
 pub struct AgentLoop<E: ToolExecutor> {
     config: AgentConfig,
+    #[allow(dead_code)]
     tool_executor: E,
 }
 

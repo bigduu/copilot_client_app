@@ -39,12 +39,34 @@ impl Default for McpClient {
     }
 }
 
+fn resolve_path_or_cwd(args: &serde_json::Value) -> std::result::Result<String, ToolError> {
+    if let Some(path) = args.get("path").and_then(|value| value.as_str()) {
+        if !path.is_empty() {
+            return Ok(path.to_string());
+        }
+    }
+
+    std::env::current_dir()
+        .map(|path| path.to_string_lossy().to_string())
+        .map_err(|e| {
+            ToolError::InvalidArguments(format!(
+                "Missing 'path' parameter and failed to resolve current dir: {}",
+                e
+            ))
+        })
+}
+
 #[async_trait]
 impl ToolExecutor for McpClient {
     async fn execute(&self, call: &ToolCall) -> std::result::Result<ToolResult, ToolError> {
         // 解析参数
-        let args: serde_json::Value = serde_json::from_str(&call.function.arguments)
-            .map_err(|e| ToolError::InvalidArguments(format!("Invalid JSON arguments: {}", e)))?;
+        let args_raw = call.function.arguments.trim();
+        let args: serde_json::Value = if args_raw.is_empty() {
+            serde_json::json!({})
+        } else {
+            serde_json::from_str(args_raw)
+                .map_err(|e| ToolError::InvalidArguments(format!("Invalid JSON arguments: {}", e)))?
+        };
         
         match call.function.name.as_str() {
             // 文件系统工具
@@ -87,10 +109,9 @@ impl ToolExecutor for McpClient {
             }
             
             "list_directory" => {
-                let path = args["path"].as_str()
-                    .ok_or_else(|| ToolError::InvalidArguments("Missing 'path' parameter".to_string()))?;
+                let path = resolve_path_or_cwd(&args)?;
                 
-                match FilesystemTool::list_directory(path).await {
+                match FilesystemTool::list_directory(&path).await {
                     Ok(entries) => Ok(ToolResult {
                         success: true,
                         result: entries.join("\n"),
@@ -105,10 +126,9 @@ impl ToolExecutor for McpClient {
             }
             
             "file_exists" => {
-                let path = args["path"].as_str()
-                    .ok_or_else(|| ToolError::InvalidArguments("Missing 'path' parameter".to_string()))?;
+                let path = resolve_path_or_cwd(&args)?;
                 
-                match FilesystemTool::file_exists(path).await {
+                match FilesystemTool::file_exists(&path).await {
                     Ok(exists) => Ok(ToolResult {
                         success: true,
                         result: if exists { "true" } else { "false" }.to_string(),
@@ -123,10 +143,9 @@ impl ToolExecutor for McpClient {
             }
             
             "get_file_info" => {
-                let path = args["path"].as_str()
-                    .ok_or_else(|| ToolError::InvalidArguments("Missing 'path' parameter".to_string()))?;
+                let path = resolve_path_or_cwd(&args)?;
                 
-                match FilesystemTool::get_file_info(path).await {
+                match FilesystemTool::get_file_info(&path).await {
                     Ok(info) => Ok(ToolResult {
                         success: true,
                         result: info,

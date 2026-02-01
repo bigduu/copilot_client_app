@@ -1,0 +1,6 @@
+- [ ] Extend `copilot-agent-server` config to accept `tauri_mode` + app data dir and to route LLM calls to the local OpenAI forwarder in tauri mode.
+- [ ] Update agent storage paths to respect `tauri_mode` and store sessions under `~/.bodhi`.
+- [ ] Start the agent server from Tauri startup (`src-tauri/src/lib.rs`) using the agent server library and configured port.
+- [ ] Implement health heartbeat polling in the frontend and update the status indicator live.
+- [ ] On health failure: notify user and force Direct Mode fallback.
+- [ ] Add/adjust tests or basic integration checks for tauri-mode startup and bridge provider.

@@ -34,6 +34,7 @@ export const useChatManager = () => {
     currentChat: state.currentChat,
     addMessage: state.addMessage,
     setProcessing: state.setProcessing,
+    updateChat: state.updateChat,
   });
 
   const stateMachine = useChatStateMachine(state, {

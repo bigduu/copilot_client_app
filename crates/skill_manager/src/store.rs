@@ -677,4 +677,80 @@ mod tests {
         assert!(!is_valid_skill_id("my_skill")); // underscore
         assert!(!is_valid_skill_id("my skill")); // space
     }
+
+    #[tokio::test]
+    async fn test_create_and_enable_skill() {
+        // Use a temporary directory for storage
+        let dir = tempfile::tempdir().expect("tempdir");
+        let path = dir.path().join("skills.json");
+
+        let config = SkillStoreConfig { storage_path: path.clone() };
+        let store = SkillStore::new(config);
+
+        // Initialize (should create builtins and save)
+        store.initialize().await.expect("initialize");
+        assert!(store.storage_path().exists());
+
+        // Create a new skill
+        let skill = SkillDefinition::new(
+            "my-skill",
+            "My Skill",
+            "A test skill",
+            "test",
+            "Test prompt",
+        );
+
+        let created = store.create_skill(skill.clone()).await.expect("create");
+        assert_eq!(created.id, "my-skill");
+
+        // Fetch it back
+        let fetched = store.get_skill("my-skill").await.expect("get");
+        assert_eq!(fetched.name, "My Skill");
+
+        // Enable globally
+        store.enable_skill_global("my-skill").await.expect("enable");
+        assert!(store.is_enabled("my-skill", None).await);
+
+        // Enable for chat override
+        store.enable_skill_for_chat("my-skill", "chat1").await.expect("enable chat");
+        assert!(store.is_enabled("my-skill", Some("chat1")).await);
+
+        // Export
+        let json = store.export_to_json(Some(vec!["my-skill".to_string()])).await.expect("export");
+        assert!(json.contains("\"id\": \"my-skill\""));
+    }
+
+    #[tokio::test]
+    async fn test_import_conflict_renaming() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let path = dir.path().join("skills.json");
+
+        let config = SkillStoreConfig { storage_path: path.clone() };
+        let store = SkillStore::new(config);
+
+        // Initialize and create a skill
+        store.initialize().await.expect("initialize");
+
+        let skill = SkillDefinition::new(
+            "conflict-skill",
+            "Conflict Skill",
+            "A skill to cause conflict",
+            "test",
+            "Prompt",
+        );
+        store.create_skill(skill.clone()).await.expect("create");
+
+        // Export this skill to JSON
+        let exported = store.export_to_json(Some(vec!["conflict-skill".to_string()])).await.expect("export");
+
+        // Import into same store - should rename because id exists
+        let imported = store.import_from_json(&exported).await.expect("import");
+        assert!(!imported.is_empty());
+        let new_id = &imported[0].id;
+        assert!(new_id.starts_with("conflict-skill-imported-"), "new id was {}", new_id);
+
+        // And ensure the new skill exists
+        let fetched = store.get_skill(new_id).await.expect("get imported");
+        assert_eq!(fetched.name, "Conflict Skill");
+    }
 }
