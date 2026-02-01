@@ -1,9 +1,9 @@
 import React, { useState, useMemo, useEffect, lazy, Suspense } from "react";
 import { Space, theme, Tag, Alert, message as antdMessage, Spin } from "antd";
-import { ToolOutlined } from "@ant-design/icons";
+import { ToolOutlined, RobotOutlined, ApiOutlined } from "@ant-design/icons";
 import { MessageInput } from "../MessageInput";
 import InputPreview from "./InputPreview";
-import { useChatOpenAIStreaming } from "../../hooks/useChatManager/useChatOpenAIStreaming";
+import { useChatManager } from "../../hooks/useChatManager";
 import { useAppStore } from "../../store";
 import { useSystemPrompt } from "../../hooks/useSystemPrompt";
 import { useChatInputHistory } from "../../hooks/useChatInputHistory";
@@ -50,15 +50,11 @@ export const InputContainer: React.FC<InputContainerProps> = ({
     [currentChat],
   );
   const updateChat = useAppStore((state) => state.updateChat);
-  const addMessage = useAppStore((state) => state.addMessage);
   const deleteMessage = useAppStore((state) => state.deleteMessage);
-  const setProcessing = useAppStore((state) => state.setProcessing);
   const isProcessing = useAppStore((state) => state.isProcessing);
-  const { sendMessage, cancel } = useChatOpenAIStreaming({
-    currentChat,
-    addMessage,
-    setProcessing,
-  });
+  
+  // Use ChatManager for unified streaming (Agent priority, OpenAI fallback)
+  const { sendMessage, cancelMessage, isUsingAgent, agentAvailable } = useChatManager();
   const isStreaming = isProcessing;
   const [messageApi, contextHolder] = antdMessage.useMessage();
 
@@ -128,6 +124,20 @@ export const InputContainer: React.FC<InputContainerProps> = ({
     navigate,
   });
 
+  // Agent status indicator config
+  const agentStatusConfig = useMemo(() => {
+    if (agentAvailable === null) {
+      return { color: "default", icon: <RobotOutlined />, text: "Checking..." };
+    }
+    if (agentAvailable && isUsingAgent) {
+      return { color: "success", icon: <RobotOutlined />, text: "Agent Mode" };
+    }
+    if (agentAvailable && !isUsingAgent) {
+      return { color: "warning", icon: <ApiOutlined />, text: "Direct Mode" };
+    }
+    return { color: "default", icon: <ApiOutlined />, text: "Direct Mode" };
+  }, [agentAvailable, isUsingAgent]);
+
   const handleCloseReferencePreview = () => setReferenceText(null);
 
   const placeholder = useMemo(() => {
@@ -162,6 +172,17 @@ export const InputContainer: React.FC<InputContainerProps> = ({
       }}
     >
       {contextHolder}
+
+      {/* Agent Status Indicator */}
+      <div style={{ marginBottom: token.marginXS, display: "flex", justifyContent: "flex-end" }}>
+        <Tag
+          color={agentStatusConfig.color}
+          icon={agentStatusConfig.icon}
+          style={{ fontSize: "11px" }}
+        >
+          {agentStatusConfig.text}
+        </Tag>
+      </div>
 
       {isToolSpecificMode && (
         <Alert
@@ -243,7 +264,7 @@ export const InputContainer: React.FC<InputContainerProps> = ({
           hasMessages: currentMessages.length > 0,
           allowRetry: true,
           onRetry: retryLastMessage,
-          onCancel: cancel,
+          onCancel: cancelMessage,
           onHistoryNavigate: handleHistoryNavigate,
         }}
       />
