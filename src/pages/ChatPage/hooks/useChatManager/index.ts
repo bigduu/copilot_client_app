@@ -11,13 +11,13 @@ import { useChatState } from "./useChatState";
 import { useChatTitleGeneration } from "./useChatTitleGeneration";
 import { useChatOperations } from "./useChatOperations";
 import { useChatStateMachine } from "./useChatStateMachine";
-import { useChatOpenAIStreaming } from "./useChatOpenAIStreaming";
+import { useChatStreaming } from "./useChatStreaming";
 
 /**
  * Unified hook for managing all chat-related state and interactions.
  * This hook is the single source of truth for chat management in the UI.
  *
- * Uses OpenAI streaming with a local streaming component.
+ * Uses Agent Server (localhost:8080) when available, falls back to direct OpenAI streaming.
  */
 export const useChatManager = () => {
   // Phase 1: State and derived values
@@ -29,7 +29,8 @@ export const useChatManager = () => {
   // Phase 3: Chat operations (CRUD)
   const operations = useChatOperations(state);
 
-  const streaming = useChatOpenAIStreaming({
+  // Phase 4: Streaming (Agent Server priority, fallback to OpenAI)
+  const streaming = useChatStreaming({
     currentChat: state.currentChat,
     addMessage: state.addMessage,
     setProcessing: state.setProcessing,
@@ -74,6 +75,10 @@ export const useChatManager = () => {
     currentMessages: stateMachine.currentMessages,
     interactionState: stateMachine.interactionState,
     pendingAgentApproval: stateMachine.pendingAgentApproval,
+
+    // State from useChatStreaming
+    isUsingAgent: streaming.isUsingAgent,
+    agentAvailable: streaming.agentAvailable,
 
     // State from useChatTitleGeneration
     titleGenerationState: titleGeneration.titleGenerationState,
