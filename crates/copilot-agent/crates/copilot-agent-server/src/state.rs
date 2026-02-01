@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::{RwLock, mpsc};
 use copilot_agent_core::{Session, AgentEvent, storage::JsonlStorage};
-use copilot_agent_llm::OpenAIProvider;
+use copilot_agent_llm::{OpenAIProvider, CopilotProvider};
 use copilot_agent_core::tools::ToolExecutor;
 use crate::skill_loader::{SkillLoader, SkillDefinition};
 
@@ -19,6 +19,7 @@ pub struct AppState {
 impl AppState {
     pub async fn new() -> Self {
         Self::new_with_config(
+            "openai",
             "http://localhost:12123".to_string(),
             "kimi-for-coding".to_string(),
             "sk-test".to_string(),
@@ -26,6 +27,7 @@ impl AppState {
     }
 
     pub async fn new_with_config(
+        provider: &str,
         llm_base_url: String,
         model: String,
         api_key: String,
@@ -37,13 +39,54 @@ impl AppState {
         let storage = JsonlStorage::new(&data_dir);
         storage.init().await.expect("Failed to init storage");
         
-        // 初始化 OpenAI Provider（使用配置参数）
-        log::info!("Creating LLM provider with base URL: {} and model: {}", llm_base_url, model);
-        let llm: Arc<dyn copilot_agent_llm::LLMProvider> = Arc::new(
-            OpenAIProvider::new(api_key)
-                .with_base_url(llm_base_url)
-                .with_model(model)
-        );
+        // 根据 provider 初始化 LLM Provider
+        log::info!("Creating LLM provider: {} with base URL: {} and model: {}", provider, llm_base_url, model);
+        
+        let llm: Arc<dyn copilot_agent_llm::LLMProvider> = match provider {
+            "copilot" => {
+                log::info!("Using Copilot provider with Device Code authentication");
+                
+                // Create Copilot provider and authenticate
+                let mut copilot_provider = if api_key != "sk-test" && !api_key.is_empty() {
+                    // Use provided API key directly
+                    copilot_agent_llm::CopilotProvider::with_token(api_key)
+                } else {
+                    // Use device code flow
+                    copilot_agent_llm::CopilotProvider::new()
+                };
+                
+                // Try silent auth first (cached token)
+                if !copilot_provider.is_authenticated() {
+                    match copilot_provider.try_authenticate_silent().await {
+                        Ok(true) => {
+                            log::info!("Authenticated with cached Copilot token");
+                        }
+                        Ok(false) => {
+                            println!("\n⚠️  Copilot authentication required");
+                            // Run interactive device code flow
+                            if let Err(e) = copilot_provider.authenticate().await {
+                                log::error!("Failed to authenticate with Copilot: {}", e);
+                                panic!("Copilot authentication failed: {}. Please try again.", e);
+                            }
+                        }
+                        Err(e) => {
+                            log::error!("Authentication error: {}", e);
+                            panic!("Copilot authentication error: {}", e);
+                        }
+                    }
+                }
+                
+                Arc::new(copilot_provider)
+            }
+            _ => {
+                log::info!("Using OpenAI provider");
+                Arc::new(
+                    OpenAIProvider::new(api_key)
+                        .with_base_url(llm_base_url)
+                        .with_model(model)
+                )
+            }
+        };
 
         // 初始化工具（使用 MCP 客户端）
         let tools: Arc<dyn ToolExecutor> = Arc::new(

@@ -11,7 +11,7 @@ mod skill_loader;
 use server::run_server_with_config;
 use logging::init_logging;
 
-#[derive(Parser)]
+#[derive(Parser, Debug, Clone)]
 #[command(name = "copilot-agent-server")]
 #[command(about = "Copilot Agent HTTP Server")]
 #[command(version)]
@@ -23,6 +23,10 @@ struct Cli {
     /// Server port
     #[arg(long, env = "PORT", default_value = "8081")]
     port: u16,
+    
+    /// LLM provider (openai or copilot)
+    #[arg(long, env = "LLM_PROVIDER", default_value = "openai")]
+    provider: ProviderType,
     
     /// LLM API base URL
     #[arg(long, env = "LLM_BASE_URL", default_value = "http://localhost:12123")]
@@ -41,6 +45,12 @@ struct Cli {
     log_level: Option<String>,
 }
 
+#[derive(Debug, Clone, Copy, clap::ValueEnum)]
+enum ProviderType {
+    OpenAI,
+    Copilot,
+}
+
 #[actix_web::main]
 async fn main() -> io::Result<()> {
     let cli = Cli::parse();
@@ -55,6 +65,7 @@ async fn main() -> io::Result<()> {
     
     log::info!("Starting Copilot Agent Server on port {}", cli.port);
     log::info!("LLM Configuration:");
+    log::info!("  Provider: {:?}", cli.provider);
     log::info!("  Base URL: {}", cli.llm_base_url);
     log::info!("  Model: {}", cli.model);
     
@@ -62,13 +73,20 @@ async fn main() -> io::Result<()> {
         log::debug!("Debug mode enabled");
         log::debug!("Server configuration:");
         log::debug!("  Port: {}", cli.port);
+        log::debug!("  Provider: {:?}", cli.provider);
         log::debug!("  LLM Base URL: {}", cli.llm_base_url);
         log::debug!("  LLM Model: {}", cli.model);
         log::debug!("  Debug: true");
     }
     
+    let provider = match cli.provider {
+        ProviderType::OpenAI => "openai",
+        ProviderType::Copilot => "copilot",
+    };
+    
     run_server_with_config(
         cli.port,
+        provider,
         cli.llm_base_url,
         cli.model,
         cli.api_key,

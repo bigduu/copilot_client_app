@@ -7,6 +7,7 @@ use crate::state::AppState;
 pub async fn run_server(port: u16) -> io::Result<()> {
     run_server_with_config(
         port,
+        "openai",
         "http://localhost:12123".to_string(),
         "kimi-for-coding".to_string(),
         "sk-test".to_string(),
@@ -15,12 +16,13 @@ pub async fn run_server(port: u16) -> io::Result<()> {
 
 pub async fn run_server_with_config(
     port: u16,
+    provider: &str,
     llm_base_url: String,
     model: String,
     api_key: String,
 ) -> io::Result<()> {
-    log::info!("Initializing server with LLM base URL: {}", llm_base_url);
-    let state = web::Data::new(AppState::new_with_config(llm_base_url, model, api_key).await);
+    log::info!("Initializing server with provider: {}, base URL: {}", provider, llm_base_url);
+    let state = web::Data::new(AppState::new_with_config(provider, llm_base_url, model, api_key).await);
 
     HttpServer::new(move || {
         App::new()
