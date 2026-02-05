@@ -67,7 +67,9 @@ impl Config {
         let json_path = bodhi_config_json_path();
         if json_path.exists() {
             if let Ok(content) = std::fs::read_to_string(&json_path) {
-                if let Ok(file_config) = serde_json::from_str::<Config>(&content) {
+                if let Ok(mut file_config) = serde_json::from_str::<Config>(&content) {
+                    file_config.http_proxy_auth = None;
+                    file_config.https_proxy_auth = None;
                     config = file_config;
                     loaded = true;
                 }
@@ -76,7 +78,9 @@ impl Config {
 
         if !loaded && std::path::Path::new(CONFIG_FILE_PATH).exists() {
             if let Ok(content) = std::fs::read_to_string(CONFIG_FILE_PATH) {
-                if let Ok(file_config) = toml::from_str::<Config>(&content) {
+                if let Ok(mut file_config) = toml::from_str::<Config>(&content) {
+                    file_config.http_proxy_auth = None;
+                    file_config.https_proxy_auth = None;
                     config = file_config;
                 }
             }

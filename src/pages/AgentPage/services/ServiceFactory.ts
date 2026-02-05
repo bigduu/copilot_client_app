@@ -37,6 +37,8 @@ export class ServiceFactory {
       getBodhiConfig: () => this.httpUtilityService.getBodhiConfig(),
       setBodhiConfig: (config: any) =>
         this.httpUtilityService.setBodhiConfig(config),
+      setProxyAuth: (auth: { username: string; password: string }) =>
+        this.httpUtilityService.setProxyAuth(auth),
     };
   }
 
@@ -51,6 +53,10 @@ export class ServiceFactory {
 
   async setBodhiConfig(config: any): Promise<any> {
     return this.getUtilityService().setBodhiConfig(config);
+  }
+
+  async setProxyAuth(auth: { username: string; password: string }): Promise<any> {
+    return this.getUtilityService().setProxyAuth(auth);
   }
 
   async invoke<T = any>(

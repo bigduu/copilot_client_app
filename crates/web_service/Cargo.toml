@@ -21,7 +21,7 @@ claude_installer = { path = "../claude_installer" }
 chat_core = { path = "../chat_core" }
 copilot_client = { path = "../copilot_client" }
 copilot-agent-server = { path = "../copilot-agent/crates/copilot-agent-server" }
-builtin_tools = { path = "../builtin_tools" }
+builtin_tools = { path = "../copilot-agent/crates/builtin_tools" }
 copilot-agent-core = { path = "../copilot-agent/crates/copilot-agent-core" }
 skill_manager = { path = "../skill_manager" }
 

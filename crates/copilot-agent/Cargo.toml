@@ -1,5 +1,6 @@
 [workspace]
 members = [
+    "crates/builtin_tools",
     "crates/copilot-agent-core",
     "crates/copilot-agent-llm",
     "crates/copilot-agent-server",

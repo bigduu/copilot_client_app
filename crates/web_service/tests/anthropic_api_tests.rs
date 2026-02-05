@@ -14,6 +14,7 @@ use copilot_client::{
     },
     client_trait::CopilotClientTrait,
 };
+use chat_core::ProxyAuth;
 use reqwest::Response;
 use serde_json::{json, Value};
 use std::{
@@ -104,6 +105,10 @@ impl CopilotClientTrait for MockCopilotClient {
 
     async fn get_models(&self) -> Result<Vec<String>> {
         Ok(vec!["gpt-4".to_string(), "gpt-3.5-turbo".to_string()])
+    }
+
+    async fn update_proxy_auth(&self, _auth: Option<ProxyAuth>) -> Result<()> {
+        Ok(())
     }
 }
 

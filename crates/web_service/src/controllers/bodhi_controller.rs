@@ -1,7 +1,8 @@
 use crate::{error::AppError, server::AppState};
 use actix_web::{get, post, web, HttpResponse};
+use chat_core::ProxyAuth;
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use serde::Serialize;
 use std::path::PathBuf;
 use tokio::fs;
 
@@ -31,6 +32,14 @@ fn workflows_dir() -> Result<PathBuf, AppError> {
 
 fn config_path(app_state: &AppState) -> PathBuf {
     app_state.app_data_dir.join("config.json")
+}
+
+fn strip_proxy_auth(mut config: Value) -> Value {
+    if let Some(obj) = config.as_object_mut() {
+        obj.remove("http_proxy_auth");
+        obj.remove("https_proxy_auth");
+    }
+    config
 }
 
 fn is_safe_workflow_name(name: &str) -> bool {
@@ -128,7 +137,7 @@ pub async fn get_bodhi_config(app_state: web::Data<AppState>) -> Result<HttpResp
     match fs::read_to_string(&path).await {
         Ok(content) => {
             let config = serde_json::from_str::<Value>(&content)?;
-            Ok(HttpResponse::Ok().json(config))
+            Ok(HttpResponse::Ok().json(strip_proxy_auth(config)))
         }
         Err(err) if err.kind() == std::io::ErrorKind::NotFound => {
             Ok(HttpResponse::Ok().json(serde_json::json!({})))
@@ -146,15 +155,42 @@ pub async fn set_bodhi_config(
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent).await?;
     }
-    let config = payload.into_inner();
+    let config = strip_proxy_auth(payload.into_inner());
     let content = serde_json::to_string_pretty(&config)?;
     fs::write(path, content).await?;
     Ok(HttpResponse::Ok().json(config))
+}
+
+#[derive(Deserialize)]
+struct ProxyAuthPayload {
+    username: Option<String>,
+    password: Option<String>,
+}
+
+#[post("/bodhi/proxy-auth")]
+pub async fn set_proxy_auth(
+    app_state: web::Data<AppState>,
+    payload: web::Json<ProxyAuthPayload>,
+) -> Result<HttpResponse, AppError> {
+    let username = payload.username.clone().unwrap_or_default();
+    let password = payload.password.clone().unwrap_or_default();
+    let auth = if username.trim().is_empty() {
+        None
+    } else {
+        Some(ProxyAuth { username, password })
+    };
+    app_state
+        .copilot_client
+        .update_proxy_auth(auth)
+        .await
+        .map_err(|e| AppError::InternalError(anyhow::anyhow!("Failed to update proxy auth: {e}")))?;
+    Ok(HttpResponse::Ok().json(serde_json::json!({ "success": true })))
 }
 
 pub fn config(cfg: &mut web::ServiceConfig) {
     cfg.service(list_workflows)
         .service(get_workflow)
         .service(get_bodhi_config)
-        .service(set_bodhi_config);
+        .service(set_bodhi_config)
+        .service(set_proxy_auth);
 }
