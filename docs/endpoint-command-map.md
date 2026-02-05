@@ -26,24 +26,8 @@
 - Backend: `crates/web_service/src/controllers/bodhi_controller.rs`
 - Frontend: `src/services/WorkflowManagerService.ts`
 
-### `/v1/mcp/servers`
-- Backend: `crates/web_service/src/controllers/mcp_controller.rs`
-- Frontend: `src/services/HttpServices.ts` → `src/services/ServiceFactory.ts`
-
-### `/v1/mcp/reload`
-- Backend: `crates/web_service/src/controllers/mcp_controller.rs`
-- Frontend: `src/services/HttpServices.ts` → `src/services/ServiceFactory.ts` → `src/components/SystemSettingsModal/index.tsx`
-
-### `/v1/mcp/status/{name}`
-- Backend: `crates/web_service/src/controllers/mcp_controller.rs`
-- Frontend: `src/services/HttpServices.ts` → `src/services/ServiceFactory.ts`
-
-### `/v1/mcp/tools`
-- Backend: `crates/web_service/src/controllers/mcp_controller.rs`
-- Frontend: `src/services/BodhiConfigService.ts`
-
 ### `/v1/tools/execute`
-- Backend: `crates/web_service/src/controllers/mcp_controller.rs`
+- Backend: `crates/web_service/src/controllers/tools_controller.rs`
 - Frontend: `src/services/ToolService.ts`
 
 ### `/v1/workspace/validate`

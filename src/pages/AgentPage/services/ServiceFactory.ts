@@ -27,7 +27,6 @@ export class ServiceFactory {
   getUtilityService(): UtilityService {
     // Composite service:
     // - Native functions (copyToClipboard, invoke) use Tauri
-    // - MCP functions use HTTP
     return {
       copyToClipboard: (text: string) =>
         this.tauriUtilityService.copyToClipboard(text),
@@ -35,12 +34,6 @@ export class ServiceFactory {
         command: string,
         args?: Record<string, any>,
       ): Promise<T> => this.tauriUtilityService.invoke(command, args),
-      getMcpServers: () => this.httpUtilityService.getMcpServers(),
-      setMcpServers: (servers: any) =>
-        this.httpUtilityService.setMcpServers(servers),
-      getMcpClientStatus: (name: string) =>
-        this.httpUtilityService.getMcpClientStatus(name),
-      reloadMcpServers: () => this.httpUtilityService.reloadMcpServers(),
       getBodhiConfig: () => this.httpUtilityService.getBodhiConfig(),
       setBodhiConfig: (config: any) =>
         this.httpUtilityService.setBodhiConfig(config),
@@ -50,22 +43,6 @@ export class ServiceFactory {
   // Convenience methods for direct access
   async copyToClipboard(text: string): Promise<void> {
     return this.getUtilityService().copyToClipboard(text);
-  }
-
-  async getMcpServers(): Promise<any> {
-    return this.getUtilityService().getMcpServers();
-  }
-
-  async setMcpServers(servers: any): Promise<void> {
-    return this.getUtilityService().setMcpServers(servers);
-  }
-
-  async getMcpClientStatus(name: string): Promise<any> {
-    return this.getUtilityService().getMcpClientStatus(name);
-  }
-
-  async reloadMcpServers(): Promise<any> {
-    return this.getUtilityService().reloadMcpServers();
   }
 
   async getBodhiConfig(): Promise<any> {

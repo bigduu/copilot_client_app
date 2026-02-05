@@ -3,6 +3,7 @@
 //! Provides in-memory storage and file persistence for skill definitions.
 
 use crate::types::*;
+use builtin_tools::normalize_tool_ref;
 use chrono::{DateTime, Utc};
 use log::{debug, info, warn};
 use serde::{Deserialize, Serialize};
@@ -130,8 +131,7 @@ impl SkillStore {
                 "analysis",
                 "You are a file analysis expert. Use the read_file tool to read files, then provide a structured analysis including:\n1. File type and purpose\n2. Main content summary\n3. Key code/data snippets\n4. Potential issues or improvements",
             )
-            .with_tool_ref("default::read_file")
-            .with_tool_ref("default::search")
+            .with_tool_ref("read_file")
             .with_tag("files")
             .with_tag("analysis")
             .with_enabled_by_default(true),
@@ -142,9 +142,7 @@ impl SkillStore {
                 "development",
                 "You are a code review expert. When analyzing code changes, focus on:\n1. Code quality and readability\n2. Potential bugs and security issues\n3. Performance impact\n4. Alignment with best practices\n5. Test coverage",
             )
-            .with_tool_ref("default::read_file")
-            .with_tool_ref("default::search")
-            .with_tool_ref("default::run_command")
+            .with_tool_ref("read_file")
             .with_tag("code")
             .with_tag("review")
             .with_enabled_by_default(true),
@@ -341,6 +339,18 @@ fn parse_markdown_skill(path: &Path, content: &str) -> SkillResult<SkillDefiniti
 
     let created_at = parse_timestamp(&frontmatter.created_at)?;
     let updated_at = parse_timestamp(&frontmatter.updated_at)?;
+    let mut tool_refs = Vec::new();
+    for tool_ref in frontmatter.tool_refs {
+        match normalize_tool_ref(&tool_ref) {
+            Some(normalized) => tool_refs.push(normalized),
+            None => {
+                return Err(SkillError::Validation(format!(
+                    "Unsupported tool reference '{}'. Built-in tools only.",
+                    tool_ref
+                )));
+            }
+        }
+    }
 
     Ok(SkillDefinition {
         id: frontmatter.id,
@@ -349,7 +359,7 @@ fn parse_markdown_skill(path: &Path, content: &str) -> SkillResult<SkillDefiniti
         category: frontmatter.category,
         tags: frontmatter.tags,
         prompt: body.trim().to_string(),
-        tool_refs: frontmatter.tool_refs,
+        tool_refs,
         workflow_refs: frontmatter.workflow_refs,
         visibility: frontmatter.visibility,
         enabled_by_default: frontmatter.enabled_by_default,
@@ -530,7 +540,7 @@ mod tests {
  tags:
    - demo
  tool_refs:
-   - default::read_file
+   - read_file
  workflow_refs: []
  visibility: public
  enabled_by_default: true

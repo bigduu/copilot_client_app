@@ -2,7 +2,6 @@
 members = [
     "crates/copilot-agent-core",
     "crates/copilot-agent-llm",
-    "crates/copilot-agent-mcp",
     "crates/copilot-agent-server",
 ]
 resolver = "2"

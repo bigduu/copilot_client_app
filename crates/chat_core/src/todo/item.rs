@@ -3,7 +3,7 @@
 //! Everything in the system becomes a TodoItem:
 //! - Chat responses (streaming)
 //! - Tool calls (blocking)
-//! - MCP tool calls (blocking)  
+//! - Built-in tool calls (blocking)
 //! - Workflow steps (blocking)
 
 use chrono::{DateTime, Utc};
@@ -119,17 +119,6 @@ pub enum TodoItemType {
         arguments: serde_json::Value,
     },
 
-    /// MCP (Model Context Protocol) tool execution
-    /// Execution: Blocking
-    McpTool {
-        /// Name of the MCP server
-        server_name: String,
-        /// Name of the tool on that server
-        tool_name: String,
-        /// Arguments to pass to the tool
-        arguments: serde_json::Value,
-    },
-
     /// Workflow step execution
     /// Execution: Blocking
     WorkflowStep {
@@ -144,11 +133,11 @@ pub enum TodoItemType {
 
 impl TodoItemType {
     /// Returns true if this item type requires blocking execution
-    /// Tool calls, MCP tools, and workflow steps are blocking
+    /// Tool calls and workflow steps are blocking
     pub fn is_blocking(&self) -> bool {
         matches!(
             self,
-            Self::ToolCall { .. } | Self::McpTool { .. } | Self::WorkflowStep { .. }
+            Self::ToolCall { .. } | Self::WorkflowStep { .. }
         )
     }
 
@@ -163,7 +152,6 @@ impl TodoItemType {
         match self {
             Self::Chat { .. } => "Chat",
             Self::ToolCall { tool_name, .. } => tool_name,
-            Self::McpTool { tool_name, .. } => tool_name,
             Self::WorkflowStep { workflow_name, .. } => workflow_name,
         }
     }

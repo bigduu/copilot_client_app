@@ -421,7 +421,7 @@ src-tauri
 │   ├─> tool_system ✅ ENHANCED
 │   ├─> context_manager
 │   ├─> copilot_client
-│   └─> mcp_client
+│   └─> builtin_tools
 │
 workflow_system ✅ NEW
 ├─> inventory (auto-registration)
@@ -635,5 +635,4 @@ crates/web_service_standalone/
 **Implemented By**: AI Assistant (Claude)
 **OpenSpec Change ID**: `refactor-tools-to-llm-agent-mode`
 **Status**: ✅ Backend Foundation Complete | ⏳ Integration Pending
-
 

@@ -22,7 +22,7 @@
   - DELETE /v1/skills/{id} - delete skill
   - POST /v1/skills/{id}/enable - enable skill (with optional chat_id)
   - POST /v1/skills/{id}/disable - disable skill (with optional chat_id)
-  - GET /v1/skills/available-tools - list MCP tools for selection
+  - GET /v1/skills/available-tools - list built-in tools for selection
   - GET /v1/skills/available-workflows - list workflows for selection
 - [x] 3.2 Create `crates/web_service/src/services/skill_service.rs` - business logic layer
 - [x] 3.3 Register skill_controller in `controllers/mod.rs` and server routes
@@ -62,7 +62,7 @@
 - [ ] 7.1 Create `src/components/Skill/SkillEditor.tsx` - create/edit form
   - Basic info: name, description, category, tags
   - Prompt editor (textarea with markdown preview)
-  - Tool selector (multi-select from available MCP tools)
+  - Tool selector (multi-select from available built-in tools)
   - Workflow selector (multi-select from available workflows)
   - Visibility toggle (public/private)
   - Enabled by default toggle
@@ -86,7 +86,7 @@
 ## 10. Built-in Skills
 
 - [ ] 10.1 Define 3-5 built-in skills as examples
-  - File Analysis (read_file + search)
+  - File Analysis (read_file)
   - Code Review (read_file + diff analysis prompt)
   - Project Setup (workflow triggers)
 - [ ] 10.2 Create skills.json seed file

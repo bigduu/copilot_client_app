@@ -17,13 +17,13 @@ import {
 } from "../../../../shared/utils/todoEnhancementUtils";
 import { getDefaultBackendBaseUrl } from "../../../../shared/utils/backendBaseUrl";
 import SystemSettingsModelTab from "./SystemSettingsModelTab";
-import SystemSettingsMcpTab from "./SystemSettingsMcpTab";
 import SystemSettingsConfigTab from "./SystemSettingsConfigTab";
 import SystemSettingsAgentTab from "./SystemSettingsAgentTab";
 import SystemSettingsPromptsTab from "./SystemSettingsPromptsTab";
 import SystemSettingsAppTab from "./SystemSettingsAppTab";
 import SystemSettingsKeywordMaskingTab from "./SystemSettingsKeywordMaskingTab";
-import { useSystemSettingsMcp } from "./useSystemSettingsMcp";
+import SystemSettingsWorkflowsTab from "./SystemSettingsWorkflowsTab";
+import { useSystemSettingsBodhiConfig } from "./useSystemSettingsBodhiConfig";
 import { useSystemSettingsBackend } from "./useSystemSettingsBackend";
 import { SkillManager } from "../../../../components/Skill";
 
@@ -75,7 +75,7 @@ const SystemSettingsPage = ({
     refreshModels,
   });
 
-  const mcpState = useSystemSettingsMcp({ msgApi });
+  const bodhiConfigState = useSystemSettingsBodhiConfig({ msgApi });
 
   const handleDeleteAll = () => {
     deleteAllUnpinnedChats();
@@ -182,46 +182,16 @@ const SystemSettingsPage = ({
               ),
             },
             {
-              key: "mcp",
-              label: "MCP",
-              children: (
-                <SystemSettingsMcpTab
-                  mcpConfigJson={mcpState.mcpConfigJson}
-                  mcpConfigError={mcpState.mcpConfigError}
-                  mcpStatuses={mcpState.mcpStatuses}
-                  isLoadingMcp={mcpState.isLoadingMcp}
-                  onReload={async () => {
-                    try {
-                      const reloaded = await mcpState.reloadMcpConfig();
-                      await mcpState.applyMcpConfig(reloaded, true);
-                    } catch (error) {
-                      msgApi.error(
-                        error instanceof Error
-                          ? error.message
-                          : "Failed to reload MCP configuration",
-                      );
-                    }
-                  }}
-                  onSave={mcpState.handleSaveMcpConfig}
-                  onChange={(value) => {
-                    mcpState.setMcpConfigJson(value);
-                    mcpState.mcpDirtyRef.current = true;
-                  }}
-                  formatMcpStatus={mcpState.formatMcpStatus}
-                />
-              ),
-            },
-            {
               key: "config",
               label: "Config",
               children: (
                 <SystemSettingsConfigTab
-                  bodhiConfigJson={mcpState.bodhiConfigJson}
-                  bodhiConfigError={mcpState.bodhiConfigError}
-                  isLoadingBodhiConfig={mcpState.isLoadingBodhiConfig}
+                  bodhiConfigJson={bodhiConfigState.bodhiConfigJson}
+                  bodhiConfigError={bodhiConfigState.bodhiConfigError}
+                  isLoadingBodhiConfig={bodhiConfigState.isLoadingBodhiConfig}
                   onReload={async () => {
                     try {
-                      await mcpState.reloadBodhiConfig();
+                      await bodhiConfigState.reloadBodhiConfig();
                     } catch (error) {
                       msgApi.error(
                         error instanceof Error
@@ -230,10 +200,10 @@ const SystemSettingsPage = ({
                       );
                     }
                   }}
-                  onSave={mcpState.handleSaveBodhiConfig}
+                  onSave={bodhiConfigState.handleSaveBodhiConfig}
                   onChange={(value) => {
-                    mcpState.setBodhiConfigJson(value);
-                    mcpState.bodhiConfigDirtyRef.current = true;
+                    bodhiConfigState.setBodhiConfigJson(value);
+                    bodhiConfigState.bodhiConfigDirtyRef.current = true;
                   }}
                 />
               ),
@@ -262,6 +232,11 @@ const SystemSettingsPage = ({
               key: "skills",
               label: "Skills",
               children: <SkillManager />,
+            },
+            {
+              key: "workflows",
+              label: "Workflows",
+              children: <SystemSettingsWorkflowsTab />,
             },
             {
               key: "app",

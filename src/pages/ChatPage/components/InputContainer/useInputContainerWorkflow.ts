@@ -44,6 +44,22 @@ export const useInputContainerWorkflow = ({
     onWorkflowDraftChange?.(null);
   }, [onWorkflowDraftChange]);
 
+  const updateWorkflowDraftPreview = useCallback(
+    (value: string, workflow: WorkflowDraft) => {
+      if (!matchesWorkflowToken(value, workflow.name)) {
+        return;
+      }
+      const token = `/${workflow.name}`;
+      const trimmedValue = value.trim();
+      const extraInput = trimmedValue.slice(token.length).trim();
+      const content = [workflow.content, extraInput]
+        .filter(Boolean)
+        .join("\n\n");
+      onWorkflowDraftChange?.({ ...workflow, content });
+    },
+    [matchesWorkflowToken, onWorkflowDraftChange],
+  );
+
   const handleInputChange = useCallback(
     (value: string) => {
       acknowledgeManualInput();
@@ -53,6 +69,12 @@ export const useInputContainerWorkflow = ({
       ) {
         clearWorkflowDraft();
       }
+      if (
+        selectedWorkflow &&
+        matchesWorkflowToken(value, selectedWorkflow.name)
+      ) {
+        updateWorkflowDraftPreview(value, selectedWorkflow);
+      }
       setContent(value);
     },
     [
@@ -60,6 +82,7 @@ export const useInputContainerWorkflow = ({
       clearWorkflowDraft,
       matchesWorkflowToken,
       selectedWorkflow,
+      updateWorkflowDraftPreview,
       setContent,
     ],
   );

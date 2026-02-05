@@ -3,6 +3,7 @@ use log::{debug, info};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
+use builtin_tools::BuiltinToolExecutor;
 use crate::error::AppError;
 use crate::server::AppState;
 use skill_manager::{SkillDefinition, SkillFilter};
@@ -100,19 +101,15 @@ pub async fn get_skill(
     Ok(HttpResponse::Ok().json(skill))
 }
 
-/// GET /v1/skills/available-tools - Get available MCP tools
+/// GET /v1/skills/available-tools - Get available built-in tools
 #[get("/v1/skills/available-tools")]
 pub async fn get_available_tools(
-    app_state: web::Data<AppState>,
+    _app_state: web::Data<AppState>,
 ) -> Result<HttpResponse, AppError> {
-    // Get tools from MCP runtime
-    let tools = app_state
-        .mcp_runtime
-        .list_tools()
-        .await
-        .map_err(|e| AppError::InternalError(anyhow::anyhow!("Failed to list tools: {}", e)))?;
-
-    let tool_names: Vec<String> = tools.into_iter().map(|(_, tool)| tool.name.to_string()).collect();
+    let tool_names: Vec<String> = BuiltinToolExecutor::tool_schemas()
+        .into_iter()
+        .map(|tool| tool.function.name)
+        .collect();
 
     Ok(HttpResponse::Ok().json(AvailableToolsResponse { tools: tool_names }))
 }
@@ -135,18 +132,12 @@ pub async fn get_filtered_tools(
         .await;
     debug!("Skill filtered tools allowed list: {:?}", allowed_tools);
 
-    // Get all tools and filter on the server
-    let all_tools = app_state
-        .mcp_runtime
-        .list_tools()
-        .await
-        .map_err(|e| AppError::InternalError(anyhow::anyhow!("Failed to list tools: {}", e)))?;
-
+    let all_tools = BuiltinToolExecutor::tool_schemas();
     let all_tool_names: Vec<String> = all_tools
         .iter()
-        .map(|(server_name, tool)| format!("{}::{}", server_name, tool.name))
+        .map(|tool| tool.function.name.clone())
         .collect();
-    debug!("MCP tools discovered: {:?}", all_tool_names);
+    debug!("Built-in tools discovered: {:?}", all_tool_names);
 
     let filtered = if allowed_tools.is_empty() {
         info!("No enabled skills; returning all {} tools", all_tools.len());
@@ -154,12 +145,7 @@ pub async fn get_filtered_tools(
     } else {
         let filtered: Vec<_> = all_tools
             .into_iter()
-            .filter(|(server_name, tool)| {
-                let full_name = format!("{}::{}", server_name, tool.name);
-                allowed_tools
-                    .iter()
-                    .any(|allowed| allowed == &full_name || allowed == &tool.name)
-            })
+            .filter(|tool| allowed_tools.iter().any(|allowed| allowed == &tool.function.name))
             .collect();
         info!(
             "Filtered tools: allowed={}, matched={}",
@@ -171,12 +157,12 @@ pub async fn get_filtered_tools(
 
     let tools = filtered
         .into_iter()
-        .map(|(server_name, tool)| OpenAiTool {
+        .map(|tool| OpenAiTool {
             tool_type: "function".to_string(),
             function: OpenAiFunction {
-                name: format!("{}::{}", server_name, tool.name),
-                description: tool.description.to_string(),
-                parameters: tool.schema_as_json_value(),
+                name: tool.function.name,
+                description: tool.function.description,
+                parameters: tool.function.parameters,
             },
         })
         .collect();

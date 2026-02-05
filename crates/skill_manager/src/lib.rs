@@ -1,7 +1,7 @@
 //! Skill Manager Crate
 //!
 //! Provides skill definition storage, management, and enablement tracking.
-//! Skills bundle MCP tools, Workflows, and prompt fragments for AI capability orchestration.
+//! Skills bundle built-in tools, workflows, and prompt fragments for AI capability orchestration.
 
 pub mod store;
 pub mod types;

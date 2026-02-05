@@ -206,8 +206,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_read_write_file() {
-        let test_path = "/tmp/test_mcp_fs.txt";
-        let test_content = "Hello, MCP!";
+        let test_path = "/tmp/test_builtin_fs.txt";
+        let test_content = "Hello, Built-in Tools!";
         
         // 写入文件
         let result = FilesystemTool::write_file(test_path, test_content).await;

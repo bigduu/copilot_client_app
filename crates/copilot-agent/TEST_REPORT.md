@@ -9,7 +9,7 @@
 |-------|------|--------|
 | copilot-agent-core | ✅ OK | 1 |
 | copilot-agent-llm | ✅ OK | 0 |
-| copilot-agent-mcp | ✅ OK | 0 |
+| builtin_tools | ✅ OK | 0 |
 | copilot-agent-server | ✅ OK | 4 |
 | copilot-agent-cli | ✅ OK | 5 |
 

@@ -48,7 +48,7 @@ pub struct SkillDefinition {
     /// Prompt fragment injected into system prompt
     pub prompt: String,
 
-    /// MCP tool references (format: "server::tool")
+    /// Built-in tool references (format: "tool")
     #[serde(default)]
     pub tool_refs: Vec<String>,
 

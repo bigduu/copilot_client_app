@@ -16,6 +16,29 @@ const joinPromptSegments = (segments: string[]): string => {
   return normalized.join("\n\n");
 };
 
+const appendPromptSegment = (base: string, segment: string): string => {
+  const normalizedBase = (base ?? "").trimEnd();
+  const normalizedSegment = (segment ?? "").trim();
+  if (!normalizedSegment) {
+    return normalizedBase;
+  }
+  if (!normalizedBase) {
+    return normalizedSegment;
+  }
+  return `${normalizedBase}\n\n${normalizedSegment}`;
+};
+
+const buildWorkspaceContextSegment = (workspacePath?: string): string => {
+  const normalized = (workspacePath ?? "").trim();
+  if (!normalized) {
+    return "";
+  }
+  return [
+    `Workspace path: ${normalized}`,
+    "If you need to inspect files, check the workspace first, then ~/.bodhi.",
+  ].join("\n");
+};
+
 export const getSystemPromptEnhancement = (): string => {
   try {
     const stored = localStorage.getItem(SYSTEM_PROMPT_ENHANCEMENT_KEY);
@@ -62,21 +85,19 @@ export const buildEnhancedSystemPrompt = (
   basePrompt: string,
   enhancement?: string,
 ): string => {
-  const base = (basePrompt ?? "").trimEnd();
-  const extra = (enhancement ?? "").trim();
-
-  if (!extra) {
-    return base;
-  }
-  if (!base) {
-    return extra;
-  }
-  return `${base}\n\n${extra}`;
+  return appendPromptSegment(basePrompt, enhancement ?? "");
 };
 
-export const getEffectiveSystemPrompt = (basePrompt: string): string => {
-  return buildEnhancedSystemPrompt(
+export const getEffectiveSystemPrompt = (
+  basePrompt: string,
+  workspacePath?: string,
+): string => {
+  const enhanced = buildEnhancedSystemPrompt(
     basePrompt,
     getSystemPromptEnhancementText(),
+  );
+  return appendPromptSegment(
+    enhanced,
+    buildWorkspaceContextSegment(workspacePath),
   );
 };

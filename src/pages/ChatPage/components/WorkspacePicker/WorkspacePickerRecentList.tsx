@@ -24,7 +24,7 @@ const WorkspacePickerRecentList: React.FC<WorkspacePickerRecentListProps> = ({
 
   return (
     <Flex vertical gap={token.marginXS} style={{ marginTop: token.marginMD }}>
-      <Space>
+      <Space style={{ paddingInline: token.paddingSM }}>
         <HistoryOutlined />
         <Text strong>最近使用的工作区</Text>
       </Space>
@@ -43,6 +43,7 @@ const WorkspacePickerRecentList: React.FC<WorkspacePickerRecentListProps> = ({
         <List
           size="small"
           dataSource={recentWorkspaces}
+          style={{ paddingInline: token.paddingSM }}
           renderItem={(workspace) => (
             <List.Item style={{ padding: 0 }}>
               <Button
@@ -51,22 +52,31 @@ const WorkspacePickerRecentList: React.FC<WorkspacePickerRecentListProps> = ({
                 style={{
                   width: "100%",
                   textAlign: "left",
-                  padding: `${token.paddingXS}px ${token.paddingSM}px`,
+                  padding: `${token.paddingXS}px 0`,
+                  height: "auto",
                 }}
               >
-                <Space>
-                  <FolderOutlined style={{ color: token.colorWarning }} />
-                  <Space direction="vertical" size={0}>
+                <Flex justify="space-between" align="center" style={{ width: "100%" }}>
+                  <Space>
+                    <FolderOutlined style={{ color: token.colorWarning }} />
                     <Text strong>
                       {workspace.workspace_name ||
                         workspace.path.split("/").pop() ||
                         "工作区"}
                     </Text>
-                    <Text type="secondary" style={{ fontSize: 12 }}>
-                      {workspace.path}
-                    </Text>
                   </Space>
-                </Space>
+                  <Text
+                    type="secondary"
+                    ellipsis={{ tooltip: workspace.path }}
+                    style={{
+                      fontSize: 12,
+                      maxWidth: "55%",
+                      textAlign: "right",
+                    }}
+                  >
+                    {workspace.path}
+                  </Text>
+                </Flex>
               </Button>
             </List.Item>
           )}

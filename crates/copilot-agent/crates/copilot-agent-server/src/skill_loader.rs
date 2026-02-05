@@ -2,6 +2,7 @@ use std::path::{Path, PathBuf};
 use tokio::fs;
 use serde::{Deserialize, Serialize};
 use copilot_agent_core::tools::{ToolSchema, FunctionSchema};
+use builtin_tools::normalize_tool_ref;
 
 /// Skill definition loaded from filesystem
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -220,6 +221,19 @@ fn parse_markdown_skill(path: &Path, content: &str) -> Result<SkillDefinition, S
         return Err(format!("Invalid skill ID: {}", frontmatter.id));
     }
 
+    let mut tool_refs = Vec::new();
+    for tool_ref in frontmatter.tool_refs {
+        match normalize_tool_ref(&tool_ref) {
+            Some(normalized) => tool_refs.push(normalized),
+            None => {
+                return Err(format!(
+                    "Unsupported tool reference '{}'. Built-in tools only.",
+                    tool_ref
+                ));
+            }
+        }
+    }
+
     Ok(SkillDefinition {
         id: frontmatter.id,
         name: frontmatter.name,
@@ -227,7 +241,7 @@ fn parse_markdown_skill(path: &Path, content: &str) -> Result<SkillDefinition, S
         category: frontmatter.category,
         tags: frontmatter.tags,
         prompt: body.trim().to_string(),
-        tool_refs: frontmatter.tool_refs,
+        tool_refs,
         workflow_refs: frontmatter.workflow_refs,
         visibility: frontmatter.visibility,
         enabled_by_default: frontmatter.enabled_by_default,

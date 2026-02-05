@@ -149,7 +149,7 @@ code docs/reports/refactoring/signal_pull_architecture_implementation_plan_CN.md
 ### 相关报告
 - `docs/reports/refactoring/storage_architecture_gap_analysis_CN.md`
 - `docs/reports/refactoring/frontend_backend_state_sync_review_CN.md`
-- `docs/reports/refactoring/phase1_message_type_system_summary_CN.md`
+- `docs/reports/archive/refactoring/phase1_message_type_system_summary_CN.md`
 
 ---
 
@@ -319,7 +319,6 @@ A: 代码示例是伪代码/结构定义，需要根据实际代码库调整。�
 ---
 
 **祝实施顺利！** 🚀
-
 
 
 

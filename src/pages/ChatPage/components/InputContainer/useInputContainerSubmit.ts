@@ -50,7 +50,7 @@ export const useInputContainerSubmit = ({
           const extraInput = trimmedInput.slice(token.length).trim();
           composedInput = [selectedWorkflow.content, extraInput]
             .filter(Boolean)
-            .join("\\n\\n");
+            .join("\n\n");
         }
       }
 
@@ -64,9 +64,11 @@ export const useInputContainerSubmit = ({
 
       const composedMessage = [composedInput, attachmentSummary]
         .filter(Boolean)
-        .join("\\n\\n");
+        .join("\n\n");
 
       recordEntry(composedMessage);
+      setContent("");
+      clearWorkflowDraft();
 
       if (fileReferences.size > 0) {
         const fileRefMatches = Array.from(
@@ -100,8 +102,6 @@ export const useInputContainerSubmit = ({
         await sendMessage(composedMessage, images);
       }
 
-      setContent("");
-      clearWorkflowDraft();
       setReferenceText(null);
       setAttachments([]);
       setFileReferences(new Map());

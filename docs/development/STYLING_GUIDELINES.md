@@ -27,7 +27,6 @@
 - `src/components/SystemSettingsModal/styles.css` - 只有占位符注释
 - `src/components/FavoritesPanel/styles.css` - 只有占位符注释
 - `src/components/SystemPromptModal/styles.css` - 完全空白
-- `src/components/MCPServerManagement/styles.css` - 完全空白
 - `src/components/SystemPromptSelector/styles.css` - 完全空白
 - `src/components/InputContainer/styles.css` - 完全空白
 - `src/components/SystemMessage/styles.css` - 完全空白

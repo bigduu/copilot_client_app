@@ -6,6 +6,7 @@ import type {
   WorkspaceMetadata,
   WorkspaceValidationResult,
 } from "./workspaceApiTypes";
+import type { WorkspaceFileEntry } from "../types/workspace";
 import {
   appendQueryParams,
   buildWorkspaceUrl,
@@ -75,6 +76,10 @@ class WorkspaceApiService {
 
   async browseFolder(path?: string): Promise<BrowseFolderResponse> {
     return this.post<BrowseFolderResponse>("/browse-folder", { path });
+  }
+
+  async listWorkspaceFiles(path: string): Promise<WorkspaceFileEntry[]> {
+    return this.post<WorkspaceFileEntry[]>("/files", { path });
   }
 
   private async get<T>(

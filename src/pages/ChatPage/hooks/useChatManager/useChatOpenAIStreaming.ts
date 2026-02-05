@@ -57,8 +57,12 @@ export function useChatOpenAIStreaming(
       buildRequestMessages(
         messages,
         deps.currentChat?.config?.baseSystemPrompt || "",
+        deps.currentChat?.config?.workspacePath,
       ),
-    [deps.currentChat?.config?.baseSystemPrompt],
+    [
+      deps.currentChat?.config?.baseSystemPrompt,
+      deps.currentChat?.config?.workspacePath,
+    ],
   );
 
   const sendMessage = useCallback(

@@ -2,13 +2,13 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 
 import type { Message, UserSystemPrompt } from "../../types/chat";
 import { SystemPromptService } from "../../services/SystemPromptService";
-import {
-  buildEnhancedSystemPrompt,
-  getSystemPromptEnhancementText,
-} from "../../../../shared/utils/systemPromptEnhancement";
+import { getEffectiveSystemPrompt } from "../../../../shared/utils/systemPromptEnhancement";
 
 type UseSystemPromptContentArgs = {
-  currentChat: { id: string; config?: { systemPromptId?: string } } | null;
+  currentChat: {
+    id: string;
+    config?: { systemPromptId?: string; workspacePath?: string };
+  } | null;
   message: Message;
   systemPrompts: UserSystemPrompt[];
 };
@@ -84,8 +84,10 @@ export const useSystemPromptContent = ({
 
     setLoadingEnhanced(true);
     try {
-      const enhancementText = getSystemPromptEnhancementText();
-      const enhanced = buildEnhancedSystemPrompt(basePrompt, enhancementText);
+      const enhanced = getEffectiveSystemPrompt(
+        basePrompt,
+        currentChat?.config?.workspacePath,
+      );
 
       setEnhancedPrompt(enhanced);
       setShowEnhanced(true);
@@ -94,7 +96,7 @@ export const useSystemPromptContent = ({
     } finally {
       setLoadingEnhanced(false);
     }
-  }, [basePrompt, loadingEnhanced]);
+  }, [basePrompt, currentChat?.config?.workspacePath, loadingEnhanced]);
 
   const promptToDisplay = useMemo(() => {
     if (showEnhanced && enhancedPrompt) {

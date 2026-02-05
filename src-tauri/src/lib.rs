@@ -22,6 +22,7 @@ use crate::command::keyword_masking::{
 use crate::command::slash_commands::{
     slash_command_delete, slash_command_get, slash_command_save, slash_commands_list,
 };
+use crate::command::workflows::save_workflow;
 use crate::process::ProcessRegistryState;
 use log::{info, LevelFilter};
 use std::path::PathBuf;
@@ -149,6 +150,7 @@ pub fn run() {
             slash_command_get,
             slash_command_save,
             slash_command_delete,
+            save_workflow,
             get_keyword_masking_config,
             update_keyword_masking_config,
             validate_keyword_entries

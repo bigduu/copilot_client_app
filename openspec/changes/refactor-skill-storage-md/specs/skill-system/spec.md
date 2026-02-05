@@ -11,7 +11,7 @@ The YAML frontmatter SHALL include:
 - `description`: human-readable description
 - `category`: classification for grouping
 - `tags`: array of searchable tags
-- `tool_refs`: array of MCP tool references (format: "server::tool" or "tool")
+- `tool_refs`: array of built-in tool references (format: "tool" or "namespace::tool")
 - `workflow_refs`: array of workflow names
 - `visibility`: "public" or "private"
 - `enabled_by_default`: boolean

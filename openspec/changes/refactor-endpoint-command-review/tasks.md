@@ -25,4 +25,4 @@
 ## 5. Validation
 
 - [ ] 5.1 Run frontend tests (`npm run test:run`) and backend tests (`cargo test`).
-- [ ] 5.2 Manual smoke check of key flows (chat, workflows, MCP).
+- [ ] 5.2 Manual smoke check of key flows (chat, workflows, built-in tools).

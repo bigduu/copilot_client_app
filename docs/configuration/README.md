@@ -45,8 +45,6 @@ COMPANY_INTERNAL=true
 
 ### 配置文件
 - `tauri.conf.json` - Tauri 应用配置
-- `mcp_servers.json` - MCP 服务器配置
-- `~/.bodhi/mcp_servers.json` - MCP 服务器运行时配置（支持启用/禁用与热更新）
 - 环境特定配置文件
 
 ## 📖 使用指南

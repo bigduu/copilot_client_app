@@ -3,7 +3,7 @@ import { Card, Collapse, Flex, Tag, Typography, theme } from "antd";
 
 import type { ClaudeStreamMessage } from "../ClaudeStream";
 import { formatJson } from "./agentChatFormatters";
-import { formatMcpToolName, toToolList } from "./agentChatToolUtils";
+import { toToolList } from "./agentChatToolUtils";
 
 const { Text } = Typography;
 
@@ -74,25 +74,7 @@ export const AgentChatSystemInitCard: React.FC<{
     [entry],
   );
 
-  const regularTools = useMemo(
-    () => tools.filter((tool) => !tool.startsWith("mcp__")),
-    [tools],
-  );
-  const mcpTools = useMemo(
-    () => tools.filter((tool) => tool.startsWith("mcp__")),
-    [tools],
-  );
-
-  const mcpGroups = useMemo(() => {
-    const groups = new Map<string, string[]>();
-    mcpTools.forEach((tool) => {
-      const { provider } = formatMcpToolName(tool);
-      const list = groups.get(provider) ?? [];
-      list.push(tool);
-      groups.set(provider, list);
-    });
-    return Array.from(groups.entries());
-  }, [mcpTools]);
+  const availableTools = useMemo(() => tools, [tools]);
 
   const showRaw =
     (typeof rawDetails === "string" && rawDetails.trim().length > 0) ||
@@ -150,44 +132,17 @@ export const AgentChatSystemInitCard: React.FC<{
           ) : null}
         </Flex>
 
-        {regularTools.length ? (
+        {availableTools.length ? (
           <Flex vertical gap={6}>
             <Text type="secondary">
-              Available Tools ({regularTools.length})
+              Available Tools ({availableTools.length})
             </Text>
             <Flex gap={6} wrap>
-              {regularTools.map((tool) => (
+              {availableTools.map((tool) => (
                 <Tag key={tool}>{tool}</Tag>
               ))}
             </Flex>
           </Flex>
-        ) : null}
-
-        {mcpGroups.length ? (
-          <Collapse
-            size="small"
-            items={[
-              {
-                key: "mcp",
-                label: `MCP Services (${mcpTools.length})`,
-                children: (
-                  <Flex vertical gap={token.marginSM}>
-                    {mcpGroups.map(([provider, providerTools]) => (
-                      <Flex key={provider} vertical gap={6}>
-                        <Text type="secondary">{provider}</Text>
-                        <Flex gap={6} wrap>
-                          {providerTools.map((tool) => {
-                            const { method } = formatMcpToolName(tool);
-                            return <Tag key={tool}>{method}</Tag>;
-                          })}
-                        </Flex>
-                      </Flex>
-                    ))}
-                  </Flex>
-                ),
-              },
-            ]}
-          />
         ) : null}
 
         {showRaw ? (
