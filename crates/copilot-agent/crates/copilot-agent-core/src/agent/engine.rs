@@ -59,7 +59,7 @@ impl<E: ToolExecutor> AgentLoop<E> {
         // 添加用户消息
         session.add_message(Message::user(initial_message));
 
-        (0..self.config.max_rounds).for_each(|_round| {
+        for _round in 0..self.config.max_rounds {
             // 检查取消
             if cancel_token.is_cancelled() {
                 return Err(AgentError::Cancelled);
@@ -81,7 +81,7 @@ impl<E: ToolExecutor> AgentLoop<E> {
                 .map_err(|e| AgentError::LLM(e.to_string()))?;
 
             break;
-        });
+        }
 
         Ok(())
     }
