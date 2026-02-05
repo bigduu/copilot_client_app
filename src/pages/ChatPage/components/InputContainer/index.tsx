@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect, lazy, Suspense } from "react";
 import { Space, theme, Tag, Alert, message as antdMessage, Spin } from "antd";
-import { ToolOutlined, RobotOutlined, ApiOutlined } from "@ant-design/icons";
+import { ToolOutlined, RobotOutlined } from "@ant-design/icons";
 import { MessageInput } from "../MessageInput";
 import InputPreview from "./InputPreview";
 import { useChatManager } from "../../hooks/useChatManager";
@@ -53,8 +53,8 @@ export const InputContainer: React.FC<InputContainerProps> = ({
   const deleteMessage = useAppStore((state) => state.deleteMessage);
   const isProcessing = useAppStore((state) => state.isProcessing);
   
-  // Use ChatManager for unified streaming (Agent priority, OpenAI fallback)
-  const { sendMessage, cancelMessage, isUsingAgent, agentAvailable } = useChatManager();
+  // Use ChatManager for agent-only streaming
+  const { sendMessage, cancelMessage, agentAvailable } = useChatManager();
   const isStreaming = isProcessing;
   const [messageApi, contextHolder] = antdMessage.useMessage();
 
@@ -129,14 +129,11 @@ export const InputContainer: React.FC<InputContainerProps> = ({
     if (agentAvailable === null) {
       return { color: "default", icon: <RobotOutlined />, text: "Checking..." };
     }
-    if (agentAvailable && isUsingAgent) {
+    if (agentAvailable) {
       return { color: "success", icon: <RobotOutlined />, text: "Agent Mode" };
     }
-    if (agentAvailable && !isUsingAgent) {
-      return { color: "warning", icon: <ApiOutlined />, text: "Direct Mode" };
-    }
-    return { color: "default", icon: <ApiOutlined />, text: "Direct Mode" };
-  }, [agentAvailable, isUsingAgent]);
+    return { color: "red", icon: <RobotOutlined />, text: "Agent Unavailable" };
+  }, [agentAvailable]);
 
   const handleCloseReferencePreview = () => setReferenceText(null);
 

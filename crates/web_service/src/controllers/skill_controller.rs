@@ -1,19 +1,16 @@
-use actix_web::{get, post, put, delete, web, HttpResponse};
+use actix_web::{get, web, HttpResponse};
+use log::{debug, info};
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 
 use crate::error::AppError;
 use crate::server::AppState;
-use skill_manager::{SkillDefinition, SkillFilter, SkillUpdate, SkillVisibility};
+use skill_manager::{SkillDefinition, SkillFilter};
 
 /// Configure skill routes
 pub fn config(cfg: &mut web::ServiceConfig) {
     cfg.service(list_skills)
         .service(get_skill)
-        .service(create_skill)
-        .service(update_skill)
-        .service(delete_skill)
-        .service(enable_skill)
-        .service(disable_skill)
         .service(get_available_tools)
         .service(get_filtered_tools)
         .service(get_available_workflows);
@@ -23,51 +20,6 @@ pub fn config(cfg: &mut web::ServiceConfig) {
 struct SkillListResponse {
     skills: Vec<SkillDefinition>,
     total: usize,
-}
-
-#[derive(Serialize)]
-struct SkillEnablementResponse {
-    enabled_skill_ids: Vec<String>,
-}
-
-#[derive(Deserialize)]
-struct CreateSkillRequest {
-    id: Option<String>,
-    name: String,
-    description: String,
-    category: String,
-    #[serde(default)]
-    tags: Vec<String>,
-    prompt: String,
-    #[serde(default)]
-    tool_refs: Vec<String>,
-    #[serde(default)]
-    workflow_refs: Vec<String>,
-    #[serde(default)]
-    visibility: Option<SkillVisibility>,
-    #[serde(default)]
-    enabled_by_default: bool,
-}
-
-#[derive(Deserialize)]
-struct UpdateSkillRequest {
-    name: Option<String>,
-    description: Option<String>,
-    category: Option<String>,
-    #[serde(default)]
-    tags: Option<Vec<String>>,
-    prompt: Option<String>,
-    #[serde(default)]
-    tool_refs: Option<Vec<String>>,
-    #[serde(default)]
-    workflow_refs: Option<Vec<String>>,
-    visibility: Option<SkillVisibility>,
-    enabled_by_default: Option<bool>,
-}
-
-#[derive(Deserialize)]
-struct EnableSkillRequest {
-    chat_id: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -80,6 +32,25 @@ struct ListSkillsQuery {
 #[derive(Serialize)]
 struct AvailableToolsResponse {
     tools: Vec<String>,
+}
+
+#[derive(Serialize)]
+struct FilteredToolsResponse {
+    tools: Vec<OpenAiTool>,
+}
+
+#[derive(Serialize)]
+struct OpenAiTool {
+    #[serde(rename = "type")]
+    tool_type: String,
+    function: OpenAiFunction,
+}
+
+#[derive(Serialize)]
+struct OpenAiFunction {
+    name: String,
+    description: String,
+    parameters: Value,
 }
 
 #[derive(Serialize)]
@@ -129,197 +100,6 @@ pub async fn get_skill(
     Ok(HttpResponse::Ok().json(skill))
 }
 
-/// POST /v1/skills - Create a new skill
-#[post("/v1/skills")]
-pub async fn create_skill(
-    app_state: web::Data<AppState>,
-    request: web::Json<CreateSkillRequest>,
-) -> Result<HttpResponse, AppError> {
-    let req = request.into_inner();
-
-    // Generate ID from name if not provided
-    let id = req.id.unwrap_or_else(|| generate_id_from_name(&req.name));
-
-    let mut skill = SkillDefinition::new(
-        id,
-        req.name,
-        req.description,
-        req.category,
-        req.prompt,
-    )
-    .with_visibility(req.visibility.unwrap_or(SkillVisibility::Public))
-    .with_enabled_by_default(req.enabled_by_default);
-
-    for tag in req.tags {
-        skill = skill.with_tag(tag);
-    }
-    for tool_ref in req.tool_refs {
-        skill = skill.with_tool_ref(tool_ref);
-    }
-    for workflow_ref in req.workflow_refs {
-        skill = skill.with_workflow_ref(workflow_ref);
-    }
-
-    let created = app_state
-        .skill_manager
-        .store()
-        .create_skill(skill)
-        .await
-        .map_err(|e| AppError::InternalError(anyhow::anyhow!("Failed to create skill: {}", e)))?;
-
-    Ok(HttpResponse::Created().json(created))
-}
-
-/// PUT /v1/skills/{id} - Update a skill
-#[put("/v1/skills/{id}")]
-pub async fn update_skill(
-    app_state: web::Data<AppState>,
-    path: web::Path<String>,
-    request: web::Json<UpdateSkillRequest>,
-) -> Result<HttpResponse, AppError> {
-    let id = path.into_inner();
-    let req = request.into_inner();
-
-    let mut update = SkillUpdate::new();
-
-    if let Some(name) = req.name {
-        update = update.with_name(name);
-    }
-    if let Some(description) = req.description {
-        update = update.with_description(description);
-    }
-    if let Some(category) = req.category {
-        update = update.with_category(category);
-    }
-    if let Some(tags) = req.tags {
-        update = update.with_tags(tags);
-    }
-    if let Some(prompt) = req.prompt {
-        update = update.with_prompt(prompt);
-    }
-    if let Some(tool_refs) = req.tool_refs {
-        update = update.with_tool_refs(tool_refs);
-    }
-    if let Some(workflow_refs) = req.workflow_refs {
-        update = update.with_workflow_refs(workflow_refs);
-    }
-    if let Some(visibility) = req.visibility {
-        update = update.with_visibility(visibility);
-    }
-    if let Some(enabled) = req.enabled_by_default {
-        update = update.with_enabled_by_default(enabled);
-    }
-
-    let updated = app_state
-        .skill_manager
-        .store()
-        .update_skill(&id, update)
-        .await
-        .map_err(|e| match e {
-            skill_manager::SkillError::NotFound(_) => {
-                AppError::NotFound(format!("Skill '{}' not found", id))
-            }
-            _ => AppError::InternalError(anyhow::anyhow!("Failed to update skill: {}", e)),
-        })?;
-
-    Ok(HttpResponse::Ok().json(updated))
-}
-
-/// DELETE /v1/skills/{id} - Delete a skill
-#[delete("/v1/skills/{id}")]
-pub async fn delete_skill(
-    app_state: web::Data<AppState>,
-    path: web::Path<String>,
-) -> Result<HttpResponse, AppError> {
-    let id = path.into_inner();
-
-    app_state
-        .skill_manager
-        .store()
-        .delete_skill(&id)
-        .await
-        .map_err(|e| match e {
-            skill_manager::SkillError::NotFound(_) => {
-                AppError::NotFound(format!("Skill '{}' not found", id))
-            }
-            _ => AppError::InternalError(anyhow::anyhow!("Failed to delete skill: {}", e)),
-        })?;
-
-    Ok(HttpResponse::NoContent().finish())
-}
-
-/// POST /v1/skills/{id}/enable - Enable a skill
-#[post("/v1/skills/{id}/enable")]
-pub async fn enable_skill(
-    app_state: web::Data<AppState>,
-    path: web::Path<String>,
-    request: Option<web::Json<EnableSkillRequest>>,
-) -> Result<HttpResponse, AppError> {
-    let id = path.into_inner();
-    let chat_id = request.map(|r| r.chat_id.clone()).flatten();
-
-    if let Some(chat_id) = chat_id {
-        app_state
-            .skill_manager
-            .store()
-            .enable_skill_for_chat(&id, &chat_id)
-            .await
-            .map_err(|e| AppError::InternalError(anyhow::anyhow!("Failed to enable skill: {}", e)))?;
-    } else {
-        app_state
-            .skill_manager
-            .store()
-            .enable_skill_global(&id)
-            .await
-            .map_err(|e| AppError::InternalError(anyhow::anyhow!("Failed to enable skill: {}", e)))?;
-    }
-
-    Ok(HttpResponse::Ok().json(SkillEnablementResponse {
-        enabled_skill_ids: app_state
-            .skill_manager
-            .store()
-            .get_enablement()
-            .await
-            .enabled_skill_ids,
-    }))
-}
-
-/// POST /v1/skills/{id}/disable - Disable a skill
-#[post("/v1/skills/{id}/disable")]
-pub async fn disable_skill(
-    app_state: web::Data<AppState>,
-    path: web::Path<String>,
-    request: Option<web::Json<EnableSkillRequest>>,
-) -> Result<HttpResponse, AppError> {
-    let id = path.into_inner();
-    let chat_id = request.map(|r| r.chat_id.clone()).flatten();
-
-    if let Some(chat_id) = chat_id {
-        app_state
-            .skill_manager
-            .store()
-            .disable_skill_for_chat(&id, &chat_id)
-            .await
-            .map_err(|e| AppError::InternalError(anyhow::anyhow!("Failed to disable skill: {}", e)))?;
-    } else {
-        app_state
-            .skill_manager
-            .store()
-            .disable_skill_global(&id)
-            .await
-            .map_err(|e| AppError::InternalError(anyhow::anyhow!("Failed to disable skill: {}", e)))?;
-    }
-
-    Ok(HttpResponse::Ok().json(SkillEnablementResponse {
-        enabled_skill_ids: app_state
-            .skill_manager
-            .store()
-            .get_enablement()
-            .await
-            .enabled_skill_ids,
-    }))
-}
-
 /// GET /v1/skills/available-tools - Get available MCP tools
 #[get("/v1/skills/available-tools")]
 pub async fn get_available_tools(
@@ -353,38 +133,55 @@ pub async fn get_filtered_tools(
         .skill_manager
         .get_allowed_tools(query.chat_id.as_deref())
         .await;
+    debug!("Skill filtered tools allowed list: {:?}", allowed_tools);
 
-    // If no skills enabled, return all tools
-    if allowed_tools.is_empty() {
-        let tools = app_state
-            .mcp_runtime
-            .list_tools()
-            .await
-            .map_err(|e| AppError::InternalError(anyhow::anyhow!("Failed to list tools: {}", e)))?;
-        let tool_names: Vec<String> = tools.into_iter().map(|(_, tool)| tool.name.to_string()).collect();
-        return Ok(HttpResponse::Ok().json(AvailableToolsResponse { tools: tool_names }));
-    }
-
-    // Get all tools and filter
+    // Get all tools and filter on the server
     let all_tools = app_state
         .mcp_runtime
         .list_tools()
         .await
         .map_err(|e| AppError::InternalError(anyhow::anyhow!("Failed to list tools: {}", e)))?;
 
-    let filtered_tools: Vec<String> = all_tools
-        .into_iter()
-        .filter(|(_, tool)| {
-            let tool_name = tool.name.to_string();
-            // Check if tool is in allowed list (format: "server::tool")
-            allowed_tools.iter().any(|allowed| {
-                allowed.ends_with(&format!("::{}", tool_name)) || allowed == &tool_name
+    let all_tool_names: Vec<String> = all_tools
+        .iter()
+        .map(|(server_name, tool)| format!("{}::{}", server_name, tool.name))
+        .collect();
+    debug!("MCP tools discovered: {:?}", all_tool_names);
+
+    let filtered = if allowed_tools.is_empty() {
+        info!("No enabled skills; returning all {} tools", all_tools.len());
+        all_tools
+    } else {
+        let filtered: Vec<_> = all_tools
+            .into_iter()
+            .filter(|(server_name, tool)| {
+                let full_name = format!("{}::{}", server_name, tool.name);
+                allowed_tools
+                    .iter()
+                    .any(|allowed| allowed == &full_name || allowed == &tool.name)
             })
+            .collect();
+        info!(
+            "Filtered tools: allowed={}, matched={}",
+            allowed_tools.len(),
+            filtered.len()
+        );
+        filtered
+    };
+
+    let tools = filtered
+        .into_iter()
+        .map(|(server_name, tool)| OpenAiTool {
+            tool_type: "function".to_string(),
+            function: OpenAiFunction {
+                name: format!("{}::{}", server_name, tool.name),
+                description: tool.description.to_string(),
+                parameters: tool.schema_as_json_value(),
+            },
         })
-        .map(|(_, tool)| tool.name.to_string())
         .collect();
 
-    Ok(HttpResponse::Ok().json(AvailableToolsResponse { tools: filtered_tools }))
+    Ok(HttpResponse::Ok().json(FilteredToolsResponse { tools }))
 }
 
 /// GET /v1/skills/available-workflows - Get available workflows
@@ -397,14 +194,4 @@ pub async fn get_available_workflows(
         .map_err(|e| AppError::InternalError(anyhow::anyhow!("Failed to list workflows: {}", e)))?;
 
     Ok(HttpResponse::Ok().json(AvailableWorkflowsResponse { workflows }))
-}
-
-/// Generate kebab-case ID from name
-fn generate_id_from_name(name: &str) -> String {
-    name.to_lowercase()
-        .trim()
-        .replace(|c: char| !c.is_alphanumeric(), "-")
-        .replace("--", "-")
-        .trim_matches('-')
-        .to_string()
 }

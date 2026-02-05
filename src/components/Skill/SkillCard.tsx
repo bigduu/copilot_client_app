@@ -1,25 +1,14 @@
 import React from "react";
-import { Button, Card, Flex, Popconfirm, Space, Switch, Tag, Typography, theme } from "antd";
-import { DeleteOutlined, EditOutlined } from "@ant-design/icons";
+import { Card, Space, Tag, Typography, theme } from "antd";
 import type { SkillDefinition } from "../../pages/ChatPage/types/skill";
 
 const { Text } = Typography;
 
 interface SkillCardProps {
   skill: SkillDefinition;
-  isEnabled: boolean;
-  onToggleEnable: (enabled: boolean) => void;
-  onEdit: () => void;
-  onDelete: () => void;
 }
 
-export const SkillCard: React.FC<SkillCardProps> = ({
-  skill,
-  isEnabled,
-  onToggleEnable,
-  onEdit,
-  onDelete,
-}) => {
+export const SkillCard: React.FC<SkillCardProps> = ({ skill }) => {
   const { token } = theme.useToken();
 
   return (
@@ -28,9 +17,9 @@ export const SkillCard: React.FC<SkillCardProps> = ({
         <Space size={token.marginXS} wrap>
           <span>{skill.name}</span>
           {skill.category && <Tag color="blue">{skill.category}</Tag>}
+          {skill.enabled_by_default && <Tag color="green">Enabled</Tag>}
         </Space>
       }
-      extra={<Switch checked={isEnabled} onChange={onToggleEnable} />}
       styles={{ body: { padding: token.paddingMD } }}
     >
       <Space direction="vertical" size={token.marginXS} style={{ width: "100%" }}>
@@ -42,21 +31,6 @@ export const SkillCard: React.FC<SkillCardProps> = ({
             ))}
           </Space>
         )}
-        <Flex justify="flex-end" gap={token.marginXS} wrap="wrap">
-          <Button type="text" icon={<EditOutlined />} onClick={onEdit}>
-            Edit
-          </Button>
-          <Popconfirm
-            title="Delete this skill?"
-            onConfirm={onDelete}
-            okText="Delete"
-            cancelText="Cancel"
-          >
-            <Button type="text" danger icon={<DeleteOutlined />}>
-              Delete
-            </Button>
-          </Popconfirm>
-        </Flex>
       </Space>
     </Card>
   );

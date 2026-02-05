@@ -1,10 +1,8 @@
 import { useState, useEffect } from "react";
 import {
-  Button,
   Card,
   Input,
   List,
-  Modal,
   Select,
   Switch,
   message,
@@ -13,32 +11,23 @@ import {
   Row,
   Col,
 } from "antd";
-import { PlusOutlined, SearchOutlined } from "@ant-design/icons";
+import { SearchOutlined } from "@ant-design/icons";
 import { useAppStore } from "../../pages/ChatPage/store";
-import type { SkillDefinition } from "../../pages/ChatPage/types/skill";
 import { SkillCard } from "./SkillCard";
-import { SkillEditor } from "./SkillEditor";
 
 const { Option } = Select;
 
 export const SkillManager = () => {
   // State from store
   const skills = useAppStore((state) => state.skills);
-  const enabledSkillIds = useAppStore((state) => state.enabledSkillIds);
   const isLoadingSkills = useAppStore((state) => state.isLoadingSkills);
   const skillsError = useAppStore((state) => state.skillsError);
-  const selectedSkill = useAppStore((state) => state.selectedSkill);
 
   // Actions from store
   const loadSkills = useAppStore((state) => state.loadSkills);
-  const enableSkill = useAppStore((state) => state.enableSkill);
-  const disableSkill = useAppStore((state) => state.disableSkill);
-  const deleteSkill = useAppStore((state) => state.deleteSkill);
-  const setSelectedSkill = useAppStore((state) => state.setSelectedSkill);
   const clearSkillsError = useAppStore((state) => state.clearSkillsError);
 
   // Local state
-  const [isEditorOpen, setIsEditorOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string | undefined>(
     undefined
@@ -80,70 +69,19 @@ export const SkillManager = () => {
     }
 
     // Enabled only filter
-    if (showEnabledOnly && !enabledSkillIds.includes(skill.id)) {
+    if (showEnabledOnly && !skill.enabled_by_default) {
       return false;
     }
 
     return true;
   });
 
-  // Handle enable/disable toggle
-  const handleToggleEnable = async (skillId: string, enabled: boolean) => {
-    try {
-      if (enabled) {
-        await enableSkill(skillId);
-        message.success("Skill enabled");
-      } else {
-        await disableSkill(skillId);
-        message.success("Skill disabled");
-      }
-    } catch (error) {
-      message.error("Failed to toggle skill");
-    }
-  };
-
-  // Handle delete
-  const handleDelete = async (skillId: string) => {
-    try {
-      await deleteSkill(skillId);
-      message.success("Skill deleted");
-    } catch (error) {
-      message.error("Failed to delete skill");
-    }
-  };
-
-  // Handle edit
-  const handleEdit = (skill: SkillDefinition) => {
-    setSelectedSkill(skill);
-    setIsEditorOpen(true);
-  };
-
-  // Handle create new
-  const handleCreate = () => {
-    setSelectedSkill(null);
-    setIsEditorOpen(true);
-  };
-
-  // Close editor
-  const handleCloseEditor = () => {
-    setIsEditorOpen(false);
-    setSelectedSkill(null);
-  };
-
   return (
     <div style={{ padding: "24px" }}>
-      <Card
-        title="Skill Manager"
-        extra={
-          <Button
-            type="primary"
-            icon={<PlusOutlined />}
-            onClick={handleCreate}
-          >
-            New Skill
-          </Button>
-        }
-      >
+      <Card title="Skill Manager">
+        <div style={{ marginBottom: "16px", color: "#8c8c8c" }}>
+          Skills are read-only. Edit `~/.bodhi/skills/*.md` and reload to apply changes.
+        </div>
         {/* Filters */}
         <Row gutter={[16, 16]} style={{ marginBottom: "24px" }}>
           <Col xs={24} sm={12} md={8}>
@@ -187,7 +125,7 @@ export const SkillManager = () => {
               description={
                 searchQuery || selectedCategory || showEnabledOnly
                   ? "No skills match your filters"
-                  : "No skills found. Create your first skill!"
+                  : "No skills found. Add Markdown skills in ~/.bodhi/skills"
               }
             />
           ) : (
@@ -205,12 +143,6 @@ export const SkillManager = () => {
                 <List.Item>
                   <SkillCard
                     skill={skill}
-                    isEnabled={enabledSkillIds.includes(skill.id)}
-                    onToggleEnable={(enabled) =>
-                      handleToggleEnable(skill.id, enabled)
-                    }
-                    onEdit={() => handleEdit(skill)}
-                    onDelete={() => handleDelete(skill.id)}
                   />
                 </List.Item>
               )}
@@ -218,22 +150,6 @@ export const SkillManager = () => {
           )}
         </Spin>
       </Card>
-
-      {/* Editor Modal */}
-      <Modal
-        title={selectedSkill ? "Edit Skill" : "Create Skill"}
-        open={isEditorOpen}
-        onCancel={handleCloseEditor}
-        footer={null}
-        width={800}
-        destroyOnClose
-      >
-        <SkillEditor
-          skill={selectedSkill}
-          onClose={handleCloseEditor}
-          mode={selectedSkill ? "edit" : "create"}
-        />
-      </Modal>
     </div>
   );
 };

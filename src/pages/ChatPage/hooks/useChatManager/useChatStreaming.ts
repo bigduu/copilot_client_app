@@ -1,20 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { App as AntApp } from "antd";
-import { BodhiConfigService } from "../../services/BodhiConfigService";
-import { skillService } from "../../services/SkillService";
 import { AgentClient } from "../../services/AgentService";
-import { getOpenAIClient } from "../../services/openaiClient";
-import { useAppStore } from "../../store";
-import type { Message, UserMessage } from "../../types/chat";
+import type { UserMessage } from "../../types/chat";
 import type { ImageFile } from "../../utils/imageUtils";
 import { streamingMessageBus } from "../../utils/streamingMessageBus";
-import { buildRequestMessages } from "./openAiMessageMapping";
-import { streamOpenAIWithTools } from "./openAiStreamingRunner";
 
 export interface UseChatStreaming {
   sendMessage: (content: string, images?: ImageFile[]) => Promise<void>;
   cancel: () => void;
-  isUsingAgent: boolean;
   agentAvailable: boolean | null;
 }
 
@@ -27,27 +20,20 @@ interface UseChatStreamingDeps {
 
 /**
  * Unified chat streaming hook
- * 
- * Priority:
- * 1. Try Agent Server (localhost:8080) - supports multi-turn tool execution
- * 2. Fall back to direct OpenAI streaming - single-turn tool execution
+ *
+ * Agent-only flow using the local agent endpoints (localhost:8080).
  */
 export function useChatStreaming(
   deps: UseChatStreamingDeps,
 ): UseChatStreaming {
   const { modal, message: appMessage } = AntApp.useApp();
   const abortRef = useRef<AbortController | null>(null);
-  const toolsCacheRef = useRef<any[] | null>(null);
   const streamingMessageIdRef = useRef<string | null>(null);
   const streamingContentRef = useRef<string>("");
   const agentClientRef = useRef(new AgentClient());
   
-  const selectedModel = useAppStore((state) => state.selectedModel);
-  const enabledSkillIds = useAppStore((state) => state.enabledSkillIds);
-  
   // Track Agent availability
   const [agentAvailable, setAgentAvailable] = useState<boolean | null>(null);
-  const [isUsingAgent, setIsUsingAgent] = useState(false);
   const lastAgentAvailableRef = useRef<boolean | null>(null);
 
   // Check Agent availability on mount
@@ -57,14 +43,14 @@ export function useChatStreaming(
         const available = await agentClientRef.current.healthCheck();
         setAgentAvailable(available);
         if (lastAgentAvailableRef.current && !available) {
-          appMessage.warning("Agent unavailable, falling back to Direct Mode");
+          appMessage.warning("Agent unavailable");
         }
         lastAgentAvailableRef.current = available;
         console.log(`[useChatStreaming] Agent Server ${available ? "available" : "not available"}`);
       } catch (error) {
         setAgentAvailable(false);
         if (lastAgentAvailableRef.current) {
-          appMessage.warning("Agent unavailable, falling back to Direct Mode");
+          appMessage.warning("Agent unavailable");
         }
         lastAgentAvailableRef.current = false;
         console.warn("[useChatStreaming] Agent health check failed:", error);
@@ -75,49 +61,9 @@ export function useChatStreaming(
     return () => clearInterval(interval);
   }, [appMessage]);
 
-  // Clear tools cache when enabled skills change
-  useEffect(() => {
-    toolsCacheRef.current = null;
-  }, [enabledSkillIds]);
-
   const cancel = useCallback(() => {
     abortRef.current?.abort();
   }, []);
-
-  const resolveTools = useCallback(async (chatId?: string) => {
-    if (toolsCacheRef.current) return toolsCacheRef.current;
-    
-    // Try to get filtered tools based on enabled skills
-    try {
-      const filteredTools = await skillService.getFilteredTools(chatId);
-      if (filteredTools && filteredTools.length > 0) {
-        const configService = BodhiConfigService.getInstance();
-        const allTools = await configService.getTools();
-        const toolDefs = allTools.tools.filter((t: any) => 
-          filteredTools.includes(t.function?.name)
-        );
-        toolsCacheRef.current = toolDefs;
-        return toolDefs;
-      }
-    } catch (e) {
-      console.log("[useChatStreaming] Failed to get filtered tools, falling back to all tools");
-    }
-    
-    // Fallback to all tools
-    const configService = BodhiConfigService.getInstance();
-    const data = await configService.getTools();
-    toolsCacheRef.current = data.tools;
-    return data.tools;
-  }, []);
-
-  const buildMessages = useCallback(
-    (messages: Message[]) =>
-      buildRequestMessages(
-        messages,
-        deps.currentChat?.config?.baseSystemPrompt || "",
-      ),
-    [deps.currentChat?.config?.baseSystemPrompt],
-  );
 
   const resolveDisplayPreference = (value?: string) => {
     if (value === "Hidden") return "Hidden";
@@ -297,38 +243,6 @@ export function useChatStreaming(
     [deps]
   );
 
-  /**
-   * Send message using direct OpenAI
-   */
-  const sendWithOpenAI = useCallback(
-    async (_content: string, chatId: string, _userMessage: UserMessage, updatedMessages: Message[]) => {
-      const controller = new AbortController();
-      abortRef.current = controller;
-
-      try {
-        const client = getOpenAIClient();
-        const tools = await resolveTools(chatId);
-        const model = selectedModel || "gpt-4o-mini";
-        const openaiMessages = buildMessages(updatedMessages);
-
-        await streamOpenAIWithTools({
-          chatId,
-          client,
-          tools,
-          model,
-          openaiMessages,
-          controller,
-          streamingMessageIdRef,
-          streamingContentRef,
-          addMessage: deps.addMessage,
-        });
-      } finally {
-        abortRef.current = null;
-      }
-    },
-    [deps, resolveTools, buildMessages, selectedModel]
-  );
-
   const sendMessage = useCallback(
     async (content: string, images?: ImageFile[]) => {
       if (!deps.currentChat) {
@@ -336,6 +250,11 @@ export function useChatStreaming(
           title: "No Active Chat",
           content: "Please create or select a chat before sending a message.",
         });
+        return;
+      }
+
+      if (agentAvailable === false) {
+        appMessage.error("Agent unavailable. Please try again later.");
         return;
       }
 
@@ -357,38 +276,13 @@ export function useChatStreaming(
         images: messageImages,
       };
 
-      const updatedMessages = [...deps.currentChat.messages, userMessage];
       await deps.addMessage(chatId, userMessage);
 
       deps.setProcessing(true);
 
-      // Try Agent first, fallback to OpenAI
-      if (agentAvailable) {
-        try {
-          setIsUsingAgent(true);
-          console.log("[useChatStreaming] Using Agent Server");
-          await sendWithAgent(content, chatId, userMessage);
-          deps.setProcessing(false);
-          return;
-        } catch (error) {
-          console.warn("[useChatStreaming] Agent failed, falling back to OpenAI:", error);
-          // Reset streaming state for fallback
-          if (streamingMessageIdRef.current) {
-            streamingMessageBus.clear(chatId, streamingMessageIdRef.current);
-          }
-          streamingMessageIdRef.current = null;
-          streamingContentRef.current = "";
-          // Mark agent as unavailable for next time
-          setAgentAvailable(false);
-        }
-      }
-
-      // Fallback to OpenAI
-      setIsUsingAgent(false);
-      console.log("[useChatStreaming] Using direct OpenAI");
-      
       try {
-        await sendWithOpenAI(content, chatId, userMessage, updatedMessages);
+        console.log("[useChatStreaming] Using Agent Server");
+        await sendWithAgent(content, chatId, userMessage);
       } catch (error) {
         if (streamingMessageIdRef.current) {
           streamingMessageBus.clear(chatId, streamingMessageIdRef.current);
@@ -401,6 +295,7 @@ export function useChatStreaming(
         } else {
           console.error("[useChatStreaming] Failed to send message:", error);
           appMessage.error("Failed to send message. Please try again.");
+          setAgentAvailable(false);
         }
       } finally {
         abortRef.current = null;
@@ -412,13 +307,12 @@ export function useChatStreaming(
         deps.setProcessing(false);
       }
     },
-    [deps, modal, appMessage, agentAvailable, sendWithAgent, sendWithOpenAI]
+    [deps, modal, appMessage, agentAvailable, sendWithAgent]
   );
 
   return {
     sendMessage,
     cancel,
-    isUsingAgent,
     agentAvailable,
   };
 }

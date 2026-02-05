@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use tokio::fs;
 use serde::{Deserialize, Serialize};
 use copilot_agent_core::tools::{ToolSchema, FunctionSchema};
@@ -23,6 +23,25 @@ pub struct SkillDefinition {
     pub version: String,
     pub created_at: String,
     pub updated_at: String,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+struct SkillFrontmatter {
+    id: String,
+    name: String,
+    description: String,
+    category: String,
+    #[serde(default)]
+    tags: Vec<String>,
+    #[serde(default)]
+    tool_refs: Vec<String>,
+    #[serde(default)]
+    workflow_refs: Vec<String>,
+    visibility: SkillVisibility,
+    enabled_by_default: bool,
+    version: String,
+    created_at: String,
+    updated_at: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -79,24 +98,23 @@ impl SkillLoader {
         
         while let Ok(Some(entry)) = entries.next_entry().await {
             let path = entry.path();
-            if path.extension().map_or(false, |ext| ext == "json") {
-                match fs::read_to_string(&path).await {
-                    Ok(content) => {
-                        match serde_json::from_str::<SkillDefinition>(&content) {
-                            Ok(skill) => {
-                                if skill.enabled_by_default {
-                                    log::debug!("Loaded skill: {} ({})", skill.name, skill.id);
-                                    skills.push(skill);
-                                }
-                            }
-                            Err(e) => {
-                                log::warn!("Failed to parse skill file {:?}: {}", path, e);
-                            }
+            if !path.extension().map_or(false, |ext| ext == "md") {
+                continue;
+            }
+            match fs::read_to_string(&path).await {
+                Ok(content) => match parse_markdown_skill(&path, &content) {
+                    Ok(skill) => {
+                        if skill.enabled_by_default {
+                            log::debug!("Loaded skill: {} ({})", skill.name, skill.id);
+                            skills.push(skill);
                         }
                     }
                     Err(e) => {
-                        log::warn!("Failed to read skill file {:?}: {}", path, e);
+                        log::warn!("Failed to parse skill file {:?}: {}", path, e);
                     }
+                },
+                Err(e) => {
+                    log::warn!("Failed to read skill file {:?}: {}", path, e);
                 }
             }
         }
@@ -180,6 +198,75 @@ impl SkillLoader {
             format!("{}{}", base_prompt, skills_prompt)
         }
     }
+}
+
+fn parse_markdown_skill(path: &Path, content: &str) -> Result<SkillDefinition, String> {
+    let (frontmatter_raw, body) = split_frontmatter(content)?;
+    let frontmatter: SkillFrontmatter =
+        serde_yaml::from_str(&frontmatter_raw).map_err(|e| e.to_string())?;
+
+    let file_stem = path
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .unwrap_or_default();
+    if file_stem != frontmatter.id {
+        return Err(format!(
+            "Skill id '{}' does not match filename '{}'",
+            frontmatter.id, file_stem
+        ));
+    }
+
+    if !is_valid_skill_id(&frontmatter.id) {
+        return Err(format!("Invalid skill ID: {}", frontmatter.id));
+    }
+
+    Ok(SkillDefinition {
+        id: frontmatter.id,
+        name: frontmatter.name,
+        description: frontmatter.description,
+        category: frontmatter.category,
+        tags: frontmatter.tags,
+        prompt: body.trim().to_string(),
+        tool_refs: frontmatter.tool_refs,
+        workflow_refs: frontmatter.workflow_refs,
+        visibility: frontmatter.visibility,
+        enabled_by_default: frontmatter.enabled_by_default,
+        version: frontmatter.version,
+        created_at: frontmatter.created_at,
+        updated_at: frontmatter.updated_at,
+    })
+}
+
+fn split_frontmatter(content: &str) -> Result<(String, String), String> {
+    let mut lines = content.lines();
+    match lines.next() {
+        Some("---") => {}
+        _ => return Err("Missing YAML frontmatter".to_string()),
+    }
+
+    let mut frontmatter_lines = Vec::new();
+    for line in lines.by_ref() {
+        if line == "---" {
+            break;
+        }
+        frontmatter_lines.push(line);
+    }
+
+    let frontmatter = frontmatter_lines.join("\n");
+    let body = lines.collect::<Vec<_>>().join("\n");
+    Ok((frontmatter, body))
+}
+
+fn is_valid_skill_id(id: &str) -> bool {
+    if id.is_empty() {
+        return false;
+    }
+
+    if !id.chars().next().unwrap().is_ascii_lowercase() {
+        return false;
+    }
+
+    id.chars().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-')
 }
 
 impl Default for SkillLoader {

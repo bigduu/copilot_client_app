@@ -2,17 +2,17 @@
 
 ## ADDED Requirements
 
-### Requirement: Tauri auto-starts agent server
+### Requirement: Tauri hosts agent endpoints in web backend
 
-When the desktop app launches via Tauri, the system SHALL start the agent server
-in-process using the agent server library and a configurable port (default 8081).
+When the desktop app launches via Tauri, the system SHALL host the agent server
+endpoints in-process inside the web backend on the same port (default 8080).
 
-#### Scenario: Tauri startup brings agent online
+#### Scenario: Tauri startup brings agent endpoints online
 
 - **GIVEN** the user launches the app via Tauri
 - **WHEN** the app finishes initialization
-- **THEN** the agent server is started automatically
-- **AND** the server listens on the configured port for `/api/v1` endpoints
+- **THEN** the web backend mounts the agent `/api/v1` endpoints
+- **AND** no separate agent port is opened
 
 ### Requirement: Agent uses local OpenAI forwarder in Tauri mode
 
@@ -39,14 +39,14 @@ In Tauri mode, agent session data SHALL be stored under the app data directory
 - **WHEN** a session is created or updated
 - **THEN** the session data is stored under `~/.bodhi`
 
-### Requirement: Health heartbeat with fallback
+### Requirement: Health heartbeat without Direct Mode fallback
 
 The frontend SHALL periodically check agent health and update status. When health
-checks fail, the system SHALL notify the user and fall back to Direct Mode.
+checks fail, the system SHALL notify the user and keep chat in Agent Mode.
 
 #### Scenario: Agent becomes unavailable
 
 - **GIVEN** the agent was previously healthy
 - **WHEN** periodic health checks fail
 - **THEN** the UI indicates the agent is unavailable
-- **AND** new messages are sent via Direct Mode
+- **AND** new messages remain in Agent Mode (no Direct Mode fallback)
