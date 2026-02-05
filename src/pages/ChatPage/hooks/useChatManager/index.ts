@@ -17,7 +17,7 @@ import { useChatStreaming } from "./useChatStreaming";
  * Unified hook for managing all chat-related state and interactions.
  * This hook is the single source of truth for chat management in the UI.
  *
- * Uses Agent Server (localhost:8080) when available, falls back to direct OpenAI streaming.
+ * Uses Agent Server endpoints (localhost:8080).
  */
 export const useChatManager = () => {
   // Phase 1: State and derived values
@@ -78,7 +78,6 @@ export const useChatManager = () => {
     pendingAgentApproval: stateMachine.pendingAgentApproval,
 
     // State from useChatStreaming
-    isUsingAgent: streaming.isUsingAgent,
     agentAvailable: streaming.agentAvailable,
 
     // State from useChatTitleGeneration

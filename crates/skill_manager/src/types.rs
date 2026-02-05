@@ -6,7 +6,6 @@
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 
 /// Unique identifier for a skill (kebab-case)
 pub type SkillId = String;
@@ -151,101 +150,15 @@ impl SkillDefinition {
 /// Configuration for skill store persistence
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SkillStoreConfig {
-    /// Path to the skills storage file
-    pub storage_path: std::path::PathBuf,
+    pub skills_dir: std::path::PathBuf,
 }
 
 impl Default for SkillStoreConfig {
     fn default() -> Self {
         let home = dirs::home_dir().unwrap_or_else(|| std::path::PathBuf::from("."));
         Self {
-            storage_path: home.join(".bodhi").join("skills.json"),
+            skills_dir: home.join(".bodhi").join("skills"),
         }
-    }
-}
-
-/// Enablement state for skills
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
-pub struct SkillEnablement {
-    /// Globally enabled skill IDs
-    #[serde(default)]
-    pub enabled_skill_ids: Vec<SkillId>,
-
-    /// Per-chat skill overrides
-    #[serde(default)]
-    pub chat_overrides: HashMap<String, Vec<SkillId>>,
-}
-
-impl SkillEnablement {
-    /// Check if a skill is enabled globally
-    pub fn is_enabled_global(&self, skill_id: &str) -> bool {
-        self.enabled_skill_ids.contains(&skill_id.to_string())
-    }
-
-    /// Check if a skill is enabled for a specific chat
-    pub fn is_enabled_for_chat(&self, skill_id: &str, chat_id: &str) -> Option<bool> {
-        self.chat_overrides
-            .get(chat_id)
-            .map(|ids| ids.contains(&skill_id.to_string()))
-    }
-
-    /// Get effective enablement (chat override takes precedence)
-    pub fn is_enabled(&self, skill_id: &str, chat_id: Option<&str>) -> bool {
-        if let Some(chat_id) = chat_id {
-            if let Some(enabled) = self.is_enabled_for_chat(skill_id, chat_id) {
-                return enabled;
-            }
-        }
-        self.is_enabled_global(skill_id)
-    }
-
-    /// Enable a skill globally
-    pub fn enable_global(&mut self, skill_id: impl Into<String>) {
-        let id = skill_id.into();
-        if !self.enabled_skill_ids.contains(&id) {
-            self.enabled_skill_ids.push(id);
-        }
-    }
-
-    /// Disable a skill globally
-    pub fn disable_global(&mut self, skill_id: &str) {
-        self.enabled_skill_ids.retain(|id| id != skill_id);
-    }
-
-    /// Enable a skill for a specific chat
-    pub fn enable_for_chat(&mut self, skill_id: impl Into<String>, chat_id: impl Into<String>) {
-        let chat_id = chat_id.into();
-        let skill_id = skill_id.into();
-
-        let entry = self.chat_overrides.entry(chat_id).or_default();
-        if !entry.contains(&skill_id) {
-            entry.push(skill_id);
-        }
-    }
-
-    /// Disable a skill for a specific chat
-    pub fn disable_for_chat(&mut self, skill_id: &str, chat_id: &str) {
-        if let Some(entry) = self.chat_overrides.get_mut(chat_id) {
-            entry.retain(|id| id != skill_id);
-        }
-    }
-
-    /// Get all enabled skills for a chat (global + overrides)
-    pub fn get_enabled_for_chat(&self, chat_id: Option<&str>) -> Vec<SkillId> {
-        let mut result: Vec<SkillId> = self.enabled_skill_ids.clone();
-
-        if let Some(chat_id) = chat_id {
-            if let Some(overrides) = self.chat_overrides.get(chat_id) {
-                // Add chat-specific enabled skills not already in global
-                for id in overrides {
-                    if !result.contains(id) {
-                        result.push(id.clone());
-                    }
-                }
-            }
-        }
-
-        result
     }
 }
 
@@ -299,7 +212,7 @@ impl SkillFilter {
     }
 
     /// Check if a skill matches this filter
-    pub fn matches(&self, skill: &SkillDefinition, enablement: &SkillEnablement) -> bool {
+    pub fn matches(&self, skill: &SkillDefinition) -> bool {
         // Category filter
         if let Some(ref category) = self.category {
             if skill.category != *category {
@@ -333,7 +246,7 @@ impl SkillFilter {
         }
 
         // Enabled only filter
-        if self.enabled_only && !enablement.is_enabled_global(&skill.id) {
+        if self.enabled_only && !skill.enabled_by_default {
             return false;
         }
 
@@ -359,11 +272,15 @@ pub enum SkillError {
     #[error("Storage error: {0}")]
     Storage(String),
 
+    #[error("Read-only: {0}")]
+    ReadOnly(String),
+
     #[error("IO error: {0}")]
     Io(#[from] std::io::Error),
 
-    #[error("Serialization error: {0}")]
-    Serialization(#[from] serde_json::Error),
+    #[error("YAML error: {0}")]
+    Yaml(#[from] serde_yaml::Error),
+
 }
 
 /// Result type for skill operations

@@ -3,6 +3,8 @@ use std::{path::PathBuf, sync::Arc};
 use actix_cors::Cors;
 use actix_web::{web, App, HttpServer};
 use chat_core::Config;
+use copilot_agent_server::handlers as agent_handlers;
+use copilot_agent_server::state::AppState as AgentAppState;
 use copilot_client::{CopilotClient, CopilotClientTrait};
 use log::{error, info};
 use tokio::sync::oneshot;
@@ -37,6 +39,30 @@ pub fn app_config(cfg: &mut web::ServiceConfig) {
     );
 }
 
+pub fn agent_api_config(cfg: &mut web::ServiceConfig) {
+    cfg.service(
+        web::scope("/api/v1")
+            .route("/chat", web::post().to(agent_handlers::chat::handler))
+            .route("/stream/{session_id}", web::get().to(agent_handlers::stream::handler))
+            .route("/stop/{session_id}", web::post().to(agent_handlers::stop::handler))
+            .route("/history/{session_id}", web::get().to(agent_handlers::history::handler))
+            .route("/health", web::get().to(agent_handlers::health::handler)),
+    );
+}
+
+async fn build_agent_state(app_data_dir: PathBuf, port: u16) -> AgentAppState {
+    let base_url = format!("http://127.0.0.1:{}/v1", port);
+    AgentAppState::new_with_config(
+        "openai",
+        base_url,
+        "gpt-4o-mini".to_string(),
+        "tauri".to_string(),
+        Some(app_data_dir),
+        true,
+    )
+    .await
+}
+
 pub async fn run(app_data_dir: PathBuf, port: u16) -> Result<(), String> {
     info!("Starting web service...");
 
@@ -46,6 +72,7 @@ pub async fn run(app_data_dir: PathBuf, port: u16) -> Result<(), String> {
     let mcp_runtime = Arc::new(McpRuntime::new(app_data_dir.clone()).await);
     let skill_manager = SkillManager::new();
     skill_manager.initialize().await.map_err(|e| format!("Failed to initialize skill manager: {e}"))?;
+    let agent_state = web::Data::new(build_agent_state(app_data_dir.clone(), port).await);
     
     let app_state = web::Data::new(AppState {
         copilot_client,
@@ -57,8 +84,10 @@ pub async fn run(app_data_dir: PathBuf, port: u16) -> Result<(), String> {
     let server = HttpServer::new(move || {
         App::new()
             .app_data(app_state.clone())
+            .app_data(agent_state.clone())
             .wrap(Cors::permissive())
             .configure(app_config)
+            .configure(agent_api_config)
     })
     .workers(DEFAULT_WORKER_COUNT)
     .bind(format!("127.0.0.1:{port}"))
@@ -104,6 +133,7 @@ impl WebService {
         let mcp_runtime = Arc::new(McpRuntime::new(self.app_data_dir.clone()).await);
         let skill_manager = SkillManager::new();
         skill_manager.initialize().await.map_err(|e| format!("Failed to initialize skill manager: {e}"))?;
+        let agent_state = web::Data::new(build_agent_state(self.app_data_dir.clone(), port).await);
         
         let app_state = web::Data::new(AppState {
             copilot_client,
@@ -115,8 +145,10 @@ impl WebService {
         let server = HttpServer::new(move || {
             App::new()
                 .app_data(app_state.clone())
+                .app_data(agent_state.clone())
                 .wrap(Cors::permissive())
                 .configure(app_config)
+                .configure(agent_api_config)
         })
         .workers(DEFAULT_WORKER_COUNT)
         .bind(format!("127.0.0.1:{port}"))

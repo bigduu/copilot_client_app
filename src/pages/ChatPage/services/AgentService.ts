@@ -1,9 +1,10 @@
 /**
  * Agent Client Service
- * 
- * HTTP client for communicating with local copilot-agent-server
+ *
+ * HTTP client for communicating with local copilot-agent endpoints
  * Handles SSE streaming and AgentEvent processing
  */
+import { getBackendBaseUrl } from "../../../shared/utils/backendBaseUrl";
 
 // Agent Event Types (matching Rust backend)
 export type AgentEventType = 
@@ -81,8 +82,13 @@ export class AgentClient {
   private baseUrl: string;
   private static instance: AgentClient;
 
-  constructor(baseUrl = "http://localhost:8081") {
+  constructor(baseUrl = AgentClient.resolveBaseUrl()) {
     this.baseUrl = baseUrl;
+  }
+
+  private static resolveBaseUrl(): string {
+    const normalized = getBackendBaseUrl().trim().replace(/\/+$/, "");
+    return normalized.endsWith("/v1") ? normalized.slice(0, -3) : normalized;
   }
 
   static getInstance(baseUrl?: string): AgentClient {

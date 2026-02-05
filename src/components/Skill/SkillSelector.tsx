@@ -13,7 +13,6 @@ export const SkillSelector: React.FC<SkillSelectorProps> = ({
   onChange,
 }) => {
   const skills = useAppStore((state) => state.skills);
-  const enabledSkillIds = useAppStore((state) => state.enabledSkillIds);
   const isLoadingSkills = useAppStore((state) => state.isLoadingSkills);
   const loadSkills = useAppStore((state) => state.loadSkills);
 
@@ -26,15 +25,12 @@ export const SkillSelector: React.FC<SkillSelectorProps> = ({
   const options = useMemo(
     () =>
       skills.map((skill) => {
-        const isEnabled = enabledSkillIds.includes(skill.id);
         return {
           value: skill.id,
           label: (
             <Space size="small">
               <span>{skill.name}</span>
-              <Tag color={isEnabled ? "green" : "default"}>
-                {isEnabled ? "Enabled" : "Disabled"}
-              </Tag>
+              {skill.enabled_by_default && <Tag color="green">Enabled</Tag>}
             </Space>
           ),
           searchText: [
@@ -47,7 +43,7 @@ export const SkillSelector: React.FC<SkillSelectorProps> = ({
             .toLowerCase(),
         };
       }),
-    [skills, enabledSkillIds],
+    [skills],
   );
 
   return (

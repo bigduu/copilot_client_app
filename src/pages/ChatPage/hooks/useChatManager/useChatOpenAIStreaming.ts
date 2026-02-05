@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useRef } from "react";
 import { App as AntApp } from "antd";
-import { BodhiConfigService } from "../../services/BodhiConfigService";
 import { skillService } from "../../services/SkillService";
 import { getOpenAIClient } from "../../services/openaiClient";
 import { useAppStore } from "../../store";
@@ -30,12 +29,12 @@ export function useChatOpenAIStreaming(
   const streamingMessageIdRef = useRef<string | null>(null);
   const streamingContentRef = useRef<string>("");
   const selectedModel = useAppStore((state) => state.selectedModel);
-  const enabledSkillIds = useAppStore((state) => state.enabledSkillIds);
+  const skills = useAppStore((state) => state.skills);
 
   // Clear tools cache when enabled skills change
   useEffect(() => {
     toolsCacheRef.current = null;
-  }, [enabledSkillIds]);
+  }, [skills]);
 
   const cancel = useCallback(() => {
     abortRef.current?.abort();
@@ -43,29 +42,14 @@ export function useChatOpenAIStreaming(
 
   const resolveTools = useCallback(async (chatId?: string) => {
     if (toolsCacheRef.current) return toolsCacheRef.current;
-    
-    // Try to get filtered tools based on enabled skills
     try {
-      const filteredTools = await skillService.getFilteredTools(chatId);
-      if (filteredTools && filteredTools.length > 0) {
-        // Convert tool names to OpenAI tool format
-        const configService = BodhiConfigService.getInstance();
-        const allTools = await configService.getTools();
-        const toolDefs = allTools.tools.filter((t: any) => 
-          filteredTools.includes(t.function?.name)
-        );
-        toolsCacheRef.current = toolDefs;
-        return toolDefs;
-      }
+      const toolDefs = await skillService.getFilteredTools(chatId);
+      toolsCacheRef.current = toolDefs;
+      return toolDefs;
     } catch (e) {
-      console.log("[useChatOpenAIStreaming] Failed to get filtered tools, falling back to all tools");
+      console.log("[useChatOpenAIStreaming] Failed to get filtered tools:", e);
     }
-    
-    // Fallback to all tools
-    const configService = BodhiConfigService.getInstance();
-    const data = await configService.getTools();
-    toolsCacheRef.current = data.tools;
-    return data.tools;
+    return [];
   }, []);
 
   const buildMessages = useCallback(

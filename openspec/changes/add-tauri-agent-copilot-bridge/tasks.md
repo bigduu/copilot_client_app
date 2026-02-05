@@ -1,6 +1,7 @@
-- [ ] Extend `copilot-agent-server` config to accept `tauri_mode` + app data dir and to route LLM calls to the local OpenAI forwarder in tauri mode.
-- [ ] Update agent storage paths to respect `tauri_mode` and store sessions under `~/.bodhi`.
-- [ ] Start the agent server from Tauri startup (`src-tauri/src/lib.rs`) using the agent server library and configured port.
-- [ ] Implement health heartbeat polling in the frontend and update the status indicator live.
-- [ ] On health failure: notify user and force Direct Mode fallback.
+- [x] Extend `copilot-agent-server` config to accept `tauri_mode` + app data dir and to route LLM calls to the local OpenAI forwarder in tauri mode.
+- [x] Update agent storage paths to respect `tauri_mode` and store sessions under `~/.bodhi`.
+- [x] Instantiate agent server state inside the web backend and mount `/api/v1` agent routes on the same Actix server (port 8080).
+- [x] Update Tauri startup (`src-tauri/src/lib.rs`) to only start the web backend (no separate agent port).
+- [x] Implement health heartbeat polling in the frontend and update the status indicator live (no Direct Mode fallback).
+- [x] Remove Direct Mode UI/logic so chat always uses agent endpoints.
 - [ ] Add/adjust tests or basic integration checks for tauri-mode startup and bridge provider.

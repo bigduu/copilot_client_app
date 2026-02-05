@@ -1,25 +1,38 @@
 //! Skill Store
 //!
-//! Provides in-memory storage and file persistence for skill definitions
-//! and enablement state.
+//! Provides in-memory storage and file persistence for skill definitions.
 
 use crate::types::*;
+use chrono::{DateTime, Utc};
 use log::{debug, info, warn};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use tokio::fs;
 use tokio::sync::RwLock;
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct SkillFrontmatter {
+    id: String,
+    name: String,
+    description: String,
+    category: String,
+    #[serde(default)]
+    tags: Vec<String>,
+    #[serde(default)]
+    tool_refs: Vec<String>,
+    #[serde(default)]
+    workflow_refs: Vec<String>,
+    visibility: SkillVisibility,
+    enabled_by_default: bool,
+    version: String,
+    created_at: String,
+    updated_at: String,
+}
+
 /// Persistent storage for skills
 pub struct SkillStore {
-    /// In-memory skill definitions
     skills: RwLock<HashMap<SkillId, SkillDefinition>>,
-
-    /// Enablement state
-    enablement: RwLock<SkillEnablement>,
-
-    /// Storage configuration
     config: SkillStoreConfig,
 }
 
@@ -28,7 +41,6 @@ impl SkillStore {
     pub fn new(config: SkillStoreConfig) -> Self {
         Self {
             skills: RwLock::new(HashMap::new()),
-            enablement: RwLock::new(SkillEnablement::default()),
             config,
         }
     }
@@ -42,18 +54,13 @@ impl SkillStore {
     pub async fn initialize(&self) -> SkillResult<()> {
         info!("Initializing skill store...");
 
-        // Ensure storage directory exists
-        if let Some(parent) = self.config.storage_path.parent() {
-            fs::create_dir_all(parent).await?;
-        }
+        fs::create_dir_all(&self.config.skills_dir).await?;
 
-        // Load from disk if file exists
-        if self.config.storage_path.exists() {
-            self.load().await?;
-        } else {
-            info!("No existing skills storage found, starting fresh");
-            // Create built-in skills
+        let loaded = self.load().await?;
+        if loaded == 0 {
+            info!("No existing skills found, creating built-in skills");
             self.create_builtin_skills().await?;
+            self.load().await?;
         }
 
         info!("Skill store initialized");
@@ -61,75 +68,56 @@ impl SkillStore {
     }
 
     /// Load skills from disk
-    async fn load(&self) -> SkillResult<()> {
-        debug!("Loading skills from {:?}", self.config.storage_path);
+    async fn load(&self) -> SkillResult<usize> {
+        debug!("Loading skills from {:?}", self.config.skills_dir);
 
-        let content = fs::read_to_string(&self.config.storage_path).await?;
-        let mut data: SkillStorageData = serde_json::from_str(&content)?;
-        let updated_builtins = Self::apply_builtin_overrides(&mut data.skills);
+        let mut entries = fs::read_dir(&self.config.skills_dir).await?;
+        let mut loaded: HashMap<SkillId, SkillDefinition> = HashMap::new();
 
-        {
-            let mut skills = self.skills.write().await;
-            *skills = data.skills;
+        while let Some(entry) = entries.next_entry().await? {
+            let path = entry.path();
+            if !path.extension().map_or(false, |ext| ext == "md") {
+                continue;
+            }
 
-            let mut enablement = self.enablement.write().await;
-            *enablement = data.enablement;
-
-            info!(
-                "Loaded {} skills, {} globally enabled",
-                skills.len(),
-                enablement.enabled_skill_ids.len()
-            );
-        }
-
-        if updated_builtins {
-            self.save().await?;
-        }
-
-        Ok(())
-    }
-
-    /// Save skills to disk
-    async fn save(&self) -> SkillResult<()> {
-        debug!("Saving skills to {:?}", self.config.storage_path);
-
-        let data = SkillStorageData {
-            skills: self.skills.read().await.clone(),
-            enablement: self.enablement.read().await.clone(),
-        };
-
-        let content = serde_json::to_string_pretty(&data)?;
-        fs::write(&self.config.storage_path, content).await?;
-
-        debug!("Skills saved successfully");
-        Ok(())
-    }
-
-    /// Create built-in skills
-    async fn create_builtin_skills(&self) -> SkillResult<()> {
-        info!("Creating built-in skills...");
-
-        let builtins = Self::builtin_skills();
-
-        let mut skills = self.skills.write().await;
-        for skill in builtins {
-            skills.insert(skill.id.clone(), skill);
-        }
-
-        // Auto-enable built-in skills that are marked as enabled_by_default
-        let mut enablement = self.enablement.write().await;
-        for (_, skill) in skills.iter() {
-            if skill.enabled_by_default {
-                enablement.enable_global(&skill.id);
+            match fs::read_to_string(&path).await {
+                Ok(content) => match parse_markdown_skill(&path, &content) {
+                    Ok(skill) => {
+                        loaded.insert(skill.id.clone(), skill);
+                    }
+                    Err(e) => {
+                        warn!("Failed to parse skill file {:?}: {}", path, e);
+                    }
+                },
+                Err(e) => {
+                    warn!("Failed to read skill file {:?}: {}", path, e);
+                }
             }
         }
 
-        // Save to disk
-        drop(skills);
-        drop(enablement);
-        self.save().await?;
+        let count = loaded.len();
+        let mut skills = self.skills.write().await;
+        *skills = loaded;
 
-        info!("Built-in skills created");
+        info!("Loaded {} skills", count);
+        Ok(count)
+    }
+
+    async fn create_builtin_skills(&self) -> SkillResult<()> {
+        let builtins = Self::builtin_skills();
+
+        for skill in builtins {
+            let path = self
+                .config
+                .skills_dir
+                .join(format!("{}.md", skill.id));
+            if path.exists() {
+                continue;
+            }
+            let content = render_skill_markdown(&skill)?;
+            fs::write(path, content).await?;
+        }
+
         Ok(())
     }
 
@@ -173,77 +161,17 @@ impl SkillStore {
         ]
     }
 
-    fn apply_builtin_overrides(
-        skills: &mut HashMap<SkillId, SkillDefinition>,
-    ) -> bool {
-        let mut changed = false;
-
-        for builtin in Self::builtin_skills() {
-            let builtin_id = builtin.id.clone();
-            if let Some(existing) = skills.get_mut(&builtin_id) {
-                let mut updated = false;
-                if existing.name != builtin.name {
-                    existing.name = builtin.name;
-                    updated = true;
-                }
-                if existing.description != builtin.description {
-                    existing.description = builtin.description;
-                    updated = true;
-                }
-                if existing.category != builtin.category {
-                    existing.category = builtin.category;
-                    updated = true;
-                }
-                if existing.tags != builtin.tags {
-                    existing.tags = builtin.tags;
-                    updated = true;
-                }
-                if existing.prompt != builtin.prompt {
-                    existing.prompt = builtin.prompt;
-                    updated = true;
-                }
-                if existing.tool_refs != builtin.tool_refs {
-                    existing.tool_refs = builtin.tool_refs;
-                    updated = true;
-                }
-                if existing.workflow_refs != builtin.workflow_refs {
-                    existing.workflow_refs = builtin.workflow_refs;
-                    updated = true;
-                }
-                if existing.visibility != builtin.visibility {
-                    existing.visibility = builtin.visibility;
-                    updated = true;
-                }
-                if existing.enabled_by_default != builtin.enabled_by_default {
-                    existing.enabled_by_default = builtin.enabled_by_default;
-                    updated = true;
-                }
-                if existing.version != builtin.version {
-                    existing.version = builtin.version;
-                    updated = true;
-                }
-                if updated {
-                    existing.touch();
-                    changed = true;
-                }
-            }
-        }
-
-        changed
-    }
-
     // ==================== CRUD Operations ====================
 
     /// List all skills with optional filtering
     pub async fn list_skills(&self, filter: Option<SkillFilter>) -> Vec<SkillDefinition> {
         let skills = self.skills.read().await;
-        let enablement = self.enablement.read().await;
 
         let mut result: Vec<SkillDefinition> = skills
             .values()
             .filter(|skill| {
                 if let Some(ref f) = filter {
-                    f.matches(skill, &enablement)
+                    f.matches(skill)
                 } else {
                     true
                 }
@@ -251,9 +179,7 @@ impl SkillStore {
             .cloned()
             .collect();
 
-        // Sort by name
         result.sort_by(|a, b| a.name.cmp(&b.name));
-
         result
     }
 
@@ -267,223 +193,80 @@ impl SkillStore {
     }
 
     /// Create a new skill
-    pub async fn create_skill(
-        &self,
-        mut skill: SkillDefinition,
-    ) -> SkillResult<SkillDefinition> {
-        // Validate ID
-        if skill.id.is_empty() {
-            return Err(SkillError::InvalidId("Skill ID cannot be empty".to_string()));
-        }
-
-        if !is_valid_skill_id(&skill.id) {
-            return Err(SkillError::InvalidId(format!(
-                "Invalid skill ID: {}. Use kebab-case (e.g., my-skill-name)",
-                skill.id
-            )));
-        }
-
-        let mut skills = self.skills.write().await;
-
-        // Check for duplicates
-        if skills.contains_key(&skill.id) {
-            return Err(SkillError::AlreadyExists(skill.id));
-        }
-
-        // Ensure timestamps are set
-        let now = chrono::Utc::now();
-        skill.created_at = now;
-        skill.updated_at = now;
-
-        info!("Creating skill: {}", skill.id);
-        skills.insert(skill.id.clone(), skill.clone());
-        drop(skills);
-
-        // Save to disk
-        self.save().await?;
-
-        Ok(skill)
+    pub async fn create_skill(&self, _skill: SkillDefinition) -> SkillResult<SkillDefinition> {
+        Err(SkillError::ReadOnly(
+            "Skills are read-only and must be edited as Markdown files".to_string(),
+        ))
     }
 
     /// Update an existing skill
-    pub async fn update_skill(
-        &self,
-        id: &str,
-        updates: SkillUpdate,
-    ) -> SkillResult<SkillDefinition> {
-        let mut skills = self.skills.write().await;
-
-        let skill = skills
-            .get_mut(id)
-            .ok_or_else(|| SkillError::NotFound(id.to_string()))?;
-
-        // Apply updates
-        if let Some(name) = updates.name {
-            skill.name = name;
-        }
-        if let Some(description) = updates.description {
-            skill.description = description;
-        }
-        if let Some(category) = updates.category {
-            skill.category = category;
-        }
-        if let Some(tags) = updates.tags {
-            skill.tags = tags;
-        }
-        if let Some(prompt) = updates.prompt {
-            skill.prompt = prompt;
-        }
-        if let Some(tool_refs) = updates.tool_refs {
-            skill.tool_refs = tool_refs;
-        }
-        if let Some(workflow_refs) = updates.workflow_refs {
-            skill.workflow_refs = workflow_refs;
-        }
-        if let Some(visibility) = updates.visibility {
-            skill.visibility = visibility;
-        }
-        if let Some(enabled_by_default) = updates.enabled_by_default {
-            skill.enabled_by_default = enabled_by_default;
-        }
-        if let Some(version) = updates.version {
-            skill.version = version;
-        }
-
-        skill.touch();
-
-        let updated = skill.clone();
-        drop(skills);
-
-        info!("Updated skill: {}", id);
-        self.save().await?;
-
-        Ok(updated)
+    pub async fn update_skill(&self, _id: &str, _updates: SkillUpdate) -> SkillResult<SkillDefinition> {
+        Err(SkillError::ReadOnly(
+            "Skills are read-only and must be edited as Markdown files".to_string(),
+        ))
     }
 
     /// Delete a skill
-    pub async fn delete_skill(&self, id: &str) -> SkillResult<()> {
-        let mut skills = self.skills.write().await;
-
-        if !skills.contains_key(id) {
-            return Err(SkillError::NotFound(id.to_string()));
-        }
-
-        info!("Deleting skill: {}", id);
-        skills.remove(id);
-        drop(skills);
-
-        // Also remove from enablement
-        let mut enablement = self.enablement.write().await;
-        enablement.disable_global(id);
-        for (_, ids) in enablement.chat_overrides.iter_mut() {
-            ids.retain(|skill_id| skill_id != id);
-        }
-        drop(enablement);
-
-        self.save().await?;
-
-        Ok(())
+    pub async fn delete_skill(&self, _id: &str) -> SkillResult<()> {
+        Err(SkillError::ReadOnly(
+            "Skills are read-only and must be edited as Markdown files".to_string(),
+        ))
     }
 
     // ==================== Enablement Operations ====================
 
     /// Enable a skill globally
-    pub async fn enable_skill_global(&self, id: &str) -> SkillResult<()> {
-        // Verify skill exists
-        if !self.skills.read().await.contains_key(id) {
-            return Err(SkillError::NotFound(id.to_string()));
-        }
-
-        let mut enablement = self.enablement.write().await;
-        enablement.enable_global(id);
-        drop(enablement);
-
-        info!("Enabled skill globally: {}", id);
-        self.save().await?;
-
-        Ok(())
+    pub async fn enable_skill_global(&self, _id: &str) -> SkillResult<()> {
+        Err(SkillError::ReadOnly(
+            "Skills are read-only and must be edited as Markdown files".to_string(),
+        ))
     }
 
     /// Disable a skill globally
-    pub async fn disable_skill_global(&self, id: &str) -> SkillResult<()> {
-        let mut enablement = self.enablement.write().await;
-        enablement.disable_global(id);
-        drop(enablement);
-
-        info!("Disabled skill globally: {}", id);
-        self.save().await?;
-
-        Ok(())
+    pub async fn disable_skill_global(&self, _id: &str) -> SkillResult<()> {
+        Err(SkillError::ReadOnly(
+            "Skills are read-only and must be edited as Markdown files".to_string(),
+        ))
     }
 
     /// Enable a skill for a specific chat
-    pub async fn enable_skill_for_chat(
-        &self,
-        skill_id: &str,
-        chat_id: &str,
-    ) -> SkillResult<()> {
-        // Verify skill exists
-        if !self.skills.read().await.contains_key(skill_id) {
-            return Err(SkillError::NotFound(skill_id.to_string()));
-        }
-
-        let mut enablement = self.enablement.write().await;
-        enablement.enable_for_chat(skill_id, chat_id);
-        drop(enablement);
-
-        info!("Enabled skill {} for chat {}", skill_id, chat_id);
-        self.save().await?;
-
-        Ok(())
+    pub async fn enable_skill_for_chat(&self, _skill_id: &str, _chat_id: &str) -> SkillResult<()> {
+        Err(SkillError::ReadOnly(
+            "Skills are read-only and must be edited as Markdown files".to_string(),
+        ))
     }
 
     /// Disable a skill for a specific chat
-    pub async fn disable_skill_for_chat(
-        &self,
-        skill_id: &str,
-        chat_id: &str,
-    ) -> SkillResult<()> {
-        let mut enablement = self.enablement.write().await;
-        enablement.disable_for_chat(skill_id, chat_id);
-        drop(enablement);
-
-        info!("Disabled skill {} for chat {}", skill_id, chat_id);
-        self.save().await?;
-
-        Ok(())
-    }
-
-    /// Get enablement state
-    pub async fn get_enablement(&self) -> SkillEnablement {
-        self.enablement.read().await.clone()
+    pub async fn disable_skill_for_chat(&self, _skill_id: &str, _chat_id: &str) -> SkillResult<()> {
+        Err(SkillError::ReadOnly(
+            "Skills are read-only and must be edited as Markdown files".to_string(),
+        ))
     }
 
     /// Check if a skill is enabled
-    pub async fn is_enabled(&self, skill_id: &str, chat_id: Option<&str>) -> bool {
-        self.enablement.read().await.is_enabled(skill_id, chat_id)
+    pub async fn is_enabled(&self, skill_id: &str, _chat_id: Option<&str>) -> bool {
+        self.skills
+            .read()
+            .await
+            .get(skill_id)
+            .map(|skill| skill.enabled_by_default)
+            .unwrap_or(false)
     }
 
-    /// Get all enabled skills for a chat
-    pub async fn get_enabled_skills(
-        &self,
-        chat_id: Option<&str>,
-    ) -> Vec<SkillDefinition> {
-        let enablement = self.enablement.read().await;
+    /// Get all enabled skills
+    pub async fn get_enabled_skills(&self, _chat_id: Option<&str>) -> Vec<SkillDefinition> {
         let skills = self.skills.read().await;
-
-        let enabled_ids = enablement.get_enabled_for_chat(chat_id);
-
-        enabled_ids
-            .iter()
-            .filter_map(|id| skills.get(id).cloned())
+        skills
+            .values()
+            .filter(|skill| skill.enabled_by_default)
+            .cloned()
             .collect()
     }
 
     // ==================== Utility Methods ====================
 
-    /// Get storage path
-    pub fn storage_path(&self) -> &PathBuf {
-        &self.config.storage_path
+    pub fn skills_dir(&self) -> &PathBuf {
+        &self.config.skills_dir
     }
 
     /// Get all categories
@@ -512,63 +295,120 @@ impl SkillStore {
         tags
     }
 
-    /// Export skills to JSON
-    pub async fn export_to_json(&self, skill_ids: Option<Vec<String>>) -> SkillResult<String> {
+    /// Export skills to Markdown
+    pub async fn export_to_markdown(
+        &self,
+        skill_ids: Option<Vec<String>>,
+    ) -> SkillResult<String> {
         let skills = self.skills.read().await;
 
         let to_export: Vec<&SkillDefinition> = if let Some(ids) = skill_ids {
-            ids.iter()
-                .filter_map(|id| skills.get(id))
-                .collect()
+            ids.iter().filter_map(|id| skills.get(id)).collect()
         } else {
             skills.values().collect()
         };
 
-        let export_data = SkillExportData {
-            version: "1.0".to_string(),
-            skills: to_export.into_iter().cloned().collect(),
-        };
-
-        Ok(serde_json::to_string_pretty(&export_data)?)
-    }
-
-    /// Import skills from JSON
-    pub async fn import_from_json(&self, json: &str) -> SkillResult<Vec<SkillDefinition>> {
-        let import_data: SkillExportData = serde_json::from_str(json)?;
-
-        let mut imported = Vec::new();
-        for mut skill in import_data.skills {
-            // Generate new ID if conflicts
-            if self.skills.read().await.contains_key(&skill.id) {
-                skill.id = format!("{}-imported-{}", skill.id, chrono::Utc::now().timestamp());
-            }
-
-            match self.create_skill(skill).await {
-                Ok(created) => imported.push(created),
-                Err(e) => {
-                    warn!("Failed to import skill: {}", e);
-                }
-            }
+        let mut chunks = Vec::new();
+        for skill in to_export {
+            chunks.push(render_skill_markdown(skill)?);
         }
 
-        Ok(imported)
+        Ok(chunks.join("\n\n"))
     }
 }
 
-/// Data structure for storage serialization
-#[derive(Debug, Clone, Serialize, Deserialize)]
-struct SkillStorageData {
-    #[serde(default)]
-    skills: HashMap<SkillId, SkillDefinition>,
-    #[serde(default)]
-    enablement: SkillEnablement,
+fn parse_markdown_skill(path: &Path, content: &str) -> SkillResult<SkillDefinition> {
+    let (frontmatter_raw, body) = split_frontmatter(content)?;
+    let frontmatter: SkillFrontmatter = serde_yaml::from_str(&frontmatter_raw)?;
+
+    let file_stem = path
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .unwrap_or_default();
+    if file_stem != frontmatter.id {
+        return Err(SkillError::Validation(format!(
+            "Skill id '{}' does not match filename '{}'",
+            frontmatter.id, file_stem
+        )));
+    }
+
+    if !is_valid_skill_id(&frontmatter.id) {
+        return Err(SkillError::InvalidId(format!(
+            "Invalid skill ID: {}. Use kebab-case (e.g., my-skill-name)",
+            frontmatter.id
+        )));
+    }
+
+    let created_at = parse_timestamp(&frontmatter.created_at)?;
+    let updated_at = parse_timestamp(&frontmatter.updated_at)?;
+
+    Ok(SkillDefinition {
+        id: frontmatter.id,
+        name: frontmatter.name,
+        description: frontmatter.description,
+        category: frontmatter.category,
+        tags: frontmatter.tags,
+        prompt: body.trim().to_string(),
+        tool_refs: frontmatter.tool_refs,
+        workflow_refs: frontmatter.workflow_refs,
+        visibility: frontmatter.visibility,
+        enabled_by_default: frontmatter.enabled_by_default,
+        version: frontmatter.version,
+        created_at,
+        updated_at,
+    })
 }
 
-/// Data structure for export/import
-#[derive(Debug, Clone, Serialize, Deserialize)]
-struct SkillExportData {
-    version: String,
-    skills: Vec<SkillDefinition>,
+fn split_frontmatter(content: &str) -> SkillResult<(String, String)> {
+    let mut lines = content.lines();
+    match lines.next() {
+        Some("---") => {}
+        _ => {
+            return Err(SkillError::Validation(
+                "Missing YAML frontmatter".to_string(),
+            ))
+        }
+    }
+
+    let mut frontmatter_lines = Vec::new();
+    for line in lines.by_ref() {
+        if line == "---" {
+            break;
+        }
+        frontmatter_lines.push(line);
+    }
+
+    let frontmatter = frontmatter_lines.join("\n");
+    let body = lines.collect::<Vec<_>>().join("\n");
+    Ok((frontmatter, body))
+}
+
+fn parse_timestamp(value: &str) -> SkillResult<DateTime<Utc>> {
+    DateTime::parse_from_rfc3339(value)
+        .map(|dt| dt.with_timezone(&Utc))
+        .map_err(|e| SkillError::Validation(format!("Invalid timestamp '{}': {}", value, e)))
+}
+
+fn render_skill_markdown(skill: &SkillDefinition) -> SkillResult<String> {
+    let frontmatter = SkillFrontmatter {
+        id: skill.id.clone(),
+        name: skill.name.clone(),
+        description: skill.description.clone(),
+        category: skill.category.clone(),
+        tags: skill.tags.clone(),
+        tool_refs: skill.tool_refs.clone(),
+        workflow_refs: skill.workflow_refs.clone(),
+        visibility: skill.visibility.clone(),
+        enabled_by_default: skill.enabled_by_default,
+        version: skill.version.clone(),
+        created_at: skill.created_at.to_rfc3339(),
+        updated_at: skill.updated_at.to_rfc3339(),
+    };
+
+    let yaml = serde_yaml::to_string(&frontmatter)?;
+    let body = skill.prompt.trim();
+
+    Ok(format!("---\n{}---\n\n{}\n", yaml, body))
 }
 
 /// Update fields for skill modification
@@ -648,12 +488,10 @@ fn is_valid_skill_id(id: &str) -> bool {
         return false;
     }
 
-    // Must start with letter
     if !id.chars().next().unwrap().is_ascii_lowercase() {
         return false;
     }
 
-    // Can contain lowercase letters, numbers, and hyphens
     id.chars().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-')
 }
 
@@ -672,85 +510,60 @@ mod tests {
     #[test]
     fn test_invalid_skill_ids() {
         assert!(!is_valid_skill_id(""));
-        assert!(!is_valid_skill_id("MySkill")); // uppercase
-        assert!(!is_valid_skill_id("123-skill")); // starts with number
-        assert!(!is_valid_skill_id("my_skill")); // underscore
-        assert!(!is_valid_skill_id("my skill")); // space
+        assert!(!is_valid_skill_id("MySkill"));
+        assert!(!is_valid_skill_id("123-skill"));
+        assert!(!is_valid_skill_id("my_skill"));
+        assert!(!is_valid_skill_id("my skill"));
     }
 
     #[tokio::test]
-    async fn test_create_and_enable_skill() {
-        // Use a temporary directory for storage
+    async fn test_load_markdown_skills() {
         let dir = tempfile::tempdir().expect("tempdir");
-        let path = dir.path().join("skills.json");
+        let skills_dir = dir.path().join("skills");
+        fs::create_dir_all(&skills_dir).await.expect("create dir");
 
-        let config = SkillStoreConfig { storage_path: path.clone() };
+        let content = r#"---
+ id: test-skill
+ name: Test Skill
+ description: A test skill
+ category: test
+ tags:
+   - demo
+ tool_refs:
+   - default::read_file
+ workflow_refs: []
+ visibility: public
+ enabled_by_default: true
+ version: 1.0.0
+ created_at: "2026-02-01T00:00:00Z"
+ updated_at: "2026-02-01T00:00:00Z"
+---
+Use this skill for testing.
+"#;
+
+        let path = skills_dir.join("test-skill.md");
+        fs::write(&path, content).await.expect("write");
+
+        let config = SkillStoreConfig { skills_dir };
         let store = SkillStore::new(config);
-
-        // Initialize (should create builtins and save)
         store.initialize().await.expect("initialize");
-        assert!(store.storage_path().exists());
 
-        // Create a new skill
-        let skill = SkillDefinition::new(
-            "my-skill",
-            "My Skill",
-            "A test skill",
-            "test",
-            "Test prompt",
-        );
-
-        let created = store.create_skill(skill.clone()).await.expect("create");
-        assert_eq!(created.id, "my-skill");
-
-        // Fetch it back
-        let fetched = store.get_skill("my-skill").await.expect("get");
-        assert_eq!(fetched.name, "My Skill");
-
-        // Enable globally
-        store.enable_skill_global("my-skill").await.expect("enable");
-        assert!(store.is_enabled("my-skill", None).await);
-
-        // Enable for chat override
-        store.enable_skill_for_chat("my-skill", "chat1").await.expect("enable chat");
-        assert!(store.is_enabled("my-skill", Some("chat1")).await);
-
-        // Export
-        let json = store.export_to_json(Some(vec!["my-skill".to_string()])).await.expect("export");
-        assert!(json.contains("\"id\": \"my-skill\""));
+        let skills = store.list_skills(None).await;
+        assert_eq!(skills.len(), 1);
+        assert_eq!(skills[0].id, "test-skill");
+        assert!(skills[0].enabled_by_default);
     }
 
     #[tokio::test]
-    async fn test_import_conflict_renaming() {
+    async fn test_create_builtin_skills() {
         let dir = tempfile::tempdir().expect("tempdir");
-        let path = dir.path().join("skills.json");
-
-        let config = SkillStoreConfig { storage_path: path.clone() };
+        let config = SkillStoreConfig {
+            skills_dir: dir.path().join("skills"),
+        };
         let store = SkillStore::new(config);
-
-        // Initialize and create a skill
         store.initialize().await.expect("initialize");
 
-        let skill = SkillDefinition::new(
-            "conflict-skill",
-            "Conflict Skill",
-            "A skill to cause conflict",
-            "test",
-            "Prompt",
-        );
-        store.create_skill(skill.clone()).await.expect("create");
-
-        // Export this skill to JSON
-        let exported = store.export_to_json(Some(vec!["conflict-skill".to_string()])).await.expect("export");
-
-        // Import into same store - should rename because id exists
-        let imported = store.import_from_json(&exported).await.expect("import");
-        assert!(!imported.is_empty());
-        let new_id = &imported[0].id;
-        assert!(new_id.starts_with("conflict-skill-imported-"), "new id was {}", new_id);
-
-        // And ensure the new skill exists
-        let fetched = store.get_skill(new_id).await.expect("get imported");
-        assert_eq!(fetched.name, "Conflict Skill");
+        let skills = store.list_skills(None).await;
+        assert!(!skills.is_empty());
     }
 }

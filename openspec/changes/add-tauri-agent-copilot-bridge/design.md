@@ -3,7 +3,8 @@
 ## Overview
 
 When the app is launched via Tauri, it should:
-- Start the agent server automatically via the agent library (no separate process).
+- Start only the web backend, and host the agent endpoints inside that server
+  (no separate agent port).
 - Route agent LLM calls to the local web service’s OpenAI-compatible endpoint
   (`/v1/chat/completions`) to reuse the existing Copilot client/token.
 - Persist all agent session data under `~/.bodhi`.
@@ -12,11 +13,12 @@ When the app is launched via Tauri, it should:
 ## Architecture
 
 ### Agent Startup (Tauri Mode)
-- Tauri calls into `copilot_agent_server::run_server_with_config(...)`.
+- Tauri starts the web backend only (`web_service::server::run`).
+- The web backend instantiates the agent server state and mounts its HTTP
+  handlers under the same Actix server (`/api/v1/*`), reusing port `8080`.
 - A `tauri_mode` flag is passed so the agent server:
   - Uses the app data dir for storage.
-  - Selects `copilot_bridge` provider by default (unless overridden).
-- Server runs on a dedicated port (default `8081`).
+  - Selects the local forwarder provider by default (unless overridden).
 
 ### Local OpenAI Forwarder
 - Agent uses its existing OpenAI provider but points to the local web service
@@ -33,21 +35,21 @@ When the app is launched via Tauri, it should:
 - Frontend polls `/api/v1/health` periodically (e.g., 5–10s).
 - Status indicator updates live; if unhealthy:
   - Show warning in UI.
-  - Fall back to Direct Mode for new messages.
+  - Do not fall back to Direct Mode (Agent-only).
 
 ## Configuration
 
-- Agent port: existing default (8081), optionally configurable from Tauri.
+- Agent endpoints are hosted on the web backend port (default 8080).
 - Provider selection:
   - Tauri mode defaults to `openai` with base URL set to the local web service.
   - CLI mode preserves existing `copilot`/`openai` behavior.
 
 ## Error Handling
 
-- If agent startup fails in tauri mode:
+- If agent initialization fails in tauri mode:
   - Log error
   - Notify user
-  - Continue with Direct Mode
+  - Chat remains unavailable until agent recovers
 
 ## Open Questions
 
