@@ -15,6 +15,11 @@ export interface UtilityService {
   setBodhiConfig(config: any): Promise<any>;
 
   /**
+   * Set proxy auth credentials
+   */
+  setProxyAuth(auth: { username: string; password: string }): Promise<any>;
+
+  /**
    * Generic invoke method for custom commands
    */
   invoke<T = any>(command: string, args?: Record<string, any>): Promise<T>;

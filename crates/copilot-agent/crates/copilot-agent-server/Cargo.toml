@@ -14,7 +14,7 @@ path = "src/main.rs"
 [dependencies]
 copilot-agent-core = { path = "../copilot-agent-core" }
 copilot-agent-llm = { path = "../copilot-agent-llm" }
-builtin_tools = { path = "../../../builtin_tools" }
+builtin_tools = { path = "../builtin_tools" }
 
 actix-web = "4"
 actix-cors = "0.7"

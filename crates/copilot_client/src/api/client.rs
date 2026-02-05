@@ -10,7 +10,7 @@ use futures_util::StreamExt;
 use log::{error, info, warn};
 use reqwest::{Client, Proxy, Response};
 use tauri::http::HeaderMap;
-use tokio::sync::mpsc::Sender;
+use tokio::sync::{mpsc::Sender, RwLock};
 
 use crate::api::models::{ChatCompletionRequest, ChatCompletionStreamChunk, Content, ContentPart};
 use crate::auth::auth_handler::CopilotAuthHandler;
@@ -32,36 +32,30 @@ fn apply_proxy_auth(proxy: Proxy, auth: Option<&ProxyAuth>) -> Proxy {
 }
 
 // Main Copilot Client struct
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct CopilotClient {
+    state: RwLock<CopilotClientState>,
+    keyword_masking_config: KeywordMaskingConfig,
+}
+
+#[derive(Debug, Clone)]
+struct CopilotClientState {
     client: Arc<Client>,
     auth_handler: CopilotAuthHandler,
     models_handler: CopilotModelsHandler,
     config: Config,
-    keyword_masking_config: KeywordMaskingConfig,
+    app_data_dir: PathBuf,
 }
 
 impl CopilotClient {
     pub fn new(config: Config, app_data_dir: PathBuf) -> Self {
-        let mut builder = Client::builder().default_headers(Self::get_default_headers());
-        if !config.http_proxy.is_empty() {
-            let mut proxy = Proxy::http(&config.http_proxy).unwrap();
-            proxy = apply_proxy_auth(proxy, config.http_proxy_auth.as_ref());
-            builder = builder.proxy(proxy);
-        }
-        if !config.https_proxy.is_empty() {
-            let mut proxy = Proxy::https(&config.https_proxy).unwrap();
-            proxy = apply_proxy_auth(proxy, config.https_proxy_auth.as_ref());
-            builder = builder.proxy(proxy);
-        }
-        let client: Client = builder.build().unwrap();
+        let client = Self::build_http_client(&config).expect("copilot client");
         let shared_client = Arc::new(client);
 
-        let headless_auth = config.headless_auth;
         let auth_handler = CopilotAuthHandler::new(
             Arc::clone(&shared_client),
             app_data_dir.clone(),
-            headless_auth,
+            config.headless_auth,
         );
         let models_handler = CopilotModelsHandler::new(Arc::clone(&shared_client));
 
@@ -69,12 +63,30 @@ impl CopilotClient {
         let keyword_masking_config = Self::load_keyword_masking_config(&app_data_dir);
 
         CopilotClient {
-            client: shared_client,
-            auth_handler,
-            models_handler,
-            config,
+            state: RwLock::new(CopilotClientState {
+                client: shared_client,
+                auth_handler,
+                models_handler,
+                config,
+                app_data_dir,
+            }),
             keyword_masking_config,
         }
+    }
+
+    fn build_http_client(config: &Config) -> anyhow::Result<Client> {
+        let mut builder = Client::builder().default_headers(Self::get_default_headers());
+        if !config.http_proxy.is_empty() {
+            let mut proxy = Proxy::http(&config.http_proxy)?;
+            proxy = apply_proxy_auth(proxy, config.http_proxy_auth.as_ref());
+            builder = builder.proxy(proxy);
+        }
+        if !config.https_proxy.is_empty() {
+            let mut proxy = Proxy::https(&config.https_proxy)?;
+            proxy = apply_proxy_auth(proxy, config.https_proxy_auth.as_ref());
+            builder = builder.proxy(proxy);
+        }
+        builder.build().map_err(|e| anyhow!("Failed to build HTTP client: {e}"))
     }
 
     /// Load keyword masking config from the app settings JSON file
@@ -132,11 +144,6 @@ impl CopilotClient {
         log::debug!("Applied keyword masking to {} messages", request.messages.len());
     }
 
-    pub async fn get_models(&self) -> anyhow::Result<Vec<String>> {
-        let chat_token = self.auth_handler.get_chat_token().await?;
-        self.models_handler.get_models(chat_token).await
-    }
-
     pub fn get_default_headers() -> HeaderMap {
         let mut header: HeaderMap = HeaderMap::new();
         header.insert("editor-version", "vscode/1.99.2".parse().unwrap());
@@ -165,8 +172,17 @@ impl CopilotClientTrait for CopilotClient {
         // Apply keyword masking to message content
         self.apply_keyword_masking_to_request(&mut request);
 
+        let (auth_handler, client, config) = {
+            let state = self.state.read().await;
+            (
+                state.auth_handler.clone(),
+                state.client.clone(),
+                state.config.clone(),
+            )
+        };
+
         info!("=== EXCHANGE_CHAT_COMPLETION START ===");
-        let access_token = self.auth_handler.get_chat_token().await.map_err(|e| {
+        let access_token = auth_handler.get_chat_token().await.map_err(|e| {
             info!("Failed to get chat token: {e:?}");
             e
         })?;
@@ -179,8 +195,7 @@ impl CopilotClientTrait for CopilotClient {
             _ => false,
         });
 
-        let base_url = self
-            .config
+        let base_url = config
             .api_base
             .as_deref()
             .unwrap_or("https://api.githubcopilot.com");
@@ -191,7 +206,7 @@ impl CopilotClientTrait for CopilotClient {
         }
 
         execute_request_with_vision(
-            &self.client,
+            &client,
             reqwest::Method::POST,
             &url,
             Some(&access_token),
@@ -242,7 +257,27 @@ impl CopilotClientTrait for CopilotClient {
     }
 
     async fn get_models(&self) -> anyhow::Result<Vec<String>> {
-        let chat_token = self.auth_handler.get_chat_token().await?;
-        self.models_handler.get_models(chat_token).await
+        let (auth_handler, models_handler) = {
+            let state = self.state.read().await;
+            (state.auth_handler.clone(), state.models_handler.clone())
+        };
+        let chat_token = auth_handler.get_chat_token().await?;
+        models_handler.get_models(chat_token).await
+    }
+
+    async fn update_proxy_auth(&self, auth: Option<ProxyAuth>) -> anyhow::Result<()> {
+        let mut state = self.state.write().await;
+        state.config.http_proxy_auth = auth.clone();
+        state.config.https_proxy_auth = auth;
+        let client = Self::build_http_client(&state.config)?;
+        let shared_client = Arc::new(client);
+        state.client = Arc::clone(&shared_client);
+        state.auth_handler = CopilotAuthHandler::new(
+            Arc::clone(&shared_client),
+            state.app_data_dir.clone(),
+            state.config.headless_auth,
+        );
+        state.models_handler = CopilotModelsHandler::new(shared_client);
+        Ok(())
     }
 }

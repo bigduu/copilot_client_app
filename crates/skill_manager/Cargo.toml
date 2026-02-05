@@ -23,7 +23,7 @@ chrono = { version = "0.4", features = ["serde"] }
 
 # Directories
 dirs = "5.0"
-builtin_tools = { path = "../builtin_tools" }
+builtin_tools = { path = "../copilot-agent/crates/builtin_tools" }
 
 # Utilities
 async-trait = "0.1"

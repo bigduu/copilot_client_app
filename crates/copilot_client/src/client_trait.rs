@@ -5,6 +5,7 @@ use reqwest::Response;
 use tokio::sync::mpsc::Sender;
 
 use crate::api::models::ChatCompletionRequest;
+use chat_core::ProxyAuth;
 
 #[async_trait]
 pub trait CopilotClientTrait: Send + Sync {
@@ -21,4 +22,7 @@ pub trait CopilotClientTrait: Send + Sync {
 
     /// Get available models from the Copilot API
     async fn get_models(&self) -> Result<Vec<String>>;
+
+    /// Update proxy auth credentials for runtime requests
+    async fn update_proxy_auth(&self, auth: Option<ProxyAuth>) -> Result<()>;
 }

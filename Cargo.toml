@@ -4,7 +4,7 @@ members = [
     "crates/chat_core",
     "crates/copilot_client",
     "crates/workflow_system",
-    "crates/builtin_tools",
+    "crates/copilot-agent/crates/builtin_tools",
     "crates/web_service",
     "crates/skill_manager",
     "src-tauri",

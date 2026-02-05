@@ -16,7 +16,6 @@ import {
   setTodoEnhancementEnabled,
 } from "../../../../shared/utils/todoEnhancementUtils";
 import { getDefaultBackendBaseUrl } from "../../../../shared/utils/backendBaseUrl";
-import SystemSettingsModelTab from "./SystemSettingsModelTab";
 import SystemSettingsConfigTab from "./SystemSettingsConfigTab";
 import SystemSettingsAgentTab from "./SystemSettingsAgentTab";
 import SystemSettingsPromptsTab from "./SystemSettingsPromptsTab";
@@ -25,6 +24,7 @@ import SystemSettingsKeywordMaskingTab from "./SystemSettingsKeywordMaskingTab";
 import SystemSettingsWorkflowsTab from "./SystemSettingsWorkflowsTab";
 import { useSystemSettingsBodhiConfig } from "./useSystemSettingsBodhiConfig";
 import { useSystemSettingsBackend } from "./useSystemSettingsBackend";
+import { useSystemSettingsProxyAuth } from "./useSystemSettingsProxyAuth";
 import { SkillManager } from "../../../../components/Skill";
 
 const { Text } = Typography;
@@ -76,6 +76,7 @@ const SystemSettingsPage = ({
   });
 
   const bodhiConfigState = useSystemSettingsBodhiConfig({ msgApi });
+  const proxyAuthState = useSystemSettingsProxyAuth({ msgApi });
 
   const handleDeleteAll = () => {
     deleteAllUnpinnedChats();
@@ -163,25 +164,6 @@ const SystemSettingsPage = ({
           tabPosition="left"
           items={[
             {
-              key: "model",
-              label: "Model",
-              children: (
-                <SystemSettingsModelTab
-                  isLoadingModels={isLoadingModels}
-                  modelsError={modelsError}
-                  models={models}
-                  selectedModel={selectedModel}
-                  onModelChange={setSelectedModel}
-                  backendBaseUrl={backendBaseUrl}
-                  onBackendBaseUrlChange={setBackendBaseUrlState}
-                  onSaveBackendBaseUrl={handleSaveBackendBaseUrl}
-                  onResetBackendBaseUrl={handleResetBackendBaseUrl}
-                  hasBackendOverride={hasBackendOverride}
-                  defaultBackendBaseUrl={getDefaultBackendBaseUrl()}
-                />
-              ),
-            },
-            {
               key: "config",
               label: "Config",
               children: (
@@ -189,6 +171,17 @@ const SystemSettingsPage = ({
                   bodhiConfigJson={bodhiConfigState.bodhiConfigJson}
                   bodhiConfigError={bodhiConfigState.bodhiConfigError}
                   isLoadingBodhiConfig={bodhiConfigState.isLoadingBodhiConfig}
+                  models={models}
+                  selectedModel={selectedModel}
+                  onModelChange={setSelectedModel}
+                  modelsError={modelsError}
+                  isLoadingModels={isLoadingModels}
+                  backendBaseUrl={backendBaseUrl}
+                  onBackendBaseUrlChange={setBackendBaseUrlState}
+                  onSaveBackendBaseUrl={handleSaveBackendBaseUrl}
+                  onResetBackendBaseUrl={handleResetBackendBaseUrl}
+                  hasBackendOverride={hasBackendOverride}
+                  defaultBackendBaseUrl={getDefaultBackendBaseUrl()}
                   onReload={async () => {
                     try {
                       await bodhiConfigState.reloadBodhiConfig();
@@ -204,6 +197,16 @@ const SystemSettingsPage = ({
                   onChange={(value) => {
                     bodhiConfigState.setBodhiConfigJson(value);
                     bodhiConfigState.bodhiConfigDirtyRef.current = true;
+                  }}
+                  proxyAuth={{
+                    username: proxyAuthState.username,
+                    password: proxyAuthState.password,
+                    onUsernameChange: proxyAuthState.setUsername,
+                    onPasswordChange: proxyAuthState.setPassword,
+                    onSave: proxyAuthState.handleSave,
+                    onClear: proxyAuthState.handleClear,
+                    isSaving: proxyAuthState.isSaving,
+                    lastError: proxyAuthState.lastError,
                   }}
                 />
               ),
