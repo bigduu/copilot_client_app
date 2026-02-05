@@ -296,9 +296,10 @@ fn create_system_command(
     project_path: &str,
     env_vars: &[(String, String)],
 ) -> Command {
-    let mut cmd = create_command_with_env(claude_path);
+    let (program, cmd_args) = build_cli_command(claude_path, &args);
+    let mut cmd = create_command_with_env(&program);
 
-    for arg in &args {
+    for arg in &cmd_args {
         cmd.arg(arg);
     }
 
@@ -321,7 +322,7 @@ fn create_system_command(
             .map(|entry| shell_quote(entry))
             .collect::<Vec<String>>()
             .join(" ");
-        let full_command = format!("{} {}", env_prefix, format_cli_command(claude_path, &args));
+        let full_command = format!("{} {}", env_prefix, format_cli_command(&program, &cmd_args));
         log::info!("Claude CLI exec: {}", full_command);
     }
 
@@ -339,6 +340,23 @@ fn format_cli_command(program: &str, args: &[String]) -> String {
         parts.push(shell_quote(arg));
     }
     parts.join(" ")
+}
+
+fn build_cli_command(claude_path: &str, args: &[String]) -> (String, Vec<String>) {
+    if cfg!(windows) {
+        let mut cmd_args = Vec::with_capacity(args.len() + 2);
+        cmd_args.push("/C".to_string());
+        cmd_args.push(claude_path.to_string());
+        cmd_args.extend(args.iter().cloned());
+        ("cmd".to_string(), cmd_args)
+    } else {
+        (claude_path.to_string(), args.to_vec())
+    }
+}
+
+fn format_exec_command(claude_path: &str, args: &[String]) -> String {
+    let (program, cmd_args) = build_cli_command(claude_path, args);
+    format_cli_command(&program, &cmd_args)
 }
 
 fn shell_quote(value: &str) -> String {
@@ -1184,7 +1202,7 @@ pub async fn execute_claude_code(
 
     log::info!(
         "Claude CLI command: {}",
-        format_cli_command(&claude_path, &args)
+        format_exec_command(&claude_path, &args)
     );
 
     let cmd = create_system_command(&claude_path, args, &project_path, &env_vars);
@@ -1222,7 +1240,7 @@ pub async fn continue_claude_code(
 
     log::info!(
         "Claude CLI command: {}",
-        format_cli_command(&claude_path, &args)
+        format_exec_command(&claude_path, &args)
     );
 
     let cmd = create_system_command(&claude_path, args, &project_path, &env_vars);
@@ -1263,7 +1281,7 @@ pub async fn resume_claude_code(
 
     log::info!(
         "Claude CLI command: {}",
-        format_cli_command(&claude_path, &args)
+        format_exec_command(&claude_path, &args)
     );
 
     let cmd = create_system_command(&claude_path, args, &project_path, &env_vars);
