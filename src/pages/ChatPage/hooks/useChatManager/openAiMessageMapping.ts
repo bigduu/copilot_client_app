@@ -77,8 +77,12 @@ export const mapMessageToOpenAI = (message: Message) => {
 export const buildRequestMessages = (
   messages: Message[],
   baseSystemPrompt: string,
+  workspacePath?: string,
 ) => {
-  const systemPrompt = getEffectiveSystemPrompt(baseSystemPrompt || "");
+  const systemPrompt = getEffectiveSystemPrompt(
+    baseSystemPrompt || "",
+    workspacePath,
+  );
   const openaiMessages: any[] = [];
   if (systemPrompt) {
     openaiMessages.push({

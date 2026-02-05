@@ -1,5 +1,3 @@
-import { buildBackendUrl } from "../../../shared/utils/backendBaseUrl";
-
 export interface BodhiSystemPrompt {
   id: string;
   name?: string;
@@ -9,10 +7,6 @@ export interface BodhiSystemPrompt {
 
 export interface BodhiSystemPromptsResponse {
   prompts: BodhiSystemPrompt[];
-}
-
-export interface BodhiToolsResponse {
-  tools: any[];
 }
 
 export class BodhiConfigService {
@@ -33,16 +27,7 @@ export class BodhiConfigService {
     };
   }
 
-  async getTools(): Promise<BodhiToolsResponse> {
-    try {
-      const response = await fetch(buildBackendUrl("/mcp/tools"));
-      if (!response.ok) {
-        throw new Error(`Failed to fetch MCP tools: ${response.status}`);
-      }
-      return await response.json();
-    } catch (error) {
-      console.error("Failed to fetch MCP tools:", error);
-      return { tools: [] };
-    }
+  async getTools(): Promise<{ tools: any[] }> {
+    return { tools: [] };
   }
 }

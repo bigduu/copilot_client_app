@@ -127,7 +127,7 @@ These can be added incrementally as needed:
 
 ### Future Enhancements
 1. UI/UX polish (8.1) for better user experience
-2. MCP tool integration (mentioned in non-goals, but could be added later)
+2. External tool integration (mentioned in non-goals, but could be added later)
 3. Remove deprecated endpoints (task 6.2.3) - deferred
 
 ## Summary
@@ -181,4 +181,3 @@ test result: ok. 13 passed; 0 failed
 $ cargo test --package web_service --lib config
 test result: ok. 2 passed; 0 failed
 ```
-

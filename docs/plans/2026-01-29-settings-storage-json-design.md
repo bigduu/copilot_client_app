@@ -12,7 +12,7 @@ Replace the SQLite app settings store with JSON files under `~/.bodhi`. Store Cl
 ## Non-Goals
 - Migrate existing `agents.db` data.
 - Change masking semantics (still exact/regex with `[MASKED]`).
-- Rework unrelated settings storage (installer settings, MCP configs, etc.).
+- Rework unrelated settings storage (installer settings, tool configs, etc.).
 
 ## Storage Layout
 - `~/.bodhi/config.json`

@@ -15,6 +15,14 @@ struct BrowseFolderRequest {
     path: Option<String>,
 }
 
+#[derive(Deserialize)]
+struct WorkspaceFilesRequest {
+    path: String,
+    max_depth: Option<usize>,
+    max_entries: Option<usize>,
+    include_hidden: Option<bool>,
+}
+
 #[derive(Serialize)]
 struct BrowseFolderResponse {
     current_path: String,
@@ -26,6 +34,13 @@ struct BrowseFolderResponse {
 struct FolderItem {
     name: String,
     path: String,
+}
+
+#[derive(Serialize)]
+struct WorkspaceFileEntry {
+    name: String,
+    path: String,
+    is_directory: bool,
 }
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -86,6 +101,39 @@ fn home_dir() -> Result<PathBuf, AppError> {
 
 fn workspace_store_path(app_data_dir: &Path) -> PathBuf {
     app_data_dir.join("workspaces").join("recent.json")
+}
+
+const DEFAULT_MAX_DEPTH: usize = 6;
+const DEFAULT_MAX_ENTRIES: usize = 2000;
+const MAX_ALLOWED_ENTRIES: usize = 10000;
+const IGNORED_DIRS: [&str; 10] = [
+    ".git",
+    "node_modules",
+    "target",
+    "dist",
+    "build",
+    ".next",
+    ".turbo",
+    ".cache",
+    ".idea",
+    ".vscode",
+];
+
+fn should_skip_entry(name: &str, is_dir: bool, include_hidden: bool) -> bool {
+    if !include_hidden && name.starts_with('.') {
+        return true;
+    }
+    if is_dir && IGNORED_DIRS.iter().any(|ignored| ignored == &name) {
+        return true;
+    }
+    false
+}
+
+fn to_display_name(root: &Path, path: &Path) -> String {
+    path.strip_prefix(root)
+        .unwrap_or(path)
+        .to_string_lossy()
+        .to_string()
 }
 
 async fn load_recent_store(app_data_dir: &Path) -> Result<RecentWorkspaceStore, AppError> {
@@ -332,10 +380,79 @@ pub async fn browse_folder(
     }))
 }
 
+#[post("/workspace/files")]
+pub async fn list_workspace_files(
+    _app_state: web::Data<AppState>,
+    payload: web::Json<WorkspaceFilesRequest>,
+) -> Result<HttpResponse, AppError> {
+    let root_path = PathBuf::from(payload.path.trim());
+    if payload.path.trim().is_empty() {
+        return Err(AppError::NotFound("Workspace".to_string()));
+    }
+
+    let metadata = match tokio::fs::metadata(&root_path).await {
+        Ok(meta) => meta,
+        Err(err) if err.kind() == std::io::ErrorKind::NotFound => {
+            return Err(AppError::NotFound("Workspace".to_string()))
+        }
+        Err(err) => return Err(AppError::StorageError(err)),
+    };
+    if !metadata.is_dir() {
+        return Err(AppError::NotFound("Workspace".to_string()));
+    }
+
+    let max_depth = payload.max_depth.unwrap_or(DEFAULT_MAX_DEPTH);
+    let mut max_entries = payload.max_entries.unwrap_or(DEFAULT_MAX_ENTRIES);
+    if max_entries > MAX_ALLOWED_ENTRIES {
+        max_entries = MAX_ALLOWED_ENTRIES;
+    }
+    let include_hidden = payload.include_hidden.unwrap_or(false);
+
+    let mut files: Vec<WorkspaceFileEntry> = Vec::new();
+    let mut stack: Vec<(PathBuf, usize)> = vec![(root_path.clone(), 0)];
+
+    while let Some((current_path, depth)) = stack.pop() {
+        let mut entries = tokio::fs::read_dir(&current_path).await?;
+        while let Some(entry) = entries.next_entry().await? {
+            let file_type = entry.file_type().await?;
+            if file_type.is_symlink() {
+                continue;
+            }
+
+            let name = entry.file_name().to_string_lossy().to_string();
+            let is_dir = file_type.is_dir();
+            if should_skip_entry(&name, is_dir, include_hidden) {
+                continue;
+            }
+
+            let path = entry.path();
+            if is_dir {
+                if depth < max_depth {
+                    stack.push((path, depth + 1));
+                }
+                continue;
+            }
+
+            files.push(WorkspaceFileEntry {
+                name: to_display_name(&root_path, &path),
+                path: path.to_string_lossy().to_string(),
+                is_directory: false,
+            });
+
+            if files.len() >= max_entries {
+                return Ok(HttpResponse::Ok().json(files));
+            }
+        }
+    }
+
+    Ok(HttpResponse::Ok().json(files))
+}
+
 pub fn config(cfg: &mut web::ServiceConfig) {
     cfg.service(validate_workspace)
         .service(get_recent_workspaces)
         .service(add_recent_workspace)
         .service(get_workspace_suggestions)
-        .service(browse_folder);
+        .service(browse_folder)
+        .service(list_workspace_files);
 }

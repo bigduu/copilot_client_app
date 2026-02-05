@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Provide a capability orchestration layer that bundles MCP tools, Workflows, and prompt fragments into reusable Skills. Skills enhance AI interactions by:
+Provide a capability orchestration layer that bundles built-in tools, Workflows, and prompt fragments into reusable Skills. Skills enhance AI interactions by:
 - Guiding LLM tool selection through contextual prompts
 - Simplifying user capability discovery and activation
 - Integrating with System Prompt to inject skill context
@@ -18,7 +18,7 @@ The system SHALL store skill definitions with the following fields:
 - `category`: classification for grouping
 - `tags`: array of searchable tags
 - `prompt`: context fragment injected into system prompt
-- `tool_refs`: array of MCP tool references (format: "server::tool")
+- `tool_refs`: array of built-in tool references (format: "tool" or "namespace::tool")
 - `workflow_refs`: array of workflow names
 - `visibility`: "public" or "private"
 - `enabled_by_default`: boolean
@@ -90,7 +90,7 @@ The system SHALL expose HTTP endpoints for skill CRUD and enablement operations.
 #### Scenario: Query available dependencies
 
 - **WHEN** the frontend calls GET /v1/skills/available-tools
-- **THEN** it receives the list of MCP tools for skill editor selection
+- **THEN** it receives the list of built-in tools for skill editor selection
 
 - **WHEN** the frontend calls GET /v1/skills/available-workflows
 - **THEN** it receives the list of workflows for skill editor selection

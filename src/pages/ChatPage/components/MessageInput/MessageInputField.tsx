@@ -37,6 +37,10 @@ const MessageInputField: React.FC<MessageInputFieldProps> = ({
   onPaste,
   onScrollSync,
 }) => {
+  const showHighlightOverlay =
+    value.length > 0 &&
+    highlightSegments.some((segment) => segment.type !== "text");
+
   return (
     <div
       style={{
@@ -44,27 +48,29 @@ const MessageInputField: React.FC<MessageInputFieldProps> = ({
         flex: 1,
       }}
     >
-      <div
-        ref={highlightOverlayRef}
-        aria-hidden
-        style={{
-          position: "absolute",
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          padding: "8px 0",
-          whiteSpace: "pre-wrap",
-          wordBreak: "break-word",
-          pointerEvents: "none",
-          color: token.colorText,
-          fontSize: token.fontSize,
-          lineHeight: 1.5,
-          transform: "translate(0, 0)",
-        }}
-      >
-        {value ? (
-          highlightSegments.map((segment, index) => {
+      {showHighlightOverlay ? (
+        <div
+          ref={highlightOverlayRef}
+          aria-hidden
+          style={{
+            position: "absolute",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            padding: "8px 0",
+            whiteSpace: "pre-wrap",
+            wordBreak: "break-word",
+            overflowWrap: "anywhere",
+            overflow: "hidden",
+            pointerEvents: "none",
+            color: token.colorText,
+            fontSize: token.fontSize,
+            lineHeight: 1.5,
+            transform: "translate(0, 0)",
+          }}
+        >
+          {highlightSegments.map((segment, index) => {
             let style: React.CSSProperties | undefined;
             if (segment.type === "workflow") {
               style = {
@@ -83,14 +89,10 @@ const MessageInputField: React.FC<MessageInputFieldProps> = ({
                 {segment.text}
               </span>
             );
-          })
-        ) : (
-          <Text style={{ color: token.colorTextQuaternary }}>
-            {placeholder}
-          </Text>
-        )}
-        {value.endsWith("\n") ? "\n" : null}
-      </div>
+          })}
+          {value.endsWith("\n") ? "\n" : null}
+        </div>
+      ) : null}
       <TextArea
         ref={textAreaRef}
         value={value}
@@ -107,16 +109,18 @@ const MessageInputField: React.FC<MessageInputFieldProps> = ({
           flex: 1,
           fontSize: token.fontSize,
           padding: "8px 0",
-          minHeight: "100%",
-          height: "100%",
           lineHeight: "1.5",
           border: "none",
           outline: "none",
           background: "transparent",
-          color: "transparent",
+          color: showHighlightOverlay ? "transparent" : token.colorText,
           caretColor: token.colorText,
           position: "relative",
           zIndex: 1,
+          whiteSpace: "pre-wrap",
+          wordBreak: "break-word",
+          overflowWrap: "anywhere",
+          overflowY: "auto",
         }}
       />
     </div>

@@ -28,7 +28,7 @@ This application brings the power of the GitHub Copilot API to your desktop! ðŸ’
 * **System Prompt Management**: Create and manage custom system prompts
 * **Context Management**: Backend-managed chat context with persistence
 * **Dual-Mode Architecture**: Plan-Act agent roles for complex tasks
-* **MCP Server Integration**: Connect to external tools and services
+* **Built-in Tools**: Use local filesystem and command tools during agent runs
 
 ### ðŸ§­ Refined UI/UX (2025 Refactor)
 * **Chat Memory Across Devices**: Your last open conversation is automatically restored on startup and synced through backend preferences.

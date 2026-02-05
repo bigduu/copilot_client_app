@@ -1,15 +1,15 @@
 # Skill System Implementation Plan
 
-## 1. Skill 与现有 MCP / Workflow 的关系
+## 1. Skill 与现有内置工具 / Workflow 的关系
 
-- **Skill 是对能力的打包与编排层**，位于 MCP 工具 (低层、可被 LLM 调用) 与 Workflow (高风险、用户显式触发) 之上
-- **MCP** 负责提供原子工具能力，Skill 通过声明工具依赖与提示词片段，指导 LLM 组合与调用工具
+- **Skill 是对能力的打包与编排层**，位于内置工具 (低层、可被 LLM 调用) 与 Workflow (高风险、用户显式触发) 之上
+- **内置工具** 负责提供原子工具能力，Skill 通过声明工具依赖与提示词片段，指导 LLM 组合与调用工具
 - **Workflow** 负责用户可控的复杂操作，Skill 可以关联推荐工作流或提供"技能入口"来触发 Workflow
 
 **预期关系：**
 | 层级 | 角色 | 示例 |
 |------|------|------|
-| MCP 工具 | 原子能力 | read_file, search, write_file |
+| 内置工具 | 原子能力 | read_file, write_file, execute_command |
 | Skill | 能力编排与策略 | "文件分析" Skill = read + search + 分析提示词 |
 | Workflow | 用户显式操作 | "创建项目" 多步骤表单流程 |
 
@@ -60,7 +60,7 @@ interface SkillDefinition {
   
   // 核心内容
   prompt: string;                // 技能提示词片段
-  tool_refs: string[];           // MCP 工具引用 ["server::tool"]
+  tool_refs: string[];           // 内置工具引用 ["tool"]
   workflow_refs: string[];       // 关联 Workflow 名称
   
   // 元数据
@@ -113,7 +113,7 @@ interface SkillStore {
 ### 依赖查询
 | 方法 | 路径 | 描述 |
 |------|------|------|
-| GET | `/v1/skills/available-tools` | 列出可用的 MCP 工具 |
+| GET | `/v1/skills/available-tools` | 列出可用的内置工具 |
 | GET | `/v1/skills/available-workflows` | 列出可用的 Workflows |
 
 ## 5. 前端 UI 组件规划
@@ -127,7 +127,7 @@ interface SkillStore {
 ### SkillEditor
 - 基本信息表单 (名称、描述、分类)
 - 提示词编辑器 (Markdown 支持)
-- 工具选择器 (从 MCP 工具列表多选)
+- 工具选择器 (从内置工具列表多选)
 - Workflow 关联选择
 - 导入/导出 JSON
 
@@ -170,7 +170,7 @@ fn build_system_prompt(enabled_skills: &[SkillDefinition]) -> String {
 ### 集成点
 1. **全局启用**：`SkillStore.enabled_skill_ids` 影响所有对话
 2. **对话覆盖**：chat config 中的技能列表覆盖全局设置
-3. **工具限制**：根据启用技能的 `tool_refs` 过滤可用 MCP 工具
+3. **工具限制**：根据启用技能的 `tool_refs` 过滤可用内置工具
 4. **Workflow 推荐**：在对话中推荐关联的 Workflow 入口
 
 ## 7. 实施步骤
@@ -185,7 +185,7 @@ fn build_system_prompt(enabled_skills: &[SkillDefinition]) -> String {
 ### 阶段 2：编辑器与依赖绑定 (2周)
 - [ ] SkillManager 列表页面
 - [ ] SkillEditor 创建/编辑功能
-- [ ] MCP 工具选择器 (关联现有 `/mcp/tools` API)
+- [ ] 内置工具选择器 (关联现有 `/v1/skills/available-tools` API)
 - [ ] Workflow 选择器 (关联现有 `/bodhi/workflows` API)
 - [ ] 对话级技能启用 (Chat config 集成)
 
@@ -215,7 +215,7 @@ fn build_system_prompt(enabled_skills: &[SkillDefinition]) -> String {
 │  ┌───────────────────────────────────────────────────────┐ │
 │  │  web_service                                          │ │
 │  │  ┌─────────────┐  ┌──────────────┐  ┌──────────────┐ │ │
-│  │  │ skill_ctrl  │  │ skill_svc    │  │ mcp_ctrl     │ │ │
+│  │  │ skill_ctrl  │  │ skill_svc    │  │ tools_ctrl   │ │ │
 │  │  └──────┬──────┘  └──────┬───────┘  └──────┬───────┘ │ │
 │  └─────────┼────────────────┼─────────────────┼─────────┘ │
 │            │                │                 │           │

@@ -8,28 +8,28 @@ Copilot Agent 是一个独立的 Agent 系统，为 copilot_client_app 提供多
 
 ### 阶段 1: 真实工具实现
 
-**文件系统工具** (`copilot-agent-mcp/src/tools/filesystem.rs`)
+**文件系统工具** (`crates/builtin_tools/src/tools/filesystem.rs`)
 - `read_file` - 读取文件内容
 - `write_file` - 写入文件（自动创建目录）
 - `list_directory` - 列出目录内容
 - `file_exists` - 检查文件存在
 - `get_file_info` - 获取文件详细信息
 
-**命令执行工具** (`copilot-agent-mcp/src/tools/command.rs`)
+**命令执行工具** (`crates/builtin_tools/src/tools/command.rs`)
 - `execute_command` - 执行系统命令（30秒超时）
 - `get_current_dir` - 获取当前目录
 - 危险命令拦截（rm -rf / 等）
 - 路径安全检查
 
-**MCP Client** (`copilot-agent-mcp/src/client.rs`)
-- 完整工具分发逻辑
+**内置工具执行器** (`crates/builtin_tools/src/executor.rs`)
+- 统一的工具执行与分发逻辑
 - 参数解析和验证
 - 7个可用工具
 
 ### 阶段 2: Skill 系统集成
 
 **Skill Loader** (`copilot-agent-server/src/skill_loader.rs`)
-- 从 `~/.bodhi/skills/*.json` 加载 skills
+- 从 `~/.bodhi/skills/*.md` 加载 skills
 - 系统提示词构建
 - 工具 schema 提取
 
@@ -67,13 +67,14 @@ Copilot Agent 是一个独立的 Agent 系统，为 copilot_client_app 提供多
 
 ### Agent 后端
 ```
-crates/copilot-agent/
-├── crates/
-│   ├── copilot-agent-core/       # 核心类型和逻辑
-│   ├── copilot-agent-llm/        # LLM Provider (OpenAI)
-│   ├── copilot-agent-mcp/        # MCP 工具客户端
-│   └── copilot-agent-server/     # HTTP Server
-└── scripts/e2e-simple.sh         # 测试脚本
+crates/
+├── builtin_tools/                # 内置工具执行器
+└── copilot-agent/
+    ├── crates/
+    │   ├── copilot-agent-core/   # 核心类型和逻辑
+    │   ├── copilot-agent-llm/    # LLM Provider (OpenAI)
+    │   └── copilot-agent-server/ # HTTP Server
+    └── scripts/e2e-simple.sh     # 测试脚本
 ```
 
 ### 前端集成
@@ -92,8 +93,8 @@ src/pages/ChatPage/
 ### Skill 文件
 ```
 ~/.bodhi/skills/
-├── file-assistant.json           # 文件操作助手
-└── shell-helper.json             # Shell 命令助手
+├── file-assistant.md             # 文件操作助手
+└── shell-helper.md               # Shell 命令助手
 ```
 
 ## 🚀 启动方式

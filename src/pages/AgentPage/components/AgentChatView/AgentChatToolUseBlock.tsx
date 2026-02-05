@@ -3,7 +3,7 @@ import { Card, Collapse, Flex, Tag, Typography } from "antd";
 
 import type { ClaudeContentPart } from "../ClaudeStream";
 import { formatJson } from "./agentChatFormatters";
-import { formatMcpToolName, normalizeToolName } from "./agentChatToolUtils";
+import { normalizeToolName } from "./agentChatToolUtils";
 
 const { Text } = Typography;
 
@@ -36,49 +36,6 @@ const ToolUseDetails: React.FC<{
   const input = part.input;
   if (!input || typeof input !== "object") return null;
   const tool = normalizeToolName(part.name);
-  const toolName = part.name ?? "";
-
-  if (toolName.startsWith("mcp__")) {
-    const { provider, method } = formatMcpToolName(toolName);
-    const inputString =
-      input && Object.keys(input).length ? JSON.stringify(input, null, 2) : "";
-    return (
-      <Card size="small" styles={{ body: { padding: 10 } }}>
-        <Flex vertical gap={6}>
-          <Text strong>MCP Tool</Text>
-          <ToolKeyValueList
-            rows={[
-              { label: "Provider", value: provider },
-              { label: "Method", value: method, code: true },
-            ]}
-          />
-          {inputString ? (
-            <Collapse
-              size="small"
-              items={[
-                {
-                  key: "mcp_input",
-                  label: "Parameters",
-                  children: (
-                    <pre
-                      style={{
-                        margin: 0,
-                        fontSize: 12,
-                        whiteSpace: "pre-wrap",
-                      }}
-                    >
-                      {inputString}
-                    </pre>
-                  ),
-                },
-              ]}
-            />
-          ) : null}
-        </Flex>
-      </Card>
-    );
-  }
-
   if (tool === "task") {
     const description = (input as any).description ?? (input as any).task;
     const prompt = (input as any).prompt ?? (input as any).instructions;

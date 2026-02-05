@@ -158,8 +158,9 @@ export const ChatView: React.FC = () => {
   return (
     <Layout
       style={{
-        minHeight: "100vh",
-        height: "100vh",
+        flex: 1,
+        minHeight: 0,
+        height: "100%",
         background: token.colorBgContainer,
         position: "relative",
         overflow: "hidden",
@@ -170,7 +171,7 @@ export const ChatView: React.FC = () => {
         style={{
           flex: 1,
           minHeight: 0,
-          height: "100vh",
+          height: "100%",
         }}
       >
         <ChatMessagesList

@@ -45,7 +45,6 @@ The workspace consists of specialized crates with a clear dependency hierarchy:
 - `copilot_client` - GitHub Copilot API client with authentication and streaming support
 - `web_service` - Actix-web HTTP server with API endpoints and SSE streaming
 - `web_service_standalone` - Standalone web service variant
-- `mcp_client` - Model Context Protocol client integration
 
 - `workflow_system` - Complex workflow orchestration with parameterized workflows
 
@@ -56,10 +55,10 @@ The workspace consists of specialized crates with a clear dependency hierarchy:
 - `src/core/`: StateManager (transactional state), chatInteractionMachine.ts (XState), ErrorHandler, ApprovalManager
 - `src/store/`: Zustand stores with 5 slices (chat, models, prompts, favorites, settings)
 - `src/services/`: ServiceFactory pattern, TauriService (native commands), HttpServices (API), domain services (Tool, AgentApproval, Workflow, Session)
-- `src/components/`: 40+ reusable components (ChatView, MessageCard, ApprovalModal, ToolResultCard, FileReferenceSelector, SystemPromptManager, MCPServerManagement, TodoListDisplay)
+- `src/components/`: 40+ reusable components (ChatView, MessageCard, ApprovalModal, ToolResultCard, FileReferenceSelector, SystemPromptManager, TodoListDisplay)
 - `src/contexts/`: BackendContextProvider, ChatControllerContext
 - `src/hooks/`: Custom React hooks (10+)
-- `src/types/`: TypeScript definitions (chat.ts, unified-chat.ts, toolConfig.ts, mcp.ts, sse.ts)
+- `src/types/`: TypeScript definitions (chat.ts, unified-chat.ts, toolConfig.ts, sse.ts)
 
 ## Development Commands
 
@@ -192,7 +191,7 @@ cd crates/web_service && cargo test
 
 Understanding crate dependencies is crucial for modifications:
 - `web_service` depends on: copilot_client
-- `src-tauri` integrates: copilot_client, web_service, mcp_client
+- `src-tauri` integrates: copilot_client, web_service
 - `workflow_system` is currently not used by the forwarding-only backend server
 
 ## Migration and Legacy

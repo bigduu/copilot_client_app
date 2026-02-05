@@ -170,6 +170,40 @@ describe("WorkspaceApiService", () => {
     });
   });
 
+  describe("listWorkspaceFiles", () => {
+    it("should list workspace files", async () => {
+      const mockFiles = [
+        {
+          name: "src/index.ts",
+          path: "/workspace/src/index.ts",
+          is_directory: false,
+        },
+      ];
+
+      (fetch as any).mockResolvedValueOnce({
+        ok: true,
+        json: async () => mockFiles,
+        headers: new Headers({ "content-type": "application/json" }),
+      });
+
+      const result = await workspaceApiService.listWorkspaceFiles("/workspace");
+
+      expect(fetch).toHaveBeenCalledWith(
+        "http://127.0.0.1:8080/v1/workspace/files",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ path: "/workspace" }),
+          signal: expect.any(AbortSignal),
+        },
+      );
+
+      expect(result).toEqual(mockFiles);
+    });
+  });
+
   describe("getHealthStatus", () => {
     it("should return available status when API is working", async () => {
       (fetch as any).mockResolvedValueOnce({
@@ -256,6 +290,7 @@ describe("useWorkspaceApiService", () => {
     expect(service).toHaveProperty("getRecentWorkspaces");
     expect(service).toHaveProperty("addRecentWorkspace");
     expect(service).toHaveProperty("getPathSuggestions");
+    expect(service).toHaveProperty("listWorkspaceFiles");
   });
 
   it("should accept custom options", () => {

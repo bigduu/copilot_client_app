@@ -1,13 +1,5 @@
 import React from "react";
-import {
-  Button,
-  Divider,
-  Input,
-  Space,
-  Tooltip,
-  Typography,
-  theme,
-} from "antd";
+import { Button, Divider, Input, Space, Typography, theme } from "antd";
 import { FolderOutlined } from "@ant-design/icons";
 import type { WorkspaceValidationResult } from "../../utils/workspaceValidator";
 import { FolderBrowser } from "../FolderBrowser";
@@ -68,36 +60,41 @@ const WorkspacePicker: React.FC<WorkspacePickerProps> = ({
 
   return (
     <div className={className} style={style}>
-      <Space.Compact style={{ width: "100%" }}>
-        <Input
-          value={path}
-          onChange={(e) => handlePathChange(e.target.value)}
-          placeholder={placeholder}
-          disabled={disabled}
-          suffix={
-            <WorkspacePickerValidationIcon
-              isValidating={validationStatus.isValidating}
-              result={validationStatus.result}
-              token={token}
-            />
-          }
-          addonBefore={
-            <Space>
-              <FolderOutlined />
-              <Text>工作区</Text>
-            </Space>
-          }
-        />
-        {allowBrowse && (
-          <Tooltip title="浏览文件夹">
+      <Input
+        value={path}
+        onChange={(e) => handlePathChange(e.target.value)}
+        placeholder={placeholder}
+        disabled={disabled}
+        size="middle"
+        style={{ width: "100%" }}
+        suffix={
+          <WorkspacePickerValidationIcon
+            isValidating={validationStatus.isValidating}
+            result={validationStatus.result}
+            token={token}
+          />
+        }
+        addonBefore={
+          <Space>
+            <FolderOutlined />
+            <Text>工作区</Text>
+          </Space>
+        }
+        addonAfter={
+          allowBrowse ? (
             <Button
+              aria-label="浏览文件夹"
+              title="浏览文件夹"
               icon={<FolderOutlined />}
               onClick={handleBrowseClick}
               disabled={disabled}
+              type="text"
+              size="middle"
+              style={{ display: "inline-flex", alignItems: "center" }}
             />
-          </Tooltip>
-        )}
-      </Space.Compact>
+          ) : undefined
+        }
+      />
 
       <WorkspacePickerValidationStatus
         result={validationStatus.result}

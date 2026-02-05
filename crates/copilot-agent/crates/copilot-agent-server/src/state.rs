@@ -5,6 +5,7 @@ use tokio::sync::{RwLock, mpsc};
 use copilot_agent_core::{Session, AgentEvent, storage::JsonlStorage};
 use copilot_agent_llm::OpenAIProvider;
 use copilot_agent_core::tools::ToolExecutor;
+use builtin_tools::BuiltinToolExecutor;
 use crate::skill_loader::SkillDefinition;
 
 pub struct AppState {
@@ -98,10 +99,7 @@ impl AppState {
             }
         };
 
-        // 初始化工具（使用 MCP 客户端）
-        let tools: Arc<dyn ToolExecutor> = Arc::new(
-            copilot_agent_mcp::McpClient::new()
-        );
+        let tools: Arc<dyn ToolExecutor> = Arc::new(BuiltinToolExecutor::new());
         
         // 加载 skills
         let skill_loader = crate::skill_loader::SkillLoader::new();
@@ -134,15 +132,9 @@ impl AppState {
         let _ = self.storage.save_session(session).await;
     }
     
-    /// Get all tool schemas including base tools and skill-associated tools
+    /// Get all tool schemas from the built-in tool executor
     pub fn get_all_tool_schemas(&self) -> Vec<copilot_agent_core::tools::ToolSchema> {
-        let mut schemas = self.tools.list_tools();
-        
-        // Add skill-associated tool schemas
-        let skill_schemas = crate::skill_loader::SkillLoader::get_skill_tool_schemas(&self.loaded_skills);
-        schemas.extend(skill_schemas);
-        
-        schemas
+        self.tools.list_tools()
     }
     
     /// Build system prompt with skills context

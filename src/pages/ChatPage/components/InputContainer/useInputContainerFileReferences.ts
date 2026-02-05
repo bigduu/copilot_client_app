@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { MessageInstance } from "antd/es/message/interface";
 import type { FileReferenceInfo } from "../../utils/inputHighlight";
 import type { WorkspaceFileEntry } from "../../types/workspace";
+import { workspaceApiService } from "../../services/WorkspaceApiService";
 
 interface UseInputContainerFileReferencesProps {
   content: string;
@@ -53,9 +54,23 @@ export const useInputContainerFileReferences = ({
     async (_chatId: string, workspacePath: string) => {
       setIsWorkspaceLoading(true);
       setWorkspaceFiles([]);
-      setWorkspaceError("Workspace file browsing is unavailable.");
-      lastWorkspacePathRef.current = workspacePath;
-      setIsWorkspaceLoading(false);
+      setWorkspaceError(null);
+      try {
+        const files = await workspaceApiService.listWorkspaceFiles(
+          workspacePath,
+        );
+        setWorkspaceFiles(files);
+        lastWorkspacePathRef.current = workspacePath;
+      } catch (error) {
+        console.error("Failed to load workspace files:", error);
+        setWorkspaceError(
+          error instanceof Error
+            ? error.message
+            : "Workspace file browsing is unavailable.",
+        );
+      } finally {
+        setIsWorkspaceLoading(false);
+      }
     },
     [],
   );

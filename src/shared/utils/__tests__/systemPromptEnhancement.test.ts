@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import {
   buildEnhancedSystemPrompt,
+  getEffectiveSystemPrompt,
   getSystemPromptEnhancement,
   getSystemPromptEnhancementText,
   setSystemPromptEnhancement,
@@ -72,5 +73,27 @@ describe("systemPromptEnhancement", () => {
     expect(getSystemPromptEnhancementText()).toBe(
       getTodoEnhancementPrompt().trim(),
     );
+  });
+
+  it("appends workspace context after enhancements", () => {
+    setSystemPromptEnhancement("User enhancement");
+
+    const result = getEffectiveSystemPrompt("Base prompt", "/Users/alice/app");
+    const workspaceSegment = [
+      "Workspace path: /Users/alice/app",
+      "If you need to inspect files, check the workspace first, then ~/.bodhi.",
+    ].join("\n");
+
+    expect(result).toBe(
+      ["Base prompt", "User enhancement", workspaceSegment].join("\n\n"),
+    );
+  });
+
+  it("omits workspace context when no workspace is set", () => {
+    setSystemPromptEnhancement("User enhancement");
+
+    const result = getEffectiveSystemPrompt("Base prompt", "");
+
+    expect(result).toBe("Base prompt\n\nUser enhancement");
   });
 });

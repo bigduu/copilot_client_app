@@ -39,7 +39,7 @@ const WorkspacePickerSuggestionsList: React.FC<
 
   return (
     <Flex vertical gap={token.marginXS} style={{ marginTop: token.marginMD }}>
-      <Space>
+      <Space style={{ paddingInline: token.paddingSM }}>
         <FolderOutlined />
         <Text strong>建议的工作区</Text>
       </Space>
@@ -58,6 +58,7 @@ const WorkspacePickerSuggestionsList: React.FC<
         <List
           size="small"
           dataSource={suggestions}
+          style={{ paddingInline: token.paddingSM }}
           renderItem={(suggestion) => (
             <List.Item style={{ padding: 0 }}>
               <Button
@@ -66,18 +67,27 @@ const WorkspacePickerSuggestionsList: React.FC<
                 style={{
                   width: "100%",
                   textAlign: "left",
-                  padding: `${token.paddingXS}px ${token.paddingSM}px`,
+                  padding: `${token.paddingXS}px 0`,
+                  height: "auto",
                 }}
               >
-                <Space>
-                  {getSuggestionIcon(suggestion, token)}
-                  <Space direction="vertical" size={0}>
+                <Flex justify="space-between" align="center" style={{ width: "100%" }}>
+                  <Space>
+                    {getSuggestionIcon(suggestion, token)}
                     <Text strong>{suggestion.name}</Text>
-                    <Text type="secondary" style={{ fontSize: 12 }}>
-                      {suggestion.path}
-                    </Text>
                   </Space>
-                </Space>
+                  <Text
+                    type="secondary"
+                    ellipsis={{ tooltip: suggestion.path }}
+                    style={{
+                      fontSize: 12,
+                      maxWidth: "55%",
+                      textAlign: "right",
+                    }}
+                  >
+                    {suggestion.path}
+                  </Text>
+                </Flex>
               </Button>
             </List.Item>
           )}
