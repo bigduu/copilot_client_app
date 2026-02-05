@@ -7,10 +7,13 @@ use std::path::PathBuf;
 use std::process::Stdio;
 use std::sync::{Arc, Mutex};
 use std::time::{SystemTime, UNIX_EPOCH};
-use std::collections::HashSet;
+use std::collections::{BTreeMap, HashSet};
 use tauri::{AppHandle, Emitter, Manager};
 use claude_installer::load_settings;
-use crate::bodhi_settings::{config_json_path, read_claude_binary_path, update_claude_config, write_config_json};
+use crate::bodhi_settings::{
+    bodhi_dir, config_json_path, read_claude_binary_path, update_claude_config,
+    write_config_json,
+};
 use tokio::process::{Child, Command};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -295,14 +298,31 @@ fn create_system_command(
 ) -> Command {
     let mut cmd = create_command_with_env(claude_path);
 
-    for arg in args {
+    for arg in &args {
         cmd.arg(arg);
     }
 
-    for (key, value) in env_vars {
+    let normalized_envs = normalize_env_vars(env_vars);
+    for (key, value) in &normalized_envs {
         if !key.trim().is_empty() {
             cmd.env(key, value);
         }
+    }
+
+    if !normalized_envs.is_empty() {
+        let mut entries: Vec<String> = normalized_envs
+            .iter()
+            .map(|(key, value)| format!("{}={}", key, redact_env_value(key, value)))
+            .collect();
+        entries.sort();
+        log::info!("Claude CLI env: {}", entries.join(" "));
+        let env_prefix = entries
+            .iter()
+            .map(|entry| shell_quote(entry))
+            .collect::<Vec<String>>()
+            .join(" ");
+        let full_command = format!("{} {}", env_prefix, format_cli_command(claude_path, &args));
+        log::info!("Claude CLI exec: {}", full_command);
     }
 
     cmd.current_dir(project_path)
@@ -333,12 +353,65 @@ fn shell_quote(value: &str) -> String {
     format!("\"{}\"", escaped)
 }
 
+fn redact_env_value(key: &str, value: &str) -> String {
+    let upper = key.to_ascii_uppercase();
+    let is_sensitive = upper.contains("KEY")
+        || upper.contains("TOKEN")
+        || upper.contains("SECRET")
+        || upper.contains("PASSWORD");
+    if !is_sensitive {
+        return value.to_string();
+    }
+    if value.len() <= 8 {
+        return "***".to_string();
+    }
+    let start = &value[..4];
+    let end = &value[value.len() - 4..];
+    format!("{}...{}", start, end)
+}
+
+fn normalize_env_vars(env_vars: &[(String, String)]) -> Vec<(String, String)> {
+    let mut map: BTreeMap<String, String> = BTreeMap::new();
+    for (key, value) in env_vars {
+        let trimmed_key = key.trim();
+        if trimmed_key.is_empty() {
+            continue;
+        }
+        if value.trim().is_empty() {
+            continue;
+        }
+        map.insert(trimmed_key.to_string(), value.to_string());
+    }
+
+    if !map.contains_key("ANTHROPIC_API_KEY") {
+        if let Some(value) = map.get("ANTHROPIC_AUTH_TOKEN").cloned() {
+            map.insert("ANTHROPIC_API_KEY".to_string(), value);
+        }
+    }
+    if !map.contains_key("ANTHROPIC_AUTH_TOKEN") {
+        if let Some(value) = map.get("ANTHROPIC_API_KEY").cloned() {
+            map.insert("ANTHROPIC_AUTH_TOKEN".to_string(), value);
+        }
+    }
+    if !map.contains_key("CLAUDE_CODE_API_BASE_URL") {
+        if let Some(value) = map.get("ANTHROPIC_BASE_URL").cloned() {
+            map.insert("CLAUDE_CODE_API_BASE_URL".to_string(), value);
+        }
+    }
+    if !map.contains_key("ANTHROPIC_BASE_URL") {
+        if let Some(value) = map.get("CLAUDE_CODE_API_BASE_URL").cloned() {
+            map.insert("ANTHROPIC_BASE_URL".to_string(), value);
+        }
+    }
+
+    map.into_iter().collect()
+}
+
 async fn load_claude_env_vars(app: &AppHandle) -> Result<Vec<(String, String)>, String> {
-    let app_data_dir = app
-        .path()
-        .app_data_dir()
+    let app_data_dir = bodhi_dir();
+    let settings = load_settings(&app_data_dir)
+        .await
         .map_err(|e| e.to_string())?;
-    let settings = load_settings(&app_data_dir).await.map_err(|e| e.to_string())?;
     let mut entries: Vec<(String, String)> = settings
         .env_vars
         .into_iter()
@@ -346,6 +419,46 @@ async fn load_claude_env_vars(app: &AppHandle) -> Result<Vec<(String, String)>, 
         .map(|item| (item.key, item.value))
         .collect();
     let mut keys: HashSet<String> = entries.iter().map(|(k, _)| k.clone()).collect();
+    if keys.contains("ANTHROPIC_AUTH_TOKEN") && !keys.contains("ANTHROPIC_API_KEY") {
+        if let Some(value) = entries
+            .iter()
+            .find(|(k, _)| k == "ANTHROPIC_AUTH_TOKEN")
+            .map(|(_, v)| v.clone())
+        {
+            entries.push(("ANTHROPIC_API_KEY".to_string(), value));
+            keys.insert("ANTHROPIC_API_KEY".to_string());
+        }
+    }
+    if keys.contains("ANTHROPIC_API_KEY") && !keys.contains("ANTHROPIC_AUTH_TOKEN") {
+        if let Some(value) = entries
+            .iter()
+            .find(|(k, _)| k == "ANTHROPIC_API_KEY")
+            .map(|(_, v)| v.clone())
+        {
+            entries.push(("ANTHROPIC_AUTH_TOKEN".to_string(), value));
+            keys.insert("ANTHROPIC_AUTH_TOKEN".to_string());
+        }
+    }
+    if keys.contains("ANTHROPIC_BASE_URL") && !keys.contains("CLAUDE_CODE_API_BASE_URL") {
+        if let Some(value) = entries
+            .iter()
+            .find(|(k, _)| k == "ANTHROPIC_BASE_URL")
+            .map(|(_, v)| v.clone())
+        {
+            entries.push(("CLAUDE_CODE_API_BASE_URL".to_string(), value));
+            keys.insert("CLAUDE_CODE_API_BASE_URL".to_string());
+        }
+    }
+    if keys.contains("CLAUDE_CODE_API_BASE_URL") && !keys.contains("ANTHROPIC_BASE_URL") {
+        if let Some(value) = entries
+            .iter()
+            .find(|(k, _)| k == "CLAUDE_CODE_API_BASE_URL")
+            .map(|(_, v)| v.clone())
+        {
+            entries.push(("ANTHROPIC_BASE_URL".to_string(), value));
+            keys.insert("ANTHROPIC_BASE_URL".to_string());
+        }
+    }
     for key in COMMON_CLAUDE_ENV_KEYS {
         if keys.contains(key) {
             continue;
@@ -357,12 +470,14 @@ async fn load_claude_env_vars(app: &AppHandle) -> Result<Vec<(String, String)>, 
             }
         }
     }
-    Ok(entries)
+    Ok(normalize_env_vars(&entries))
 }
 
-const COMMON_CLAUDE_ENV_KEYS: [&str; 8] = [
+const COMMON_CLAUDE_ENV_KEYS: [&str; 10] = [
+    "ANTHROPIC_API_KEY",
     "ANTHROPIC_AUTH_TOKEN",
     "ANTHROPIC_BASE_URL",
+    "CLAUDE_CODE_API_BASE_URL",
     "ANTHROPIC_DEFAULT_HAIKU_MODEL",
     "ANTHROPIC_DEFAULT_OPUS_MODEL",
     "ANTHROPIC_DEFAULT_SONNET_MODEL",
@@ -373,11 +488,10 @@ const COMMON_CLAUDE_ENV_KEYS: [&str; 8] = [
 
 #[tauri::command]
 pub async fn get_claude_env_vars(app: AppHandle) -> Result<Vec<EnvVar>, String> {
-    let app_data_dir = app
-        .path()
-        .app_data_dir()
+    let app_data_dir = bodhi_dir();
+    let settings = load_settings(&app_data_dir)
+        .await
         .map_err(|e| e.to_string())?;
-    let settings = load_settings(&app_data_dir).await.map_err(|e| e.to_string())?;
 
     let mut keys: HashSet<String> = settings
         .env_vars

@@ -21,8 +21,10 @@ const { Text } = Typography;
 type EnvVar = { key: string; value: string };
 
 const commonVars: { key: string; label: string }[] = [
+  { key: "ANTHROPIC_API_KEY", label: "API key" },
   { key: "ANTHROPIC_AUTH_TOKEN", label: "API token" },
   { key: "ANTHROPIC_BASE_URL", label: "API base URL" },
+  { key: "CLAUDE_CODE_API_BASE_URL", label: "Claude Code API base URL" },
   { key: "ANTHROPIC_DEFAULT_HAIKU_MODEL", label: "Default Haiku model" },
   { key: "ANTHROPIC_DEFAULT_OPUS_MODEL", label: "Default Opus model" },
   { key: "ANTHROPIC_DEFAULT_SONNET_MODEL", label: "Default Sonnet model" },
