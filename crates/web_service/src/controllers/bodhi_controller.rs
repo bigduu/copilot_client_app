@@ -1,5 +1,6 @@
 use crate::{error::AppError, server::AppState};
 use actix_web::{get, post, web, HttpResponse};
+use chat_core::paths::{config_json_path, workflows_dir};
 use chat_core::ProxyAuth;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -23,15 +24,8 @@ struct WorkflowGetResponse {
     modified_at: Option<String>,
 }
 
-fn workflows_dir() -> Result<PathBuf, AppError> {
-    let home = std::env::var_os("HOME")
-        .or_else(|| std::env::var_os("USERPROFILE"))
-        .ok_or_else(|| AppError::InternalError(anyhow::anyhow!("HOME not set")))?;
-    Ok(PathBuf::from(home).join(".bodhi").join("workflows"))
-}
-
-fn config_path(app_state: &AppState) -> PathBuf {
-    app_state.app_data_dir.join("config.json")
+fn config_path(_app_state: &AppState) -> PathBuf {
+    config_json_path()
 }
 
 fn strip_proxy_auth(mut config: Value) -> Value {

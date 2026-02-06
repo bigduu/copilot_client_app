@@ -1,15 +1,8 @@
+use chat_core::paths::bodhi_dir;
 use clap::{Parser, Subcommand};
 use std::env;
 use std::path::PathBuf;
 use tracing_subscriber::{fmt, layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
-
-fn bodhi_dir() -> PathBuf {
-    std::env::var_os("HOME")
-        .or_else(|| std::env::var_os("USERPROFILE"))
-        .map(PathBuf::from)
-        .unwrap_or_else(|| std::env::temp_dir())
-        .join(".bodhi")
-}
 
 #[derive(Parser, Debug)]
 #[command(name = "copilot-server")]
