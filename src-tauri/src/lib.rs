@@ -36,6 +36,7 @@ pub mod bodhi_settings;
 pub mod checkpoint;
 pub mod command;
 pub mod process;
+pub mod proxy_auth_dialog;
 
 fn bodhi_dir() -> PathBuf {
     std::env::var_os("HOME")
@@ -71,6 +72,38 @@ fn setup<R: Runtime>(_app: &mut App<R>) -> std::result::Result<(), Box<dyn std::
     let server_data_dir = app_data_dir.clone();
     tauri::async_runtime::spawn(async {
         let _ = start_server(server_data_dir, 8080).await;
+    });
+
+    // Check if proxy auth is needed after server starts
+    let app_handle = _app.handle().clone();
+    tauri::async_runtime::spawn(async move {
+        // Wait a bit for server to start
+        tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
+        
+        // Check config for proxy settings
+        let config = chat_core::Config::new();
+        
+        // If proxy is configured but no auth, show dialog
+        if !config.http_proxy.is_empty() && config.http_proxy_auth.is_none() {
+            log::info!("HTTP proxy configured but no auth, showing dialog...");
+            if let Some(auth) = proxy_auth_dialog::show_proxy_auth_dialog(
+                &app_handle, 
+                &config.http_proxy
+            ).await {
+                // TODO: Send auth to web_service via HTTP API
+                log::info!("Got proxy auth for HTTP proxy");
+            }
+        }
+        
+        if !config.https_proxy.is_empty() && config.https_proxy_auth.is_none() {
+            log::info!("HTTPS proxy configured but no auth, showing dialog...");
+            if let Some(auth) = proxy_auth_dialog::show_proxy_auth_dialog(
+                &app_handle, 
+                &config.https_proxy
+            ).await {
+                log::info!("Got proxy auth for HTTPS proxy");
+            }
+        }
     });
 
     Ok(())
