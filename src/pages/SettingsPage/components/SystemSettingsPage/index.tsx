@@ -24,7 +24,6 @@ import SystemSettingsKeywordMaskingTab from "./SystemSettingsKeywordMaskingTab";
 import SystemSettingsWorkflowsTab from "./SystemSettingsWorkflowsTab";
 import { useSystemSettingsBodhiConfig } from "./useSystemSettingsBodhiConfig";
 import { useSystemSettingsBackend } from "./useSystemSettingsBackend";
-import { useSystemSettingsProxyAuth } from "./useSystemSettingsProxyAuth";
 import { SkillManager } from "../../../../components/Skill";
 
 const { Text } = Typography;
@@ -76,7 +75,6 @@ const SystemSettingsPage = ({
   });
 
   const bodhiConfigState = useSystemSettingsBodhiConfig({ msgApi });
-  const proxyAuthState = useSystemSettingsProxyAuth({ msgApi });
 
   const handleDeleteAll = () => {
     deleteAllUnpinnedChats();
@@ -197,16 +195,6 @@ const SystemSettingsPage = ({
                   onChange={(value) => {
                     bodhiConfigState.setBodhiConfigJson(value);
                     bodhiConfigState.bodhiConfigDirtyRef.current = true;
-                  }}
-                  proxyAuth={{
-                    username: proxyAuthState.username,
-                    password: proxyAuthState.password,
-                    onUsernameChange: proxyAuthState.setUsername,
-                    onPasswordChange: proxyAuthState.setPassword,
-                    onSave: proxyAuthState.handleSave,
-                    onClear: proxyAuthState.handleClear,
-                    isSaving: proxyAuthState.isSaving,
-                    lastError: proxyAuthState.lastError,
                   }}
                 />
               ),
