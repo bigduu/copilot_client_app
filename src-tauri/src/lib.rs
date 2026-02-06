@@ -92,6 +92,12 @@ fn setup<R: Runtime>(_app: &mut App<R>) -> std::result::Result<(), Box<dyn std::
             ).await {
                 proxy_auth_dialog::DialogResult::Auth(auth) => {
                     log::info!("Got proxy auth for HTTP proxy: {}", auth.username);
+                    // Save to config if remember is true
+                    if auth.remember {
+                        if let Err(e) = proxy_auth_dialog::save_proxy_auth_to_config("http", &auth) {
+                            log::error!("Failed to save HTTP proxy auth: {}", e);
+                        }
+                    }
                     // TODO: Send auth to web_service via HTTP API
                 }
                 proxy_auth_dialog::DialogResult::Skip => {
@@ -113,6 +119,12 @@ fn setup<R: Runtime>(_app: &mut App<R>) -> std::result::Result<(), Box<dyn std::
             ).await {
                 proxy_auth_dialog::DialogResult::Auth(auth) => {
                     log::info!("Got proxy auth for HTTPS proxy: {}", auth.username);
+                    // Save to config if remember is true
+                    if auth.remember {
+                        if let Err(e) = proxy_auth_dialog::save_proxy_auth_to_config("https", &auth) {
+                            log::error!("Failed to save HTTPS proxy auth: {}", e);
+                        }
+                    }
                     // TODO: Send auth to web_service via HTTP API
                 }
                 proxy_auth_dialog::DialogResult::Skip => {
