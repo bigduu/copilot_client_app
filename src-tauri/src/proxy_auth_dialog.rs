@@ -8,38 +8,72 @@ pub struct ProxyAuthInput {
     pub password: String,
 }
 
+/// Dialog result
+pub enum DialogResult {
+    /// User provided auth
+    Auth(ProxyAuthInput),
+    /// User chose to skip
+    Skip,
+    /// User cancelled
+    Cancel,
+}
+
 /// Show proxy authentication dialog
-/// Returns None if user cancels
+/// Returns None if user cancels or skips
 pub async fn show_proxy_auth_dialog(
     app: &AppHandle,
     proxy_url: &str,
-) -> Option<ProxyAuthInput> {
-    // Show info dialog first
-    let _ = app
-        .dialog()
-        .message(format!(
-            "Proxy authentication required for:\n{}\n\nPlease enter your credentials.",
-            proxy_url
-        ))
-        .title("Proxy Authentication Required")
-        .ok_button_label("OK")
-        .show(|_| {});
-
-    // For now, return None - in a real implementation, you'd use a custom window
-    // or stdin for headless mode
-    // TODO: Implement custom dialog with username/password input fields
-    
-    // As a workaround, check environment variables
+) -> DialogResult {
+    // First, check environment variables (non-interactive mode)
     if let Ok(username) = std::env::var("PROXY_USERNAME") {
         if let Ok(password) = std::env::var("PROXY_PASSWORD") {
-            return Some(ProxyAuthInput {
+            log::info!("Using proxy auth from environment variables");
+            return DialogResult::Auth(ProxyAuthInput {
                 username,
                 password,
             });
         }
     }
+
+    // Show confirmation dialog with Skip option
+    let (tx, rx) = tokio::sync::oneshot::channel();
     
-    None
+    app.dialog()
+        .message(format!(
+            "Proxy authentication may be required for:\n{}\n\n\
+            - Click 'Configure' to enter credentials\n\
+            - Click 'Skip' if your proxy doesn't require auth\n\
+            - Set PROXY_USERNAME and PROXY_PASSWORD env vars to skip this dialog",
+            proxy_url
+        ))
+        .title("Proxy Authentication")
+        .buttons(tauri_plugin_dialog::MessageDialogButtons::OkCancelCustom(
+            "Configure".to_string(),
+            "Skip".to_string(),
+        ))
+        .show(move |result| {
+            let _ = tx.send(result);
+        });
+
+    match rx.await {
+        Ok(true) => {
+            // User clicked "Configure"
+            // TODO: Open custom window for username/password input
+            // For now, return Cancel - user needs to set env vars
+            log::info!("User chose to configure proxy auth");
+            DialogResult::Cancel
+        }
+        Ok(false) => {
+            // User clicked "Skip"
+            log::info!("User skipped proxy auth configuration");
+            DialogResult::Skip
+        }
+        Err(_) => {
+            // Dialog failed
+            log::warn!("Proxy auth dialog failed");
+            DialogResult::Cancel
+        }
+    }
 }
 
 /// Check if proxy auth is needed but not provided

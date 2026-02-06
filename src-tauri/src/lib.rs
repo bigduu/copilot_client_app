@@ -86,22 +86,41 @@ fn setup<R: Runtime>(_app: &mut App<R>) -> std::result::Result<(), Box<dyn std::
         // If proxy is configured but no auth, show dialog
         if !config.http_proxy.is_empty() && config.http_proxy_auth.is_none() {
             log::info!("HTTP proxy configured but no auth, showing dialog...");
-            if let Some(auth) = proxy_auth_dialog::show_proxy_auth_dialog(
+            match proxy_auth_dialog::show_proxy_auth_dialog(
                 &app_handle, 
                 &config.http_proxy
             ).await {
-                // TODO: Send auth to web_service via HTTP API
-                log::info!("Got proxy auth for HTTP proxy");
+                proxy_auth_dialog::DialogResult::Auth(auth) => {
+                    log::info!("Got proxy auth for HTTP proxy: {}", auth.username);
+                    // TODO: Send auth to web_service via HTTP API
+                }
+                proxy_auth_dialog::DialogResult::Skip => {
+                    log::info!("User skipped HTTP proxy auth configuration");
+                    // Continue without auth - proxy may not require it
+                }
+                proxy_auth_dialog::DialogResult::Cancel => {
+                    log::info!("User cancelled HTTP proxy auth dialog");
+                    // Continue without auth
+                }
             }
         }
         
         if !config.https_proxy.is_empty() && config.https_proxy_auth.is_none() {
             log::info!("HTTPS proxy configured but no auth, showing dialog...");
-            if let Some(auth) = proxy_auth_dialog::show_proxy_auth_dialog(
+            match proxy_auth_dialog::show_proxy_auth_dialog(
                 &app_handle, 
                 &config.https_proxy
             ).await {
-                log::info!("Got proxy auth for HTTPS proxy");
+                proxy_auth_dialog::DialogResult::Auth(auth) => {
+                    log::info!("Got proxy auth for HTTPS proxy: {}", auth.username);
+                    // TODO: Send auth to web_service via HTTP API
+                }
+                proxy_auth_dialog::DialogResult::Skip => {
+                    log::info!("User skipped HTTPS proxy auth configuration");
+                }
+                proxy_auth_dialog::DialogResult::Cancel => {
+                    log::info!("User cancelled HTTPS proxy auth dialog");
+                }
             }
         }
     });
