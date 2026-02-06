@@ -1,28 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { serviceFactory } from "../../../AgentPage/services/ServiceFactory";
 
-const STORAGE_KEY = "bodhi_proxy_auth";
-
-const readStoredAuth = () => {
-  if (typeof window === "undefined") return { username: "", password: "" };
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return { username: "", password: "" };
-    const parsed = JSON.parse(raw);
-    return {
-      username: typeof parsed?.username === "string" ? parsed.username : "",
-      password: typeof parsed?.password === "string" ? parsed.password : "",
-    };
-  } catch {
-    return { username: "", password: "" };
-  }
-};
-
-const storeAuth = (auth: { username: string; password: string }) => {
-  if (typeof window === "undefined") return;
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(auth));
-};
-
 interface UseSystemSettingsProxyAuthProps {
   msgApi: {
     success: (content: string) => void;
@@ -38,6 +16,7 @@ export const useSystemSettingsProxyAuth = ({
   const [isSaving, setIsSaving] = useState(false);
   const [lastError, setLastError] = useState<string | null>(null);
   const lastPushedRef = useRef<string>("");
+  const isFirstLoadRef = useRef(true);
 
   const pushProxyAuthValues = useCallback(
     async (auth: { username: string; password: string }, force = false) => {
@@ -89,23 +68,26 @@ export const useSystemSettingsProxyAuth = ({
     msgApi.success("Proxy auth cleared");
   }, [msgApi, pushProxyAuthValues]);
 
+  // Load proxy auth from backend config on first mount
   useEffect(() => {
-    const stored = readStoredAuth();
-    setUsername(stored.username);
-    setPassword(stored.password);
-    void pushProxyAuthValues(stored, true);
-  }, [pushProxyAuthValues]);
-
-  useEffect(() => {
-    storeAuth({ username, password });
-  }, [password, username]);
-
-  useEffect(() => {
-    const interval = window.setInterval(() => {
-      void pushCurrentProxyAuth(false);
-    }, 10000);
-    return () => window.clearInterval(interval);
-  }, [pushCurrentProxyAuth]);
+    if (!isFirstLoadRef.current) return;
+    isFirstLoadRef.current = false;
+    
+    const loadProxyAuthFromConfig = async () => {
+      try {
+        const config = await serviceFactory.getBodhiConfig();
+        // Note: backend strips proxy auth from config for security
+        // User needs to manually enter proxy auth
+        // This is intentional - we don't want to expose proxy auth to frontend
+      } catch (error) {
+        console.error("Failed to load config:", error);
+      }
+    };
+    
+    void loadProxyAuthFromConfig();
+    // Note: We don't auto-push proxy auth on mount anymore
+    // User must explicitly click Save
+  }, []);
 
   return {
     username,
