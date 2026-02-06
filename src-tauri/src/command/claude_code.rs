@@ -1,19 +1,18 @@
+use crate::bodhi_settings::{
+    bodhi_dir, config_json_path, read_claude_binary_path, update_claude_config, write_config_json,
+};
 use anyhow::{Context, Result};
+use claude_installer::load_settings;
 use claude_installer::EnvVar;
 use serde::{Deserialize, Serialize};
+use std::collections::{BTreeMap, HashSet};
 use std::fs;
 use std::io::{BufRead, BufReader};
 use std::path::PathBuf;
 use std::process::Stdio;
 use std::sync::{Arc, Mutex};
 use std::time::{SystemTime, UNIX_EPOCH};
-use std::collections::{BTreeMap, HashSet};
 use tauri::{AppHandle, Emitter, Manager};
-use claude_installer::load_settings;
-use crate::bodhi_settings::{
-    bodhi_dir, config_json_path, read_claude_binary_path, update_claude_config,
-    write_config_json,
-};
 use tokio::process::{Child, Command};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -100,7 +99,6 @@ fn get_claude_dir() -> Result<PathBuf> {
         .canonicalize()
         .context("Could not find ~/.claude directory")
 }
-
 
 fn get_project_path_from_sessions(project_dir: &PathBuf) -> Result<String, String> {
     let entries = fs::read_dir(project_dir)
@@ -363,7 +361,9 @@ fn shell_quote(value: &str) -> String {
     if value.is_empty() {
         return "\"\"".to_string();
     }
-    let needs_quotes = value.chars().any(|c| c.is_whitespace() || c == '"' || c == '\\');
+    let needs_quotes = value
+        .chars()
+        .any(|c| c.is_whitespace() || c == '"' || c == '\\');
     if !needs_quotes {
         return value.to_string();
     }
@@ -511,11 +511,7 @@ pub async fn get_claude_env_vars(app: AppHandle) -> Result<Vec<EnvVar>, String> 
         .await
         .map_err(|e| e.to_string())?;
 
-    let mut keys: HashSet<String> = settings
-        .env_vars
-        .into_iter()
-        .map(|item| item.key)
-        .collect();
+    let mut keys: HashSet<String> = settings.env_vars.into_iter().map(|item| item.key).collect();
 
     for key in COMMON_CLAUDE_ENV_KEYS {
         keys.insert(key.to_string());
@@ -597,9 +593,7 @@ pub async fn list_projects() -> Result<Vec<Project>, String> {
                 path
             } else {
                 match get_project_path_from_sessions(&project_dir) {
-                    Ok(path) => {
-                        path
-                    }
+                    Ok(path) => path,
                     Err(e) => {
                         log::warn!("Failed to get project path from sessions for {}: {}, falling back to decode", dir_name, e);
                         decode_project_path_with_fallback(dir_name)
@@ -653,14 +647,14 @@ pub async fn list_projects() -> Result<Vec<Project>, String> {
         }
     }
 
-    projects.sort_by(|a, b| {
-        match (a.most_recent_session, b.most_recent_session) {
+    projects.sort_by(
+        |a, b| match (a.most_recent_session, b.most_recent_session) {
             (Some(a_time), Some(b_time)) => b_time.cmp(&a_time),
             (Some(_), None) => std::cmp::Ordering::Less,
             (None, Some(_)) => std::cmp::Ordering::Greater,
             (None, None) => b.created_at.cmp(&a.created_at),
-        }
-    });
+        },
+    );
 
     log::info!("Found {} projects", projects.len());
     Ok(projects)
@@ -723,9 +717,7 @@ pub async fn get_project_sessions(project_id: String) -> Result<Vec<Session>, St
         path
     } else {
         match get_project_path_from_sessions(&project_dir) {
-            Ok(path) => {
-                path
-            }
+            Ok(path) => path,
             Err(e) => {
                 log::warn!(
                     "Failed to get project path from sessions for {}: {}, falling back to decode",

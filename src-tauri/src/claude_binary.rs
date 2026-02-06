@@ -1,10 +1,12 @@
+use crate::bodhi_settings::{
+    config_json_path, read_claude_binary_path, read_claude_installation_preference,
+};
 use anyhow::Result;
 use log::{debug, error, info, warn};
 use serde::{Deserialize, Serialize};
 use std::cmp::Ordering;
 use std::path::PathBuf;
 use std::process::Command;
-use crate::bodhi_settings::{config_json_path, read_claude_binary_path, read_claude_installation_preference};
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum InstallationType {
@@ -76,20 +78,14 @@ pub fn discover_claude_installations() -> Vec<ClaudeInstallation> {
 
     let mut installations = discover_system_installations();
 
-    installations.sort_by(|a, b| {
-        match (&a.version, &b.version) {
-            (Some(v1), Some(v2)) => {
-                match compare_versions(v2, v1) {
-                    Ordering::Equal => {
-                        source_preference(a).cmp(&source_preference(b))
-                    }
-                    other => other,
-                }
-            }
-            (Some(_), None) => Ordering::Less,
-            (None, Some(_)) => Ordering::Greater,
-            (None, None) => source_preference(a).cmp(&source_preference(b)),
-        }
+    installations.sort_by(|a, b| match (&a.version, &b.version) {
+        (Some(v1), Some(v2)) => match compare_versions(v2, v1) {
+            Ordering::Equal => source_preference(a).cmp(&source_preference(b)),
+            other => other,
+        },
+        (Some(_), None) => Ordering::Less,
+        (None, Some(_)) => Ordering::Greater,
+        (None, None) => source_preference(a).cmp(&source_preference(b)),
     });
 
     installations
@@ -477,8 +473,9 @@ fn extract_version_from_output(stdout: &[u8]) -> Option<String> {
 }
 
 fn select_best_installation(installations: Vec<ClaudeInstallation>) -> Option<ClaudeInstallation> {
-    installations.into_iter().max_by(|a, b| {
-        match (&a.version, &b.version) {
+    installations
+        .into_iter()
+        .max_by(|a, b| match (&a.version, &b.version) {
             (Some(v1), Some(v2)) => compare_versions(v1, v2),
             (Some(_), None) => Ordering::Greater,
             (None, Some(_)) => Ordering::Less,
@@ -491,8 +488,7 @@ fn select_best_installation(installations: Vec<ClaudeInstallation>) -> Option<Cl
                     Ordering::Equal
                 }
             }
-        }
-    })
+        })
 }
 
 fn compare_versions(a: &str, b: &str) -> Ordering {

@@ -367,7 +367,6 @@ impl CheckpointManager {
                 let content = fs::read_to_string(&full_path).unwrap_or_default();
                 let current_hash = storage::CheckpointStorage::calculate_file_hash(&content);
 
-
                 let metadata = fs::metadata(&full_path)?;
                 let permissions = {
                     #[cfg(unix)]

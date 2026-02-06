@@ -112,7 +112,7 @@ fn is_safe_workflow_name(name: &str) -> bool {
 
 #[get("/bodhi/workflows")]
 pub async fn list_workflows(_app_state: web::Data<AppState>) -> Result<HttpResponse, AppError> {
-    let dir = workflows_dir()?;
+    let dir = workflows_dir();
 
     fs::create_dir_all(&dir).await?;
 
@@ -164,7 +164,7 @@ pub async fn get_workflow(
         return Err(AppError::NotFound("Workflow".to_string()));
     }
 
-    let dir = workflows_dir()?;
+    let dir = workflows_dir();
     fs::create_dir_all(&dir).await?;
 
     let filename = format!("{name}.md");

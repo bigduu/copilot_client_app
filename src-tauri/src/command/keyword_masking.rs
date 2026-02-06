@@ -23,8 +23,7 @@ pub fn load_keyword_masking_config(path: &Path) -> Result<KeywordMaskingConfig, 
         return Ok(KeywordMaskingConfig::default());
     }
     let content = std::fs::read_to_string(path).map_err(|e| e.to_string())?;
-    serde_json::from_str(&content)
-        .map_err(|e| format!("Failed to parse keyword_masking.json: {e}"))
+    serde_json::from_str(&content).map_err(|e| format!("Failed to parse keyword_masking.json: {e}"))
 }
 
 pub fn save_keyword_masking_config(
@@ -57,7 +56,10 @@ pub async fn update_keyword_masking_config(
     _app: AppHandle,
     entries: Vec<KeywordEntry>,
 ) -> Result<KeywordMaskingResponse, String> {
-    log::info!("Updating keyword masking configuration with {} entries", entries.len());
+    log::info!(
+        "Updating keyword masking configuration with {} entries",
+        entries.len()
+    );
 
     // Validate all entries
     let config = KeywordMaskingConfig { entries };
@@ -82,7 +84,9 @@ pub async fn update_keyword_masking_config(
 
 /// Validate keyword masking entries without saving
 #[tauri::command]
-pub async fn validate_keyword_entries(entries: Vec<KeywordEntry>) -> Result<(), Vec<ValidationError>> {
+pub async fn validate_keyword_entries(
+    entries: Vec<KeywordEntry>,
+) -> Result<(), Vec<ValidationError>> {
     let config = KeywordMaskingConfig { entries };
 
     match config.validate() {

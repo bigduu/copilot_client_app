@@ -4,15 +4,14 @@ use crate::command::claude_code::{
     clear_checkpoint_manager, continue_claude_code, create_checkpoint, create_project,
     execute_claude_code, find_claude_md_files, fork_from_checkpoint, get_checkpoint_diff,
     get_checkpoint_settings, get_checkpoint_state_stats, get_claude_binary_path,
-    get_claude_session_output, get_claude_settings, get_home_directory, get_hooks_config,
-    get_project_sessions, get_recently_modified_files, get_session_jsonl, get_session_timeline,
-    list_checkpoints, list_claude_installations, list_claude_projects, list_directory_contents,
-    list_project_sessions, list_projects, list_running_claude_sessions, load_session_history,
-    open_new_session, read_claude_md_file, resume_claude_code, restore_checkpoint,
-    save_claude_md_file, save_claude_settings, save_system_prompt, search_files,
-    set_claude_binary_path, track_checkpoint_message, track_session_messages,
-    update_checkpoint_settings, update_hooks_config, validate_hook_command,
-    get_system_prompt, get_claude_env_vars,
+    get_claude_env_vars, get_claude_session_output, get_claude_settings, get_home_directory,
+    get_hooks_config, get_project_sessions, get_recently_modified_files, get_session_jsonl,
+    get_session_timeline, get_system_prompt, list_checkpoints, list_claude_installations,
+    list_claude_projects, list_directory_contents, list_project_sessions, list_projects,
+    list_running_claude_sessions, load_session_history, open_new_session, read_claude_md_file,
+    restore_checkpoint, resume_claude_code, save_claude_md_file, save_claude_settings,
+    save_system_prompt, search_files, set_claude_binary_path, track_checkpoint_message,
+    track_session_messages, update_checkpoint_settings, update_hooks_config, validate_hook_command,
 };
 use crate::command::copy::copy_to_clipboard;
 use crate::command::file_picker::pick_folder;
@@ -26,14 +25,14 @@ use crate::command::workflows::save_workflow;
 use crate::process::ProcessRegistryState;
 use log::{info, LevelFilter};
 use std::path::PathBuf;
-use tauri::{App, Runtime};
 use tauri::Manager;
+use tauri::{App, Runtime};
 use tauri_plugin_log::{Target, TargetKind};
 use web_service::server::run as start_server;
 
-pub mod claude_binary;
 pub mod bodhi_settings;
 pub mod checkpoint;
+pub mod claude_binary;
 pub mod command;
 pub mod process;
 pub mod proxy_auth_dialog;
@@ -79,22 +78,20 @@ fn setup<R: Runtime>(_app: &mut App<R>) -> std::result::Result<(), Box<dyn std::
     tauri::async_runtime::spawn(async move {
         // Wait a bit for server to start
         tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
-        
+
         // Check config for proxy settings
         let config = chat_core::Config::new();
-        
+
         // If proxy is configured but no auth, show dialog
         if !config.http_proxy.is_empty() && config.http_proxy_auth.is_none() {
             log::info!("HTTP proxy configured but no auth, showing dialog...");
-            match proxy_auth_dialog::show_proxy_auth_dialog(
-                &app_handle, 
-                &config.http_proxy
-            ).await {
+            match proxy_auth_dialog::show_proxy_auth_dialog(&app_handle, &config.http_proxy).await {
                 proxy_auth_dialog::DialogResult::Auth(auth) => {
                     log::info!("Got proxy auth for HTTP proxy: {}", auth.username);
                     // Save to config if remember is true
                     if auth.remember {
-                        if let Err(e) = proxy_auth_dialog::save_proxy_auth_to_config("http", &auth) {
+                        if let Err(e) = proxy_auth_dialog::save_proxy_auth_to_config("http", &auth)
+                        {
                             log::error!("Failed to save HTTP proxy auth: {}", e);
                         }
                     }
@@ -110,18 +107,17 @@ fn setup<R: Runtime>(_app: &mut App<R>) -> std::result::Result<(), Box<dyn std::
                 }
             }
         }
-        
+
         if !config.https_proxy.is_empty() && config.https_proxy_auth.is_none() {
             log::info!("HTTPS proxy configured but no auth, showing dialog...");
-            match proxy_auth_dialog::show_proxy_auth_dialog(
-                &app_handle, 
-                &config.https_proxy
-            ).await {
+            match proxy_auth_dialog::show_proxy_auth_dialog(&app_handle, &config.https_proxy).await
+            {
                 proxy_auth_dialog::DialogResult::Auth(auth) => {
                     log::info!("Got proxy auth for HTTPS proxy: {}", auth.username);
                     // Save to config if remember is true
                     if auth.remember {
-                        if let Err(e) = proxy_auth_dialog::save_proxy_auth_to_config("https", &auth) {
+                        if let Err(e) = proxy_auth_dialog::save_proxy_auth_to_config("https", &auth)
+                        {
                             log::error!("Failed to save HTTPS proxy auth: {}", e);
                         }
                     }
