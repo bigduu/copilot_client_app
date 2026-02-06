@@ -1,12 +1,10 @@
 use anyhow::{anyhow, Error};
 use lazy_static::lazy_static;
 use log::info;
-use reqwest::{Client, Response, StatusCode};
+use reqwest::{Response, StatusCode};
+use reqwest_middleware::ClientWithMiddleware;
 use std::sync::Arc;
 use tokio::sync::Mutex;
-
-// This should be correct as http_utils is in the same `api` module
-use crate::utils::http_utils::execute_request;
 
 // Static variable to store the models
 lazy_static! {
@@ -16,11 +14,11 @@ lazy_static! {
 // Struct for handling models logic
 #[derive(Debug, Clone)]
 pub(crate) struct CopilotModelsHandler {
-    client: Arc<Client>,
+    client: Arc<ClientWithMiddleware>,
 }
 
 impl CopilotModelsHandler {
-    pub(crate) fn new(client: Arc<Client>) -> Self {
+    pub(crate) fn new(client: Arc<ClientWithMiddleware>) -> Self {
         CopilotModelsHandler { client }
     }
 
@@ -41,14 +39,13 @@ impl CopilotModelsHandler {
         let url = "https://api.githubcopilot.com/models";
         info!("Fetching available models...");
 
-        let response = execute_request(
-            &self.client,
-            reqwest::Method::GET,
-            url,
-            Some(&access_token),
-            None::<&serde_json::Value>,
-        )
-        .await?;
+        // reqwest-retry middleware is already applied to the client
+        let response = self
+            .client
+            .get(url)
+            .header("Authorization", format!("Bearer {}", access_token))
+            .send()
+            .await?;
 
         let status = response.status();
         if status != StatusCode::OK {

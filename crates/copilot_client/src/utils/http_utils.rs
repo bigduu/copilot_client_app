@@ -6,6 +6,7 @@ use std::error::Error;
 use std::sync::Arc;
 
 /// Executes an HTTP request with common configurations and error handling.
+/// Note: Retry logic is now handled by reqwest-retry middleware at the client level.
 pub async fn execute_request<T: Serialize + ?Sized>(
     client: &Arc<Client>,
     method: Method,
@@ -17,6 +18,7 @@ pub async fn execute_request<T: Serialize + ?Sized>(
 }
 
 /// Executes an HTTP request with vision support for GitHub Copilot API.
+/// Note: Retry logic is now handled by reqwest-retry middleware at the client level.
 pub async fn execute_request_with_vision<T: Serialize + ?Sized>(
     client: &Arc<Client>,
     method: Method,
