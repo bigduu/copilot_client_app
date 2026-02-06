@@ -1,10 +1,5 @@
-use crate::bodhi_settings::bodhi_dir;
+use chat_core::paths::workflows_dir;
 use std::fs;
-use std::path::PathBuf;
-
-fn workflows_dir() -> PathBuf {
-    bodhi_dir().join("workflows")
-}
 
 fn is_safe_workflow_name(name: &str) -> bool {
     if name.is_empty() {

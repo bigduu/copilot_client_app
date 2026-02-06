@@ -1,20 +1,7 @@
 use std::path::{Path, PathBuf};
 
-pub fn bodhi_dir() -> PathBuf {
-    std::env::var_os("HOME")
-        .or_else(|| std::env::var_os("USERPROFILE"))
-        .map(PathBuf::from)
-        .unwrap_or_else(|| std::env::temp_dir())
-        .join(".bodhi")
-}
-
-pub fn config_json_path() -> PathBuf {
-    bodhi_dir().join("config.json")
-}
-
-pub fn keyword_masking_json_path() -> PathBuf {
-    bodhi_dir().join("keyword_masking.json")
-}
+// Re-export path functions from chat_core for consistency
+pub use chat_core::paths::{bodhi_dir, config_json_path, keyword_masking_json_path};
 
 pub fn load_config_json(path: &Path) -> Result<serde_json::Value, String> {
     if !path.exists() {

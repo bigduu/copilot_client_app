@@ -5,6 +5,7 @@ use async_trait::async_trait;
 use bytes::Bytes;
 use chat_core::config::{Config, ProxyAuth};
 use chat_core::keyword_masking::KeywordMaskingConfig;
+use chat_core::paths::keyword_masking_json_path;
 use eventsource_stream::Eventsource;
 use futures_util::StreamExt;
 use log::{error, info, warn};
@@ -60,7 +61,7 @@ impl CopilotClient {
         let models_handler = CopilotModelsHandler::new(Arc::clone(&shared_client));
 
         // Load keyword masking config from settings database
-        let keyword_masking_config = Self::load_keyword_masking_config(&app_data_dir);
+        let keyword_masking_config = Self::load_keyword_masking_config();
 
         CopilotClient {
             state: RwLock::new(CopilotClientState {
@@ -90,8 +91,8 @@ impl CopilotClient {
     }
 
     /// Load keyword masking config from the app settings JSON file
-    fn load_keyword_masking_config(app_data_dir: &PathBuf) -> KeywordMaskingConfig {
-        let path = app_data_dir.join("keyword_masking.json");
+    fn load_keyword_masking_config() -> KeywordMaskingConfig {
+        let path = keyword_masking_json_path();
         if !path.exists() {
             log::debug!("No keyword masking config found, using default empty config");
             return KeywordMaskingConfig::default();

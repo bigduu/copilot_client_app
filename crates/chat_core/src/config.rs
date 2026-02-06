@@ -1,5 +1,3 @@
-use std::path::PathBuf;
-
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -25,18 +23,6 @@ pub struct ProxyAuth {
 
 const CONFIG_FILE_PATH: &str = "config.toml";
 
-fn bodhi_dir() -> PathBuf {
-    std::env::var_os("HOME")
-        .or_else(|| std::env::var_os("USERPROFILE"))
-        .map(PathBuf::from)
-        .unwrap_or_else(|| std::env::temp_dir())
-        .join(".bodhi")
-}
-
-fn bodhi_config_json_path() -> PathBuf {
-    bodhi_dir().join("config.json")
-}
-
 fn parse_bool_env(value: &str) -> bool {
     matches!(
         value.trim().to_ascii_lowercase().as_str(),
@@ -52,6 +38,8 @@ impl Default for Config {
 
 impl Config {
     pub fn new() -> Self {
+        use crate::paths::config_json_path;
+        
         let mut config = Config {
             http_proxy: String::new(),
             https_proxy: String::new(),
@@ -64,7 +52,7 @@ impl Config {
         };
 
         let mut loaded = false;
-        let json_path = bodhi_config_json_path();
+        let json_path = config_json_path();
         if json_path.exists() {
             if let Ok(content) = std::fs::read_to_string(&json_path) {
                 if let Ok(mut file_config) = serde_json::from_str::<Config>(&content) {

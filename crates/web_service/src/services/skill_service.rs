@@ -1,17 +1,10 @@
 use crate::error::AppError;
-use std::path::PathBuf;
+use chat_core::paths::workflows_dir;
 use tokio::fs;
-
-const WORKFLOWS_DIR: &str = ".bodhi/workflows";
 
 /// List available workflows from the workflows directory
 pub async fn list_workflows() -> Result<Vec<String>, AppError> {
-    let home = dirs::home_dir()
-        .or_else(|| std::env::var_os("HOME").map(PathBuf::from))
-        .or_else(|| std::env::var_os("USERPROFILE").map(PathBuf::from))
-        .ok_or_else(|| AppError::InternalError(anyhow::anyhow!("HOME not set")))?;
-
-    let workflows_dir = home.join(WORKFLOWS_DIR);
+    let workflows_dir = workflows_dir();
 
     if !workflows_dir.exists() {
         return Ok(Vec::new());
