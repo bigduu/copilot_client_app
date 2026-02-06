@@ -11,7 +11,6 @@ import {
   theme,
 } from "antd";
 import SystemSettingsModelSelection from "./SystemSettingsModelSelection";
-import SystemSettingsProxyAuthCard from "./SystemSettingsProxyAuthCard";
 
 const { Text } = Typography;
 const { useToken } = theme;
@@ -43,16 +42,6 @@ interface SystemSettingsConfigTabProps {
   onResetBackendBaseUrl: () => void;
   hasBackendOverride: boolean;
   defaultBackendBaseUrl: string;
-  proxyAuth: {
-    username: string;
-    password: string;
-    onUsernameChange: (value: string) => void;
-    onPasswordChange: (value: string) => void;
-    onSave: () => void;
-    onClear: () => void;
-    isSaving: boolean;
-    lastError: string | null;
-  };
 }
 
 const SystemSettingsConfigTab: React.FC<SystemSettingsConfigTabProps> = ({
@@ -73,7 +62,6 @@ const SystemSettingsConfigTab: React.FC<SystemSettingsConfigTabProps> = ({
   onResetBackendBaseUrl,
   hasBackendOverride,
   defaultBackendBaseUrl,
-  proxyAuth,
 }) => {
   const { token } = useToken();
   const lastValidConfigRef = useRef<Record<string, any>>({});
@@ -315,16 +303,6 @@ const SystemSettingsConfigTab: React.FC<SystemSettingsConfigTabProps> = ({
           </Text>
         </Space>
       </Card>
-      <SystemSettingsProxyAuthCard
-        username={proxyAuth.username}
-        password={proxyAuth.password}
-        onUsernameChange={proxyAuth.onUsernameChange}
-        onPasswordChange={proxyAuth.onPasswordChange}
-        onSave={proxyAuth.onSave}
-        onClear={proxyAuth.onClear}
-        isSaving={proxyAuth.isSaving}
-        lastError={proxyAuth.lastError}
-      />
     </Space>
   );
 };
