@@ -10,12 +10,13 @@ use eventsource_stream::Eventsource;
 use futures_util::StreamExt;
 use log::{error, info, warn};
 use reqwest::{Client, Proxy, Response};
+use reqwest_middleware::{ClientBuilder, ClientWithMiddleware};
+use reqwest_retry::{policies::ExponentialBackoff, RetryTransientMiddleware};
 use tauri::http::HeaderMap;
 use tokio::sync::{mpsc::Sender, RwLock};
 
 use crate::api::models::{ChatCompletionRequest, ChatCompletionStreamChunk, Content, ContentPart};
 use crate::auth::auth_handler::CopilotAuthHandler;
-use crate::utils::http_utils::execute_request_with_vision;
 use crate::client_trait::CopilotClientTrait;
 
 use super::models_handler::CopilotModelsHandler;
@@ -41,7 +42,7 @@ pub struct CopilotClient {
 
 #[derive(Debug, Clone)]
 struct CopilotClientState {
-    client: Arc<Client>,
+    client: Arc<ClientWithMiddleware>,
     auth_handler: CopilotAuthHandler,
     models_handler: CopilotModelsHandler,
     config: Config,
@@ -51,7 +52,8 @@ struct CopilotClientState {
 impl CopilotClient {
     pub fn new(config: Config, app_data_dir: PathBuf) -> Self {
         let client = Self::build_http_client(&config).expect("copilot client");
-        let shared_client = Arc::new(client);
+        let retry_client = Self::build_retry_client(client);
+        let shared_client = Arc::new(retry_client);
 
         let auth_handler = CopilotAuthHandler::new(
             Arc::clone(&shared_client),
@@ -88,6 +90,18 @@ impl CopilotClient {
             builder = builder.proxy(proxy);
         }
         builder.build().map_err(|e| anyhow!("Failed to build HTTP client: {e}"))
+    }
+
+    fn build_retry_client(client: Client) -> ClientWithMiddleware {
+        // Exponential backoff: 1s, 2s, 4s with jitter
+        let retry_policy = ExponentialBackoff::builder()
+            .base_secs(1)
+            .max_retries(3)
+            .build();
+
+        ClientBuilder::new(client)
+            .with(RetryTransientMiddleware::new_with_policy(retry_policy))
+            .build()
     }
 
     /// Load keyword masking config from the app settings JSON file
@@ -206,15 +220,19 @@ impl CopilotClientTrait for CopilotClient {
             info!("Request contains images, adding vision header");
         }
 
-        execute_request_with_vision(
-            &client,
-            reqwest::Method::POST,
-            &url,
-            Some(&access_token),
-            Some(&request),
-            has_images,
-        )
-        .await
+        // Build request with retry middleware already applied
+        let mut request_builder = client
+            .post(&url)
+            .header("Authorization", format!("Bearer {}", access_token));
+
+        if has_images {
+            request_builder = request_builder.header("copilot-vision-request", "true");
+        }
+
+        request_builder.json(&request).send().await.map_err(|e| {
+            error!("Failed to send chat completion request: {}", e);
+            anyhow!("Failed to send chat completion request: {}", e)
+        })
     }
 
     async fn process_chat_completion_stream(
@@ -271,7 +289,8 @@ impl CopilotClientTrait for CopilotClient {
         state.config.http_proxy_auth = auth.clone();
         state.config.https_proxy_auth = auth;
         let client = Self::build_http_client(&state.config)?;
-        let shared_client = Arc::new(client);
+        let retry_client = Self::build_retry_client(client);
+        let shared_client = Arc::new(retry_client);
         state.client = Arc::clone(&shared_client);
         state.auth_handler = CopilotAuthHandler::new(
             Arc::clone(&shared_client),
