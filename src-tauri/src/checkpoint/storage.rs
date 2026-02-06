@@ -350,7 +350,6 @@ impl CheckpointStorage {
             fs::remove_dir_all(&refs_dir).context("Failed to remove file references")?;
         }
 
-
         Ok(())
     }
 

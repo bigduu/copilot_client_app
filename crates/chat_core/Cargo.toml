@@ -6,6 +6,7 @@ description = "Core types and traits for the chat system"
 
 [dependencies]
 aes-gcm = "0.10"
+anyhow = "1.0"
 chrono = { version = "0.4", features = ["serde"] }
 hex = "0.4"
 rand = "0.8"

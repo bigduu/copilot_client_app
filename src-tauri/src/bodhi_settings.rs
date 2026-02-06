@@ -28,7 +28,9 @@ pub fn update_claude_config(
     let root_obj = root
         .as_object_mut()
         .ok_or("config.json must be a JSON object")?;
-    let claude_entry = root_obj.entry("claude").or_insert_with(|| serde_json::json!({}));
+    let claude_entry = root_obj
+        .entry("claude")
+        .or_insert_with(|| serde_json::json!({}));
     let claude_obj = claude_entry
         .as_object_mut()
         .ok_or("claude must be a JSON object")?;

@@ -285,9 +285,7 @@ impl ProcessRegistry {
                                 *child_guard = None;
                                 Some(Ok::<(), String>(()))
                             }
-                            Ok(None) => {
-                                None
-                            }
+                            Ok(None) => None,
                             Err(e) => {
                                 error!("Error checking process status: {}", e);
                                 Some(Err(e.to_string()))
@@ -411,9 +409,7 @@ impl ProcessRegistry {
                         *child_guard = None;
                         Ok(false)
                     }
-                    Ok(None) => {
-                        Ok(true)
-                    }
+                    Ok(None) => Ok(true),
                     Err(_) => {
                         *child_guard = None;
                         Ok(false)
