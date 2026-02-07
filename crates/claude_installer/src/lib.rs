@@ -145,7 +145,11 @@ pub async fn detect_npm() -> NpmDetectResponse {
             NpmDetectResponse {
                 available: true,
                 path,
-                version: if version.is_empty() { None } else { Some(version) },
+                version: if version.is_empty() {
+                    None
+                } else {
+                    Some(version)
+                },
                 error: None,
             }
         }
@@ -155,7 +159,11 @@ pub async fn detect_npm() -> NpmDetectResponse {
                 available: false,
                 path,
                 version: None,
-                error: if stderr.is_empty() { None } else { Some(stderr) },
+                error: if stderr.is_empty() {
+                    None
+                } else {
+                    Some(stderr)
+                },
             }
         }
         Err(e) => NpmDetectResponse {
@@ -193,7 +201,9 @@ fn build_install_args(scope: &InstallScope, package: &str) -> Vec<String> {
 
 pub async fn spawn_install(request: InstallRequest) -> Result<InstallHandle, InstallerError> {
     if request.package.trim().is_empty() {
-        return Err(InstallerError::InvalidRequest("package required".to_string()));
+        return Err(InstallerError::InvalidRequest(
+            "package required".to_string(),
+        ));
     }
 
     let mut cmd = Command::new("npm");

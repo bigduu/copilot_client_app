@@ -3,8 +3,8 @@ import { Space, theme, Tag, Alert, message as antdMessage, Spin } from "antd";
 import { ToolOutlined, RobotOutlined } from "@ant-design/icons";
 import { MessageInput } from "../MessageInput";
 import InputPreview from "./InputPreview";
-import { useChatManager } from "../../hooks/useChatManager";
-import { useAppStore } from "../../store";
+import { useChatStreaming } from "../../hooks/useChatManager/useChatStreaming";
+import { selectCurrentChat, useAppStore } from "../../store";
 import { useSystemPrompt } from "../../hooks/useSystemPrompt";
 import { useChatInputHistory } from "../../hooks/useChatInputHistory";
 import { useInputContainerWorkflow } from "./useInputContainerWorkflow";
@@ -20,6 +20,14 @@ const WorkspacePathModal = lazy(() => import("../WorkspacePathModal"));
 const FileReferenceSelector = lazy(() => import("../FileReferenceSelector"));
 
 const { useToken } = theme;
+const CHAT_SEND_MESSAGE_EVENT = "chat-send-message";
+
+type ChatSendMessageEventDetail = {
+  content: string;
+  handled?: boolean;
+  resolve?: () => void;
+  reject?: (error: unknown) => void;
+};
 
 export type WorkflowDraft = {
   id: string;
@@ -41,20 +49,60 @@ export const InputContainer: React.FC<InputContainerProps> = ({
   const [referenceText, setReferenceText] = useState<string | null>(null);
   const { token } = useToken();
   const currentChatId = useAppStore((state) => state.currentChatId);
-  const currentChat = useAppStore(
-    (state) =>
-      state.chats.find((chat) => chat.id === state.currentChatId) || null,
-  );
-  const currentMessages = useMemo(
-    () => currentChat?.messages || [],
-    [currentChat],
-  );
+  const currentChat = useAppStore(selectCurrentChat);
+  const currentMessages = currentChat?.messages || [];
+  const addMessage = useAppStore((state) => state.addMessage);
   const updateChat = useAppStore((state) => state.updateChat);
   const deleteMessage = useAppStore((state) => state.deleteMessage);
   const isProcessing = useAppStore((state) => state.isProcessing);
-  
-  // Use ChatManager for agent-only streaming
-  const { sendMessage, cancelMessage, agentAvailable } = useChatManager();
+  const setProcessing = useAppStore((state) => state.setProcessing);
+
+  const { sendMessage, cancel: cancelMessage, agentAvailable } = useChatStreaming({
+    currentChat,
+    addMessage,
+    setProcessing,
+    updateChat,
+  });
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const handleExternalSend = (event: Event) => {
+      const customEvent = event as CustomEvent<ChatSendMessageEventDetail>;
+      if (!customEvent.detail) {
+        return;
+      }
+      customEvent.detail.handled = true;
+      const contentValue = customEvent.detail?.content;
+
+      if (typeof contentValue !== "string" || contentValue.trim().length === 0) {
+        customEvent.detail?.reject?.(
+          new Error("External send message content is empty"),
+        );
+        return;
+      }
+
+      sendMessage(contentValue)
+        .then(() => {
+          customEvent.detail?.resolve?.();
+        })
+        .catch((error) => {
+          customEvent.detail?.reject?.(error);
+        });
+    };
+
+    window.addEventListener(CHAT_SEND_MESSAGE_EVENT, handleExternalSend as EventListener);
+
+    return () => {
+      window.removeEventListener(
+        CHAT_SEND_MESSAGE_EVENT,
+        handleExternalSend as EventListener,
+      );
+    };
+  }, [sendMessage]);
+
   const isStreaming = isProcessing;
   const [messageApi, contextHolder] = antdMessage.useMessage();
 

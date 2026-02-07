@@ -2,15 +2,24 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import {
   Button,
   Card,
+  Checkbox,
   Collapse,
   Flex,
   Input,
+  Select,
   Space,
   Switch,
   Typography,
+  message,
   theme,
 } from "antd";
 import SystemSettingsModelSelection from "./SystemSettingsModelSelection";
+import { serviceFactory } from "../../../AgentPage/services/ServiceFactory";
+import {
+  clearStoredProxyAuth,
+  readStoredProxyAuth,
+  writeStoredProxyAuth,
+} from "../../../../shared/utils/proxyAuth";
 
 const { Text } = Typography;
 const { useToken } = theme;
@@ -18,6 +27,7 @@ const { useToken } = theme;
 const BODHI_CONFIG_DEMO = `{
   "http_proxy": "http://proxy.example.com:8080",
   "https_proxy": "http://proxy.example.com:8080",
+  "proxy_auth_mode": "auto",
   "api_key": "ghu_xxx",
   "api_base": "https://api.githubcopilot.com",
   "model": "gpt-5-mini",
@@ -68,11 +78,20 @@ const SystemSettingsConfigTab: React.FC<SystemSettingsConfigTabProps> = ({
   const [formState, setFormState] = useState({
     http_proxy: "",
     https_proxy: "",
+    proxy_auth_mode: "auto",
     api_key: "",
     api_base: "",
     model: "",
     headless_auth: false,
   });
+
+  const [proxyAuthForm, setProxyAuthForm] = useState({
+    username: "",
+    password: "",
+    remember: true,
+  });
+  const [advancedActiveKeys, setAdvancedActiveKeys] = useState<string[]>([]);
+  const [isApplyingProxyAuth, setIsApplyingProxyAuth] = useState(false);
 
   const parseConfig = useCallback((raw: string) => {
     try {
@@ -89,6 +108,8 @@ const SystemSettingsConfigTab: React.FC<SystemSettingsConfigTabProps> = ({
       http_proxy: typeof config.http_proxy === "string" ? config.http_proxy : "",
       https_proxy:
         typeof config.https_proxy === "string" ? config.https_proxy : "",
+      proxy_auth_mode:
+        typeof config.proxy_auth_mode === "string" ? config.proxy_auth_mode : "auto",
       api_key: typeof config.api_key === "string" ? config.api_key : "",
       api_base: typeof config.api_base === "string" ? config.api_base : "",
       model:
@@ -121,11 +142,74 @@ const SystemSettingsConfigTab: React.FC<SystemSettingsConfigTabProps> = ({
   }, [bodhiConfigJson, buildFormState, onModelChange, parseConfig, selectedModel]);
 
   useEffect(() => {
+    const stored = readStoredProxyAuth();
+    if (!stored) {
+      return;
+    }
+
+    setProxyAuthForm((prev) => ({
+      ...prev,
+      username: stored.username,
+      password: stored.password,
+      remember: true,
+    }));
+  }, []);
+
+  useEffect(() => {
     if (!selectedModel) return;
     const currentModel = lastValidConfigRef.current.model;
     if (currentModel === selectedModel) return;
     updateConfig({ model: selectedModel });
   }, [selectedModel, updateConfig]);
+
+  const handleApplyProxyAuth = async () => {
+    const username = proxyAuthForm.username.trim();
+    if (!username) {
+      message.error("Proxy username is required");
+      return;
+    }
+
+    setIsApplyingProxyAuth(true);
+    try {
+      await serviceFactory.setProxyAuth({
+        username,
+        password: proxyAuthForm.password,
+      });
+
+      if (proxyAuthForm.remember) {
+        writeStoredProxyAuth({
+          username,
+          password: proxyAuthForm.password,
+        });
+      } else {
+        clearStoredProxyAuth();
+      }
+
+      message.success("Proxy auth applied");
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : "Failed to apply proxy auth";
+      message.error(errorMessage);
+    } finally {
+      setIsApplyingProxyAuth(false);
+    }
+  };
+
+  const handleClearProxyAuth = async () => {
+    setIsApplyingProxyAuth(true);
+    try {
+      await serviceFactory.setProxyAuth({ username: "", password: "" });
+      clearStoredProxyAuth();
+      setProxyAuthForm({ username: "", password: "", remember: true });
+      message.success("Proxy auth cleared");
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : "Failed to clear proxy auth";
+      message.error(errorMessage);
+    } finally {
+      setIsApplyingProxyAuth(false);
+    }
+  };
 
   const advancedItems = useMemo(
     () => [
@@ -138,7 +222,7 @@ const SystemSettingsConfigTab: React.FC<SystemSettingsConfigTabProps> = ({
               rows={10}
               value={bodhiConfigJson}
               onChange={(event) => onChange(event.target.value)}
-              placeholder='{"http_proxy":"","https_proxy":"","api_key":null,"api_base":null,"model":null,"headless_auth":false}'
+              placeholder='{"http_proxy":"","https_proxy":"","proxy_auth_mode":"auto","api_key":null,"api_base":null,"model":null,"headless_auth":false}'
             />
             <Space
               direction="vertical"
@@ -147,9 +231,9 @@ const SystemSettingsConfigTab: React.FC<SystemSettingsConfigTabProps> = ({
             >
               <Text type="secondary" style={{ fontSize: token.fontSizeSM }}>
                 Supported keys: <Text code>http_proxy</Text>,{" "}
-                <Text code>https_proxy</Text>, <Text code>api_key</Text>,{" "}
-                <Text code>api_base</Text>, <Text code>model</Text>,{" "}
-                <Text code>headless_auth</Text>
+                <Text code>https_proxy</Text>, <Text code>proxy_auth_mode</Text>,{" "}
+                <Text code>api_key</Text>, <Text code>api_base</Text>,{" "}
+                <Text code>model</Text>, <Text code>headless_auth</Text>
               </Text>
               <pre
                 style={{
@@ -223,6 +307,78 @@ const SystemSettingsConfigTab: React.FC<SystemSettingsConfigTabProps> = ({
               />
             </Space>
             <Space direction="vertical" size={token.marginXXS} style={{ width: "100%" }}>
+              <Text type="secondary">Proxy Auth Mode</Text>
+              <Select
+                value={formState.proxy_auth_mode}
+                onChange={(value) => updateConfig({ proxy_auth_mode: value })}
+                options={[
+                  {
+                    label: "Auto (default)",
+                    value: "auto",
+                  },
+                  {
+                    label: "Required (gate startup requests)",
+                    value: "required",
+                  },
+                  {
+                    label: "Disabled (never prompt)",
+                    value: "disabled",
+                  },
+                ]}
+              />
+              <Text type="secondary" style={{ fontSize: token.fontSizeSM }}>
+                Use <Text code>required</Text> to gate model loading until proxy auth is applied.
+              </Text>
+            </Space>
+            <Space direction="vertical" size={token.marginXXS} style={{ width: "100%" }}>
+              <Text type="secondary">Proxy Auth Credentials (runtime)</Text>
+              <Input
+                style={{ width: "100%" }}
+                value={proxyAuthForm.username}
+                onChange={(event) =>
+                  setProxyAuthForm((prev) => ({
+                    ...prev,
+                    username: event.target.value,
+                  }))
+                }
+                placeholder="Proxy username"
+              />
+              <Input.Password
+                style={{ width: "100%" }}
+                value={proxyAuthForm.password}
+                onChange={(event) =>
+                  setProxyAuthForm((prev) => ({
+                    ...prev,
+                    password: event.target.value,
+                  }))
+                }
+                placeholder="Proxy password"
+              />
+              <Checkbox
+                checked={proxyAuthForm.remember}
+                onChange={(event) =>
+                  setProxyAuthForm((prev) => ({
+                    ...prev,
+                    remember: event.target.checked,
+                  }))
+                }
+              >
+                Remember in browser local storage
+              </Checkbox>
+              <Flex justify="flex-end" gap={token.marginSM}>
+                <Button disabled={isApplyingProxyAuth} onClick={handleClearProxyAuth}>
+                  Clear
+                </Button>
+                <Button
+                  type="primary"
+                  loading={isApplyingProxyAuth}
+                  onClick={handleApplyProxyAuth}
+                >
+                  Apply Proxy Auth
+                </Button>
+              </Flex>
+            </Space>
+            <Space direction="vertical" size={token.marginXXS} style={{ width: "100%" }}>
               <Text type="secondary">API Key</Text>
               <Input
                 style={{ width: "100%" }}
@@ -274,7 +430,23 @@ const SystemSettingsConfigTab: React.FC<SystemSettingsConfigTabProps> = ({
             editor. The UI refreshes periodically; use Reload to apply file
             changes or Save to persist edits.
           </Text>
-          <Collapse items={advancedItems} size="small" />
+          <Collapse
+            activeKey={advancedActiveKeys}
+            onChange={(keys) => {
+              if (Array.isArray(keys)) {
+                setAdvancedActiveKeys(keys.map(String));
+                return;
+              }
+              if (keys === undefined || keys === null) {
+                setAdvancedActiveKeys([]);
+                return;
+              }
+              setAdvancedActiveKeys([String(keys)]);
+            }}
+            destroyInactivePanel
+            items={advancedItems}
+            size="small"
+          />
         </Space>
       </Card>
       <Card size="small">

@@ -266,7 +266,9 @@ pub async fn add_recent_workspace(
         );
     }
 
-    store.items.sort_by(|a, b| b.last_opened.cmp(&a.last_opened));
+    store
+        .items
+        .sort_by(|a, b| b.last_opened.cmp(&a.last_opened));
     store.items.truncate(50);
 
     save_recent_store(&app_state.app_data_dir, &store).await?;
@@ -371,7 +373,9 @@ pub async fn browse_folder(
 
     folders.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
 
-    let parent_path = target_path.parent().map(|p| p.to_string_lossy().to_string());
+    let parent_path = target_path
+        .parent()
+        .map(|p| p.to_string_lossy().to_string());
 
     Ok(HttpResponse::Ok().json(BrowseFolderResponse {
         current_path: target_path.to_string_lossy().to_string(),

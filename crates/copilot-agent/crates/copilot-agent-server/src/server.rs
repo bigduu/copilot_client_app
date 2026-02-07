@@ -15,7 +15,8 @@ pub async fn run_server(port: u16) -> io::Result<()> {
         "http://localhost:12123".to_string(),
         "kimi-for-coding".to_string(),
         "sk-test".to_string(),
-    ).await
+    )
+    .await
 }
 
 pub async fn run_server_with_config(
@@ -25,15 +26,7 @@ pub async fn run_server_with_config(
     model: String,
     api_key: String,
 ) -> io::Result<()> {
-    run_server_with_config_and_mode(
-        port,
-        provider,
-        llm_base_url,
-        model,
-        api_key,
-        None,
-        false,
-    ).await
+    run_server_with_config_and_mode(port, provider, llm_base_url, model, api_key, None, false).await
 }
 
 pub async fn run_server_with_config_and_mode(
@@ -45,7 +38,11 @@ pub async fn run_server_with_config_and_mode(
     app_data_dir: Option<PathBuf>,
     tauri_mode: bool,
 ) -> io::Result<()> {
-    log::info!("Initializing server with provider: {}, base URL: {}", provider, llm_base_url);
+    log::info!(
+        "Initializing server with provider: {}, base URL: {}",
+        provider,
+        llm_base_url
+    );
     let state = web::Data::new(
         AppState::new_with_config(
             provider,
@@ -65,10 +62,19 @@ pub async fn run_server_with_config_and_mode(
             .service(
                 web::scope("/api/v1")
                     .route("/chat", web::post().to(handlers::chat::handler))
-                    .route("/stream/{session_id}", web::get().to(handlers::stream::handler))
-                    .route("/stop/{session_id}", web::post().to(handlers::stop::handler))
-                    .route("/history/{session_id}", web::get().to(handlers::history::handler))
-                    .route("/health", web::get().to(handlers::health::handler))
+                    .route(
+                        "/stream/{session_id}",
+                        web::get().to(handlers::stream::handler),
+                    )
+                    .route(
+                        "/stop/{session_id}",
+                        web::post().to(handlers::stop::handler),
+                    )
+                    .route(
+                        "/history/{session_id}",
+                        web::get().to(handlers::history::handler),
+                    )
+                    .route("/health", web::get().to(handlers::health::handler)),
             )
     })
     .bind(format!("0.0.0.0:{}", port))?

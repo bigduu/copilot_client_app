@@ -6,7 +6,6 @@
  * each hook focused on a single responsibility.
  */
 
-import { useEffect, useRef } from "react";
 import { useChatState } from "./useChatState";
 import { useChatTitleGeneration } from "./useChatTitleGeneration";
 import { useChatOperations } from "./useChatOperations";
@@ -42,25 +41,6 @@ export const useChatManager = () => {
     onRetry: streaming.sendMessage,
     isProcessing: state.isProcessing,
   });
-
-  const lastAutoTitleMessageIdRef = useRef<string | null>(null);
-
-  useEffect(() => {
-    if (!state.currentChatId) return;
-    const messages = state.baseMessages;
-    if (messages.length === 0) return;
-    const lastMessage = messages[messages.length - 1];
-    if (lastMessage.role !== "assistant") return;
-    if (lastMessage.id === lastAutoTitleMessageIdRef.current) return;
-    lastAutoTitleMessageIdRef.current = lastMessage.id;
-    titleGeneration.generateChatTitle(state.currentChatId).catch((error) => {
-      console.warn("Auto title generation failed:", error);
-    });
-  }, [
-    state.baseMessages,
-    state.currentChatId,
-    titleGeneration.generateChatTitle,
-  ]);
 
   // Compose and return the complete interface
   return {

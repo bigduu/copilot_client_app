@@ -41,9 +41,18 @@ pub fn agent_api_config(cfg: &mut web::ServiceConfig) {
     cfg.service(
         web::scope("/api/v1")
             .route("/chat", web::post().to(agent_handlers::chat::handler))
-            .route("/stream/{session_id}", web::get().to(agent_handlers::stream::handler))
-            .route("/stop/{session_id}", web::post().to(agent_handlers::stop::handler))
-            .route("/history/{session_id}", web::get().to(agent_handlers::history::handler))
+            .route(
+                "/stream/{session_id}",
+                web::get().to(agent_handlers::stream::handler),
+            )
+            .route(
+                "/stop/{session_id}",
+                web::post().to(agent_handlers::stop::handler),
+            )
+            .route(
+                "/history/{session_id}",
+                web::get().to(agent_handlers::history::handler),
+            )
             .route("/health", web::get().to(agent_handlers::health::handler)),
     );
 }
@@ -68,9 +77,12 @@ pub async fn run(app_data_dir: PathBuf, port: u16) -> Result<(), String> {
     let copilot_client: Arc<dyn CopilotClientTrait> =
         Arc::new(CopilotClient::new(config, app_data_dir.clone()));
     let skill_manager = SkillManager::new();
-    skill_manager.initialize().await.map_err(|e| format!("Failed to initialize skill manager: {e}"))?;
+    skill_manager
+        .initialize()
+        .await
+        .map_err(|e| format!("Failed to initialize skill manager: {e}"))?;
     let agent_state = web::Data::new(build_agent_state(app_data_dir.clone(), port).await);
-    
+
     let app_state = web::Data::new(AppState {
         copilot_client,
         app_data_dir,
@@ -127,9 +139,12 @@ impl WebService {
         let copilot_client: Arc<dyn CopilotClientTrait> =
             Arc::new(CopilotClient::new(config, self.app_data_dir.clone()));
         let skill_manager = SkillManager::new();
-        skill_manager.initialize().await.map_err(|e| format!("Failed to initialize skill manager: {e}"))?;
+        skill_manager
+            .initialize()
+            .await
+            .map_err(|e| format!("Failed to initialize skill manager: {e}"))?;
         let agent_state = web::Data::new(build_agent_state(self.app_data_dir.clone(), port).await);
-        
+
         let app_state = web::Data::new(AppState {
             copilot_client,
             app_data_dir: self.app_data_dir.clone(),

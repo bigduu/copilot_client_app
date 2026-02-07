@@ -63,11 +63,3 @@ pub trait Workflow: Debug + Send + Sync {
         parameters: HashMap<String, serde_json::Value>,
     ) -> Result<serde_json::Value, WorkflowError>;
 }
-
-
-
-
-
-
-
-

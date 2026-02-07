@@ -61,12 +61,31 @@ struct ChatResponse {
 #[derive(Deserialize, Debug)]
 #[serde(tag = "type", rename_all = "snake_case")]
 enum AgentEvent {
-    Token { content: String },
-    ToolStart { #[allow(dead_code)] tool_call_id: String, tool_name: String, arguments: serde_json::Value },
-    ToolComplete { #[allow(dead_code)] tool_call_id: String, result: ToolResult },
-    ToolError { #[allow(dead_code)] tool_call_id: String, error: String },
-    Complete { usage: TokenUsage },
-    Error { message: String },
+    Token {
+        content: String,
+    },
+    ToolStart {
+        #[allow(dead_code)]
+        tool_call_id: String,
+        tool_name: String,
+        arguments: serde_json::Value,
+    },
+    ToolComplete {
+        #[allow(dead_code)]
+        tool_call_id: String,
+        result: ToolResult,
+    },
+    ToolError {
+        #[allow(dead_code)]
+        tool_call_id: String,
+        error: String,
+    },
+    Complete {
+        usage: TokenUsage,
+    },
+    Error {
+        message: String,
+    },
 }
 
 #[derive(Deserialize, Debug)]
@@ -89,7 +108,10 @@ async fn main() -> anyhow::Result<()> {
 
     if cli.debug {
         eprintln!("{}", "[DEBUG] Debug mode enabled".dimmed());
-        eprintln!("{}", format!("[DEBUG] Server URL: {}", cli.server_url).dimmed());
+        eprintln!(
+            "{}",
+            format!("[DEBUG] Server URL: {}", cli.server_url).dimmed()
+        );
     }
 
     match cli.command {
@@ -118,51 +140,68 @@ async fn send_message(
     };
 
     let url = format!("{}/api/v1/chat", server_url);
-    
+
     if debug {
         eprintln!("{}", format!("[DEBUG] POST {}", url).dimmed());
-        eprintln!("{}", format!("[DEBUG] Request body: {}", serde_json::to_string(&request)?).dimmed());
+        eprintln!(
+            "{}",
+            format!("[DEBUG] Request body: {}", serde_json::to_string(&request)?).dimmed()
+        );
     }
 
     println!("{}", format!("🚀 Sending message: {}", message).cyan());
-    
+
     let start = Instant::now();
-    let response = client
-        .post(&url)
-        .json(&request)
-        .send()
-        .await?;
+    let response = client.post(&url).json(&request).send().await?;
     let elapsed = start.elapsed();
 
     if debug {
-        eprintln!("{}", format!("[DEBUG] Response: {} in {:?}", response.status(), elapsed).dimmed());
-        eprintln!("{}", format!("[DEBUG] Response headers: {:?}", response.headers()).dimmed());
+        eprintln!(
+            "{}",
+            format!("[DEBUG] Response: {} in {:?}", response.status(), elapsed).dimmed()
+        );
+        eprintln!(
+            "{}",
+            format!("[DEBUG] Response headers: {:?}", response.headers()).dimmed()
+        );
     }
 
     if response.status().is_success() {
         let chat_response: ChatResponse = response.json().await?;
-        println!("{}", format!("✅ Session ID: {}", chat_response.session_id).green());
-        println!("{}", format!("📡 Stream URL: {}", chat_response.stream_url).green());
-        
+        println!(
+            "{}",
+            format!("✅ Session ID: {}", chat_response.session_id).green()
+        );
+        println!(
+            "{}",
+            format!("📡 Stream URL: {}", chat_response.stream_url).green()
+        );
+
         if debug {
-            eprintln!("{}", format!("[DEBUG] Full response: {:?}", chat_response).dimmed());
+            eprintln!(
+                "{}",
+                format!("[DEBUG] Full response: {:?}", chat_response).dimmed()
+            );
         }
-        
+
         // 尝试读取流
         let stream_url = format!("{}{}", server_url, chat_response.stream_url);
         if debug {
-            eprintln!("{}", format!("[DEBUG] Connecting to stream: {}", stream_url).dimmed());
+            eprintln!(
+                "{}",
+                format!("[DEBUG] Connecting to stream: {}", stream_url).dimmed()
+            );
         }
-        
-        let stream_response = client
-            .get(&stream_url)
-            .send()
-            .await?;
-        
+
+        let stream_response = client.get(&stream_url).send().await?;
+
         if debug {
-            eprintln!("{}", format!("[DEBUG] Stream response: {}", stream_response.status()).dimmed());
+            eprintln!(
+                "{}",
+                format!("[DEBUG] Stream response: {}", stream_response.status()).dimmed()
+            );
         }
-        
+
         if stream_response.status().is_success() {
             let body = stream_response.text().await?;
             println!("{}", format!("📦 Response: {}", body).yellow());
@@ -187,7 +226,7 @@ async fn stream_message(
 ) -> anyhow::Result<()> {
     let client = reqwest::Client::new();
     let session_id = session_id.unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
-    
+
     let request = ChatRequest {
         message: message.to_string(),
         session_id: Some(session_id.clone()),
@@ -195,25 +234,31 @@ async fn stream_message(
     };
 
     let url = format!("{}/api/v1/chat", server_url);
-    
+
     if debug {
         eprintln!("{}", format!("[DEBUG] POST {}", url).dimmed());
         eprintln!("{}", format!("[DEBUG] Session ID: {}", session_id).dimmed());
         eprintln!("{}", format!("[DEBUG] Message: {}", message).dimmed());
     }
 
-    println!("{}", format!("🚀 Starting stream session: {}", session_id).cyan());
-    
+    println!(
+        "{}",
+        format!("🚀 Starting stream session: {}", session_id).cyan()
+    );
+
     let start = Instant::now();
-    let response = client
-        .post(&url)
-        .json(&request)
-        .send()
-        .await?;
+    let response = client.post(&url).json(&request).send().await?;
 
     if debug {
-        eprintln!("{}", format!("[DEBUG] Chat response: {} in {:?}", 
-            response.status(), start.elapsed()).dimmed());
+        eprintln!(
+            "{}",
+            format!(
+                "[DEBUG] Chat response: {} in {:?}",
+                response.status(),
+                start.elapsed()
+            )
+            .dimmed()
+        );
     }
 
     if !response.status().is_success() {
@@ -222,9 +267,12 @@ async fn stream_message(
     }
 
     let chat_response: ChatResponse = response.json().await?;
-    
+
     if debug {
-        eprintln!("{}", format!("[DEBUG] Stream URL: {}", chat_response.stream_url).dimmed());
+        eprintln!(
+            "{}",
+            format!("[DEBUG] Stream URL: {}", chat_response.stream_url).dimmed()
+        );
     }
 
     println!("{}", "📝 Stream output:".cyan());
@@ -232,13 +280,15 @@ async fn stream_message(
 
     // 使用 SSE 客户端读取流
     let stream_url = format!("{}{}", server_url, chat_response.stream_url);
-    
+
     if debug {
-        eprintln!("{}", format!("[DEBUG] Connecting SSE: {}", stream_url).dimmed());
+        eprintln!(
+            "{}",
+            format!("[DEBUG] Connecting SSE: {}", stream_url).dimmed()
+        );
     }
-    
-    let sse_client = eventsource_client::ClientBuilder::for_url(&stream_url)?
-        .build();
+
+    let sse_client = eventsource_client::ClientBuilder::for_url(&stream_url)?.build();
 
     let mut stream = sse_client.stream();
     let mut content_buffer = String::new();
@@ -249,12 +299,14 @@ async fn stream_message(
         match event {
             Ok(eventsource_client::SSE::Event(event)) => {
                 event_count += 1;
-                
+
                 if debug {
-                    eprintln!("{}", format!("[DEBUG] Raw event {}: {}", 
-                        event_count, event.data).dimmed());
+                    eprintln!(
+                        "{}",
+                        format!("[DEBUG] Raw event {}: {}", event_count, event.data).dimmed()
+                    );
                 }
-                
+
                 if let Ok(agent_event) = serde_json::from_str::<AgentEvent>(&event.data) {
                     match &agent_event {
                         AgentEvent::Token { content } => {
@@ -262,7 +314,11 @@ async fn stream_message(
                             io::stdout().flush()?;
                             content_buffer.push_str(content);
                         }
-                        AgentEvent::ToolStart { tool_name, arguments, .. } => {
+                        AgentEvent::ToolStart {
+                            tool_name,
+                            arguments,
+                            ..
+                        } => {
                             println!();
                             println!("{}", format!("🔧 Executing tool: {}", tool_name).yellow());
                             println!("{}", format!("   Args: {}", arguments).dimmed());
@@ -279,7 +335,9 @@ async fn stream_message(
                                 "{}",
                                 format!(
                                     "📊 Tokens: prompt={}, completion={}, total={}",
-                                    usage.prompt_tokens, usage.completion_tokens, usage.total_tokens
+                                    usage.prompt_tokens,
+                                    usage.completion_tokens,
+                                    usage.total_tokens
                                 )
                                 .dimmed()
                             );
@@ -290,7 +348,10 @@ async fn stream_message(
                         }
                     }
                 } else if debug {
-                    eprintln!("{}", format!("[DEBUG] Failed to parse event: {}", event.data).dimmed());
+                    eprintln!(
+                        "{}",
+                        format!("[DEBUG] Failed to parse event: {}", event.data).dimmed()
+                    );
                 }
             }
             Ok(eventsource_client::SSE::Comment(comment)) => {
@@ -309,16 +370,22 @@ async fn stream_message(
     }
 
     let stream_duration = stream_start.elapsed();
-    
+
     if debug {
-        eprintln!("{}", format!("[DEBUG] Stream completed: {} events in {:?}", 
-            event_count, stream_duration).dimmed());
+        eprintln!(
+            "{}",
+            format!(
+                "[DEBUG] Stream completed: {} events in {:?}",
+                event_count, stream_duration
+            )
+            .dimmed()
+        );
     }
 
     println!();
     println!("{}", "─".repeat(50).dimmed());
     println!("{}", "✨ Stream complete".cyan());
-    
+
     if !content_buffer.is_empty() {
         println!();
         println!("{}", "📝 Complete response:".cyan());
@@ -334,16 +401,16 @@ async fn run_interactive_chat(
     debug: bool,
 ) -> anyhow::Result<()> {
     let session_id = session_id.unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
-    
+
     println!("{}", "🤖 Copilot Agent Interactive Chat".cyan().bold());
     println!("{}", format!("Session ID: {}", session_id).dimmed());
     println!("{}", "Type 'exit' or 'quit' to leave".dimmed());
-    
+
     if debug {
         eprintln!("{}", format!("[DEBUG] Server URL: {}", server_url).dimmed());
         eprintln!("{}", "[DEBUG] Debug mode enabled".dimmed());
     }
-    
+
     println!();
 
     loop {
@@ -364,21 +431,25 @@ async fn run_interactive_chat(
         }
 
         println!("{}", "Assistant:".green().bold());
-        
+
         if let Err(e) = stream_message(server_url, Some(session_id.clone()), input, debug).await {
             if debug {
                 eprintln!("{}", format!("[DEBUG] Error: {:?}", e).dimmed());
             }
             println!("{}", format!("❌ Error: {}", e).red());
         }
-        
+
         println!();
     }
 
     Ok(())
 }
 
-async fn get_history(server_url: &str, session_id: Option<String>, debug: bool) -> anyhow::Result<()> {
+async fn get_history(
+    server_url: &str,
+    session_id: Option<String>,
+    debug: bool,
+) -> anyhow::Result<()> {
     let session_id = match session_id {
         Some(id) => id,
         None => {
@@ -388,28 +459,28 @@ async fn get_history(server_url: &str, session_id: Option<String>, debug: bool) 
     };
 
     let url = format!("{}/api/v1/history/{}", server_url, session_id);
-    
+
     if debug {
         eprintln!("{}", format!("[DEBUG] GET {}", url).dimmed());
     }
 
     let client = reqwest::Client::new();
-    let response = client
-        .get(&url)
-        .send()
-        .await?;
+    let response = client.get(&url).send().await?;
 
     if debug {
-        eprintln!("{}", format!("[DEBUG] Response: {}", response.status()).dimmed());
+        eprintln!(
+            "{}",
+            format!("[DEBUG] Response: {}", response.status()).dimmed()
+        );
     }
 
     if response.status().is_success() {
         let history: serde_json::Value = response.json().await?;
-        
+
         if debug {
             eprintln!("{}", "[DEBUG] Raw response:".dimmed());
         }
-        
+
         println!("{}", serde_json::to_string_pretty(&history)?);
     } else {
         println!("{}", format!("❌ Error: {}", response.status()).red());

@@ -12,11 +12,3 @@ pub struct Parameter {
     pub param_type: String,
     pub default: Option<String>,
 }
-
-
-
-
-
-
-
-

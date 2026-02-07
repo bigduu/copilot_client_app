@@ -2,7 +2,7 @@ use actix_web::{post, web, HttpResponse};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-use builtin_tools::{BuiltinToolExecutor, normalize_tool_ref};
+use builtin_tools::{normalize_tool_ref, BuiltinToolExecutor};
 use copilot_agent_core::tools::{FunctionCall, ToolCall};
 use copilot_agent_core::ToolExecutor;
 

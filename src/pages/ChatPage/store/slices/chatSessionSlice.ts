@@ -15,7 +15,7 @@ export interface ChatSlice {
   isUpdatingAutoTitlePreference: boolean;
 
   // Actions
-  addChat: (chat: Omit<ChatItem, "id">) => Promise<void>;
+  addChat: (chat: Omit<ChatItem, "id">) => Promise<string>; // Returns new chat ID
   selectChat: (chatId: string | null) => void;
   deleteChat: (chatId: string) => Promise<void>;
   deleteChats: (chatIds: string[]) => Promise<void>;
@@ -68,6 +68,8 @@ export const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (
         latestActiveChatId: newChat.id,
       };
     });
+
+    return newChat.id;
   },
 
   selectChat: (chatId) => {

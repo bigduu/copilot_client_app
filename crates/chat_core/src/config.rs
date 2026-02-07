@@ -39,7 +39,7 @@ impl Default for Config {
 impl Config {
     pub fn new() -> Self {
         use crate::paths::config_json_path;
-        
+
         let mut config = Config {
             http_proxy: String::new(),
             https_proxy: String::new(),
@@ -74,11 +74,16 @@ impl Config {
             }
         }
 
-        if let Ok(http_proxy) = std::env::var("HTTP_PROXY") {
-            config.http_proxy = http_proxy;
+        // Only use env vars if config file doesn't have explicit proxy settings
+        if config.http_proxy.is_empty() {
+            if let Ok(http_proxy) = std::env::var("HTTP_PROXY") {
+                config.http_proxy = http_proxy;
+            }
         }
-        if let Ok(https_proxy) = std::env::var("HTTPS_PROXY") {
-            config.https_proxy = https_proxy;
+        if config.https_proxy.is_empty() {
+            if let Ok(https_proxy) = std::env::var("HTTPS_PROXY") {
+                config.https_proxy = https_proxy;
+            }
         }
         if let Ok(api_key) = std::env::var("API_KEY") {
             config.api_key = Some(api_key);

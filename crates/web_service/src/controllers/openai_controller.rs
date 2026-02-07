@@ -2,6 +2,7 @@ use crate::{error::AppError, server::AppState};
 use actix_web::{get, post, web, HttpResponse};
 use bytes::Bytes;
 use copilot_client::api::models::{ChatCompletionRequest, ChatCompletionResponse};
+use copilot_client::ProxyAuthRequiredError;
 use futures_util::StreamExt;
 use serde::Serialize;
 use tokio::sync::mpsc;
@@ -24,10 +25,18 @@ struct Model {
 #[get("/models")]
 pub async fn get_models(app_state: web::Data<AppState>) -> Result<HttpResponse, AppError> {
     // Fetch real models from copilot_client
-    let model_ids =
-        app_state.copilot_client.get_models().await.map_err(|e| {
-            AppError::InternalError(anyhow::anyhow!("Failed to fetch models: {}", e))
-        })?;
+    let model_ids = match app_state.copilot_client.get_models().await {
+        Ok(model_ids) => model_ids,
+        Err(e) => {
+            if e.downcast_ref::<ProxyAuthRequiredError>().is_some() {
+                return Err(AppError::ProxyAuthRequired);
+            }
+            return Err(AppError::InternalError(anyhow::anyhow!(
+                "Failed to fetch models: {}",
+                e
+            )));
+        }
+    };
 
     // Convert model IDs to OpenAI-compatible format
     let models: Vec<Model> = model_ids
@@ -60,7 +69,19 @@ pub async fn chat_completions(
         let (tx, rx) = mpsc::channel(10);
         let client = app_state.copilot_client.clone();
 
-        let response = client.send_chat_completion_request(request).await?;
+        let response = match client.send_chat_completion_request(request).await {
+            Ok(resp) => resp,
+            Err(e) => {
+                if e.downcast_ref::<ProxyAuthRequiredError>().is_some() {
+                    return Err(AppError::ProxyAuthRequired);
+                }
+                return Err(AppError::InternalError(e));
+            }
+        };
+
+        if response.status().as_u16() == 407 {
+            return Err(AppError::ProxyAuthRequired);
+        }
 
         if !response.status().is_success() {
             let status = response.status();
@@ -89,12 +110,25 @@ pub async fn chat_completions(
             .content_type("text/event-stream")
             .streaming(stream))
     } else {
-        let response = app_state
+        let response = match app_state
             .copilot_client
             .send_chat_completion_request(request)
-            .await?;
+            .await
+        {
+            Ok(resp) => resp,
+            Err(e) => {
+                if e.downcast_ref::<ProxyAuthRequiredError>().is_some() {
+                    return Err(AppError::ProxyAuthRequired);
+                }
+                return Err(AppError::InternalError(e));
+            }
+        };
 
         let status = response.status();
+        if status.as_u16() == 407 {
+            return Err(AppError::ProxyAuthRequired);
+        }
+
         let body = response.bytes().await.map_err(|e| {
             AppError::InternalError(anyhow::anyhow!("Failed to read response body: {}", e))
         })?;

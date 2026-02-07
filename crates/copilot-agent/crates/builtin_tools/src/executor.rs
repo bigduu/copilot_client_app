@@ -19,7 +19,11 @@ pub fn normalize_tool_ref(value: &str) -> Option<String> {
     if trimmed.is_empty() {
         return None;
     }
-    let tool_name = trimmed.split("::").last().unwrap_or(trimmed);
+    let raw_tool_name = trimmed.split("::").last().unwrap_or(trimmed);
+    let tool_name = match raw_tool_name {
+        "run_command" => "execute_command",
+        _ => raw_tool_name,
+    };
     if BUILTIN_TOOL_NAMES.iter().any(|name| name == &tool_name) {
         Some(tool_name.to_string())
     } else {
@@ -75,15 +79,16 @@ impl ToolExecutor for BuiltinToolExecutor {
         let args: serde_json::Value = if args_raw.is_empty() {
             json!({})
         } else {
-            serde_json::from_str(args_raw)
-                .map_err(|e| ToolError::InvalidArguments(format!("Invalid JSON arguments: {}", e)))?
+            serde_json::from_str(args_raw).map_err(|e| {
+                ToolError::InvalidArguments(format!("Invalid JSON arguments: {}", e))
+            })?
         };
 
         match normalize_tool_name(call.function.name.as_str()) {
             "read_file" => {
-                let path = args["path"]
-                    .as_str()
-                    .ok_or_else(|| ToolError::InvalidArguments("Missing 'path' parameter".to_string()))?;
+                let path = args["path"].as_str().ok_or_else(|| {
+                    ToolError::InvalidArguments("Missing 'path' parameter".to_string())
+                })?;
 
                 match FilesystemTool::read_file(path).await {
                     Ok(content) => Ok(ToolResult {
@@ -99,12 +104,12 @@ impl ToolExecutor for BuiltinToolExecutor {
                 }
             }
             "write_file" => {
-                let path = args["path"]
-                    .as_str()
-                    .ok_or_else(|| ToolError::InvalidArguments("Missing 'path' parameter".to_string()))?;
-                let content = args["content"]
-                    .as_str()
-                    .ok_or_else(|| ToolError::InvalidArguments("Missing 'content' parameter".to_string()))?;
+                let path = args["path"].as_str().ok_or_else(|| {
+                    ToolError::InvalidArguments("Missing 'path' parameter".to_string())
+                })?;
+                let content = args["content"].as_str().ok_or_else(|| {
+                    ToolError::InvalidArguments("Missing 'content' parameter".to_string())
+                })?;
 
                 match FilesystemTool::write_file(path, content).await {
                     Ok(_) => Ok(ToolResult {
@@ -168,9 +173,9 @@ impl ToolExecutor for BuiltinToolExecutor {
                 }
             }
             "execute_command" => {
-                let command = args["command"]
-                    .as_str()
-                    .ok_or_else(|| ToolError::InvalidArguments("Missing 'command' parameter".to_string()))?;
+                let command = args["command"].as_str().ok_or_else(|| {
+                    ToolError::InvalidArguments("Missing 'command' parameter".to_string())
+                })?;
 
                 let args_vec: Vec<String> = args["args"]
                     .as_array()
@@ -214,6 +219,24 @@ impl ToolExecutor for BuiltinToolExecutor {
 
     fn list_tools(&self) -> Vec<ToolSchema> {
         Self::tool_schemas()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::normalize_tool_ref;
+
+    #[test]
+    fn normalize_tool_ref_supports_legacy_run_command_alias() {
+        assert_eq!(
+            normalize_tool_ref("default::run_command"),
+            Some("execute_command".to_string())
+        );
+    }
+
+    #[test]
+    fn normalize_tool_ref_rejects_unknown_tool() {
+        assert_eq!(normalize_tool_ref("default::search"), None);
     }
 }
 

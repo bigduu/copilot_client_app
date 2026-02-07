@@ -3,6 +3,7 @@ import type { ProfilerOnRenderCallback } from "react";
 import { App as AntApp, ConfigProvider, theme } from "antd";
 import "./App.css";
 import { MainLayout } from "./MainLayout";
+import SpotlightPage from "../pages/SpotlightPage";
 import { useAppStore } from "../pages/ChatPage/store";
 
 const DARK_MODE_KEY = "copilot_dark_mode";
@@ -11,7 +12,24 @@ function App() {
   const [themeMode, setThemeMode] = useState<"light" | "dark">(() => {
     return (localStorage.getItem(DARK_MODE_KEY) as "light" | "dark") || "light";
   });
+  const [isSpotlight, setIsSpotlight] = useState(false);
   const loadSystemPrompts = useAppStore((state) => state.loadSystemPrompts);
+
+  // Detect if we're in spotlight window
+  useEffect(() => {
+    const checkWindow = async () => {
+      try {
+        const { getCurrentWebviewWindow } = await import("@tauri-apps/api/webviewWindow");
+        const window = getCurrentWebviewWindow();
+        const label = await window.label;
+        setIsSpotlight(label === "spotlight");
+      } catch {
+        // Not in Tauri environment
+        setIsSpotlight(false);
+      }
+    };
+    checkWindow();
+  }, []);
 
   // Dev-only instrumentation to surface expensive renders during the ongoing
   // UI/UX refactor. Console output is gated behind the DEV flag to avoid
@@ -59,7 +77,9 @@ function App() {
     >
       <AntApp>
         <div style={{ position: "relative" }}>
-          {import.meta.env.DEV ? (
+          {isSpotlight ? (
+            <SpotlightPage />
+          ) : import.meta.env.DEV ? (
             <Profiler id="MainLayout" onRender={handleProfilerRender}>
               <MainLayout
                 themeMode={themeMode}

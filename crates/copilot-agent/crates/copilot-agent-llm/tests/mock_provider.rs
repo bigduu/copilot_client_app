@@ -1,8 +1,8 @@
 use async_trait::async_trait;
-use std::pin::Pin;
+use copilot_agent_core::{tools::ToolSchema, Message};
+use copilot_agent_llm::{LLMChunk, LLMError, LLMProvider};
 use futures::Stream;
-use copilot_agent_llm::{LLMProvider, LLMChunk, LLMError};
-use copilot_agent_core::{Message, tools::ToolSchema};
+use std::pin::Pin;
 
 /// Mock LLM Provider for testing
 pub struct MockLLMProvider {
@@ -69,7 +69,7 @@ mod tests {
         let tools: Vec<ToolSchema> = vec![];
 
         let mut stream = mock.chat_stream(&messages, &tools).await.unwrap();
-        
+
         let mut result = String::new();
         while let Some(chunk) = stream.next().await {
             match chunk.unwrap() {
@@ -88,7 +88,7 @@ mod tests {
         let tools: Vec<ToolSchema> = vec![];
 
         let mut stream = mock.chat_stream(&messages, &tools).await.unwrap();
-        
+
         let mut tokens = vec![];
         while let Some(chunk) = stream.next().await {
             match chunk.unwrap() {
@@ -107,7 +107,7 @@ mod tests {
         let tools: Vec<ToolSchema> = vec![];
 
         let mut stream = mock.chat_stream(&messages, &tools).await.unwrap();
-        
+
         let count = stream.count().await;
         assert_eq!(count, 0);
     }

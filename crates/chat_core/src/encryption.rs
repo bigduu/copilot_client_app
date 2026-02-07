@@ -25,16 +25,16 @@ pub fn get_encryption_key() -> Vec<u8> {
 /// 返回: nonce(12字节) + ciphertext
 pub fn encrypt(plaintext: &str) -> Result<String> {
     let key = get_encryption_key();
-    let cipher = Aes256Gcm::new_from_slice(&key)
-        .map_err(|e| anyhow!("Failed to create cipher: {e}"))?;
-    
+    let cipher =
+        Aes256Gcm::new_from_slice(&key).map_err(|e| anyhow!("Failed to create cipher: {e}"))?;
+
     let nonce_bytes: [u8; 12] = rand::thread_rng().gen();
     let nonce = Nonce::from_slice(&nonce_bytes);
-    
+
     let ciphertext = cipher
         .encrypt(nonce, plaintext.as_bytes())
         .map_err(|e| anyhow!("Encryption failed: {e}"))?;
-    
+
     // 格式: hex(nonce) + ":" + hex(ciphertext)
     let result = format!("{}:{}", hex::encode(nonce_bytes), hex::encode(ciphertext));
     Ok(result)
@@ -46,23 +46,20 @@ pub fn decrypt(encrypted: &str) -> Result<String> {
     if parts.len() != 2 {
         return Err(anyhow!("Invalid encrypted format"));
     }
-    
-    let nonce_bytes = hex::decode(parts[0])
-        .map_err(|e| anyhow!("Invalid nonce: {e}"))?;
-    let ciphertext = hex::decode(parts[1])
-        .map_err(|e| anyhow!("Invalid ciphertext: {e}"))?;
-    
+
+    let nonce_bytes = hex::decode(parts[0]).map_err(|e| anyhow!("Invalid nonce: {e}"))?;
+    let ciphertext = hex::decode(parts[1]).map_err(|e| anyhow!("Invalid ciphertext: {e}"))?;
+
     let key = get_encryption_key();
-    let cipher = Aes256Gcm::new_from_slice(&key)
-        .map_err(|e| anyhow!("Failed to create cipher: {e}"))?;
-    
+    let cipher =
+        Aes256Gcm::new_from_slice(&key).map_err(|e| anyhow!("Failed to create cipher: {e}"))?;
+
     let nonce = Nonce::from_slice(&nonce_bytes);
     let plaintext = cipher
         .decrypt(nonce, ciphertext.as_ref())
         .map_err(|e| anyhow!("Decryption failed: {e}"))?;
-    
-    String::from_utf8(plaintext)
-        .map_err(|e| anyhow!("Invalid UTF-8: {e}"))
+
+    String::from_utf8(plaintext).map_err(|e| anyhow!("Invalid UTF-8: {e}"))
 }
 
 #[cfg(test)]

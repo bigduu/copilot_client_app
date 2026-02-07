@@ -13,15 +13,13 @@ mod tests {
     #[test]
     fn test_apply_masking() {
         let config = KeywordMaskingConfig {
-            entries: vec![
-                KeywordEntry {
-                    pattern: "secret".to_string(),
-                    match_type: MatchType::Exact,
-                    enabled: true,
-                },
-            ],
+            entries: vec![KeywordEntry {
+                pattern: "secret".to_string(),
+                match_type: MatchType::Exact,
+                enabled: true,
+            }],
         };
-        
+
         let result = apply_masking("This is secret", &config);
         assert_eq!(result, "This is [MASKED]");
     }

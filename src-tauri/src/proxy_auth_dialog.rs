@@ -168,7 +168,10 @@ window.addEventListener('DOMContentLoaded', () => {{
 
 /// Show proxy authentication dialog
 /// Returns None if user cancels or skips
-pub async fn show_proxy_auth_dialog<R: Runtime>(app: &AppHandle<R>, proxy_url: &str) -> DialogResult {
+pub async fn show_proxy_auth_dialog<R: Runtime>(
+    app: &AppHandle<R>,
+    proxy_url: &str,
+) -> DialogResult {
     if let Ok(username) = std::env::var("PROXY_USERNAME") {
         if let Ok(password) = std::env::var("PROXY_PASSWORD") {
             log::info!("Using proxy auth from environment variables");
@@ -216,7 +219,10 @@ pub async fn show_proxy_auth_dialog<R: Runtime>(app: &AppHandle<R>, proxy_url: &
 }
 
 /// Show proxy auth input dialog (username/password)
-async fn show_proxy_auth_input_dialog<R: Runtime>(app: &AppHandle<R>, proxy_url: &str) -> DialogResult {
+async fn show_proxy_auth_input_dialog<R: Runtime>(
+    app: &AppHandle<R>,
+    proxy_url: &str,
+) -> DialogResult {
     let dialog_id = Uuid::new_v4().to_string();
     let window_label = format!("proxy-auth-dialog-{}", dialog_id);
     let submit_event = format!("proxy-auth-dialog-submit-{}", dialog_id);

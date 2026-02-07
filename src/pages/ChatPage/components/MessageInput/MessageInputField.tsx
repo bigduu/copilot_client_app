@@ -1,9 +1,8 @@
 import React from "react";
-import { Input, Typography } from "antd";
+import { Input } from "antd";
 import type { TextAreaRef } from "antd/es/input/TextArea";
 
 const { TextArea } = Input;
-const { Text } = Typography;
 
 interface HighlightSegment {
   type: "workflow" | "file" | "text";

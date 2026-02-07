@@ -1,4 +1,4 @@
-import React, { memo, useMemo, useRef, useState } from "react";
+import React, { memo, useCallback, useMemo, useRef, useState } from "react";
 import { Card, Dropdown, Flex, Grid, Space, theme } from "antd";
 import rehypeSanitize from "rehype-sanitize";
 import remarkBreaks from "remark-breaks";
@@ -11,8 +11,7 @@ import {
   createFavoriteButton,
   createReferenceButton,
 } from "../ActionButtonGroup";
-import { useChatManager } from "../../hooks/useChatManager";
-import { useAppStore } from "../../store";
+import { selectCurrentChat, useAppStore } from "../../store";
 import {
   isTodoListMessage,
   isUserFileReferenceMessage,
@@ -39,6 +38,14 @@ import { getMessageCardMaxWidth } from "./messageCardLayout";
 
 const { useToken } = theme;
 const { useBreakpoint } = Grid;
+const CHAT_SEND_MESSAGE_EVENT = "chat-send-message";
+
+type ChatSendMessageEventDetail = {
+  content: string;
+  handled?: boolean;
+  resolve?: () => void;
+  reject?: (error: unknown) => void;
+};
 
 interface MessageCardProps {
   message: Message;
@@ -54,13 +61,39 @@ const MessageCardComponent: React.FC<MessageCardProps> = ({
   const { role, id: messageId } = message;
   const { token } = useToken();
   const screens = useBreakpoint();
-  const { currentChatId, currentChat, sendMessage, updateChat } =
-    useChatManager();
+  const currentChatId = useAppStore((state) => state.currentChatId);
+  const currentChat = useAppStore(selectCurrentChat);
+  const updateChat = useAppStore((state) => state.updateChat);
   const isProcessing = useAppStore((state) => state.isProcessing);
   const addFavorite = useAppStore((state) => state.addFavorite);
   const selectedModel = useAppStore((state) => state.selectedModel);
   const cardRef = useRef<HTMLDivElement>(null);
   const [isHovering, setIsHovering] = useState<boolean>(false);
+
+  const sendMessage = useCallback((content: string) => {
+    if (typeof window === "undefined") {
+      return Promise.reject(new Error("window is unavailable"));
+    }
+
+    return new Promise<void>((resolve, reject) => {
+      const detail: ChatSendMessageEventDetail = {
+        content,
+        handled: false,
+        resolve,
+        reject,
+      };
+
+      window.dispatchEvent(
+        new CustomEvent<ChatSendMessageEventDetail>(CHAT_SEND_MESSAGE_EVENT, {
+          detail,
+        }),
+      );
+
+      if (!detail.handled) {
+        reject(new Error("No chat message dispatcher available"));
+      }
+    });
+  }, []);
 
   const formattedTimestamp = useMemo(() => {
     if (!message.createdAt) return null;

@@ -22,8 +22,7 @@ async fn test_retry_on_server_error() {
         .respond_with(move |_req: &wiremock::Request| {
             let count = counter.fetch_add(1, Ordering::SeqCst);
             if count < 2 {
-                ResponseTemplate::new(503)
-                    .set_body_string("Service Unavailable")
+                ResponseTemplate::new(503).set_body_string("Service Unavailable")
             } else {
                 ResponseTemplate::new(200).set_body_string(r#"{"status": "ok"}"#)
             }
@@ -33,10 +32,7 @@ async fn test_retry_on_server_error() {
         .await;
 
     // Build client with retry middleware
-    let retry_policy = ExponentialBackoff::builder()
-        .base_secs(1)
-        .max_retries(3)
-        .build();
+    let retry_policy = ExponentialBackoff::builder().build_with_max_retries(3);
 
     let client = ClientBuilder::new(ReqwestClient::new())
         .with(RetryTransientMiddleware::new_with_policy(retry_policy))
@@ -79,10 +75,7 @@ async fn test_retry_on_timeout() {
         .await;
 
     // Build client with short timeout and retry
-    let retry_policy = ExponentialBackoff::builder()
-        .base_secs(1)
-        .max_retries(3)
-        .build();
+    let retry_policy = ExponentialBackoff::builder().build_with_max_retries(3);
 
     let http_client = ReqwestClient::builder()
         .timeout(std::time::Duration::from_millis(100))
@@ -116,17 +109,13 @@ async fn test_no_retry_on_client_error() {
         .and(path("/test"))
         .respond_with(move |_req: &wiremock::Request| {
             counter.fetch_add(1, Ordering::SeqCst);
-            ResponseTemplate::new(401)
-                .set_body_string(r#"{"error": "Unauthorized"}"#)
+            ResponseTemplate::new(401).set_body_string(r#"{"error": "Unauthorized"}"#)
         })
         .expect(1) // Should only be called once (no retry)
         .mount(&mock_server)
         .await;
 
-    let retry_policy = ExponentialBackoff::builder()
-        .base_secs(1)
-        .max_retries(3)
-        .build();
+    let retry_policy = ExponentialBackoff::builder().build_with_max_retries(3);
 
     let client = ClientBuilder::new(ReqwestClient::new())
         .with(RetryTransientMiddleware::new_with_policy(retry_policy))
@@ -148,10 +137,7 @@ async fn test_retry_on_connection_error() {
     // Use an invalid port that should cause connection refused
     let invalid_url = "http://127.0.0.1:1/test";
 
-    let retry_policy = ExponentialBackoff::builder()
-        .base_secs(1)
-        .max_retries(2)
-        .build();
+    let retry_policy = ExponentialBackoff::builder().build_with_max_retries(2);
 
     let client = ClientBuilder::new(ReqwestClient::new())
         .with(RetryTransientMiddleware::new_with_policy(retry_policy))
@@ -173,17 +159,17 @@ async fn test_exponential_backoff_timing() {
     Mock::given(method("GET"))
         .and(path("/test"))
         .respond_with(move |_req: &wiremock::Request| {
-            timestamps_clone.lock().unwrap().push(std::time::Instant::now());
+            timestamps_clone
+                .lock()
+                .unwrap()
+                .push(std::time::Instant::now());
             ResponseTemplate::new(503)
         })
         .expect(3)
         .mount(&mock_server)
         .await;
 
-    let retry_policy = ExponentialBackoff::builder()
-        .base_secs(1) // 1s, 2s, 4s...
-        .max_retries(3)
-        .build();
+    let retry_policy = ExponentialBackoff::builder().build_with_max_retries(3);
 
     let client = ClientBuilder::new(ReqwestClient::new())
         .with(RetryTransientMiddleware::new_with_policy(retry_policy))
@@ -224,10 +210,7 @@ async fn test_no_retry_on_success() {
         .mount(&mock_server)
         .await;
 
-    let retry_policy = ExponentialBackoff::builder()
-        .base_secs(1)
-        .max_retries(3)
-        .build();
+    let retry_policy = ExponentialBackoff::builder().build_with_max_retries(3);
 
     let client = ClientBuilder::new(ReqwestClient::new())
         .with(RetryTransientMiddleware::new_with_policy(retry_policy))
@@ -261,10 +244,7 @@ async fn test_max_retries_limit() {
         .mount(&mock_server)
         .await;
 
-    let retry_policy = ExponentialBackoff::builder()
-        .base_secs(1)
-        .max_retries(3)
-        .build();
+    let retry_policy = ExponentialBackoff::builder().build_with_max_retries(3);
 
     let client = ClientBuilder::new(ReqwestClient::new())
         .with(RetryTransientMiddleware::new_with_policy(retry_policy))

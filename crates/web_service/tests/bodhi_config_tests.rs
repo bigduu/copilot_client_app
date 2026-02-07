@@ -10,11 +10,11 @@ use chat_core::ProxyAuth;
 use copilot_client::client_trait::CopilotClientTrait;
 use reqwest::Response;
 use serde_json::{json, Value};
+use skill_manager::SkillManager;
 use std::sync::{Arc, Mutex};
 use tempfile::tempdir;
 use tokio::sync::mpsc::Sender;
 use web_service::server::{app_config, AppState};
-use skill_manager::SkillManager;
 
 struct MockCopilotClient {
     last_auth: Arc<Mutex<Option<ProxyAuth>>>,

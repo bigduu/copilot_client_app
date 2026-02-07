@@ -17,11 +17,8 @@ pub struct DeviceCodeResponse {
 
 /// Get device code from GitHub
 pub async fn get_device_code(client: &Client) -> Result<DeviceCodeResponse, String> {
-    let params = [
-        ("client_id", GITHUB_CLIENT_ID),
-        ("scope", "read:user"),
-    ];
-    
+    let params = [("client_id", GITHUB_CLIENT_ID), ("scope", "read:user")];
+
     let response = client
         .post(DEVICE_CODE_URL)
         .header("Accept", "application/json")
@@ -29,18 +26,21 @@ pub async fn get_device_code(client: &Client) -> Result<DeviceCodeResponse, Stri
         .send()
         .await
         .map_err(|e| format!("Failed to request device code: {}", e))?;
-    
+
     let status = response.status();
     if !status.is_success() {
         let text = response.text().await.unwrap_or_default();
-        return Err(format!("Device code request failed: HTTP {} - {}", status, text));
+        return Err(format!(
+            "Device code request failed: HTTP {} - {}",
+            status, text
+        ));
     }
-    
+
     let device_code: DeviceCodeResponse = response
         .json()
         .await
         .map_err(|e| format!("Failed to parse device code response: {}", e))?;
-    
+
     Ok(device_code)
 }
 
@@ -61,7 +61,10 @@ pub fn present_device_code(device_code: &DeviceCodeResponse) {
     println!();
     println!("  3. Click 'Authorize' and wait...");
     println!();
-    println!("  ⏳ Waiting for authorization (expires in {} seconds)...", device_code.expires_in);
+    println!(
+        "  ⏳ Waiting for authorization (expires in {} seconds)...",
+        device_code.expires_in
+    );
     println!();
 }
 

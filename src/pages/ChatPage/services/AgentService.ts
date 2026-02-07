@@ -7,7 +7,7 @@
 import { getBackendBaseUrl } from "../../../shared/utils/backendBaseUrl";
 
 // Agent Event Types (matching Rust backend)
-export type AgentEventType = 
+export type AgentEventType =
   | "token"
   | "tool_start"
   | "tool_complete"
@@ -37,6 +37,9 @@ export interface AgentEvent {
 export interface ChatRequest {
   message: string;
   session_id?: string;
+  system_prompt?: string;
+  enhance_prompt?: string;
+  workspace_path?: string;
   model?: string;
 }
 
@@ -68,7 +71,11 @@ export interface HistoryResponse {
 // Event handlers type
 export interface AgentEventHandlers {
   onToken?: (content: string) => void;
-  onToolStart?: (toolCallId: string, toolName: string, args: Record<string, unknown>) => void;
+  onToolStart?: (
+    toolCallId: string,
+    toolName: string,
+    args: Record<string, unknown>,
+  ) => void;
   onToolComplete?: (toolCallId: string, result: AgentEvent["result"]) => void;
   onToolError?: (toolCallId: string, error: string) => void;
   onComplete?: (usage: AgentEvent["usage"]) => void;
@@ -121,7 +128,7 @@ export class AgentClient {
   async streamEvents(
     sessionId: string,
     handlers: AgentEventHandlers,
-    abortController?: AbortController
+    abortController?: AbortController,
   ): Promise<void> {
     const signal = abortController?.signal;
     const response = await fetch(`${this.baseUrl}/api/v1/stream/${sessionId}`, {
@@ -158,7 +165,7 @@ export class AgentClient {
         for (const line of lines) {
           if (line.startsWith("data: ")) {
             const data = line.slice(6);
-            
+
             // Check for [DONE] marker
             if (data === "[DONE]") {
               return;
@@ -190,7 +197,7 @@ export class AgentClient {
         handlers.onToolStart?.(
           event.tool_call_id || "",
           event.tool_name || "",
-          event.arguments || {}
+          event.arguments || {},
         );
         break;
       case "tool_complete":
@@ -216,10 +223,9 @@ export class AgentClient {
    * Stop generation for a session
    */
   async stopGeneration(sessionId: string): Promise<void> {
-    const response = await fetch(
-      `${this.baseUrl}/api/v1/stop/${sessionId}`,
-      { method: "POST" }
-    );
+    const response = await fetch(`${this.baseUrl}/api/v1/stop/${sessionId}`, {
+      method: "POST",
+    });
 
     if (!response.ok) {
       throw new Error(`Failed to stop generation: ${response.statusText}`);

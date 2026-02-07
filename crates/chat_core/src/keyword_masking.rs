@@ -107,12 +107,12 @@ impl KeywordMaskingConfig {
     /// Apply masking to text
     pub fn apply_masking(&self, text: &str) -> String {
         let mut result = text.to_string();
-        
+
         for entry in &self.entries {
             if !entry.enabled {
                 continue;
             }
-            
+
             match entry.match_type {
                 MatchType::Exact => {
                     result = result.replace(&entry.pattern, "[MASKED]");
@@ -124,7 +124,7 @@ impl KeywordMaskingConfig {
                 }
             }
         }
-        
+
         result
     }
 }
@@ -136,11 +136,9 @@ mod tests {
     #[test]
     fn test_exact_masking() {
         let config = KeywordMaskingConfig {
-            entries: vec![
-                KeywordEntry::exact("secret-token"),
-            ],
+            entries: vec![KeywordEntry::exact("secret-token")],
         };
-        
+
         let result = config.apply_masking("This has secret-token in it");
         assert_eq!(result, "This has [MASKED] in it");
     }
@@ -148,11 +146,9 @@ mod tests {
     #[test]
     fn test_regex_masking() {
         let config = KeywordMaskingConfig {
-            entries: vec![
-                KeywordEntry::regex(r"sk-[A-Za-z0-9]+"),
-            ],
+            entries: vec![KeywordEntry::regex(r"sk-[A-Za-z0-9]+")],
         };
-        
+
         let result = config.apply_masking("API key: sk-abc123xyz");
         assert_eq!(result, "API key: [MASKED]");
     }
@@ -160,15 +156,13 @@ mod tests {
     #[test]
     fn test_disabled_entry_not_applied() {
         let config = KeywordMaskingConfig {
-            entries: vec![
-                KeywordEntry {
-                    pattern: "secret".to_string(),
-                    match_type: MatchType::Exact,
-                    enabled: false,
-                },
-            ],
+            entries: vec![KeywordEntry {
+                pattern: "secret".to_string(),
+                match_type: MatchType::Exact,
+                enabled: false,
+            }],
         };
-        
+
         let result = config.apply_masking("This has secret in it");
         assert_eq!(result, "This has secret in it");
     }
@@ -176,12 +170,9 @@ mod tests {
     #[test]
     fn test_multiple_entries() {
         let config = KeywordMaskingConfig {
-            entries: vec![
-                KeywordEntry::exact("foo"),
-                KeywordEntry::exact("bar"),
-            ],
+            entries: vec![KeywordEntry::exact("foo"), KeywordEntry::exact("bar")],
         };
-        
+
         let result = config.apply_masking("foo and bar");
         assert_eq!(result, "[MASKED] and [MASKED]");
     }
@@ -190,7 +181,7 @@ mod tests {
     fn test_validate_regex() {
         let entry = KeywordEntry::regex(r"[a-z+");
         assert!(entry.validate().is_err());
-        
+
         let entry = KeywordEntry::regex(r"[a-z]+");
         assert!(entry.validate().is_ok());
     }
@@ -199,11 +190,11 @@ mod tests {
     fn test_validate_config() {
         let config = KeywordMaskingConfig {
             entries: vec![
-                KeywordEntry::regex(r"[a-z+"), // invalid
+                KeywordEntry::regex(r"[a-z+"),  // invalid
                 KeywordEntry::regex(r"[a-z]+"), // valid
             ],
         };
-        
+
         let result = config.validate();
         assert!(result.is_err());
         let errors = result.unwrap_err();

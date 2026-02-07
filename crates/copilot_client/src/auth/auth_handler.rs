@@ -1,6 +1,8 @@
+use crate::error::ProxyAuthRequiredError;
 use anyhow::anyhow;
 use lazy_static::lazy_static;
 use log::{error, info};
+use reqwest::StatusCode;
 use reqwest_middleware::ClientWithMiddleware;
 use serde::{Deserialize, Serialize};
 use std::{
@@ -212,7 +214,11 @@ pub(crate) struct CopilotAuthHandler {
 }
 
 impl CopilotAuthHandler {
-    pub(crate) fn new(client: Arc<ClientWithMiddleware>, app_data_dir: PathBuf, headless_auth: bool) -> Self {
+    pub(crate) fn new(
+        client: Arc<ClientWithMiddleware>,
+        app_data_dir: PathBuf,
+        headless_auth: bool,
+    ) -> Self {
         CopilotAuthHandler {
             client,
             app_data_dir,
@@ -328,10 +334,13 @@ impl CopilotAuthHandler {
             .post("https://github.com/login/device/code")
             .query(&params)
             .send()
-            .await?
-            .json::<DeviceCodeResponse>()
             .await?;
-        Ok(response)
+
+        if response.status() == StatusCode::PROXY_AUTHENTICATION_REQUIRED {
+            return Err(anyhow!(ProxyAuthRequiredError));
+        }
+
+        Ok(response.json::<DeviceCodeResponse>().await?)
     }
 
     pub(super) async fn get_access_token(
@@ -376,9 +385,13 @@ impl CopilotAuthHandler {
                 .post("https://github.com/login/oauth/access_token")
                 .query(&params)
                 .send()
-                .await?
-                .json::<AccessTokenResponse>()
                 .await?;
+
+            if response.status() == StatusCode::PROXY_AUTHENTICATION_REQUIRED {
+                return Err(anyhow!(ProxyAuthRequiredError));
+            }
+
+            let response = response.json::<AccessTokenResponse>().await?;
             if response.access_token.is_some() {
                 return Ok(response);
             }
@@ -401,6 +414,10 @@ impl CopilotAuthHandler {
             .header("Authorization", format!("token {}", actual_github_token))
             .send()
             .await?;
+
+        if response.status() == StatusCode::PROXY_AUTHENTICATION_REQUIRED {
+            return Err(anyhow!(ProxyAuthRequiredError));
+        }
 
         let body = response.bytes().await?;
         match serde_json::from_slice::<CopilotConfig>(&body) {
@@ -433,15 +450,9 @@ mod retry_tests {
         use reqwest_middleware::ClientBuilder;
         use reqwest_retry::{policies::ExponentialBackoff, RetryTransientMiddleware};
 
-        let retry_policy = ExponentialBackoff::builder()
-            .base_secs(1)
-            .max_retries(3)
-            .build();
+        let retry_policy = ExponentialBackoff::builder().build_with_max_retries(3);
 
-        let client = ReqwestClient::builder()
-            .no_proxy()
-            .build()
-            .expect("client");
+        let client = ReqwestClient::builder().no_proxy().build().expect("client");
 
         Arc::new(
             ClientBuilder::new(client)
@@ -513,7 +524,11 @@ mod retry_tests {
 
         // This should retry and eventually succeed
         let result = handler.get_copilot_token(access_token).await;
-        assert!(result.is_ok(), "Should succeed after retries: {:?}", result.err());
+        assert!(
+            result.is_ok(),
+            "Should succeed after retries: {:?}",
+            result.err()
+        );
         assert_eq!(request_count.load(Ordering::SeqCst), 3);
 
         let config = result.unwrap();
@@ -531,8 +546,7 @@ mod retry_tests {
             .and(path("/copilot_internal/v2/token"))
             .respond_with(move |_req: &wiremock::Request| {
                 counter.fetch_add(1, Ordering::SeqCst);
-                ResponseTemplate::new(401)
-                    .set_body_string(r#"{"error": "Unauthorized"}"#)
+                ResponseTemplate::new(401).set_body_string(r#"{"error": "Unauthorized"}"#)
             })
             .expect(1) // Should only be called once
             .mount(&mock_server)
