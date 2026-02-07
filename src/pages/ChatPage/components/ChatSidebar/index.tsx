@@ -62,7 +62,7 @@ export const ChatSidebar: React.FC = () => {
   return (
     <Sider
       breakpoint="md"
-      collapsedWidth={60}
+      collapsedWidth={72}
       width={getSiderWidth()}
       collapsible
       collapsed={collapsed}
@@ -99,7 +99,7 @@ export const ChatSidebar: React.FC = () => {
         style={{
           height: `calc(100vh - ${footerHeight}px)`,
           overflowY: "auto",
-          padding: collapsed ? "40px 8px 0 8px" : "40px 12px 0 12px",
+          padding: collapsed ? "40px 10px 0 10px" : "40px 12px 0 12px",
         }}
       >
         {!collapsed ? (

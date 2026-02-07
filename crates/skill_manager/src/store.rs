@@ -108,10 +108,7 @@ impl SkillStore {
         let builtins = Self::builtin_skills();
 
         for skill in builtins {
-            let path = self
-                .config
-                .skills_dir
-                .join(format!("{}.md", skill.id));
+            let path = self.config.skills_dir.join(format!("{}.md", skill.id));
             if path.exists() {
                 continue;
             }
@@ -198,7 +195,11 @@ impl SkillStore {
     }
 
     /// Update an existing skill
-    pub async fn update_skill(&self, _id: &str, _updates: SkillUpdate) -> SkillResult<SkillDefinition> {
+    pub async fn update_skill(
+        &self,
+        _id: &str,
+        _updates: SkillUpdate,
+    ) -> SkillResult<SkillDefinition> {
         Err(SkillError::ReadOnly(
             "Skills are read-only and must be edited as Markdown files".to_string(),
         ))
@@ -294,10 +295,7 @@ impl SkillStore {
     }
 
     /// Export skills to Markdown
-    pub async fn export_to_markdown(
-        &self,
-        skill_ids: Option<Vec<String>>,
-    ) -> SkillResult<String> {
+    pub async fn export_to_markdown(&self, skill_ids: Option<Vec<String>>) -> SkillResult<String> {
         let skills = self.skills.read().await;
 
         let to_export: Vec<&SkillDefinition> = if let Some(ids) = skill_ids {
@@ -344,10 +342,10 @@ fn parse_markdown_skill(path: &Path, content: &str) -> SkillResult<SkillDefiniti
         match normalize_tool_ref(&tool_ref) {
             Some(normalized) => tool_refs.push(normalized),
             None => {
-                return Err(SkillError::Validation(format!(
-                    "Unsupported tool reference '{}'. Built-in tools only.",
-                    tool_ref
-                )));
+                warn!(
+                    "Skipping unsupported tool reference {} in {:?}",
+                    tool_ref, path
+                );
             }
         }
     }
@@ -502,7 +500,8 @@ fn is_valid_skill_id(id: &str) -> bool {
         return false;
     }
 
-    id.chars().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-')
+    id.chars()
+        .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-')
 }
 
 #[cfg(test)]

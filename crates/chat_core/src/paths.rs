@@ -41,20 +41,17 @@ pub fn load_config_json<T: serde::de::DeserializeOwned>(path: &Path) -> Result<T
     if !path.exists() {
         return Err(format!("Config file not found: {}", path.display()));
     }
-    let content = std::fs::read_to_string(path)
-        .map_err(|e| format!("Failed to read config: {e}"))?;
-    serde_json::from_str(&content)
-        .map_err(|e| format!("Failed to parse config: {e}"))
+    let content =
+        std::fs::read_to_string(path).map_err(|e| format!("Failed to read config: {e}"))?;
+    serde_json::from_str(&content).map_err(|e| format!("Failed to parse config: {e}"))
 }
 
 /// 保存 JSON 配置文件
 pub fn save_config_json<T: serde::Serialize>(path: &Path, value: &T) -> Result<(), String> {
     if let Some(parent) = path.parent() {
-        std::fs::create_dir_all(parent)
-            .map_err(|e| format!("Failed to create directory: {e}"))?;
+        std::fs::create_dir_all(parent).map_err(|e| format!("Failed to create directory: {e}"))?;
     }
     let content = serde_json::to_string_pretty(value)
         .map_err(|e| format!("Failed to serialize config: {e}"))?;
-    std::fs::write(path, content)
-        .map_err(|e| format!("Failed to write config: {e}"))
+    std::fs::write(path, content).map_err(|e| format!("Failed to write config: {e}"))
 }

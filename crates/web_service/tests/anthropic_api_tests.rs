@@ -6,6 +6,7 @@ use actix_web::{
 use anyhow::Result;
 use async_trait::async_trait;
 use bytes::Bytes;
+use chat_core::ProxyAuth;
 use copilot_client::{
     api::models::{
         ChatCompletionRequest, ChatCompletionResponse, ChatCompletionStreamChunk, ChatMessage,
@@ -14,16 +15,15 @@ use copilot_client::{
     },
     client_trait::CopilotClientTrait,
 };
-use chat_core::ProxyAuth;
 use reqwest::Response;
 use serde_json::{json, Value};
+use skill_manager::SkillManager;
 use std::{
     ffi::OsString,
     sync::{Arc, Mutex, OnceLock},
 };
 use tokio::sync::mpsc::Sender;
 use web_service::server::{app_config, AppState};
-use skill_manager::SkillManager;
 use wiremock::{
     matchers::{body_partial_json, method, path},
     Mock, MockServer, ResponseTemplate,
@@ -433,7 +433,10 @@ async fn test_messages_streaming() {
 
     let res = test::call_service(&app, req).await;
     assert!(res.status().is_success());
-    assert_eq!(res.headers().get("Content-Type").unwrap(), "text/event-stream");
+    assert_eq!(
+        res.headers().get("Content-Type").unwrap(),
+        "text/event-stream"
+    );
 
     let body_bytes = test::read_body(res).await;
     let body_str = String::from_utf8(body_bytes.to_vec()).unwrap();
@@ -589,9 +592,9 @@ async fn test_messages_streaming_tool_use() {
     });
     assert!(has_tool_delta);
 
-    let has_tool_stop = events.iter().any(|(name, data)| {
-        name == "content_block_stop" && data["index"].is_number()
-    });
+    let has_tool_stop = events
+        .iter()
+        .any(|(name, data)| name == "content_block_stop" && data["index"].is_number());
     assert!(has_tool_stop);
 
     let message_delta = events.iter().find(|(name, _)| name == "message_delta");
@@ -700,7 +703,9 @@ async fn test_messages_streaming_text_and_tool_use() {
     let events = parse_sse_events(&body_str);
     let text_delta_count = events
         .iter()
-        .filter(|(name, data)| name == "content_block_delta" && data["delta"]["type"] == "text_delta")
+        .filter(|(name, data)| {
+            name == "content_block_delta" && data["delta"]["type"] == "text_delta"
+        })
         .count();
     assert!(text_delta_count >= 1);
 
@@ -878,8 +883,12 @@ async fn test_complete_streaming() {
 
     let chunks = parse_sse_data(&body_str);
     assert!(chunks.iter().any(|chunk| chunk["completion"] == "Legacy"));
-    assert!(chunks.iter().any(|chunk| chunk["completion"] == " response"));
-    assert!(chunks.iter().any(|chunk| chunk["stop_reason"] == "stop_sequence"));
+    assert!(chunks
+        .iter()
+        .any(|chunk| chunk["completion"] == " response"));
+    assert!(chunks
+        .iter()
+        .any(|chunk| chunk["stop_reason"] == "stop_sequence"));
     assert!(body_str.contains("data: [DONE]"));
 }
 

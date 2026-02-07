@@ -1,8 +1,8 @@
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::agent::{Session, Message, Role};
-    use crate::tools::{ToolCall, FunctionCall, ToolResult, ToolSchema, FunctionSchema};
+    use crate::agent::{Message, Role, Session};
+    use crate::tools::{FunctionCall, FunctionSchema, ToolCall, ToolResult, ToolSchema};
 
     #[test]
     fn test_session_creation() {
@@ -24,7 +24,7 @@ mod tests {
         let mut session = Session::new("test");
         let msg = Message::user("Test message");
         session.add_message(msg);
-        
+
         assert_eq!(session.messages.len(), 1);
         assert_eq!(session.messages[0].content, "Test message");
     }
@@ -39,7 +39,7 @@ mod tests {
                 arguments: r#"{"key": "value"}"#.to_string(),
             },
         };
-        
+
         assert_eq!(tool_call.id, "call-1");
         assert_eq!(tool_call.function.name, "test_tool");
     }
@@ -51,7 +51,7 @@ mod tests {
             result: "Success output".to_string(),
             display_preference: Some("text".to_string()),
         };
-        
+
         assert!(result.success);
         assert_eq!(result.result, "Success output");
     }
@@ -69,7 +69,7 @@ mod tests {
                 }),
             },
         };
-        
+
         assert_eq!(schema.function.name, "test");
     }
 
@@ -83,7 +83,7 @@ mod tests {
                 arguments: r#"{"city": "Beijing"}"#.to_string(),
             },
         }];
-        
+
         let msg = Message::assistant("", Some(tool_calls));
         assert!(msg.tool_calls.is_some());
         assert_eq!(msg.tool_calls.as_ref().unwrap().len(), 1);

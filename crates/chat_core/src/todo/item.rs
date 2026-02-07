@@ -135,10 +135,7 @@ impl TodoItemType {
     /// Returns true if this item type requires blocking execution
     /// Tool calls and workflow steps are blocking
     pub fn is_blocking(&self) -> bool {
-        matches!(
-            self,
-            Self::ToolCall { .. } | Self::WorkflowStep { .. }
-        )
+        matches!(self, Self::ToolCall { .. } | Self::WorkflowStep { .. })
     }
 
     /// Returns true if this item is streaming/async

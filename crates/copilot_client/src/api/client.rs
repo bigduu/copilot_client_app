@@ -89,15 +89,14 @@ impl CopilotClient {
             proxy = apply_proxy_auth(proxy, config.https_proxy_auth.as_ref());
             builder = builder.proxy(proxy);
         }
-        builder.build().map_err(|e| anyhow!("Failed to build HTTP client: {e}"))
+        builder
+            .build()
+            .map_err(|e| anyhow!("Failed to build HTTP client: {e}"))
     }
 
     fn build_retry_client(client: Client) -> ClientWithMiddleware {
         // Exponential backoff: 1s, 2s, 4s with jitter
-        let retry_policy = ExponentialBackoff::builder()
-            .base_secs(1)
-            .max_retries(3)
-            .build();
+        let retry_policy = ExponentialBackoff::builder().build_with_max_retries(3);
 
         ClientBuilder::new(client)
             .with(RetryTransientMiddleware::new_with_policy(retry_policy))
@@ -156,7 +155,10 @@ impl CopilotClient {
             }
         }
 
-        log::debug!("Applied keyword masking to {} messages", request.messages.len());
+        log::debug!(
+            "Applied keyword masking to {} messages",
+            request.messages.len()
+        );
     }
 
     pub fn get_default_headers() -> HeaderMap {

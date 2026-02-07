@@ -1,7 +1,7 @@
+use crate::tools::ToolCall;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
-use crate::tools::ToolCall;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "lowercase")]
@@ -62,7 +62,7 @@ impl Message {
             created_at: Utc::now(),
         }
     }
-    
+
     pub fn system(content: impl Into<String>) -> Self {
         Self {
             id: Uuid::new_v4().to_string(),

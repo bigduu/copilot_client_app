@@ -1,8 +1,8 @@
+use serde_json::json;
 use std::path::Path;
 use tokio::fs;
 use tokio::process::Command;
 use tokio::time::{timeout, Duration};
-use serde_json::json;
 
 /// 文件系统工具
 pub struct FilesystemTool;
@@ -14,46 +14,48 @@ impl FilesystemTool {
         if path.contains("..") {
             return Err("Invalid path: contains '..'".to_string());
         }
-        
+
         fs::read_to_string(path)
             .await
             .map_err(|e| format!("Failed to read file '{}': {}", path, e))
     }
-    
+
     /// 写入文件内容
     pub async fn write_file(path: &str, content: &str) -> Result<(), String> {
         // 安全检查：确保路径不包含 ..
         if path.contains("..") {
             return Err("Invalid path: contains '..'".to_string());
         }
-        
+
         // 确保父目录存在
         if let Some(parent) = Path::new(path).parent() {
             fs::create_dir_all(parent)
                 .await
                 .map_err(|e| format!("Failed to create directory '{}': {}", parent.display(), e))?;
         }
-        
+
         fs::write(path, content)
             .await
             .map_err(|e| format!("Failed to write file '{}': {}", path, e))
     }
-    
+
     /// 列出目录内容
     pub async fn list_directory(path: &str) -> Result<Vec<String>, String> {
         // 安全检查：确保路径不包含 ..
         if path.contains("..") {
             return Err("Invalid path: contains '..'".to_string());
         }
-        
+
         let mut entries = vec![];
         let mut dir = fs::read_dir(path)
             .await
             .map_err(|e| format!("Failed to read directory '{}': {}", path, e))?;
-        
-        while let Some(entry) = dir.next_entry()
+
+        while let Some(entry) = dir
+            .next_entry()
             .await
-            .map_err(|e| format!("Failed to read directory entry: {}", e))? {
+            .map_err(|e| format!("Failed to read directory entry: {}", e))?
+        {
             let file_name = entry.file_name().to_string_lossy().to_string();
             let file_type = if entry.file_type().await.map_err(|e| e.to_string())?.is_dir() {
                 "[DIR]"
@@ -62,49 +64,56 @@ impl FilesystemTool {
             };
             entries.push(format!("{} {}", file_type, file_name));
         }
-        
+
         Ok(entries)
     }
-    
+
     /// 检查文件是否存在
     pub async fn file_exists(path: &str) -> Result<bool, String> {
         if path.contains("..") {
             return Err("Invalid path: contains '..'".to_string());
         }
-        
+
         Ok(fs::metadata(path).await.is_ok())
     }
-    
+
     /// 获取文件信息
     pub async fn get_file_info(path: &str) -> Result<String, String> {
         if path.contains("..") {
             return Err("Invalid path: contains '..'".to_string());
         }
-        
+
         let metadata = fs::metadata(path)
             .await
             .map_err(|e| format!("Failed to get file info '{}': {}", path, e))?;
-        
+
         let size = metadata.len();
         let is_file = metadata.is_file();
         let is_dir = metadata.is_dir();
-        let modified = metadata.modified()
+        let modified = metadata
+            .modified()
             .map_err(|e| e.to_string())?
             .duration_since(std::time::UNIX_EPOCH)
             .map_err(|e| e.to_string())?
             .as_secs();
-        
+
         Ok(format!(
             "Path: {}\nType: {}\nSize: {} bytes\nModified: {} UTC",
             path,
-            if is_file { "File" } else if is_dir { "Directory" } else { "Other" },
+            if is_file {
+                "File"
+            } else if is_dir {
+                "Directory"
+            } else {
+                "Other"
+            },
             size,
             chrono::DateTime::from_timestamp(modified as i64, 0)
                 .map(|d: chrono::DateTime<chrono::Utc>| d.to_rfc3339())
                 .unwrap_or_else(|| "Unknown".to_string())
         ))
     }
-    
+
     /// 获取工具 schema
     pub fn get_tool_schemas() -> Vec<serde_json::Value> {
         vec![
@@ -216,8 +225,8 @@ pub struct CommandResult {
 impl CommandTool {
     /// 执行系统命令（带超时）
     pub async fn execute(
-        cmd: &str, 
-        args: Vec<String>, 
+        cmd: &str,
+        args: Vec<String>,
         cwd: Option<&str>,
         timeout_secs: u64,
     ) -> Result<CommandResult, String> {
@@ -229,10 +238,10 @@ impl CommandTool {
                 return Err(format!("Dangerous command blocked: {}", dangerous));
             }
         }
-        
+
         let mut command = Command::new(cmd);
         command.args(&args);
-        
+
         if let Some(dir) = cwd {
             // 安全检查：确保工作目录不包含 ..
             if dir.contains("..") {
@@ -240,20 +249,18 @@ impl CommandTool {
             }
             command.current_dir(dir);
         }
-        
+
         // 执行命令并设置超时
-        let output = timeout(
-            Duration::from_secs(timeout_secs),
-            command.output()
-        ).await
-        .map_err(|_| "Command timed out".to_string())?
-        .map_err(|e| format!("Failed to execute command '{}': {}", cmd, e))?;
-        
+        let output = timeout(Duration::from_secs(timeout_secs), command.output())
+            .await
+            .map_err(|_| "Command timed out".to_string())?
+            .map_err(|e| format!("Failed to execute command '{}': {}", cmd, e))?;
+
         let stdout = String::from_utf8_lossy(&output.stdout).to_string();
         let stderr = String::from_utf8_lossy(&output.stderr).to_string();
         let exit_code = output.status.code().unwrap_or(-1);
         let success = output.status.success();
-        
+
         Ok(CommandResult {
             stdout,
             stderr,
@@ -261,38 +268,42 @@ impl CommandTool {
             success,
         })
     }
-    
+
     /// 执行简单命令（默认 30 秒超时）
     pub async fn execute_simple(cmd: &str, args: Vec<String>) -> Result<String, String> {
         let result = Self::execute(cmd, args, None, 30).await?;
-        
+
         if result.success {
             Ok(result.stdout)
         } else {
             Err(format!(
                 "Command failed with exit code {}: {}",
                 result.exit_code,
-                if result.stderr.is_empty() { &result.stdout } else { &result.stderr }
+                if result.stderr.is_empty() {
+                    &result.stdout
+                } else {
+                    &result.stderr
+                }
             ))
         }
     }
-    
+
     /// 执行命令并返回详细结果
     pub async fn execute_detailed(
-        cmd: &str, 
+        cmd: &str,
         args: Vec<String>,
         cwd: Option<&str>,
     ) -> Result<CommandResult, String> {
         Self::execute(cmd, args, cwd, 30).await
     }
-    
+
     /// 获取当前工作目录
     pub async fn get_current_dir() -> Result<String, String> {
         std::env::current_dir()
             .map(|p| p.to_string_lossy().to_string())
             .map_err(|e| format!("Failed to get current directory: {}", e))
     }
-    
+
     /// 检查命令是否存在
     pub async fn command_exists(cmd: &str) -> bool {
         Command::new("which")
@@ -302,7 +313,7 @@ impl CommandTool {
             .map(|output| output.status.success())
             .unwrap_or(false)
     }
-    
+
     /// 获取工具 schema
     pub fn get_tool_schemas() -> Vec<serde_json::Value> {
         vec![
@@ -353,22 +364,22 @@ impl CommandResult {
     /// 格式化输出用于显示
     pub fn format_output(&self) -> String {
         let mut output = String::new();
-        
+
         if !self.stdout.is_empty() {
             output.push_str("STDOUT:\n");
             output.push_str(&self.stdout);
             output.push('\n');
         }
-        
+
         if !self.stderr.is_empty() {
             output.push_str("STDERR:\n");
             output.push_str(&self.stderr);
             output.push('\n');
         }
-        
+
         output.push_str(&format!("Exit code: {}\n", self.exit_code));
         output.push_str(&format!("Success: {}\n", self.success));
-        
+
         output
     }
 }
@@ -382,15 +393,15 @@ mod tests {
     async fn test_read_write_file() {
         let test_path = "/tmp/test_builtin_fs.txt";
         let test_content = "Hello, Built-in Tools!";
-        
+
         // 写入文件
         let result = FilesystemTool::write_file(test_path, test_content).await;
         assert!(result.is_ok());
-        
+
         // 读取文件
         let content = FilesystemTool::read_file(test_path).await.unwrap();
         assert_eq!(content, test_content);
-        
+
         // 清理
         let _ = fs::remove_file(test_path).await;
     }
@@ -424,7 +435,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_dangerous_command_blocked() {
-        let result = CommandTool::execute_simple("rm", vec!["-rf".to_string(), "/".to_string()]).await;
+        let result =
+            CommandTool::execute_simple("rm", vec!["-rf".to_string(), "/".to_string()]).await;
         assert!(result.is_err());
         assert!(result.unwrap_err().contains("blocked"));
     }

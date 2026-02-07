@@ -41,19 +41,19 @@ pub async fn poll_access_token(
         ("device_code", device_code),
         ("grant_type", "urn:ietf:params:oauth:grant-type:device_code"),
     ];
-    
+
     let start = std::time::Instant::now();
     let max_duration = Duration::from_secs(expires_in);
     let poll_interval = Duration::from_secs(interval.max(5)); // Minimum 5 seconds
-    
+
     println!("  🔄 Polling for authorization...");
-    
+
     loop {
         // Check if expired
         if start.elapsed() > max_duration {
             return Err("❌ Device code expired. Please try again.".to_string());
         }
-        
+
         // Request access token
         let response = client
             .post(ACCESS_TOKEN_URL)
@@ -62,18 +62,18 @@ pub async fn poll_access_token(
             .send()
             .await
             .map_err(|e| format!("Failed to poll access token: {}", e))?;
-        
+
         let token_response: AccessTokenResponse = response
             .json()
             .await
             .map_err(|e| format!("Failed to parse access token response: {}", e))?;
-        
+
         // Check if we got the token
         if let Some(token) = token_response.access_token {
             println!("  ✅ Access token received!");
             return Ok(token);
         }
-        
+
         // Check for errors
         if let Some(error) = token_response.error {
             match error.as_str() {
@@ -100,7 +100,7 @@ pub async fn poll_access_token(
                 }
             }
         }
-        
+
         // Wait before next poll
         sleep(poll_interval).await;
     }
@@ -118,23 +118,26 @@ pub async fn get_copilot_token(
         .send()
         .await
         .map_err(|e| format!("Failed to get copilot token: {}", e))?;
-    
+
     let status = response.status();
     if !status.is_success() {
         let text = response.text().await.unwrap_or_default();
-        return Err(format!("Copilot token request failed: HTTP {} - {}", status, text));
+        return Err(format!(
+            "Copilot token request failed: HTTP {} - {}",
+            status, text
+        ));
     }
-    
+
     let copilot_token: CopilotToken = response
         .json()
         .await
         .map_err(|e| format!("Failed to parse copilot token: {}", e))?;
-    
+
     if !copilot_token.chat_enabled {
         return Err("❌ Copilot chat is not enabled for this account.".to_string());
     }
-    
+
     println!("  ✅ Copilot token received!");
-    
+
     Ok(copilot_token)
 }

@@ -6,12 +6,8 @@ use std::path::PathBuf;
 
 /// 初始化日志系统
 pub fn init_logging(debug: bool) {
-    let filter = if debug {
-        "debug"
-    } else {
-        "info"
-    };
-    
+    let filter = if debug { "debug" } else { "info" };
+
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or(filter))
         .format(|buf, record| {
             use std::io::Write;
@@ -83,27 +79,23 @@ impl DebugLogger {
         }
 
         // 输出到标准日志
-        log::debug!("[{}] {}: {}", 
-            info.session_id, 
-            info.event_type, 
+        log::debug!(
+            "[{}] {}: {}",
+            info.session_id,
+            info.event_type,
             info.details
         );
 
         // 输出到文件
         if let Some(ref path) = self.log_file {
-            if let Ok(mut file) = OpenOptions::new()
-                .create(true)
-                .append(true)
-                .open(path)
-            {
+            if let Ok(mut file) = OpenOptions::new().create(true).append(true).open(path) {
                 let _ = writeln!(file, "{}", info.to_json());
             }
         }
     }
 
     pub fn log_event(&self, session_id: &str, event_type: &str, details: serde_json::Value) {
-        let info = DebugInfo::new(session_id, event_type)
-            .with_details(details);
+        let info = DebugInfo::new(session_id, event_type).with_details(details);
         self.log(&info);
     }
 }
@@ -127,9 +119,10 @@ impl Timer {
     }
 
     pub fn debug(&self, session_id: &str) {
-        log::debug!("[{}] {} completed in {}ms", 
-            session_id, 
-            self.name, 
+        log::debug!(
+            "[{}] {} completed in {}ms",
+            session_id,
+            self.name,
             self.elapsed_ms()
         );
     }

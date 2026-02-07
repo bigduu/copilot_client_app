@@ -1,6 +1,6 @@
 import { create } from "zustand";
 
-type SettingsOrigin = "chat" | "agent";
+type SettingsOrigin = "chat";
 
 interface SettingsViewState {
   isOpen: boolean;

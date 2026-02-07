@@ -1,7 +1,7 @@
+use crate::agent::{AgentEvent, Session};
 use std::path::{Path, PathBuf};
 use tokio::fs;
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
-use crate::agent::{Session, AgentEvent};
 
 #[derive(Debug, Clone)]
 pub struct JsonlStorage {

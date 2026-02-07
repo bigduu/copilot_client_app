@@ -72,7 +72,9 @@ fn get_claude_dir() -> Result<PathBuf, AppError> {
         .ok_or_else(|| AppError::InternalError(anyhow::anyhow!("Could not find home directory")))?
         .join(".claude")
         .canonicalize()
-        .map_err(|e| AppError::InternalError(anyhow::anyhow!("Could not find ~/.claude directory: {}", e)))
+        .map_err(|e| {
+            AppError::InternalError(anyhow::anyhow!("Could not find ~/.claude directory: {}", e))
+        })
 }
 
 // Endpoints
@@ -82,42 +84,41 @@ fn get_claude_dir() -> Result<PathBuf, AppError> {
 pub async fn list_projects() -> Result<HttpResponse, AppError> {
     let claude_dir = get_claude_dir()?;
     let mut projects = Vec::new();
-    
+
     if let Ok(entries) = std::fs::read_dir(&claude_dir) {
         for entry in entries.flatten() {
             let path = entry.path();
             if path.is_dir() && path.join(".project_path").exists() {
-                let project_id = path.file_name()
+                let project_id = path
+                    .file_name()
                     .and_then(|n| n.to_str())
                     .unwrap_or("")
                     .to_string();
-                
+
                 let project_path = std::fs::read_to_string(path.join(".project_path"))
                     .unwrap_or_default()
                     .trim()
                     .to_string();
-                
+
                 let sessions = std::fs::read_dir(&path)
                     .map(|entries| {
                         entries
                             .flatten()
                             .filter(|e| {
-                                e.path().extension()
-                                    .and_then(|ext| ext.to_str())
-                                    == Some("jsonl")
+                                e.path().extension().and_then(|ext| ext.to_str()) == Some("jsonl")
                             })
                             .filter_map(|e| e.file_name().into_string().ok())
                             .collect()
                     })
                     .unwrap_or_default();
-                
+
                 let metadata = std::fs::metadata(&path)
                     .ok()
                     .and_then(|m| m.created().ok())
                     .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
                     .map(|d| d.as_secs())
                     .unwrap_or(0);
-                
+
                 projects.push(Project {
                     id: project_id,
                     path: project_path,
@@ -128,7 +129,7 @@ pub async fn list_projects() -> Result<HttpResponse, AppError> {
             }
         }
     }
-    
+
     Ok(HttpResponse::Ok().json(projects))
 }
 
@@ -139,29 +140,35 @@ pub async fn create_project(
 ) -> Result<HttpResponse, AppError> {
     let claude_dir = get_claude_dir()?;
     let path = PathBuf::from(&req.path);
-    
+
     if !path.exists() || !path.is_dir() {
         return Err(AppError::InternalError(anyhow::anyhow!(
             "Path does not exist or is not a directory: {}",
             req.path
         )));
     }
-    
+
     // Create project ID from path
-    let canonical = path.canonicalize()
-        .map_err(|e| AppError::InternalError(anyhow::anyhow!("Failed to canonicalize path: {}", e)))?;
-    let project_id = canonical.to_string_lossy()
+    let canonical = path.canonicalize().map_err(|e| {
+        AppError::InternalError(anyhow::anyhow!("Failed to canonicalize path: {}", e))
+    })?;
+    let project_id = canonical
+        .to_string_lossy()
         .replace('/', "-")
         .replace('\\', "-");
-    
+
     let project_dir = claude_dir.join(&project_id);
-    std::fs::create_dir_all(&project_dir)
-        .map_err(|e| AppError::InternalError(anyhow::anyhow!("Failed to create project dir: {}", e)))?;
-    
+    std::fs::create_dir_all(&project_dir).map_err(|e| {
+        AppError::InternalError(anyhow::anyhow!("Failed to create project dir: {}", e))
+    })?;
+
     // Write project path file
-    std::fs::write(project_dir.join(".project_path"), canonical.to_string_lossy().as_bytes())
-        .map_err(|e| AppError::InternalError(anyhow::anyhow!("Failed to write project path: {}", e)))?;
-    
+    std::fs::write(
+        project_dir.join(".project_path"),
+        canonical.to_string_lossy().as_bytes(),
+    )
+    .map_err(|e| AppError::InternalError(anyhow::anyhow!("Failed to write project path: {}", e)))?;
+
     let project = Project {
         id: project_id,
         path: req.path.clone(),
@@ -172,46 +179,47 @@ pub async fn create_project(
             .as_secs(),
         most_recent_session: None,
     };
-    
+
     Ok(HttpResponse::Ok().json(project))
 }
 
 /// GET /agent/projects/{id}/sessions - Get sessions for a project
 #[get("/projects/{project_id}/sessions")]
-pub async fn get_project_sessions(
-    path: web::Path<String>,
-) -> Result<HttpResponse, AppError> {
+pub async fn get_project_sessions(path: web::Path<String>) -> Result<HttpResponse, AppError> {
     let claude_dir = get_claude_dir()?;
     let project_id = path.into_inner();
     let project_dir = claude_dir.join(&project_id);
-    
+
     if !project_dir.exists() {
-        return Err(AppError::InternalError(anyhow::anyhow!("Project not found")));
+        return Err(AppError::InternalError(anyhow::anyhow!(
+            "Project not found"
+        )));
     }
-    
+
     let project_path = std::fs::read_to_string(project_dir.join(".project_path"))
         .unwrap_or_default()
         .trim()
         .to_string();
-    
+
     let mut sessions = Vec::new();
-    
+
     if let Ok(entries) = std::fs::read_dir(&project_dir) {
         for entry in entries.flatten() {
             let path = entry.path();
             if path.is_file() && path.extension().and_then(|e| e.to_str()) == Some("jsonl") {
-                let session_id = path.file_stem()
+                let session_id = path
+                    .file_stem()
                     .and_then(|n| n.to_str())
                     .unwrap_or("")
                     .to_string();
-                
+
                 let metadata = std::fs::metadata(&path)
                     .ok()
                     .and_then(|m| m.created().ok())
                     .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
                     .map(|d| d.as_secs())
                     .unwrap_or(0);
-                
+
                 sessions.push(Session {
                     id: session_id,
                     project_id: project_id.clone(),
@@ -224,7 +232,7 @@ pub async fn get_project_sessions(
             }
         }
     }
-    
+
     Ok(HttpResponse::Ok().json(sessions))
 }
 
@@ -235,12 +243,14 @@ pub async fn get_claude_settings() -> Result<HttpResponse, AppError> {
         .ok_or_else(|| AppError::InternalError(anyhow::anyhow!("Home directory not found")))?
         .join(".claude")
         .join("settings.json");
-    
+
     if settings_path.exists() {
-        let content = std::fs::read_to_string(&settings_path)
-            .map_err(|e| AppError::InternalError(anyhow::anyhow!("Failed to read settings: {}", e)))?;
-        let data: serde_json::Value = serde_json::from_str(&content)
-            .map_err(|e| AppError::InternalError(anyhow::anyhow!("Failed to parse settings: {}", e)))?;
+        let content = std::fs::read_to_string(&settings_path).map_err(|e| {
+            AppError::InternalError(anyhow::anyhow!("Failed to read settings: {}", e))
+        })?;
+        let data: serde_json::Value = serde_json::from_str(&content).map_err(|e| {
+            AppError::InternalError(anyhow::anyhow!("Failed to parse settings: {}", e))
+        })?;
         Ok(HttpResponse::Ok().json(ClaudeSettings { data }))
     } else {
         Ok(HttpResponse::Ok().json(ClaudeSettings::default()))
@@ -256,13 +266,14 @@ pub async fn save_claude_settings(
         .ok_or_else(|| AppError::InternalError(anyhow::anyhow!("Home directory not found")))?
         .join(".claude")
         .join("settings.json");
-    
-    let content = serde_json::to_string_pretty(&req.settings)
-        .map_err(|e| AppError::InternalError(anyhow::anyhow!("Failed to serialize settings: {}", e)))?;
-    
+
+    let content = serde_json::to_string_pretty(&req.settings).map_err(|e| {
+        AppError::InternalError(anyhow::anyhow!("Failed to serialize settings: {}", e))
+    })?;
+
     std::fs::write(&settings_path, content)
         .map_err(|e| AppError::InternalError(anyhow::anyhow!("Failed to write settings: {}", e)))?;
-    
+
     Ok(HttpResponse::Ok().json(serde_json::json!({"success": true, "path": settings_path})))
 }
 
@@ -273,10 +284,11 @@ pub async fn get_system_prompt() -> Result<HttpResponse, AppError> {
         .ok_or_else(|| AppError::InternalError(anyhow::anyhow!("Home directory not found")))?
         .join(".claude")
         .join("system-prompt.md");
-    
+
     if prompt_path.exists() {
-        let content = std::fs::read_to_string(&prompt_path)
-            .map_err(|e| AppError::InternalError(anyhow::anyhow!("Failed to read system prompt: {}", e)))?;
+        let content = std::fs::read_to_string(&prompt_path).map_err(|e| {
+            AppError::InternalError(anyhow::anyhow!("Failed to read system prompt: {}", e))
+        })?;
         Ok(HttpResponse::Ok().json(serde_json::json!({ "content": content, "path": prompt_path })))
     } else {
         Ok(HttpResponse::Ok().json(serde_json::json!({ "content": "", "path": prompt_path })))
@@ -292,10 +304,11 @@ pub async fn save_system_prompt(
         .ok_or_else(|| AppError::InternalError(anyhow::anyhow!("Home directory not found")))?
         .join(".claude")
         .join("system-prompt.md");
-    
-    std::fs::write(&prompt_path, &req.content)
-        .map_err(|e| AppError::InternalError(anyhow::anyhow!("Failed to write system prompt: {}", e)))?;
-    
+
+    std::fs::write(&prompt_path, &req.content).map_err(|e| {
+        AppError::InternalError(anyhow::anyhow!("Failed to write system prompt: {}", e))
+    })?;
+
     Ok(HttpResponse::Ok().json(serde_json::json!({ "success": true, "path": prompt_path })))
 }
 
@@ -340,24 +353,27 @@ pub async fn get_session_jsonl(
 ) -> Result<HttpResponse, AppError> {
     let claude_dir = get_claude_dir()?;
     let session_id = path.into_inner();
-    let project_id = query.get("project_id")
-        .ok_or_else(|| AppError::InternalError(anyhow::anyhow!("project_id query parameter required")))?;
-    
+    let project_id = query.get("project_id").ok_or_else(|| {
+        AppError::InternalError(anyhow::anyhow!("project_id query parameter required"))
+    })?;
+
     let project_dir = claude_dir.join(project_id);
     let session_path = project_dir.join(format!("{}.jsonl", session_id));
-    
+
     if !session_path.exists() {
-        return Err(AppError::InternalError(anyhow::anyhow!("Session not found")));
+        return Err(AppError::InternalError(anyhow::anyhow!(
+            "Session not found"
+        )));
     }
-    
+
     let content = std::fs::read_to_string(&session_path)
         .map_err(|e| AppError::InternalError(anyhow::anyhow!("Failed to read session: {}", e)))?;
-    
+
     let lines: Vec<serde_json::Value> = content
         .lines()
         .filter_map(|line| serde_json::from_str(line).ok())
         .collect();
-    
+
     Ok(HttpResponse::Ok().json(lines))
 }
 

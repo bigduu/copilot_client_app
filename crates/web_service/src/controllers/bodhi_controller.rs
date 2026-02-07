@@ -39,6 +39,25 @@ fn strip_proxy_auth(mut config: Value) -> Value {
     config
 }
 
+/// Clean empty proxy fields from config
+fn clean_empty_proxy_fields(mut config: Value) -> Value {
+    if let Some(obj) = config.as_object_mut() {
+        // Remove empty http_proxy
+        if let Some(http_proxy) = obj.get("http_proxy") {
+            if http_proxy.as_str().map_or(true, |s| s.is_empty()) {
+                obj.remove("http_proxy");
+            }
+        }
+        // Remove empty https_proxy
+        if let Some(https_proxy) = obj.get("https_proxy") {
+            if https_proxy.as_str().map_or(true, |s| s.is_empty()) {
+                obj.remove("https_proxy");
+            }
+        }
+    }
+    config
+}
+
 /// Encrypt proxy auth before storing to config file
 fn encrypt_proxy_auth(config: &mut Value) -> Result<(), AppError> {
     if let Some(obj) = config.as_object_mut() {
@@ -47,20 +66,26 @@ fn encrypt_proxy_auth(config: &mut Value) -> Result<(), AppError> {
             if let Ok(auth_str) = serde_json::to_string(&auth) {
                 match chat_core::encryption::encrypt(&auth_str) {
                     Ok(encrypted) => {
-                        obj.insert("http_proxy_auth_encrypted".to_string(), serde_json::Value::String(encrypted));
+                        obj.insert(
+                            "http_proxy_auth_encrypted".to_string(),
+                            serde_json::Value::String(encrypted),
+                        );
                         obj.remove("http_proxy_auth");
                     }
                     Err(e) => log::warn!("Failed to encrypt http_proxy_auth: {}", e),
                 }
             }
         }
-        
+
         // Encrypt https_proxy_auth
         if let Some(auth) = obj.get("https_proxy_auth").cloned() {
             if let Ok(auth_str) = serde_json::to_string(&auth) {
                 match chat_core::encryption::encrypt(&auth_str) {
                     Ok(encrypted) => {
-                        obj.insert("https_proxy_auth_encrypted".to_string(), serde_json::Value::String(encrypted));
+                        obj.insert(
+                            "https_proxy_auth_encrypted".to_string(),
+                            serde_json::Value::String(encrypted),
+                        );
                         obj.remove("https_proxy_auth");
                     }
                     Err(e) => log::warn!("Failed to encrypt https_proxy_auth: {}", e),
@@ -75,7 +100,10 @@ fn encrypt_proxy_auth(config: &mut Value) -> Result<(), AppError> {
 fn decrypt_proxy_auth(config: &mut Value) {
     if let Some(obj) = config.as_object_mut() {
         // Decrypt http_proxy_auth
-        if let Some(encrypted) = obj.get("http_proxy_auth_encrypted").and_then(|v| v.as_str()) {
+        if let Some(encrypted) = obj
+            .get("http_proxy_auth_encrypted")
+            .and_then(|v| v.as_str())
+        {
             match chat_core::encryption::decrypt(encrypted) {
                 Ok(decrypted) => {
                     if let Ok(auth) = serde_json::from_str::<serde_json::Value>(&decrypted) {
@@ -85,9 +113,12 @@ fn decrypt_proxy_auth(config: &mut Value) {
                 Err(e) => log::warn!("Failed to decrypt http_proxy_auth: {}", e),
             }
         }
-        
+
         // Decrypt https_proxy_auth
-        if let Some(encrypted) = obj.get("https_proxy_auth_encrypted").and_then(|v| v.as_str()) {
+        if let Some(encrypted) = obj
+            .get("https_proxy_auth_encrypted")
+            .and_then(|v| v.as_str())
+        {
             match chat_core::encryption::decrypt(encrypted) {
                 Ok(decrypted) => {
                     if let Ok(auth) = serde_json::from_str::<serde_json::Value>(&decrypted) {
@@ -216,6 +247,7 @@ pub async fn set_bodhi_config(
         fs::create_dir_all(parent).await?;
     }
     let config = strip_proxy_auth(payload.into_inner());
+    let config = clean_empty_proxy_fields(config);
     let content = serde_json::to_string_pretty(&config)?;
     fs::write(path, content).await?;
     Ok(HttpResponse::Ok().json(config))
@@ -243,7 +275,9 @@ pub async fn set_proxy_auth(
         .copilot_client
         .update_proxy_auth(auth)
         .await
-        .map_err(|e| AppError::InternalError(anyhow::anyhow!("Failed to update proxy auth: {e}")))?;
+        .map_err(|e| {
+            AppError::InternalError(anyhow::anyhow!("Failed to update proxy auth: {e}"))
+        })?;
     Ok(HttpResponse::Ok().json(serde_json::json!({ "success": true })))
 }
 

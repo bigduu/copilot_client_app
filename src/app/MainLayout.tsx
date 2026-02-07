@@ -1,43 +1,45 @@
-import React, { useEffect, useRef, useState } from "react";
-import { Button, Flex, Layout, theme } from "antd";
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import { Layout, theme } from "antd";
 import { ChatSidebar } from "../pages/ChatPage/components/ChatSidebar";
 import { ChatView } from "../pages/ChatPage/components/ChatView";
 import { FavoritesPanel } from "../pages/ChatPage/components/FavoritesPanel";
-import { AgentView } from "../pages/AgentPage/components/AgentView";
 import { SystemSettingsPage } from "../pages/SettingsPage/components/SystemSettingsPage";
 import { ChatAutoTitleEffect } from "../pages/ChatPage/components/ChatAutoTitleEffect";
-import { ModeSwitcher } from "../shared/components/ModeSwitcher";
-import { SettingOutlined } from "@ant-design/icons";
 import { listen } from "@tauri-apps/api/event";
 import { useAppStore } from "../pages/ChatPage/store";
 import { useChatManager } from "../pages/ChatPage/hooks/useChatManager";
-import { ChatItem } from "../pages/ChatPage/types/chat";
-import { useUiModeStore } from "../shared/store/uiModeStore";
+import { ChatItem, Message } from "../pages/ChatPage/types/chat";
 import { useSettingsViewStore } from "../shared/store/settingsViewStore";
 
 export const MainLayout: React.FC<{
   themeMode: "light" | "dark";
   onThemeModeChange: (mode: "light" | "dark") => void;
 }> = ({ themeMode, onThemeModeChange }) => {
-  const mode = useUiModeStore((s) => s.mode);
-  const setMode = useUiModeStore((s) => s.setMode);
   const settingsOpen = useSettingsViewStore((s) => s.isOpen);
-  const settingsOrigin = useSettingsViewStore((s) => s.origin);
   const closeSettings = useSettingsViewStore((s) => s.close);
-  const openSettings = useSettingsViewStore((s) => s.open);
   const { token } = theme.useToken();
-  // Direct access to Zustand store
   const addChat = useAppStore((state) => state.addChat);
   const selectChat = useAppStore((state) => state.selectChat);
-  const { sendMessage, currentMessages, currentChatId } = useChatManager();
+  const currentChatId = useAppStore((state) => state.currentChatId);
+  const chats = useAppStore((state) => state.chats);
+  const { sendMessage } = useChatManager();
+
+  // Memoize currentMessages to avoid infinite loop
+  const currentMessages = useMemo<Message[]>(() => {
+    if (!currentChatId) return [];
+    const chat = chats.find((c) => c.id === currentChatId);
+    return chat?.messages ?? [];
+  }, [chats, currentChatId]);
   const pendingAIRef = useRef<{ chatId: string; message: string } | null>(null);
+  const sendMessageRef = useRef(sendMessage);
+
+  // Keep sendMessage reference stable
+  useEffect(() => {
+    sendMessageRef.current = sendMessage;
+  }, [sendMessage]);
   const [showFavorites, setShowFavorites] = useState(true);
 
   useEffect(() => {
-    if (mode !== "chat") {
-      return;
-    }
-    // Check if we're running in Tauri environment
     if (typeof window !== "undefined" && (window as any).__TAURI_INTERNALS__) {
       const unlisten = listen<{ message: string }>(
         "new-chat-message",
@@ -49,35 +51,38 @@ export const MainLayout: React.FC<{
             messageContent,
           );
 
-          // Create a full ChatItem object to add
+          // Close settings if open
+          if (settingsOpen) {
+            closeSettings();
+          }
+
           const newChat: Omit<ChatItem, "id"> = {
             title: "New Chat from Spotlight",
             createdAt: Date.now(),
             messages: [],
             pinned: false,
             config: {
-              systemPromptId: "general_assistant", // Default prompt
-              baseSystemPrompt: "You are a helpful assistant.", // Default content
+              systemPromptId: "general_assistant",
+              baseSystemPrompt: "You are a helpful assistant.",
               lastUsedEnhancedPrompt: null,
             },
             currentInteraction: null,
           };
 
-          addChat(newChat);
+          // Create chat and get the new ID
+          const newChatId = await addChat(newChat);
+          console.log("[MainLayout] New chat created with ID:", newChatId);
 
-          // The chat ID is generated inside the store, so we need to get it after adding.
-          // We'll use a slight delay to ensure the state is updated.
-          setTimeout(() => {
-            const newChatId = useAppStore.getState().currentChatId;
-            if (newChatId) {
-              console.log("[MainLayout] New chat ID created:", newChatId);
-              // Mark that AI reply needs to be triggered for this specific chat and message
-              pendingAIRef.current = {
-                chatId: newChatId,
-                message: messageContent,
-              };
-            }
-          }, 100);
+          if (newChatId) {
+            // Select the new chat
+            selectChat(newChatId);
+
+            // Store message to be sent after chat is selected
+            pendingAIRef.current = {
+              chatId: newChatId,
+              message: messageContent,
+            };
+          }
         },
       );
 
@@ -89,30 +94,26 @@ export const MainLayout: React.FC<{
         "[MainLayout] Not running in Tauri environment, skipping event listener",
       );
     }
-  }, [addChat, mode, selectChat]);
+  }, [addChat, selectChat, settingsOpen, closeSettings]);
 
+  // Auto-send message when chat is created and switched
   useEffect(() => {
-    if (mode !== "chat") {
-      return;
+    if (pendingAIRef.current && currentChatId === pendingAIRef.current.chatId) {
+      const { message } = pendingAIRef.current;
+      console.log(
+        `[MainLayout] Auto-sending spotlight message to chat ${currentChatId}`,
+      );
+      // Use a small delay to ensure chat is fully loaded
+      const timer = setTimeout(() => {
+        sendMessageRef.current(message);
+        pendingAIRef.current = null;
+      }, 200);
+      return () => clearTimeout(timer);
     }
-    // When a pending AI response is flagged, send the message using the chat controller
-    if (pendingAIRef.current) {
-      const { chatId, message } = pendingAIRef.current;
-      // Ensure the current chat is the one we just created
-      if (chatId === currentChatId) {
-        console.log(
-          `[MainLayout] useEffect: Auto-sending message for new chat ${chatId}.`,
-        );
-        sendMessage(message);
-        pendingAIRef.current = null; // Clear the flag
-      }
-    }
-  }, [currentChatId, mode, sendMessage]); // Depend on currentChatId to re-check when it changes
+  }, [currentChatId]);
 
-  // Add keyboard shortcut for toggling favorites
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Toggle favorites panel with F key
       if (
         e.key === "f" &&
         !e.ctrlKey &&
@@ -140,8 +141,8 @@ export const MainLayout: React.FC<{
         background: token.colorBgLayout,
       }}
     >
-      {mode === "chat" ? <ChatSidebar /> : null}
-      {mode === "chat" ? <ChatAutoTitleEffect /> : null}
+      {!settingsOpen ? <ChatSidebar /> : null}
+      {!settingsOpen ? <ChatAutoTitleEffect /> : null}
       <Layout
         style={{
           display: "flex",
@@ -149,45 +150,17 @@ export const MainLayout: React.FC<{
           background: token.colorBgContainer,
         }}
       >
-        <Flex
-          align="center"
-          justify="space-between"
-          style={{
-            padding: token.paddingSM,
-            borderBottom: `1px solid ${token.colorBorderSecondary}`,
-          }}
-        >
-          <ModeSwitcher size="small" />
-          {mode === "agent" && !settingsOpen ? (
-            <Button
-              size="small"
-              icon={<SettingOutlined />}
-              onClick={() => openSettings("agent")}
-            >
-              Settings
-            </Button>
-          ) : null}
-        </Flex>
         {settingsOpen ? (
           <SystemSettingsPage
             themeMode={themeMode}
             onThemeModeChange={onThemeModeChange}
-            onBack={() => {
-              closeSettings();
-              if (settingsOrigin !== mode) {
-                setMode(settingsOrigin);
-              }
-            }}
+            onBack={closeSettings}
           />
-        ) : mode === "chat" ? (
-          <ChatView />
         ) : (
-          <AgentView />
+          <ChatView />
         )}
       </Layout>
-      {/* Favorites Panel */}
-      {mode === "chat" &&
-        !settingsOpen &&
+      {!settingsOpen &&
         showFavorites &&
         currentChatId &&
         currentMessages.length > 0 && <FavoritesPanel />}

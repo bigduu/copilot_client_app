@@ -280,7 +280,6 @@ pub enum SkillError {
 
     #[error("YAML error: {0}")]
     Yaml(#[from] serde_yaml::Error),
-
 }
 
 /// Result type for skill operations

@@ -138,12 +138,7 @@ fn test_complete_streaming_flow() {
     };
 
     // Chunk 2-5: Just argument fragments
-    let arg_chunks = vec![
-        r#"{"query""#,
-        r#":"test""#,
-        r#","max_results""#,
-        r#":10}"#,
-    ];
+    let arg_chunks = vec![r#"{"query""#, r#":"test""#, r#","max_results""#, r#":10}"#];
 
     accumulator.process_chunk(&chunk1.choices[0].delta.tool_calls.as_ref().unwrap());
 

@@ -3,9 +3,9 @@ use log::{debug, info};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-use builtin_tools::BuiltinToolExecutor;
 use crate::error::AppError;
 use crate::server::AppState;
+use builtin_tools::BuiltinToolExecutor;
 use skill_manager::{SkillDefinition, SkillFilter};
 
 /// Configure skill routes
@@ -76,7 +76,11 @@ pub async fn list_skills(
         filter = filter.enabled_only();
     }
 
-    let skills = app_state.skill_manager.store().list_skills(Some(filter)).await;
+    let skills = app_state
+        .skill_manager
+        .store()
+        .list_skills(Some(filter))
+        .await;
 
     Ok(HttpResponse::Ok().json(SkillListResponse {
         total: skills.len(),
@@ -145,7 +149,11 @@ pub async fn get_filtered_tools(
     } else {
         let filtered: Vec<_> = all_tools
             .into_iter()
-            .filter(|tool| allowed_tools.iter().any(|allowed| allowed == &tool.function.name))
+            .filter(|tool| {
+                allowed_tools
+                    .iter()
+                    .any(|allowed| allowed == &tool.function.name)
+            })
             .collect();
         info!(
             "Filtered tools: allowed={}, matched={}",
@@ -176,7 +184,8 @@ pub async fn get_available_workflows(
     _app_state: web::Data<AppState>,
 ) -> Result<HttpResponse, AppError> {
     // Get workflows from bodhi directory
-    let workflows = crate::services::skill_service::list_workflows().await
+    let workflows = crate::services::skill_service::list_workflows()
+        .await
         .map_err(|e| AppError::InternalError(anyhow::anyhow!("Failed to list workflows: {}", e)))?;
 
     Ok(HttpResponse::Ok().json(AvailableWorkflowsResponse { workflows }))

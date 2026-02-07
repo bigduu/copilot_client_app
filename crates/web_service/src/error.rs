@@ -18,6 +18,9 @@ pub enum AppError {
     #[error("{0} not found")]
     NotFound(String),
 
+    #[error("Proxy authentication required")]
+    ProxyAuthRequired,
+
     #[error("Internal server error: {0}")]
     InternalError(#[from] anyhow::Error),
 
@@ -32,6 +35,8 @@ pub enum AppError {
 struct JsonError {
     message: String,
     r#type: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    code: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -46,6 +51,7 @@ impl ResponseError for AppError {
             AppError::ToolExecutionError(_) => StatusCode::BAD_REQUEST,
             AppError::ToolApprovalRequired(_) => StatusCode::FORBIDDEN,
             AppError::NotFound(_) => StatusCode::NOT_FOUND,
+            AppError::ProxyAuthRequired => StatusCode::PRECONDITION_REQUIRED,
             AppError::InternalError(_) => StatusCode::INTERNAL_SERVER_ERROR,
             AppError::StorageError(_) => StatusCode::INTERNAL_SERVER_ERROR,
             AppError::SerializationError(_) => StatusCode::INTERNAL_SERVER_ERROR,
@@ -58,6 +64,10 @@ impl ResponseError for AppError {
             error: JsonError {
                 message: self.to_string(),
                 r#type: "api_error".to_string(),
+                code: match self {
+                    AppError::ProxyAuthRequired => Some("proxy_auth_required".to_string()),
+                    _ => None,
+                },
             },
         };
         HttpResponse::build(status_code).json(error_response)

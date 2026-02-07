@@ -34,14 +34,15 @@ impl StreamToolAccumulator {
     /// Fields that are already set won't be overwritten.
     pub fn process_chunk(&mut self, stream_calls: &[StreamToolCall]) {
         for call in stream_calls {
-            let entry = self.tool_calls.entry(call.index).or_insert_with(|| {
-                AccumulatedToolCall {
+            let entry = self
+                .tool_calls
+                .entry(call.index)
+                .or_insert_with(|| AccumulatedToolCall {
                     id: None,
                     tool_type: None,
                     name: None,
                     arguments: String::new(),
-                }
-            });
+                });
 
             // Update fields from this chunk
             if let Some(id) = &call.id {
@@ -230,6 +231,10 @@ mod tests {
         }]);
 
         let tool_calls = accumulator.into_tool_calls();
-        assert_eq!(tool_calls.len(), 0, "Incomplete tool call should be filtered");
+        assert_eq!(
+            tool_calls.len(),
+            0,
+            "Incomplete tool call should be filtered"
+        );
     }
 }

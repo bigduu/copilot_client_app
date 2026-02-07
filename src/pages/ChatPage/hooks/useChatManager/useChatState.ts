@@ -1,5 +1,6 @@
 import { useMemo } from "react";
-import { useAppStore } from "../../store";
+import { useShallow } from "zustand/react/shallow";
+import { selectCurrentChat, useAppStore } from "../../store";
 import type { ChatItem, Message } from "../../types/chat";
 
 /**
@@ -33,31 +34,42 @@ export interface UseChatState {
 }
 
 export function useChatState(): UseChatState {
-  // --- STATE SELECTION FROM ZUSTAND ---
-  const chats = useAppStore((state) => state.chats);
-  const currentChatId = useAppStore((state) => state.currentChatId);
-  const addMessage = useAppStore((state) => state.addMessage);
-  const selectChat = useAppStore((state) => state.selectChat);
-  const deleteChat = useAppStore((state) => state.deleteChat);
-  const deleteChats = useAppStore((state) => state.deleteChats);
-  const deleteMessage = useAppStore((state) => state.deleteMessage);
-  const updateChat = useAppStore((state) => state.updateChat);
-  const pinChat = useAppStore((state) => state.pinChat);
-  const unpinChat = useAppStore((state) => state.unpinChat);
-  const loadChats = useAppStore((state) => state.loadChats);
-  const isProcessing = useAppStore((state) => state.isProcessing);
-  const setProcessing = useAppStore((state) => state.setProcessing);
+  const {
+    chats,
+    currentChatId,
+    currentChat,
+    addMessage,
+    selectChat,
+    deleteChat,
+    deleteChats,
+    deleteMessage,
+    updateChat,
+    pinChat,
+    unpinChat,
+    loadChats,
+    isProcessing,
+    setProcessing,
+  } = useAppStore(
+    useShallow((state) => ({
+      chats: state.chats,
+      currentChatId: state.currentChatId,
+      currentChat: selectCurrentChat(state),
+      addMessage: state.addMessage,
+      selectChat: state.selectChat,
+      deleteChat: state.deleteChat,
+      deleteChats: state.deleteChats,
+      deleteMessage: state.deleteMessage,
+      updateChat: state.updateChat,
+      pinChat: state.pinChat,
+      unpinChat: state.unpinChat,
+      loadChats: state.loadChats,
+      isProcessing: state.isProcessing,
+      setProcessing: state.setProcessing,
+    })),
+  );
 
   // --- DERIVED STATE ---
-  const currentChat = useMemo(
-    () => chats.find((chat) => chat.id === currentChatId) || null,
-    [chats, currentChatId],
-  );
-
-  const baseMessages = useMemo(
-    () => currentChat?.messages || [],
-    [currentChat],
-  );
+  const baseMessages = useMemo(() => currentChat?.messages || [], [currentChat]);
 
   const pinnedChats = useMemo(
     () => chats.filter((chat) => chat.pinned),

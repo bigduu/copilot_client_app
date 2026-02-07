@@ -25,11 +25,3 @@ macro_rules! register_category {
         }
     };
 }
-
-
-
-
-
-
-
-

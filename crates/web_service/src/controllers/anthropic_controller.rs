@@ -1,12 +1,11 @@
+use crate::services::anthropic_model_mapping_service::load_anthropic_model_mapping;
 use crate::{error::AppError, server::AppState};
 use actix_web::{http::StatusCode, post, web, HttpResponse};
 use async_stream::stream;
 use bytes::Bytes;
-use crate::services::anthropic_model_mapping_service::load_anthropic_model_mapping;
 use copilot_client::api::models::{
     ChatCompletionRequest, ChatCompletionResponse, ChatCompletionStreamChunk, ChatMessage, Content,
-    ContentPart, FunctionCall, ImageUrl, Role, StreamToolCall, Tool, ToolCall, ToolChoice,
-    Usage,
+    ContentPart, FunctionCall, ImageUrl, Role, StreamToolCall, Tool, ToolCall, ToolChoice, Usage,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
@@ -63,9 +62,18 @@ enum AnthropicContent {
 #[derive(Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 enum AnthropicContentBlock {
-    Text { text: String },
-    ToolUse { id: String, name: String, input: Value },
-    ToolResult { tool_use_id: String, content: Value },
+    Text {
+        text: String,
+    },
+    ToolUse {
+        id: String,
+        name: String,
+        input: Value,
+    },
+    ToolResult {
+        tool_use_id: String,
+        content: Value,
+    },
 }
 
 #[derive(Deserialize)]
@@ -136,8 +144,14 @@ struct AnthropicMessagesResponse {
 #[derive(Serialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 enum AnthropicResponseContentBlock {
-    Text { text: String },
-    ToolUse { id: String, name: String, input: Value },
+    Text {
+        text: String,
+    },
+    ToolUse {
+        id: String,
+        name: String,
+        input: Value,
+    },
 }
 
 #[derive(Serialize)]
@@ -736,7 +750,10 @@ fn apply_reasoning_mapping(parameters: &mut HashMap<String, Value>) {
 
     match mapped {
         Some(effort) => {
-            parameters.insert("reasoning_effort".to_string(), Value::String(effort.to_string()));
+            parameters.insert(
+                "reasoning_effort".to_string(),
+                Value::String(effort.to_string()),
+            );
         }
         None => {
             parameters.insert("reasoning".to_string(), Value::String(value));
@@ -791,9 +808,9 @@ fn append_user_blocks(
         let content = if text_parts.len() == 1 {
             match text_parts.pop() {
                 Some(ContentPart::Text { text }) => Content::Text(text),
-                Some(ContentPart::ImageUrl { image_url }) => Content::Parts(vec![
-                    ContentPart::ImageUrl { image_url },
-                ]),
+                Some(ContentPart::ImageUrl { image_url }) => {
+                    Content::Parts(vec![ContentPart::ImageUrl { image_url }])
+                }
                 None => Content::Text(String::new()),
             }
         } else {
@@ -836,8 +853,7 @@ fn convert_assistant_blocks(
                 return Err(AnthropicError::new(
                     StatusCode::BAD_REQUEST,
                     "invalid_request_error",
-                    "tool_result blocks are not valid in assistant messages"
-                        .to_string(),
+                    "tool_result blocks are not valid in assistant messages".to_string(),
                 ));
             }
         }
@@ -848,9 +864,9 @@ fn convert_assistant_blocks(
     } else if content_parts.len() == 1 {
         match content_parts.into_iter().next() {
             Some(ContentPart::Text { text }) => Content::Text(text),
-            Some(ContentPart::ImageUrl { image_url }) => Content::Parts(vec![
-                ContentPart::ImageUrl { image_url },
-            ]),
+            Some(ContentPart::ImageUrl { image_url }) => {
+                Content::Parts(vec![ContentPart::ImageUrl { image_url }])
+            }
             None => Content::Text(String::new()),
         }
     } else {
@@ -982,7 +998,9 @@ fn convert_messages_response(
                     ContentPart::Text { text } => {
                         content_blocks.push(AnthropicResponseContentBlock::Text { text });
                     }
-                    ContentPart::ImageUrl { image_url: ImageUrl { .. } } => {
+                    ContentPart::ImageUrl {
+                        image_url: ImageUrl { .. },
+                    } => {
                         return Err(AnthropicError::new(
                             StatusCode::BAD_GATEWAY,
                             "api_error",
@@ -1178,10 +1196,7 @@ impl AnthropicStreamState {
             let message_id = chunk.id.clone();
             self.message_id = Some(message_id.clone());
             let model = if self.model.is_empty() {
-                chunk
-                    .model
-                    .clone()
-                    .unwrap_or_else(|| self.model.clone())
+                chunk.model.clone().unwrap_or_else(|| self.model.clone())
             } else {
                 self.model.clone()
             };

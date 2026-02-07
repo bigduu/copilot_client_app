@@ -6,6 +6,7 @@ use actix_web::{
 use anyhow::Result;
 use async_trait::async_trait;
 use bytes::Bytes;
+use chat_core::ProxyAuth;
 use copilot_client::{
     api::models::{
         ChatCompletionRequest, ChatCompletionResponse, ChatCompletionStreamChunk, ChatMessage,
@@ -13,13 +14,12 @@ use copilot_client::{
     },
     client_trait::CopilotClientTrait,
 };
-use chat_core::ProxyAuth;
 use reqwest::Response;
 use serde::{Deserialize, Serialize};
+use skill_manager::SkillManager;
 use std::sync::Arc;
 use tokio::sync::mpsc::Sender;
 use web_service::server::{app_config, AppState};
-use skill_manager::SkillManager;
 use wiremock::{
     matchers::{method, path},
     Mock, MockServer, ResponseTemplate,

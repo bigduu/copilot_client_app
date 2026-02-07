@@ -1,9 +1,11 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import { App as AntApp } from "antd";
 import { AgentClient } from "../../services/AgentService";
 import type { UserMessage } from "../../types/chat";
 import type { ImageFile } from "../../utils/imageUtils";
 import { streamingMessageBus } from "../../utils/streamingMessageBus";
+import { useAppStore } from "../../store";
+import { getSystemPromptEnhancementText } from "../../../../shared/utils/systemPromptEnhancement";
 
 export interface UseChatStreaming {
   sendMessage: (content: string, images?: ImageFile[]) => Promise<void>;
@@ -23,43 +25,27 @@ interface UseChatStreamingDeps {
  *
  * Agent-only flow using the local agent endpoints (localhost:8080).
  */
-export function useChatStreaming(
-  deps: UseChatStreamingDeps,
-): UseChatStreaming {
+export function useChatStreaming(deps: UseChatStreamingDeps): UseChatStreaming {
   const { modal, message: appMessage } = AntApp.useApp();
   const abortRef = useRef<AbortController | null>(null);
   const streamingMessageIdRef = useRef<string | null>(null);
   const streamingContentRef = useRef<string>("");
   const agentClientRef = useRef(new AgentClient());
-  
-  // Track Agent availability
-  const [agentAvailable, setAgentAvailable] = useState<boolean | null>(null);
-  const lastAgentAvailableRef = useRef<boolean | null>(null);
 
-  // Check Agent availability on mount
+  const agentAvailable = useAppStore((state) => state.agentAvailability);
+  const setAgentAvailability = useAppStore(
+    (state) => state.setAgentAvailability,
+  );
+  const checkAgentAvailability = useAppStore(
+    (state) => state.checkAgentAvailability,
+  );
+  const startAgentHealthCheck = useAppStore(
+    (state) => state.startAgentHealthCheck,
+  );
+
   useEffect(() => {
-    const checkAgent = async () => {
-      try {
-        const available = await agentClientRef.current.healthCheck();
-        setAgentAvailable(available);
-        if (lastAgentAvailableRef.current && !available) {
-          appMessage.warning("Agent unavailable");
-        }
-        lastAgentAvailableRef.current = available;
-        console.log(`[useChatStreaming] Agent Server ${available ? "available" : "not available"}`);
-      } catch (error) {
-        setAgentAvailable(false);
-        if (lastAgentAvailableRef.current) {
-          appMessage.warning("Agent unavailable");
-        }
-        lastAgentAvailableRef.current = false;
-        console.warn("[useChatStreaming] Agent health check failed:", error);
-      }
-    };
-    checkAgent();
-    const interval = setInterval(checkAgent, 10000);
-    return () => clearInterval(interval);
-  }, [appMessage]);
+    startAgentHealthCheck();
+  }, [startAgentHealthCheck]);
 
   const cancel = useCallback(() => {
     abortRef.current?.abort();
@@ -80,10 +66,24 @@ export function useChatStreaming(
       abortRef.current = controller;
 
       try {
+        const baseSystemPrompt = (
+          deps.currentChat?.config?.baseSystemPrompt || ""
+        ).trim();
+        const enhancePrompt = getSystemPromptEnhancementText().trim();
+        // Normalize workspace path: remove trailing slashes, handle cross-platform
+        const rawWorkspacePath = deps.currentChat?.config?.workspacePath || "";
+        const workspacePath = rawWorkspacePath
+          .trim()
+          .replace(/\/+$/, "")  // Remove trailing slashes (Unix/Windows)
+          .replace(/\\+$/, ""); // Remove trailing backslashes (Windows)
+
         // Step 1: Send message to Agent
         const response = await agentClientRef.current.sendMessage({
           message: content,
           session_id: deps.currentChat?.config?.agentSessionId,
+          system_prompt: baseSystemPrompt || undefined,
+          enhance_prompt: enhancePrompt || undefined,
+          workspace_path: workspacePath || undefined,
         });
 
         const { session_id } = response;
@@ -101,7 +101,7 @@ export function useChatStreaming(
         const streamingMessageId = `streaming-${chatId}`;
         streamingMessageIdRef.current = streamingMessageId;
         streamingContentRef.current = "";
-        
+
         streamingMessageBus.publish({
           chatId,
           messageId: streamingMessageId,
@@ -218,7 +218,7 @@ export function useChatStreaming(
 
             onError: async (errorMessage: string) => {
               console.error("Agent error:", errorMessage);
-              
+
               await deps.addMessage(chatId, {
                 id: `error-${Date.now()}`,
                 role: "assistant",
@@ -233,14 +233,13 @@ export function useChatStreaming(
               deps.setProcessing(false);
             },
           },
-          controller
+          controller,
         );
-
       } catch (error) {
         throw error; // Re-throw to trigger fallback
       }
     },
-    [deps]
+    [deps],
   );
 
   const sendMessage = useCallback(
@@ -253,7 +252,12 @@ export function useChatStreaming(
         return;
       }
 
-      if (agentAvailable === false) {
+      let isAgentAvailable = agentAvailable;
+      if (isAgentAvailable === null) {
+        isAgentAvailable = await checkAgentAvailability();
+      }
+
+      if (!isAgentAvailable) {
         appMessage.error("Agent unavailable. Please try again later.");
         return;
       }
@@ -289,13 +293,13 @@ export function useChatStreaming(
         }
         streamingMessageIdRef.current = null;
         streamingContentRef.current = "";
-        
+
         if ((error as any).name === "AbortError") {
           appMessage.info("Request cancelled");
         } else {
           console.error("[useChatStreaming] Failed to send message:", error);
           appMessage.error("Failed to send message. Please try again.");
-          setAgentAvailable(false);
+          setAgentAvailability(false);
         }
       } finally {
         abortRef.current = null;
@@ -307,7 +311,15 @@ export function useChatStreaming(
         deps.setProcessing(false);
       }
     },
-    [deps, modal, appMessage, agentAvailable, sendWithAgent]
+    [
+      agentAvailable,
+      appMessage,
+      checkAgentAvailability,
+      deps,
+      modal,
+      sendWithAgent,
+      setAgentAvailability,
+    ],
   );
 
   return {

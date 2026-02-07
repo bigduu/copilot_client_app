@@ -71,11 +71,3 @@ impl Workflow for CreateFileWorkflow {
 }
 
 register_workflow!(CreateFileWorkflow, "create_file");
-
-
-
-
-
-
-
-

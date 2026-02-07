@@ -1,3 +1,4 @@
+use crate::error::ProxyAuthRequiredError;
 use anyhow::{anyhow, Error};
 use lazy_static::lazy_static;
 use log::info;
@@ -48,6 +49,9 @@ impl CopilotModelsHandler {
             .await?;
 
         let status = response.status();
+        if status == StatusCode::PROXY_AUTHENTICATION_REQUIRED {
+            return Err(anyhow!(ProxyAuthRequiredError));
+        }
         if status != StatusCode::OK {
             let body = response.text().await.unwrap_or_default();
             let error_msg = format!("Failed to get models: {body} with status {status}");

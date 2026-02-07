@@ -9,10 +9,7 @@ use reqwest_retry::{policies::ExponentialBackoff, RetryTransientMiddleware};
 
 /// Creates a test HTTP client with retry middleware
 pub fn create_test_client_with_retry(max_retries: u32) -> reqwest_middleware::ClientWithMiddleware {
-    let retry_policy = ExponentialBackoff::builder()
-        .base_secs(1)
-        .max_retries(max_retries)
-        .build();
+    let retry_policy = ExponentialBackoff::builder().build_with_max_retries(max_retries);
 
     let client = ReqwestClient::builder()
         .no_proxy()

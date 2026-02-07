@@ -21,8 +21,7 @@ async fn test_chat_completion_retry_on_server_error() {
         .respond_with(move |_req: &wiremock::Request| {
             let count = counter.fetch_add(1, Ordering::SeqCst);
             if count < 2 {
-                ResponseTemplate::new(503)
-                    .set_body_string(r#"{"error": "Service Unavailable"}"#)
+                ResponseTemplate::new(503).set_body_string(r#"{"error": "Service Unavailable"}"#)
             } else {
                 ResponseTemplate::new(200).set_body_json(serde_json::json!({
                     "id": "chatcmpl-test",
@@ -132,8 +131,7 @@ async fn test_no_retry_on_unauthorized() {
         .and(path("/chat/completions"))
         .respond_with(move |_req: &wiremock::Request| {
             counter.fetch_add(1, Ordering::SeqCst);
-            ResponseTemplate::new(401)
-                .set_body_string(r#"{"error": "Unauthorized"}"#)
+            ResponseTemplate::new(401).set_body_string(r#"{"error": "Unauthorized"}"#)
         })
         .expect(1) // Should only be called once
         .mount(&mock_server)
