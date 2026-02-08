@@ -1,0 +1,38 @@
+[package]
+name = "agent-llm"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+agent-core = { path = "../agent-core" }
+chat_core = { path = "../chat_core" }
+reqwest = { version = "0.12", features = ["json", "stream", "gzip", "rustls-tls"] }
+reqwest-retry = "0.7"
+reqwest-middleware = { version = "0.4", features = ["json"] }
+tokio = { version = "1", features = ["full"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+async-trait = "0.1"
+eventsource-stream = "0.2"
+futures = "0.3"
+futures-util = "0.3"
+thiserror = "1"
+log = "0.4"
+dirs = "5.0"
+anyhow = "1.0"
+bytes = "1"
+lazy_static = "1.4"
+webbrowser = "1"
+chrono = { version = "0.4", features = ["serde"] }
+arboard = "3"
+rfd = "0.15"
+tauri = { version = "2.5.1", optional = true }
+
+[features]
+default = []
+tauri-dialog = ["dep:tauri"]
+
+[dev-dependencies]
+wiremock = "0.5"
+tokio-test = "0.4"
+tempfile = "3.10"
