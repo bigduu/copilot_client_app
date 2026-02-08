@@ -1,142 +1,142 @@
-# Copilot Agent 集成完成报告
+# Copilot Agent Integration Completion Report
 
-## 🎉 项目概述
+## 🎉 Project Overview
 
-Copilot Agent 是一个独立的 Agent 系统，为 copilot_client_app 提供多轮对话和工具调用能力。
+Copilot Agent is a standalone Agent system that provides multi-turn conversation and tool invocation capabilities for copilot_client_app.
 
-## ✅ 已完成工作
+## ✅ Completed Work
 
-### 阶段 1: 真实工具实现
+### Phase 1: Real Tool Implementation
 
-**文件系统工具** (`crates/builtin_tools/src/tools/filesystem.rs`)
-- `read_file` - 读取文件内容
-- `write_file` - 写入文件（自动创建目录）
-- `list_directory` - 列出目录内容
-- `file_exists` - 检查文件存在
-- `get_file_info` - 获取文件详细信息
+**File System Tools** (`crates/builtin_tools/src/tools/filesystem.rs`)
+- `read_file` - Read file content
+- `write_file` - Write files (auto-create directories)
+- `list_directory` - List directory contents
+- `file_exists` - Check file existence
+- `get_file_info` - Get detailed file information
 
-**命令执行工具** (`crates/builtin_tools/src/tools/command.rs`)
-- `execute_command` - 执行系统命令（30秒超时）
-- `get_current_dir` - 获取当前目录
-- 危险命令拦截（rm -rf / 等）
-- 路径安全检查
+**Command Execution Tools** (`crates/builtin_tools/src/tools/command.rs`)
+- `execute_command` - Execute system commands (30-second timeout)
+- `get_current_dir` - Get current directory
+- Dangerous command interception (rm -rf /, etc.)
+- Path security checks
 
-**内置工具执行器** (`crates/builtin_tools/src/executor.rs`)
-- 统一的工具执行与分发逻辑
-- 参数解析和验证
-- 7个可用工具
+**Built-in Tool Executor** (`crates/builtin_tools/src/executor.rs`)
+- Unified tool execution and dispatch logic
+- Parameter parsing and validation
+- 7 available tools
 
-### 阶段 2: Skill 系统集成
+### Phase 2: Skill System Integration
 
 **Skill Loader** (`copilot-agent-server/src/skill_loader.rs`)
-- 从 `~/.bodhi/skills/*.md` 加载 skills
-- 系统提示词构建
-- 工具 schema 提取
+- Load skills from `~/.bodhi/skills/*.md`
+- System prompt construction
+- Tool schema extraction
 
-**State 集成** (`copilot-agent-server/src/state.rs`)
-- 自动加载启用 skills
-- 合并基础工具和 skill 工具
-- 增强系统提示词
+**State Integration** (`copilot-agent-server/src/state.rs`)
+- Auto-load enabled skills
+- Merge base tools and skill tools
+- Enhanced system prompts
 
-**AgentLoop 增强** (`copilot-agent-server/src/agent_runner.rs`)
-- `AgentLoopConfig` 配置
-- 系统提示词支持
-- 向后兼容
+**AgentLoop Enhancement** (`copilot-agent-server/src/agent_runner.rs`)
+- `AgentLoopConfig` configuration
+- System prompt support
+- Backward compatibility
 
-### 阶段 3: 主项目集成
+### Phase 3: Main Project Integration
 
-**前端服务** (`src/pages/ChatPage/services/AgentService.ts`)
-- `AgentClient` HTTP 客户端
-- SSE 流式事件处理
-- 完整的 Agent API 封装
+**Frontend Services** (`src/pages/ChatPage/services/AgentService.ts`)
+- `AgentClient` HTTP client
+- SSE streaming event handling
+- Complete Agent API encapsulation
 
 **React Hooks**
-- `useAgentChat.ts` - Agent 专用 hook
-- `useChatStreaming.ts` - 统一流式处理（Agent 优先，OpenAI 回退）
-- `useChatManager/index.ts` - 集成更新
+- `useAgentChat.ts` - Agent-specific hook
+- `useChatStreaming.ts` - Unified streaming (Agent first, OpenAI fallback)
+- `useChatManager/index.ts` - Integration updates
 
-**UI 状态显示** (`src/pages/ChatPage/components/InputContainer/index.tsx`)
-- Agent 模式指示器（右上角 Tag）
-- 三种状态：Checking... / Agent Mode / Direct Mode
+**UI Status Display** (`src/pages/ChatPage/components/InputContainer/index.tsx`)
+- Agent mode indicator (top-right Tag)
+- Three states: Checking... / Agent Mode / Direct Mode
 
-**启动脚本** (`scripts/start-dev.sh`)
-- 一键启动 Agent Server + Tauri App
-- 自动检测端口可用性
+**Startup Script** (`scripts/start-dev.sh`)
+- One-click startup for Agent Server + Tauri App
+- Automatic port availability detection
 
-## 📁 关键文件位置
+## 📁 Key File Locations
 
-### Agent 后端
+### Agent Backend
 ```
 crates/
-├── builtin_tools/                # 内置工具执行器
+├── builtin_tools/                # Built-in tool executor
 └── copilot-agent/
     ├── crates/
-    │   ├── copilot-agent-core/   # 核心类型和逻辑
+    │   ├── copilot-agent-core/   # Core types and logic
     │   ├── copilot-agent-llm/    # LLM Provider (OpenAI)
     │   └── copilot-agent-server/ # HTTP Server
-    └── scripts/e2e-simple.sh     # 测试脚本
+    └── scripts/e2e-simple.sh     # Test script
 ```
 
-### 前端集成
+### Frontend Integration
 ```
 src/pages/ChatPage/
 ├── services/
-│   ├── AgentService.ts           # Agent HTTP 客户端
-│   └── SkillService.ts           # Skill 管理
+│   ├── AgentService.ts           # Agent HTTP client
+│   └── SkillService.ts           # Skill management
 ├── hooks/
-│   ├── useChatManager/index.ts   # 主 hook（已更新）
-│   └── useChatManager/useChatStreaming.ts  # 流式处理
+│   ├── useChatManager/index.ts   # Main hook (updated)
+│   └── useChatManager/useChatStreaming.ts  # Streaming handler
 └── components/InputContainer/
-    └── index.tsx                 # UI 状态指示器
+    └── index.tsx                 # UI status indicator
 ```
 
-### Skill 文件
+### Skill Files
 ```
 ~/.bodhi/skills/
-├── file-assistant.md             # 文件操作助手
-└── shell-helper.md               # Shell 命令助手
+├── file-assistant.md             # File operation assistant
+└── shell-helper.md               # Shell command assistant
 ```
 
-## 🚀 启动方式
+## 🚀 Startup Methods
 
-### 方法 1: 一键启动（推荐）
+### Method 1: One-Click Startup (Recommended)
 ```bash
 cd ~/workspace/copilot_client_app
 ./scripts/start-dev.sh
 ```
 
-### 方法 2: 手动启动
+### Method 2: Manual Startup
 ```bash
-# 终端 1: 启动 Agent Server
+# Terminal 1: Start Agent Server
 cd ~/workspace/copilot_client_app/crates/copilot-agent
 ./target/release/copilot-agent-server --port 8081
 
-# 终端 2: 启动 Tauri App
+# Terminal 2: Start Tauri App
 cd ~/workspace/copilot_client_app
 npm run tauri dev
 ```
 
-## 🔌 端口配置
+## 🔌 Port Configuration
 
-| 服务 | 端口 | 说明 |
+| Service | Port | Description |
 |------|------|------|
-| web_service | 8080 | 原后端服务 |
-| copilot-agent-server | 8081 | Agent 服务 |
-| Tauri App | 1420 | 前端开发服务器 |
+| web_service | 8080 | Original backend service |
+| copilot-agent-server | 8081 | Agent service |
+| Tauri App | 1420 | Frontend dev server |
 
-## 🧪 测试验证
+## 🧪 Testing
 
 ```bash
-# 后端测试
+# Backend testing
 cd ~/workspace/copilot_client_app/crates/copilot-agent
 bash scripts/e2e-simple.sh
 
-# TypeScript 检查
+# TypeScript check
 cd ~/workspace/copilot_client_app
 npx tsc --noEmit
 ```
 
-## 📊 系统架构
+## 📊 System Architecture
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
@@ -181,17 +181,17 @@ npx tsc --noEmit
 └─────────────────────────────────────────────────────────────┘
 ```
 
-## 🎯 特性
+## 🎯 Features
 
-- ✅ **Agent 优先**: 自动检测并使用 Agent Server
-- ✅ **OpenAI 回退**: Agent 不可用时自动切换
-- ✅ **多轮工具执行**: Agent 支持多轮对话和工具调用
-- ✅ **Skill 系统**: 动态加载和启用 skills
-- ✅ **SSE 流式**: 实时 Token 和事件流
-- ✅ **UI 状态显示**: 显示当前使用的后端模式
-- ✅ **TypeScript**: 完整的类型支持
+- ✅ **Agent First**: Auto-detect and use Agent Server
+- ✅ **OpenAI Fallback**: Auto-switch when Agent unavailable
+- ✅ **Multi-turn Tool Execution**: Agent supports multi-turn conversations and tool calls
+- ✅ **Skill System**: Dynamic loading and enabling of skills
+- ✅ **SSE Streaming**: Real-time token and event streaming
+- ✅ **UI Status Display**: Shows current backend mode
+- ✅ **TypeScript**: Full type support
 
-## 🔧 技能文件格式
+## 🔧 Skill File Format
 
 ```json
 {
@@ -211,23 +211,23 @@ npx tsc --noEmit
 }
 ```
 
-## 📈 状态指示器
+## 📈 Status Indicators
 
-| 状态 | 颜色 | 说明 |
+| Status | Color | Description |
 |------|------|------|
-| Checking... | 默认 | 正在检测 Agent Server |
-| Agent Mode | 绿色 | 使用 Agent Server (localhost:8081) |
-| Direct Mode | 橙色 | 使用直接 OpenAI 调用 |
+| Checking... | Default | Detecting Agent Server |
+| Agent Mode | Green | Using Agent Server (localhost:8081) |
+| Direct Mode | Orange | Using direct OpenAI calls |
 
-## 🎊 完成总结
+## 🎊 Completion Summary
 
-所有任务已完成！系统已就绪：
-- ✅ 后端编译通过
-- ✅ TypeScript 检查通过
-- ✅ E2E 测试通过
-- ✅ Skill 加载验证通过
-- ✅ 前端集成完成
-- ✅ UI 状态显示完成
-- ✅ 启动脚本创建完成
+All tasks completed! System is ready:
+- ✅ Backend compilation passed
+- ✅ TypeScript check passed
+- ✅ E2E tests passed
+- ✅ Skill loading validation passed
+- ✅ Frontend integration completed
+- ✅ UI status display completed
+- ✅ Startup script created
 
-**系统已准备好进行端到端测试！** 🚀
+**System is ready for end-to-end testing!** 🚀
