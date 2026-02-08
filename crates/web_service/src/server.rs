@@ -68,6 +68,10 @@ pub fn agent_api_config(cfg: &mut web::ServiceConfig) {
                 "/respond/{session_id}/pending",
                 web::get().to(agent_handlers::respond::get_pending_question),
             )
+            .route(
+                "/sessions/{session_id}",
+                web::delete().to(agent_handlers::delete::handler),
+            )
             .route("/health", web::get().to(agent_handlers::health::handler)),
     );
 }

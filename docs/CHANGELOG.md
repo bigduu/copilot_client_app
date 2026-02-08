@@ -33,6 +33,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Environment variable propagation for local base URL
 - TodoList SSE reconnection loop causing "Stream started" log spam every 5 seconds
 - QuestionDialog aggressive polling reduced with adaptive intervals and auto-stop
+- Deleting chat/session now properly removes backend session files (`~/.bodhi/*.json` and `*.jsonl`)
+- Proxy configuration no longer auto-populates from `HTTP_PROXY`/`HTTPS_PROXY` environment variables; settings now persist correctly when cleared
 
 ## [0.2.0] - 2025-11-05
 

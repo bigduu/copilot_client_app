@@ -1,9 +1,12 @@
 import { StateCreator } from "zustand";
 import { ChatItem, Message } from "../../types/chat";
+import { AgentClient } from "../../services/AgentService";
 import type { AppState } from "../";
+
 const CHAT_STORAGE_KEY = "copilot_chats_v3";
 const ACTIVE_CHAT_ID_KEY = "copilot_active_chat_id";
 const AUTO_TITLE_KEY = "copilot_auto_generate_titles";
+const agentClient = AgentClient.getInstance();
 
 export interface ChatSlice {
   // State
@@ -82,6 +85,10 @@ export const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (
   },
 
   deleteChat: async (chatId) => {
+    const chatToDelete = get().chats.find((chat) => chat.id === chatId);
+    const sessionId = getAgentSessionId(chatToDelete);
+    await deleteBackendSession(sessionId);
+
     // Update local state
     set((state) => {
       const newChats = state.chats.filter((chat) => chat.id !== chatId);
@@ -112,6 +119,13 @@ export const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (
   },
 
   deleteChats: async (chatIds) => {
+    const chatsToDelete = get().chats.filter((chat) => chatIds.includes(chat.id));
+    const sessionIds = getAgentSessionIds(chatsToDelete);
+
+    for (const sessionId of sessionIds) {
+      await deleteBackendSession(sessionId);
+    }
+
     // Update local state
     set((state) => {
       const newChats = state.chats.filter((chat) => !chatIds.includes(chat.id));
@@ -272,5 +286,39 @@ const persistChats = (chats: ChatItem[]): void => {
     localStorage.setItem(CHAT_STORAGE_KEY, JSON.stringify(chats));
   } catch (error) {
     console.error("Failed to save chats to localStorage:", error);
+  }
+};
+
+const getAgentSessionId = (chat?: ChatItem): string | null => {
+  const sessionId = chat?.config?.agentSessionId?.trim();
+  return sessionId ? sessionId : null;
+};
+
+const getAgentSessionIds = (chats: ChatItem[]): string[] => {
+  const sessionIds = new Set<string>();
+
+  chats.forEach((chat) => {
+    const sessionId = getAgentSessionId(chat);
+    if (sessionId) {
+      sessionIds.add(sessionId);
+    }
+  });
+
+  return [...sessionIds];
+};
+
+const deleteBackendSession = async (sessionId: string | null): Promise<void> => {
+  if (!sessionId) {
+    return;
+  }
+
+  try {
+    await agentClient.deleteSession(sessionId);
+    console.log(`[ChatSlice] Successfully deleted backend session ${sessionId}`);
+  } catch (error) {
+    console.error(
+      `[ChatSlice] Failed to delete backend session ${sessionId}:`,
+      error,
+    );
   }
 };

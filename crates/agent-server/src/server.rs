@@ -90,6 +90,10 @@ pub async fn run_server_with_config_and_mode(
                         "/respond/{session_id}/pending",
                         web::get().to(handlers::respond::get_pending_question),
                     )
+                    .route(
+                        "/sessions/{session_id}",
+                        web::delete().to(handlers::delete::handler),
+                    )
                     .route("/health", web::get().to(handlers::health::handler)),
             )
     })
