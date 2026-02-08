@@ -1,83 +1,83 @@
-# 配置文档
+# Configuration Documentation
 
-本目录包含项目配置相关的文档，涵盖系统提示词、技术栈配置、服务配置等。
+This directory contains project configuration documentation, covering system prompts, tech stack configuration, service configuration, etc.
 
-## 📋 文档列表
+## 📋 Document List
 
-### 系统配置
-- [`updated-prompts-review.md`](./updated-prompts-review.md) - 系统提示词审查和更新
-- [`final-tech-stack-update.md`](./final-tech-stack-update.md) - 最终技术栈更新总结
+### System Configuration
+- [`updated-prompts-review.md`](./updated-prompts-review.md) - System prompt review and updates
+- [`final-tech-stack-update.md`](./final-tech-stack-update.md) - Final tech stack update summary
 
-### 服务配置
-- [`DEFAULT_OPENAI_MODE.md`](./DEFAULT_OPENAI_MODE.md) - 默认 OpenAI 模式配置
-- [`DUAL_SERVICE_README.md`](./DUAL_SERVICE_README.md) - 双服务配置说明
+### Service Configuration
+- [`DEFAULT_OPENAI_MODE.md`](./DEFAULT_OPENAI_MODE.md) - Default OpenAI mode configuration
+- [`DUAL_SERVICE_README.md`](./DUAL_SERVICE_README.md) - Dual service configuration guide
 
-## 🎯 配置概览
+## 🎯 Configuration Overview
 
-### 技术栈配置
-- **主要技术**: Java/Spring Boot, GCP/AWS, Rust, Kafka/Solace
-- **数据存储**: BigQuery, BigTable, MongoDB, PostgreSQL, Redis
-- **基础设施**: Terraform, Jenkins CI/CD, Docker/Kubernetes
-- **金融领域**: 作为丰富的领域专家知识
+### Tech Stack Configuration
+- **Primary Technologies**: Java/Spring Boot, GCP/AWS, Rust, Kafka/Solace
+- **Data Storage**: BigQuery, BigTable, MongoDB, PostgreSQL, Redis
+- **Infrastructure**: Terraform, Jenkins CI/CD, Docker/Kubernetes
+- **Financial Domain**: As rich domain expert knowledge
 
-### 系统提示词
-- **General Assistant**: 技术专家 + 架构师视角
-- **Translate**: 技术+金融双重专业知识
-- **Categories**: 按功能和优先级组织
+### System Prompts
+- **General Assistant**: Technical expert + architect perspective
+- **Translate**: Technical + financial dual expertise
+- **Categories**: Organized by function and priority
 
-### 服务配置
-- **OpenAI 服务**: 默认模式和配置
-- **双服务架构**: 支持多个 AI 服务提供商
-- **环境变量**: 灵活的配置管理
+### Service Configuration
+- **OpenAI Service**: Default mode and configuration
+- **Dual Service Architecture**: Support for multiple AI service providers
+- **Environment Variables**: Flexible configuration management
 
-## 🔧 配置管理
+## 🔧 Configuration Management
 
-### 环境变量
+### Environment Variables
 ```bash
-# 技术栈相关
+# Tech stack related
 API_BASE_URL=https://api.example.com
 SERVICE_URL=http://localhost:8080
 DEBUG_MODE=true
 
-# 公司内部功能
+# Company internal features
 COMPANY_INTERNAL=true
 ```
 
-### 配置文件
-- `tauri.conf.json` - Tauri 应用配置
-- 环境特定配置文件
+### Configuration Files
+- `tauri.conf.json` - Tauri application configuration
+- Environment-specific configuration files
 
-## 📖 使用指南
+## 📖 Usage Guide
 
-### 更新系统提示词
-1. 修改相应的 category 文件
-2. 更新 `system_prompt` 字段
-3. 重新编译和测试
+### Updating System Prompts
+1. Modify the corresponding category file
+2. Update the `system_prompt` field
+3. Recompile and test
 
-### 添加新技术栈
-1. 更新 General Assistant 的技术专业知识
-2. 更新 Translate 的术语翻译能力
-3. 更新相关文档
+### Adding New Tech Stack
+1. Update General Assistant's technical expertise
+2. Update Translate's terminology translation capability
+3. Update related documentation
 
-### 配置新服务
-1. 添加环境变量配置
-2. 更新服务初始化逻辑
-3. 测试服务连接和功能
+### Configuring New Services
+1. Add environment variable configuration
+2. Update service initialization logic
+3. Test service connection and functionality
 
-## 🎨 提示词设计原则
+## 🎨 Prompt Design Principles
 
 ### General Assistant
-- **技术为主**: 完整的技术栈专业知识
-- **架构视角**: 系统设计和技术领导能力
-- **快速上手**: 能够快速理解需求并提供解决方案
+- **Technology Focused**: Complete tech stack expertise
+- **Architecture Perspective**: System design and technical leadership capability
+- **Quick Onboarding**: Ability to quickly understand requirements and provide solutions
 
 ### Translate
-- **纯翻译**: 只翻译，不回答问题
-- **技术专业**: 优先按技术领域理解术语
-- **口语化**: 使用自然、地道的表达
+- **Pure Translation**: Translate only, don't answer questions
+- **Technical Professional**: Prioritize understanding terminology by technical domain
+- **Colloquial**: Use natural, authentic expressions
 
-## 🔗 相关文档
+## 🔗 Related Documentation
 
-- [扩展系统](../extension-system/) - 工具和类别的注册配置
-- [架构文档](../architecture/) - 系统整体架构设计
-- [开发指南](../development/) - 开发规范和配置
+- [Extension System](../extension-system/) - Tool and category registration configuration
+- [Architecture Docs](../architecture/) - System overall architecture design
+- [Development Guide](../development/) - Development standards and configuration

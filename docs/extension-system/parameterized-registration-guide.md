@@ -1,20 +1,20 @@
-# 参数化注册指南
+# Parameterized Registration Guide
 
-当工具或类别的 `new()` 方法需要参数时，我们提供了多种解决方案来处理这种情况。
+When a tool or category's `new()` method requires parameters, we provide multiple solutions to handle this situation.
 
-## 问题背景
+## Problem Background
 
-原始的 `auto_register_tool!` 和 `auto_register_category!` 宏假设所有类型都有无参数的 `new()` 方法：
+The original `auto_register_tool!` and `auto_register_category!` macros assume all types have a parameterless `new()` method:
 
 ```rust
-// 这只适用于无参数构造函数
-auto_register_tool!(SimpleTool);  // 调用 SimpleTool::new()
+// This only works for parameterless constructors
+auto_register_tool!(SimpleTool);  // Calls SimpleTool::new()
 ```
 
-但是有些工具或类别需要配置参数：
+However, some tools or categories require configuration parameters:
 
 ```rust
-// 这种情况下原始宏无法处理
+// The original macro cannot handle this case
 pub struct ConfigurableTool {
     base_url: String,
     api_key: String,
@@ -27,16 +27,16 @@ impl ConfigurableTool {
 }
 ```
 
-## 解决方案
+## Solutions
 
-### 方案 1: 使用 `_with_constructor` 宏
+### Solution 1: Use `_with_constructor` Macros
 
-最直接的解决方案是使用新的 `auto_register_tool_with_constructor!` 和 `auto_register_category_with_constructor!` 宏：
+The most direct solution is to use the new `auto_register_tool_with_constructor!` and `auto_register_category_with_constructor!` macros:
 
 ```rust
 use crate::tool_system::auto_register_tool_with_constructor;
 
-// 注册带参数的工具
+// Register tool with parameters
 auto_register_tool_with_constructor!(
     ConfigurableTool,
     || Arc::new(ConfigurableTool::new(
@@ -46,17 +46,17 @@ auto_register_tool_with_constructor!(
 );
 ```
 
-### 方案 2: 使用 `_advanced` 宏
+### Solution 2: Use `_advanced` Macros
 
-更灵活的解决方案是使用 `auto_register_tool_advanced!` 宏，它支持两种语法：
+A more flexible solution is to use the `auto_register_tool_advanced!` macro, which supports two syntaxes:
 
 ```rust
 use crate::tool_system::auto_register_tool_advanced;
 
-// 无参数（等同于原始宏）
+// No parameters (equivalent to original macro)
 auto_register_tool_advanced!(SimpleTool);
 
-// 带参数
+// With parameters
 auto_register_tool_advanced!(ConfigurableTool, || {
     Arc::new(ConfigurableTool::new(
         "https://api.example.com".to_string(),
@@ -64,20 +64,20 @@ auto_register_tool_advanced!(ConfigurableTool, || {
     ))
 });
 
-// 从环境变量读取配置
+// Read configuration from environment variables
 auto_register_tool_advanced!(ConfigurableTool, || {
     let base_url = std::env::var("API_BASE_URL")
         .unwrap_or_else(|_| "https://api.example.com".to_string());
     let api_key = std::env::var("API_KEY")
         .unwrap_or_else(|_| "default-key".to_string());
-    
+
     Arc::new(ConfigurableTool::new(base_url, api_key))
 });
 ```
 
-### 方案 3: 在初始化函数中注册
+### Solution 3: Register in Initialization Function
 
-对于需要运行时配置的情况，可以在初始化函数中进行注册：
+For cases requiring runtime configuration, registration can be done in an initialization function:
 
 ```rust
 pub fn init_tools(config: &AppConfig) {
@@ -91,41 +91,41 @@ pub fn init_tools(config: &AppConfig) {
 }
 ```
 
-### 方案 4: 提供默认构造函数
+### Solution 4: Provide Default Constructor
 
-如果可能，为类型提供一个无参数的 `new()` 方法和一个带参数的 `with_config()` 方法：
+If possible, provide a parameterless `new()` method and a parameterized `with_config()` method for the type:
 
 ```rust
 impl ConfigurableTool {
     pub const TOOL_NAME: &'static str = "configurable_tool";
-    
-    // 无参数构造函数，使用默认值
+
+    // Parameterless constructor using default values
     pub fn new() -> Self {
         Self::with_config(
             "https://api.example.com".to_string(),
             "default-key".to_string()
         )
     }
-    
-    // 带参数的构造函数
+
+    // Parameterized constructor
     pub fn with_config(base_url: String, api_key: String) -> Self {
         Self { base_url, api_key }
     }
 }
 
-// 现在可以使用原始宏
+// Can now use the original macro
 auto_register_tool!(ConfigurableTool);
 ```
 
-## 类别注册示例
+## Category Registration Examples
 
-类别的参数化注册遵循相同的模式：
+Category parameterized registration follows the same pattern:
 
 ```rust
-// 无参数类别
+// Category without parameters
 auto_register_category!(SimpleCategory);
 
-// 带参数类别
+// Category with parameters
 auto_register_category_advanced!(ConfigurableCategory, || {
     Box::new(ConfigurableCategory::new(
         true,  // enabled
@@ -134,7 +134,7 @@ auto_register_category_advanced!(ConfigurableCategory, || {
     ))
 });
 
-// 从配置文件读取
+// Read from configuration file
 auto_register_category_with_constructor!(
     ConfigurableCategory,
     || {
@@ -148,21 +148,21 @@ auto_register_category_with_constructor!(
 );
 ```
 
-## 最佳实践
+## Best Practices
 
-1. **优先使用无参数构造函数**: 如果可能，设计工具和类别时提供无参数的 `new()` 方法。
+1. **Prefer parameterless constructors**: If possible, design tools and categories to provide a parameterless `new()` method.
 
-2. **使用 `_advanced` 宏**: 对于新代码，推荐使用 `auto_register_tool_advanced!` 和 `auto_register_category_advanced!` 宏，因为它们更灵活。
+2. **Use `_advanced` macros**: For new code, recommend using `auto_register_tool_advanced!` and `auto_register_category_advanced!` macros as they are more flexible.
 
-3. **环境变量配置**: 对于需要环境特定配置的工具，使用环境变量是一个好选择。
+3. **Environment variable configuration**: For tools requiring environment-specific configuration, using environment variables is a good choice.
 
-4. **延迟注册**: 对于复杂的配置场景，考虑在应用初始化时进行注册，而不是在编译时。
+4. **Lazy registration**: For complex configuration scenarios, consider registering during application initialization rather than at compile time.
 
-5. **文档化参数**: 确保在工具和类别的文档中清楚说明所需的参数。
+5. **Document parameters**: Ensure clear documentation of required parameters in tool and category documentation.
 
-## 注意事项
+## Notes
 
-- 使用参数化注册时，确保所有必需的依赖在注册时都可用。
-- 避免在构造函数中进行可能失败的操作，如网络请求或文件 I/O。
-- 考虑使用配置验证来确保参数的有效性。
-- 对于敏感信息（如 API 密钥），考虑使用安全的配置管理方案。
+- When using parameterized registration, ensure all required dependencies are available at registration time.
+- Avoid operations that may fail in constructors, such as network requests or file I/O.
+- Consider using configuration validation to ensure parameter validity.
+- For sensitive information (like API keys), consider using secure configuration management solutions.

@@ -1,57 +1,57 @@
-# Agent 角色系统设计 - 更新版 🎭
+# Agent Role System Design - Updated 🎭
 
-**日期**: 2025-11-02  
-**OpenSpec Change**: `add-plan-act-agent-architecture`  
-**架构**: **角色系统 (Role System)** 而非简单的模式切换
+**Date**: 2025-11-02
+**OpenSpec Change**: `add-plan-act-agent-architecture`
+**Architecture**: **Role System** rather than simple mode switching
 
 ---
 
-## 🎯 核心设计理念
+## 🎯 Core Design Philosophy
 
-### 从 "模式" 到 "角色"
+### From "Mode" to "Role"
 
-**之前的思路**: Mode（模式）
+**Previous Approach**: Mode
 ```
 Plan Mode ↔ Act Mode
 ```
 
-**新的架构**: Role（角色）+ Permissions（权限）
+**New Architecture**: Role + Permissions
 ```
 AgentRole::Planner + Permissions::ReadFiles
 AgentRole::Actor + Permissions::[Read, Write, Delete, Execute]
-未来: Commander, Designer, Reviewer, Tester...
+Future: Commander, Designer, Reviewer, Tester...
 ```
 
 ---
 
-## 🏗️ 架构核心组件
+## 🏗️ Architecture Core Components
 
-### 1. AgentRole 枚举（可扩展）
+### 1. AgentRole Enum (Extensible)
 
 ```rust
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum AgentRole {
-    Planner,  // 规划者 - 只读分析
-    Actor,    // 执行者 - 完整权限
-    
-    // 未来可扩展：
-    // Commander,  // 指挥家 - 协调其他角色
-    // Designer,   // 设计者 - 创建但不修改
-    // Reviewer,   // 审查者 - 只读反馈
-    // Tester,     // 测试者 - 只读+执行测试
+    Planner,  // Planner - read-only analysis
+    Actor,    // Actor - full permissions
+
+    // Future extensions:
+    // Commander,  // Commander - coordinates other roles
+    // Designer,   // Designer - creates but doesn't modify
+    // Reviewer,   // Reviewer - read-only feedback
+    // Tester,     // Tester - read-only + execute tests
 }
 ```
 
-### 2. Permission 权限系统
+### 2. Permission System
 
 ```rust
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum Permission {
-    ReadFiles,          // 读取文件
-    WriteFiles,         // 写入文件
-    CreateFiles,        // 创建文件
-    DeleteFiles,        // 删除文件
-    ExecuteCommands,    // 执行命令
+    ReadFiles,          // Read files
+    WriteFiles,         // Write files
+    CreateFiles,        // Create files
+    DeleteFiles,        // Delete files
+    ExecuteCommands,    // Execute commands
 }
 
 impl AgentRole {
@@ -72,17 +72,17 @@ impl AgentRole {
 }
 ```
 
-### 3. 工具权限要求
+### 3. Tool Permission Requirements
 
 ```rust
 pub struct ToolDefinition {
     pub name: String,
     pub description: String,
-    pub required_permissions: Vec<Permission>,  // 新字段
+    pub required_permissions: Vec<Permission>,  // New field
     // ...
 }
 
-// 示例：
+// Examples:
 ToolDefinition {
     name: "read_file",
     required_permissions: vec![Permission::ReadFiles],
@@ -91,51 +91,51 @@ ToolDefinition {
 ToolDefinition {
     name: "update_file",
     required_permissions: vec![
-        Permission::ReadFiles,   // 需要读取现有内容
-        Permission::WriteFiles,  // 需要写入修改
+        Permission::ReadFiles,   // Need to read existing content
+        Permission::WriteFiles,  // Need to write modifications
     ],
 }
 
 ToolDefinition {
     name: "delete_file",
     required_permissions: vec![
-        Permission::ReadFiles,   // 需要确认文件存在
-        Permission::DeleteFiles, // 需要删除权限
+        Permission::ReadFiles,   // Need to confirm file exists
+        Permission::DeleteFiles, // Need delete permission
     ],
 }
 ```
 
 ---
 
-## 🎭 当前实现的两个角色
+## 🎭 Currently Implemented Two Roles
 
-### 角色 1: Planner（规划者）
+### Role 1: Planner
 
-**职责**:
-- 📖 读取和分析代码
-- 🔍 搜索和探索
-- 📋 制定执行计划
-- 💬 与用户讨论方案
+**Responsibilities**:
+- 📖 Read and analyze code
+- 🔍 Search and explore
+- 📋 Create execution plans
+- 💬 Discuss solutions with user
 
-**权限**:
+**Permissions**:
 ```rust
 vec![Permission::ReadFiles]
 ```
 
-**可用工具**:
-- ✅ `read_file` - 读取文件
-- ✅ `search_code` - 搜索代码
-- ✅ `list_directory` - 列出目录
-- ✅ `grep` - 文本搜索
-- ✅ `find_references` - 查找引用
+**Available Tools**:
+- ✅ `read_file` - Read files
+- ✅ `search_code` - Search code
+- ✅ `list_directory` - List directories
+- ✅ `grep` - Text search
+- ✅ `find_references` - Find references
 
-**不可用工具**:
-- ❌ `update_file` - 需要 WriteFiles
-- ❌ `create_file` - 需要 CreateFiles
-- ❌ `delete_file` - 需要 DeleteFiles
-- ❌ `execute_command` - 需要 ExecuteCommands
+**Unavailable Tools**:
+- ❌ `update_file` - requires WriteFiles
+- ❌ `create_file` - requires CreateFiles
+- ❌ `delete_file` - requires DeleteFiles
+- ❌ `execute_command` - requires ExecuteCommands
 
-**系统 Prompt 特点**:
+**System Prompt Characteristics**:
 ```
 # CURRENT ROLE: PLANNER
 
@@ -148,15 +148,15 @@ YOUR GOAL:
 Create a detailed plan for the user to review and approve.
 ```
 
-### 角色 2: Actor（执行者）
+### Role 2: Actor
 
-**职责**:
-- ⚡ 执行已批准的计划
-- 🔧 修改和创建文件
-- 🤖 自主做小调整
-- ❓ 大改动时询问用户
+**Responsibilities**:
+- ⚡ Execute approved plans
+- 🔧 Modify and create files
+- 🤖 Autonomously make small adjustments
+- ❓ Ask user for large changes
 
-**权限**:
+**Permissions**:
 ```rust
 vec![
     Permission::ReadFiles,
@@ -167,9 +167,9 @@ vec![
 ]
 ```
 
-**可用工具**: 所有工具（根据权限过滤）
+**Available Tools**: All tools (filtered by permissions)
 
-**系统 Prompt 特点**:
+**System Prompt Characteristics**:
 ```
 # CURRENT ROLE: ACTOR
 
@@ -185,81 +185,81 @@ AUTONOMY GUIDELINES:
 
 ---
 
-## 🚀 未来可扩展的角色示例
+## 🚀 Future Extensible Role Examples
 
-### Commander（指挥家）
+### Commander
 
-**概念**: 高层协调，不直接操作文件
+**Concept**: High-level coordination, doesn't directly operate on files
 
 ```rust
 AgentRole::Commander => vec![
     Permission::ReadFiles,
-    // 特殊权限（未来实现）:
+    // Special permissions (future implementation):
     // Permission::DelegateToRole,
     // Permission::CoordinateWorkflow,
 ]
 ```
 
-**用途**:
-- 制定多步骤策略
-- 协调 Planner 和 Actor
-- 不直接修改文件
+**Use Cases**:
+- Formulate multi-step strategies
+- Coordinate Planner and Actor
+- Don't directly modify files
 
-### Designer（设计者）
+### Designer
 
-**概念**: 创建新内容，不修改现有
+**Concept**: Create new content, don't modify existing
 
 ```rust
 AgentRole::Designer => vec![
     Permission::ReadFiles,
     Permission::CreateFiles,
-    // 注意：没有 WriteFiles 和 DeleteFiles
+    // Note: no WriteFiles and DeleteFiles
 ]
 ```
 
-**用途**:
-- 创建新组件
-- 生成样板代码
-- 不能修改现有文件
+**Use Cases**:
+- Create new components
+- Generate boilerplate code
+- Cannot modify existing files
 
-### Reviewer（审查者）
+### Reviewer
 
-**概念**: 代码审查，纯只读
+**Concept**: Code review, purely read-only
 
 ```rust
 AgentRole::Reviewer => vec![
     Permission::ReadFiles,
-    // 只读，用于审查
+    // Read-only for review
 ]
 ```
 
-**用途**:
-- 代码审查
-- 输出结构化反馈
-- 发现问题和改进点
+**Use Cases**:
+- Code review
+- Output structured feedback
+- Identify issues and improvements
 
-### Tester（测试者）
+### Tester
 
-**概念**: 运行测试，不修改源码
+**Concept**: Run tests, don't modify source code
 
 ```rust
 AgentRole::Tester => vec![
     Permission::ReadFiles,
-    Permission::ExecuteCommands, // 用于运行测试
-    // 注意：没有写入权限
+    Permission::ExecuteCommands, // For running tests
+    // Note: no write permissions
 ]
 ```
 
-**用途**:
-- 运行测试套件
-- 执行检查命令
-- 报告测试结果
+**Use Cases**:
+- Run test suites
+- Execute check commands
+- Report test results
 
 ---
 
-## 🔐 权限过滤机制
+## 🔐 Permission Filtering Mechanism
 
-### 工具过滤流程
+### Tool Filtering Flow
 
 ```rust
 fn filter_tools_for_role(
@@ -267,11 +267,11 @@ fn filter_tools_for_role(
     role: &AgentRole,
 ) -> Vec<ToolDefinition> {
     let role_permissions = role.permissions();
-    
+
     all_tools
         .iter()
         .filter(|tool| {
-            // 工具的所有要求权限都必须被角色拥有
+            // All required permissions of tool must be owned by role
             tool.required_permissions
                 .iter()
                 .all(|perm| role_permissions.contains(perm))
@@ -281,48 +281,48 @@ fn filter_tools_for_role(
 }
 ```
 
-### 示例
+### Examples
 
-**Planner 角色**:
+**Planner Role**:
 ```
-拥有权限: [ReadFiles]
+Owned permissions: [ReadFiles]
 
-read_file (需要: [ReadFiles]) → ✅ 可用
-search_code (需要: [ReadFiles]) → ✅ 可用
-update_file (需要: [ReadFiles, WriteFiles]) → ❌ 缺少 WriteFiles
-delete_file (需要: [ReadFiles, DeleteFiles]) → ❌ 缺少 DeleteFiles
+read_file (requires: [ReadFiles]) → ✅ Available
+search_code (requires: [ReadFiles]) → ✅ Available
+update_file (requires: [ReadFiles, WriteFiles]) → ❌ Missing WriteFiles
+delete_file (requires: [ReadFiles, DeleteFiles]) → ❌ Missing DeleteFiles
 ```
 
-**Actor 角色**:
+**Actor Role**:
 ```
-拥有权限: [ReadFiles, WriteFiles, CreateFiles, DeleteFiles, ExecuteCommands]
+Owned permissions: [ReadFiles, WriteFiles, CreateFiles, DeleteFiles, ExecuteCommands]
 
-所有工具 → ✅ 全部可用
+All tools → ✅ All available
 ```
 
 ---
 
-## 💾 Context Manager 集成
+## 💾 Context Manager Integration
 
-### ChatConfig 更新
+### ChatConfig Update
 
 ```rust
 pub struct ChatConfig {
     pub model_id: String,
     pub mode: String,
     pub system_prompt_id: Option<String>,
-    pub agent_role: AgentRole,  // NEW: 存储当前角色
+    pub agent_role: AgentRole,  // NEW: Store current role
 }
 ```
 
-### 关键字段
+### Key Fields
 
 - **`agent_role: AgentRole`**
-  - 存储当前激活的角色
-  - 持久化到数据库
-  - 影响工具过滤和 System Prompt
+  - Stores currently active role
+  - Persisted to database
+  - Affects tool filtering and System Prompt
 
-### 角色切换 API
+### Role Switching API
 
 ```
 POST /v1/contexts/{id}/role
@@ -337,9 +337,9 @@ Response: {
 
 ---
 
-## 🎨 前端 UI 设计
+## 🎨 Frontend UI Design
 
-### 角色选择器
+### Role Selector
 
 ```typescript
 interface RoleInfo {
@@ -354,119 +354,119 @@ interface RoleInfo {
 const ROLES: RoleInfo[] = [
   {
     role: "Planner",
-    displayName: "规划者",
+    displayName: "Planner",
     icon: "🔍",
-    color: "#3B82F6",  // 蓝色
-    description: "分析和规划，只读权限",
+    color: "#3B82F6",  // Blue
+    description: "Analyze and plan, read-only permissions",
     permissions: ["ReadFiles"],
   },
   {
     role: "Actor",
-    displayName: "执行者",
+    displayName: "Actor",
     icon: "⚡",
-    color: "#10B981",  // 绿色
-    description: "执行计划，完整权限",
+    color: "#10B981",  // Green
+    description: "Execute plans, full permissions",
     permissions: ["ReadFiles", "WriteFiles", "CreateFiles", "DeleteFiles", "ExecuteCommands"],
   },
 ];
 ```
 
-### 角色显示
+### Role Display
 
 ```tsx
 <div className="role-indicator" style={{ color: roleInfo.color }}>
   <span className="role-icon">{roleInfo.icon}</span>
   <span className="role-name">{roleInfo.displayName}</span>
   <Tooltip>
-    <div>权限: {roleInfo.permissions.join(", ")}</div>
+    <div>Permissions: {roleInfo.permissions.join(", ")}</div>
   </Tooltip>
 </div>
 ```
 
 ---
 
-## 📊 对比：Mode vs Role
+## 📊 Comparison: Mode vs Role
 
-### 旧设计（Mode）
+### Old Design (Mode)
 ```
-❌ 只有 Plan/Act 两种模式
-❌ 扩展性差
-❌ 权限隐含在模式中
-❌ 难以添加新行为
+❌ Only Plan/Act two modes
+❌ Poor extensibility
+❌ Permissions implied in modes
+❌ Difficult to add new behaviors
 ```
 
-### 新设计（Role）
+### New Design (Role)
 ```
-✅ 可扩展到多种角色
-✅ 权限系统独立定义
-✅ 每个角色清晰的职责
-✅ 易于添加新角色
-✅ 符合最小权限原则
-✅ 未来可支持角色组合
+✅ Extensible to multiple roles
+✅ Permission system independently defined
+✅ Clear responsibilities for each role
+✅ Easy to add new roles
+✅ Follows principle of least privilege
+✅ Future support for role composition
 ```
 
 ---
 
-## 🎯 核心优势
+## 🎯 Core Advantages
 
-### 1. 可扩展性
-- 添加新角色无需修改核心架构
-- 权限系统独立于角色定义
-- 每个角色有独立的 System Prompt
+### 1. Extensibility
+- Add new roles without modifying core architecture
+- Permission system independent of role definition
+- Each role has independent System Prompt
 
-### 2. 安全性
-- 明确的权限边界
-- 最小权限原则
-- 权限检查在运行时强制执行
+### 2. Security
+- Clear permission boundaries
+- Principle of least privilege
+- Permission checks enforced at runtime
 
-### 3. 清晰性
-- 用户清楚当前角色的能力
-- System Prompt 明确告诉 AI 它的权限
-- 前端显示角色和权限信息
+### 3. Clarity
+- Users understand current role capabilities
+- System Prompt clearly tells AI its permissions
+- Frontend displays role and permission information
 
-### 4. 灵活性
-- 未来可以支持角色组合
-- 可以添加自定义权限
-- 可以支持临时权限提升
-
----
-
-## 📋 实现清单
-
-### Phase 1: 核心角色系统
-- [ ] 定义 `AgentRole` 枚举
-- [ ] 定义 `Permission` 枚举
-- [ ] 实现 `role.permissions()` 方法
-- [ ] 更新 `ChatConfig` 添加 `agent_role`
-- [ ] 数据库迁移
-
-### Phase 2: 权限过滤
-- [ ] 更新 `ToolDefinition` 添加 `required_permissions`
-- [ ] 实现 `filter_tools_for_role()`
-- [ ] 标记所有现有工具的权限要求
-- [ ] 运行时权限检查
-
-### Phase 3: 角色特定 Prompts
-- [ ] 创建 Planner 角色 Prompt 模板
-- [ ] 创建 Actor 角色 Prompt 模板
-- [ ] 实现 Prompt 注入逻辑
-- [ ] 测试不同角色的行为
-
-### Phase 4: 前端集成
-- [ ] 创建 `RoleSelector` 组件
-- [ ] 显示当前角色和权限
-- [ ] 角色切换 API 调用
-- [ ] 角色特定的 UI 样式
-
-### Phase 5: 未来角色
-- [ ] 设计 Commander 角色
-- [ ] 设计 Designer 角色
-- [ ] 设计 Reviewer 角色
-- [ ] 设计 Tester 角色
+### 4. Flexibility
+- Future support for role composition
+- Can add custom permissions
+- Can support temporary permission elevation
 
 ---
 
-## ✅ 验证
+## 📋 Implementation Checklist
+
+### Phase 1: Core Role System
+- [ ] Define `AgentRole` enum
+- [ ] Define `Permission` enum
+- [ ] Implement `role.permissions()` method
+- [ ] Update `ChatConfig` to add `agent_role`
+- [ ] Database migration
+
+### Phase 2: Permission Filtering
+- [ ] Update `ToolDefinition` to add `required_permissions`
+- [ ] Implement `filter_tools_for_role()`
+- [ ] Mark permission requirements for all existing tools
+- [ ] Runtime permission checks
+
+### Phase 3: Role-Specific Prompts
+- [ ] Create Planner role Prompt template
+- [ ] Create Actor role Prompt template
+- [ ] Implement Prompt injection logic
+- [ ] Test behaviors of different roles
+
+### Phase 4: Frontend Integration
+- [ ] Create `RoleSelector` component
+- [ ] Display current role and permissions
+- [ ] Role switching API calls
+- [ ] Role-specific UI styles
+
+### Phase 5: Future Roles
+- [ ] Design Commander role
+- [ ] Design Designer role
+- [ ] Design Reviewer role
+- [ ] Design Tester role
+
+---
+
+## ✅ Validation
 
 ```bash
 $ openspec validate add-plan-act-agent-architecture --strict
@@ -475,27 +475,27 @@ $ openspec validate add-plan-act-agent-architecture --strict
 
 ---
 
-## 🎉 总结
+## 🎉 Summary
 
-你的建议非常正确！从 "模式" 提升到 "角色" 是一个重大的架构改进：
+Your suggestion is absolutely correct! Elevating from "mode" to "role" is a significant architectural improvement:
 
-### 核心改进
-1. **AgentRole 枚举** - 可扩展到未来角色
-2. **Permission 系统** - 细粒度权限控制
-3. **工具权限要求** - 工具声明所需权限
-4. **角色过滤** - 运行时强制权限检查
-5. **独立 Prompts** - 每个角色有定制的指令
+### Core Improvements
+1. **AgentRole Enum** - Extensible to future roles
+2. **Permission System** - Fine-grained permission control
+3. **Tool Permission Requirements** - Tools declare required permissions
+4. **Role Filtering** - Runtime permission check enforcement
+5. **Independent Prompts** - Each role has customized instructions
 
-### 当前角色
-- **Planner** - 只读分析和规划
-- **Actor** - 完整权限执行
+### Current Roles
+- **Planner** - Read-only analysis and planning
+- **Actor** - Full permission execution
 
-### 未来角色
-- **Commander** - 协调和委派
-- **Designer** - 创建但不修改
-- **Reviewer** - 审查和反馈
-- **Tester** - 测试但不改源码
+### Future Roles
+- **Commander** - Coordination and delegation
+- **Designer** - Create but don't modify
+- **Reviewer** - Review and feedback
+- **Tester** - Test but don't modify source
 
-这个架构为未来的扩展提供了坚实的基础！🚀
+This architecture provides a solid foundation for future extensions! 🚀
 
 

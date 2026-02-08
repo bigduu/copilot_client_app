@@ -1,51 +1,51 @@
-# 废弃 API 清单 (Deprecation List)
+# Deprecated API List
 
-本文档记录所有已废弃的 API 端点和功能，以及推荐的替代方案。
+This document records all deprecated API endpoints and features, along with recommended alternatives.
 
 ---
 
-## 🚨 Phase 2.0 Pipeline 架构废弃
+## 🚨 Phase 2.0 Pipeline Architecture Deprecation
 
-### ❌ `SystemPromptEnhancer` Service (已废弃)
+### ❌ `SystemPromptEnhancer` Service (Deprecated)
 
-**废弃版本**: v0.2.0  
-**计划移除**: v0.3.0
+**Deprecated Version**: v0.2.0
+**Planned Removal**: v0.3.0
 
-**位置**: `crates/web_service/src/services/system_prompt_enhancer.rs`
+**Location**: `crates/web_service/src/services/system_prompt_enhancer.rs`
 
-**问题**:
-- 职责与新的 Pipeline 架构重复
-- 难以测试和扩展
-- 与 `ToolEnhancementProcessor` 和 `SystemPromptProcessor` 功能重叠
-- 缓存逻辑应该在 Pipeline 层面统一处理
+**Issues**:
+- Responsibilities overlap with the new Pipeline architecture
+- Difficult to test and extend
+- Functional overlap with `ToolEnhancementProcessor` and `SystemPromptProcessor`
+- Caching logic should be handled uniformly at the Pipeline level
 
-**替代方案**:
+**Alternative**:
 ```rust
-✅ 使用: context_manager::pipeline 处理器
+✅ Use: context_manager::pipeline processors
 
-// 工具定义注入
+// Tool definition injection
 ToolEnhancementProcessor
 
-// System Prompt 组装
+// System Prompt assembly
 SystemPromptProcessor
 
-// 未来功能 (TODO Phase 2.x):
-MermaidProcessor        // Mermaid 图表支持
-TemplateProcessor       // 模板变量替换
+// Future features (TODO Phase 2.x):
+MermaidProcessor        // Mermaid diagram support
+TemplateProcessor       // Template variable substitution
 ```
 
-**迁移示例**:
+**Migration Example**:
 
-旧代码 (已废弃):
+Old code (deprecated):
 ```rust
-// 使用 SystemPromptEnhancer
+// Using SystemPromptEnhancer
 let enhancer = SystemPromptEnhancer::with_default_config(tool_registry);
 let enhanced = enhancer.enhance_prompt(base_prompt, &AgentRole::Actor).await?;
 ```
 
-新代码 (推荐):
+New code (recommended):
 ```rust
-// 使用 Pipeline 处理器
+// Using Pipeline processors
 use context_manager::pipeline::*;
 use context_manager::pipeline::processors::*;
 
@@ -58,44 +58,44 @@ let pipeline = MessagePipeline::new()
 let output = pipeline.execute(message).await?;
 ```
 
-**好处**:
-- ✅ 模块化：每个处理器单一职责
-- ✅ 可测试：独立测试每个处理器
-- ✅ 可扩展：轻松添加新处理器
-- ✅ 一致性：所有消息处理统一流程
+**Benefits**:
+- ✅ Modular: Each processor has a single responsibility
+- ✅ Testable: Test each processor independently
+- ✅ Extensible: Easily add new processors
+- ✅ Consistent: Unified message processing flow
 
-**保留功能** (待迁移到新 Processor):
-- Mermaid 图表支持 → `MermaidProcessor` (TODO)
-- 模板变量替换 → `TemplateProcessor` (TODO)
-- 缓存机制 → Pipeline 配置 (TODO)
+**Retained Features** (to be migrated to new Processor):
+- Mermaid diagram support → `MermaidProcessor` (TODO)
+- Template variable substitution → `TemplateProcessor` (TODO)
+- Caching mechanism → Pipeline configuration (TODO)
 
 ---
 
-## Web Service API 端点
+## Web Service API Endpoints
 
 ### 1. Context Management - Old CRUD Endpoint
 
-#### ❌ `POST /contexts/{id}/messages` (已废弃)
+#### ❌ `POST /contexts/{id}/messages` (Deprecated)
 
-**废弃版本**: v0.2.0  
-**计划移除**: v0.3.0
+**Deprecated Version**: v0.2.0
+**Planned Removal**: v0.3.0
 
-**问题**:
-- 不触发 FSM（有限状态机）
-- 不会生成 AI 响应
-- 不支持工具调用流程
-- 仅作为直接消息操作的 CRUD 端点
+**Issues**:
+- Does not trigger FSM (Finite State Machine)
+- Does not generate AI responses
+- Does not support tool calling flow
+- Only serves as a CRUD endpoint for direct message operations
 
-**替代方案**:
+**Alternative**:
 ```
-✅ 使用: POST /contexts/{id}/actions/send_message
+✅ Use: POST /contexts/{id}/actions/send_message
 ```
 
-**迁移示例**:
+**Migration Example**:
 
-旧代码:
+Old code:
 ```typescript
-// ❌ 废弃方式
+// ❌ Deprecated approach
 await fetch(`/contexts/${contextId}/messages`, {
   method: 'POST',
   body: JSON.stringify({
@@ -104,12 +104,12 @@ await fetch(`/contexts/${contextId}/messages`, {
     branch: 'main'
   })
 });
-// 不会触发 AI 响应！
+// Will not trigger AI response!
 ```
 
-新代码:
+New code:
 ```typescript
-// ✅ 推荐方式
+// ✅ Recommended approach
 await fetch(`/contexts/${contextId}/actions/send_message`, {
   method: 'POST',
   body: JSON.stringify({
@@ -119,157 +119,157 @@ await fetch(`/contexts/${contextId}/actions/send_message`, {
     }
   })
 });
-// 会触发完整的 FSM 流程，包括 AI 响应和工具调用
+// Triggers complete FSM flow, including AI response and tool calls
 ```
 
 ---
 
-### 2. Tool Controller - 所有端点 (已废弃)
+### 2. Tool Controller - All Endpoints (Deprecated)
 
-**废弃版本**: v0.2.0  
-**计划移除**: v0.3.0
+**Deprecated Version**: v0.2.0
+**Planned Removal**: v0.3.0
 
-工具系统已重构为 LLM 驱动模式。用户触发的操作应使用 Workflow 系统。
+The tool system has been refactored to an LLM-driven model. User-triggered actions should use the Workflow system.
 
-#### ❌ `POST /tools/execute` (已废弃)
+#### ❌ `POST /tools/execute` (Deprecated)
 
-**问题**: 直接工具执行绕过了 LLM 决策流程
+**Issue**: Direct tool execution bypasses the LLM decision-making process
 
-**替代方案**:
+**Alternative**:
 ```
-✅ 使用: Workflow 系统
+✅ Use: Workflow system
    - POST /v1/workflows/execute
-   - 或通过 LLM agent 自动调用工具
+   - Or let LLM agent call tools automatically
 ```
 
-#### ❌ `GET /tools/categories` (已废弃)
+#### ❌ `GET /tools/categories` (Deprecated)
 
-**问题**: 工具分类已迁移到 Workflow
+**Issue**: Tool categories have been migrated to Workflow
 
-**替代方案**:
+**Alternative**:
 ```
-✅ 使用: GET /v1/workflows/categories
+✅ Use: GET /v1/workflows/categories
 ```
 
-#### ❌ `GET /tools/category/{id}/info` (已废弃)
+#### ❌ `GET /tools/category/{id}/info` (Deprecated)
 
-**问题**: 工具分类信息已迁移到 Workflow
+**Issue**: Tool category information has been migrated to Workflow
 
-**替代方案**:
+**Alternative**:
 ```
-✅ 使用: Workflow 分类信息端点
+✅ Use: Workflow category info endpoint
 ```
 
 ---
 
-## 迁移时间表
+## Migration Timeline
 
-| 版本 | 行动 | 时间线 |
-|------|------|--------|
-| v0.2.0 (当前) | 标记废弃，添加警告日志 | ✅ 已完成 |
-| v0.2.1 | 添加迁移指南和示例 | 📅 计划中 |
-| v0.2.5 | 在响应中添加 `X-Deprecated` 头 | ✅ 已完成 |
-| v0.3.0 | **完全移除**废弃端点 | 🔜 计划中 |
+| Version | Action | Timeline |
+|---------|--------|----------|
+| v0.2.0 (current) | Mark as deprecated, add warning logs | ✅ Completed |
+| v0.2.1 | Add migration guide and examples | 📅 Planned |
+| v0.2.5 | Add `X-Deprecated` header to responses | ✅ Completed |
+| v0.3.0 | **Completely remove** deprecated endpoints | 🔜 Planned |
 
 ---
 
-## 检查代码中的废弃使用
+## Checking for Deprecated Usage in Code
 
-### Rust 后端
+### Rust Backend
 
-编译时会显示废弃警告：
+Deprecation warnings will be displayed during compilation:
 
 ```bash
 cargo build
 # warning: use of deprecated function `add_context_message`: ...
 ```
 
-### 前端
+### Frontend
 
-搜索废弃端点的使用：
+Search for usage of deprecated endpoints:
 
 ```bash
-# 查找旧的 messages 端点
+# Find old messages endpoints
 grep -r "POST.*contexts.*messages" frontend/
 
-# 查找旧的 tool 端点
+# Find old tool endpoints
 grep -r "tools/execute" frontend/
 grep -r "tools/categories" frontend/
 ```
 
 ---
 
-## 废弃策略
+## Deprecation Policy
 
-我们遵循以下废弃策略：
+We follow the following deprecation policy:
 
-1. **标记阶段** (当前版本)
-   - 添加 Rust `#[deprecated]` 属性
-   - 添加详细的文档说明
-   - 运行时日志警告
-   - 响应头添加 `X-Deprecated: true`
+1. **Marking Phase** (current version)
+   - Add Rust `#[deprecated]` attribute
+   - Add detailed documentation
+   - Runtime log warnings
+   - Add `X-Deprecated: true` header to responses
 
-2. **通知阶段** (下一个小版本)
-   - 更新 API 文档
-   - 提供迁移指南
-   - 在 CHANGELOG 中突出显示
+2. **Notification Phase** (next minor version)
+   - Update API documentation
+   - Provide migration guide
+   - Highlight in CHANGELOG
 
-3. **移除阶段** (下一个主版本)
-   - 完全移除废弃代码
-   - 更新测试
-   - 更新文档
+3. **Removal Phase** (next major version)
+   - Completely remove deprecated code
+   - Update tests
+   - Update documentation
 
 ---
 
-## 新架构优势
+## New Architecture Benefits
 
-### Signal-Pull 架构 (v0.2.0+)
+### Signal-Pull Architecture (v0.2.0+)
 
-新的 Context API 采用 Signal-Pull 架构：
+The new Context API adopts Signal-Pull architecture:
 
-**优势**:
-- ✅ SSE 信令轻量级 (<1KB)
-- ✅ REST API 按需拉取数据
-- ✅ 自愈机制（序列号驱动）
-- ✅ 单一真相来源 (SSOT)
+**Benefits**:
+- ✅ Lightweight SSE signaling (<1KB)
+- ✅ REST API for on-demand data fetching
+- ✅ Self-healing mechanism (sequence number driven)
+- ✅ Single Source of Truth (SSOT)
 
-**新端点**:
+**New Endpoints**:
 ```
-GET /contexts/{id}/metadata              # 轻量级元数据
-GET /contexts/{id}/messages?ids=...      # 批量查询
-GET /contexts/{id}/messages/{msg}/streaming-chunks  # 增量拉取
-GET /contexts/{id}/events                # SSE 事件订阅
+GET /contexts/{id}/metadata              # Lightweight metadata
+GET /contexts/{id}/messages?ids=...      # Batch query
+GET /contexts/{id}/messages/{msg}/streaming-chunks  # Incremental pull
+GET /contexts/{id}/events                # SSE event subscription
 ```
 
 ### FSM-Driven Architecture
 
-新的消息发送流程完全由 FSM 驱动：
+The new message sending flow is fully driven by FSM:
 
-**流程**:
+**Flow**:
 ```
-用户消息 → FSM 状态转换 → LLM 处理 → 工具调用 → 响应生成
+User Message → FSM State Transition → LLM Processing → Tool Call → Response Generation
 ```
 
-**端点**:
+**Endpoints**:
 ```
-POST /contexts/{id}/actions/send_message     # FSM 驱动的消息发送
-POST /contexts/{id}/actions/approve_tools    # FSM 驱动的工具审批
-GET  /contexts/{id}/state                    # 获取 FSM 状态
+POST /contexts/{id}/actions/send_message     # FSM-driven message sending
+POST /contexts/{id}/actions/approve_tools    # FSM-driven tool approval
+GET  /contexts/{id}/state                    # Get FSM state
 ```
 
 ---
 
-## 帮助与反馈
+## Help and Feedback
 
-如果你在迁移过程中遇到问题：
+If you encounter issues during migration:
 
-1. 查看本文档的迁移示例
-2. 参考 `openspec/changes/refactor-context-session-architecture/` 中的设计文档
-3. 查看集成测试：`crates/web_service/tests/signal_pull_integration_tests.rs`
-4. 提交 Issue 或联系开发团队
+1. Check the migration examples in this document
+2. Refer to design documents in `openspec/changes/refactor-context-session-architecture/`
+3. Check integration tests: `crates/web_service/tests/signal_pull_integration_tests.rs`
+4. Submit an Issue or contact the development team
 
 ---
 
-**最后更新**: 2025-11-08  
-**维护者**: Development Team
+**Last Updated**: 2025-11-08
+**Maintainer**: Development Team
 

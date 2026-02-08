@@ -1,94 +1,94 @@
-# 项目报告索引
+# Project Reports Index
 
-本目录包含项目开发过程中的各类报告和总结文档。
+This directory contains various reports and summary documents generated during the project development process.
 
-## 📁 目录结构
+## 📁 Directory Structure
 
-### 🤖 Agent 系统 (`agent-system/`)
-Agent Loop 和 Agent 角色系统相关的实现报告：
-- `AGENT_APPROVAL_FRONTEND_SUMMARY.md` - Agent 审批前端功能总结
-- `AGENT_LOOP_COMPLETE_FIX_SUMMARY.md` - Agent Loop 完整修复总结
-- `AGENT_LOOP_FIX_SUMMARY.md` - Agent Loop 修复总结
-- `AGENT_LOOP_IMPLEMENTATION_NOTE.md` - Agent Loop 实现笔记
-- `AGENT_LOOP_IMPLEMENTATION_SUMMARY.md` - Agent Loop 实现总结
-- `AGENT_ROLE_SYSTEM_DESIGN.md` - Agent 角色系统设计文档
+### 🤖 Agent System (`agent-system/`)
+Implementation reports related to Agent Loop and Agent role system:
+- `AGENT_APPROVAL_FRONTEND_SUMMARY.md` - Agent approval frontend feature summary
+- `AGENT_LOOP_COMPLETE_FIX_SUMMARY.md` - Agent Loop complete fix summary
+- `AGENT_LOOP_FIX_SUMMARY.md` - Agent Loop fix summary
+- `AGENT_LOOP_IMPLEMENTATION_NOTE.md` - Agent Loop implementation notes
+- `AGENT_LOOP_IMPLEMENTATION_SUMMARY.md` - Agent Loop implementation summary
+- `AGENT_ROLE_SYSTEM_DESIGN.md` - Agent role system design document
 
-### 🏗️ 架构设计 (`architecture/`)
-Plan-Act 架构及其他重要架构决策的报告：
-- `PLAN_ACT_ARCHITECTURE_SUMMARY.md` - Plan-Act 架构总结
-- `PLAN_ACT_IMPLEMENTATION_SUMMARY.md` - Plan-Act 实现总结
-- `PLAN_ACT_PROMPT_IMPLEMENTATION.md` - Plan-Act Prompt 实现
+### 🏗️ Architecture Design (`architecture/`)
+Reports on Plan-Act architecture and other important architectural decisions:
+- `PLAN_ACT_ARCHITECTURE_SUMMARY.md` - Plan-Act architecture summary
+- `PLAN_ACT_IMPLEMENTATION_SUMMARY.md` - Plan-Act implementation summary
+- `PLAN_ACT_PROMPT_IMPLEMENTATION.md` - Plan-Act Prompt implementation
 
-### 🐛 Bug 修复 (`bug-fixes/`)
-所有 Bug 修复和问题诊断报告：
-- `APPROVAL_FIX_SUMMARY.md` - 审批功能修复总结
-- `BACKEND_FIX_SUMMARY.md` - 后端修复总结
-- `BUG_FIX_SUMMARY.md` - Bug 修复总结
-- `CRITICAL_FIXES.md` - 关键性修复记录
-- `FIX_STATE_SYNCHRONIZATION.md` - 状态同步修复
-- `FIX_TOOL_MESSAGES_RENDERING.md` - 工具消息渲染修复
-- `REFRESH_BUG_FIX.md` - 刷新功能 Bug 修复
-- `ROOT_CAUSE_ANALYSIS.md` - 根本原因分析（System Prompt 实时更新 Bug）
+### 🐛 Bug Fixes (`bug-fixes/`)
+All bug fixes and issue diagnosis reports:
+- `APPROVAL_FIX_SUMMARY.md` - Approval feature fix summary
+- `BACKEND_FIX_SUMMARY.md` - Backend fix summary
+- `BUG_FIX_SUMMARY.md` - Bug fix summary
+- `CRITICAL_FIXES.md` - Critical fixes record
+- `FIX_STATE_SYNCHRONIZATION.md` - State synchronization fix
+- `FIX_TOOL_MESSAGES_RENDERING.md` - Tool message rendering fix
+- `REFRESH_BUG_FIX.md` - Refresh feature bug fix
+- `ROOT_CAUSE_ANALYSIS.md` - Root cause analysis (System Prompt real-time update bug)
 
-### 🚀 实现报告 (`implementation/`)
-功能实现和开发进度报告：
-- `BACKEND_PERSISTENCE_COMPLETE.md` - 后端持久化完成报告
-- `DYNAMIC_CATEGORY_FIX_REPORT.md` - 动态分类修复报告
-- `HARDCODE_CLEANUP_REPORT.md` - 硬编码清理报告
-- `IMPLEMENTATION_COMPLETE_BACKEND.md` - 后端实现完成
-- `IMPLEMENTATION_COMPLETE_FULL.md` - 完整实现报告
-- `IMPLEMENTATION_PROGRESS.md` - 实现进度追踪
-- `IMPLEMENTATION_SESSION_COMPLETE.md` - 实现会话完成
-- `IMPLEMENTATION_STATUS_REPORT.md` - 实现状态报告
-- `PROJECT_REFACTORING_SUMMARY_REPORT.md` - 项目重构总结报告
-- `STRICT_MODE_FIX_REPORT.md` - Strict Mode 修复报告
-- `STRICT_MODE_IMPLEMENTATION.md` - Strict Mode 实现
-- `TOOLSERVICE_HARDCODE_CLEANUP_REPORT.md` - ToolService 硬编码清理报告
+### 🚀 Implementation Reports (`implementation/`)
+Feature implementation and development progress reports:
+- `BACKEND_PERSISTENCE_COMPLETE.md` - Backend persistence completion report
+- `DYNAMIC_CATEGORY_FIX_REPORT.md` - Dynamic category fix report
+- `HARDCODE_CLEANUP_REPORT.md` - Hardcoded cleanup report
+- `IMPLEMENTATION_COMPLETE_BACKEND.md` - Backend implementation complete
+- `IMPLEMENTATION_COMPLETE_FULL.md` - Full implementation report
+- `IMPLEMENTATION_PROGRESS.md` - Implementation progress tracking
+- `IMPLEMENTATION_SESSION_COMPLETE.md` - Implementation session complete
+- `IMPLEMENTATION_STATUS_REPORT.md` - Implementation status report
+- `PROJECT_REFACTORING_SUMMARY_REPORT.md` - Project refactoring summary report
+- `STRICT_MODE_FIX_REPORT.md` - Strict Mode fix report
+- `STRICT_MODE_IMPLEMENTATION.md` - Strict Mode implementation
+- `TOOLSERVICE_HARDCODE_CLEANUP_REPORT.md` - ToolService hardcoded cleanup report
 
-### ♻️ 重构报告 (`refactoring/`)
-代码重构相关的报告：
-- `FRONTEND_REFACTOR_STATUS.md` - 前端重构状态
-- `REFACTOR_STATUS_SUMMARY.md` - 重构状态总结
+### ♻️ Refactoring Reports (`refactoring/`)
+Code refactoring related reports:
+- `FRONTEND_REFACTOR_STATUS.md` - Frontend refactor status
+- `REFACTOR_STATUS_SUMMARY.md` - Refactor status summary
 
-### 📝 总结文档 (`summaries/`)
-各类总结和阶段性文档：
-- `COMPLETION_SUMMARY.md` - 完成总结
-- `DOCUMENTATION_UPDATE_SUMMARY.md` - 文档更新总结
-- `OPENSPEC_APPLY_SUMMARY.md` - OpenSpec 应用总结
-- `OVERALL_PROGRESS.md` - 整体进度
-- `SESSION_SUMMARY.md` - 会话总结
-- `TOOL_CLASSIFICATION_ANALYSIS.md` - 工具分类分析
-- `TOOL_CLASSIFICATION_SUMMARY.md` - 工具分类总结
-- `WORKFLOW_APPROVAL_EXPLANATION.md` - 工作流审批说明
+### 📝 Summary Documents (`summaries/`)
+Various summaries and phase documents:
+- `COMPLETION_SUMMARY.md` - Completion summary
+- `DOCUMENTATION_UPDATE_SUMMARY.md` - Documentation update summary
+- `OPENSPEC_APPLY_SUMMARY.md` - OpenSpec application summary
+- `OVERALL_PROGRESS.md` - Overall progress
+- `SESSION_SUMMARY.md` - Session summary
+- `TOOL_CLASSIFICATION_ANALYSIS.md` - Tool classification analysis
+- `TOOL_CLASSIFICATION_SUMMARY.md` - Tool classification summary
+- `WORKFLOW_APPROVAL_EXPLANATION.md` - Workflow approval explanation
 
-### 🧪 测试文档 (`testing/`)
-测试指南和说明：
-- `QUICK_START_TESTING.md` - 快速开始测试指南
-- `READY_FOR_TESTING.md` - 测试准备就绪说明
-- `TESTING_GUIDE.md` - 测试指南
-- `TESTING_INSTRUCTIONS_V2.md` - 测试说明 V2
+### 🧪 Testing Documents (`testing/`)
+Testing guides and instructions:
+- `QUICK_START_TESTING.md` - Quick start testing guide
+- `READY_FOR_TESTING.md` - Ready for testing instructions
+- `TESTING_GUIDE.md` - Testing guide
+- `TESTING_INSTRUCTIONS_V2.md` - Testing instructions V2
 
-## 📄 其他报告（根目录）
-- `COMPONENT_REFACTORING_REPORT.md` - 组件重构报告
-- `DOCUMENTATION_REORGANIZATION_REPORT.md` - 文档重组报告
-- `DOCUMENTATION_REVIEW_COMPLETION_REPORT.md` - 文档审查完成报告
-- `FRONTEND_MIGRATION_COMPLETION_REPORT.md` - 前端迁移完成报告
-- `FRONTEND_REVIEW_REPORT.md` - 前端审查报告
+## 📄 Other Reports (Root Directory)
+- `COMPONENT_REFACTORING_REPORT.md` - Component refactoring report
+- `DOCUMENTATION_REORGANIZATION_REPORT.md` - Documentation reorganization report
+- `DOCUMENTATION_REVIEW_COMPLETION_REPORT.md` - Documentation review completion report
+- `FRONTEND_MIGRATION_COMPLETION_REPORT.md` - Frontend migration completion report
+- `FRONTEND_REVIEW_REPORT.md` - Frontend review report
 
-## 🔍 快速查找
+## 🔍 Quick Find
 
-### 按主题查找
-- **新手入门**: `testing/TESTING_GUIDE.md`
-- **系统架构**: `architecture/PLAN_ACT_ARCHITECTURE_SUMMARY.md`
-- **Bug 追踪**: `bug-fixes/CRITICAL_FIXES.md`
-- **实现进度**: `implementation/IMPLEMENTATION_PROGRESS.md`
-- **整体状态**: `summaries/OVERALL_PROGRESS.md`
+### Find by Topic
+- **Getting Started**: `testing/TESTING_GUIDE.md`
+- **System Architecture**: `architecture/PLAN_ACT_ARCHITECTURE_SUMMARY.md`
+- **Bug Tracking**: `bug-fixes/CRITICAL_FIXES.md`
+- **Implementation Progress**: `implementation/IMPLEMENTATION_PROGRESS.md`
+- **Overall Status**: `summaries/OVERALL_PROGRESS.md`
 
-### 按时间顺序
-报告按功能和类型组织，具体时间信息请查看各文件的内容和修改日期。
+### Chronological Order
+Reports are organized by function and type. For specific time information, please check the content and modification dates of individual files.
 
-## 📌 注意事项
+## 📌 Notes
 
-- 所有历史报告都已归档，便于追踪项目演进历程
-- 建议定期清理过时报告到 `_archive/` 子目录
-- 新报告应放置在对应的分类目录中
+- All historical reports are archived for easy tracking of project evolution
+- It is recommended to periodically clean up outdated reports to the `_archive/` subdirectory
+- New reports should be placed in the appropriate category directories

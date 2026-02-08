@@ -1,326 +1,324 @@
-# Phase 1.5 快速开始指南
+# Phase 1.5 Quick Start Guide
 
-**日期**: 2025-11-08  
-**状态**: 设计锁定，准备实施  
+**Date**: 2025-11-08
+**Status**: Design Locked, Ready for Implementation
 **Change ID**: `refactor-context-session-architecture`
 
 ---
 
-## 🚀 在新会话中快速恢复上下文
+## 🚀 Quickly Restore Context in a New Session
 
-### 1. 查看 Change 概览
+### 1. View Change Overview
 
 ```bash
-# 查看 change 基本信息
+# View basic change information
 openspec show refactor-context-session-architecture
 
-# 查看所有活跃的 changes
+# View all active changes
 openspec list
 
-# 查看详细的 delta specs
+# View detailed delta specs
 openspec show refactor-context-session-architecture --json --deltas-only
 ```
 
-### 2. 查看任务清单
+### 2. View Task List
 
 ```bash
-# 直接查看 tasks.md
+# Directly view tasks.md
 cat openspec/changes/refactor-context-session-architecture/tasks.md
 
-# 或使用编辑器打开
+# Or open with editor
 code openspec/changes/refactor-context-session-architecture/tasks.md
 ```
 
-**当前进度**: Phase 1.5 任务清单在 `tasks.md` 第 171-350 行
+**Current Progress**: Phase 1.5 task list is in `tasks.md` lines 171-350
 
-### 3. 查看技术设计
+### 3. View Technical Design
 
 ```bash
-# 查看 design.md（包含 Decision 3.1 和 4.5.1）
+# View design.md (contains Decision 3.1 and 4.5.1)
 code openspec/changes/refactor-context-session-architecture/design.md
 ```
 
-**关键决策位置**:
+**Key Decision Locations**:
 - Decision 3.1: Context-Local Message Pool (design.md:1086-1181)
 - Decision 4.5.1: Signal-Pull Sync Model (design.md:1296-1506)
 
-### 4. 查看实施计划
+### 4. View Implementation Plan
 
 ```bash
-# 详细的实施计划文档
+# Detailed implementation plan document
 code docs/reports/refactoring/signal_pull_architecture_implementation_plan_CN.md
 ```
 
 ---
 
-## 📋 Phase 1.5 任务概览
+## 📋 Phase 1.5 Task Overview
 
-### 核心目标
-实现 **Context-Local Message Pool** 存储架构和 **Signal-Pull** 同步模型
+### Core Goal
+Implement **Context-Local Message Pool** storage architecture and **Signal-Pull** synchronization model
 
-### 8 个主要任务模块
+### 8 Main Task Modules
 
-1. **1.5.1** 扩展 MessageMetadata ⏳
-   - 添加 MessageSource、DisplayHint、StreamingMetadata
-   - 文件: `crates/context_manager/src/structs/metadata.rs`
+1. **1.5.1** Extend MessageMetadata ⏳
+   - Add MessageSource, DisplayHint, StreamingMetadata
+   - File: `crates/context_manager/src/structs/metadata.rs`
 
-2. **1.5.2** 实现 StreamingResponse 消息类型 ⏳
+2. **1.5.2** Implement StreamingResponse message type ⏳
    - StreamChunk + StreamingResponseMsg
-   - 文件: `crates/context_manager/src/structs/message_types.rs`
+   - File: `crates/context_manager/src/structs/message_types.rs`
 
-3. **1.5.3** Context 集成流式处理 ⏳
+3. **1.5.3** Context integrated streaming processing ⏳
    - begin_streaming_llm_response / append_streaming_chunk / finalize_streaming_response
-   - 文件: `crates/context_manager/src/structs/context_lifecycle.rs`
+   - File: `crates/context_manager/src/structs/context_lifecycle.rs`
 
-4. **1.5.4** 实现 REST API 端点 ⏳
+4. **1.5.4** Implement REST API endpoints ⏳
    - GET /contexts/{id}
    - GET /contexts/{id}/messages?ids={...}
    - GET /contexts/{id}/messages/{msg_id}/content?from_sequence={N}
-   - 文件: `crates/web_service/src/routes/context_routes.rs`
+   - File: `crates/web_service/src/routes/context_routes.rs`
 
-5. **1.5.5** 实现 SSE 信令推送 ⏳
+5. **1.5.5** Implement SSE signal push ⏳
    - GET /contexts/{id}/stream
-   - SSESignal 枚举 + broadcast 机制
-   - 文件: `crates/web_service/src/routes/sse_routes.rs`
+   - SSESignal enum + broadcast mechanism
+   - File: `crates/web_service/src/routes/sse_routes.rs`
 
-6. **1.5.6** 存储层实现 ⏳
+6. **1.5.6** Storage layer implementation ⏳
    - FileSystemMessageStorage
-   - Context-Local Message Pool 结构
-   - 文件: `crates/context_manager/src/storage/message_storage.rs`
+   - Context-Local Message Pool structure
+   - File: `crates/context_manager/src/storage/message_storage.rs`
 
-7. **1.5.7** 创建 OpenSpec Spec Delta ⏳
+7. **1.5.7** Create OpenSpec Spec Delta ⏳
    - specs/sync/spec.md
-   - Signal-Pull 和 Message Pool 需求
+   - Signal-Pull and Message Pool requirements
 
-8. **1.5.8** 集成测试 ⏳
-   - 端到端流式测试
-   - 存储集成测试
-   - 负载测试
+8. **1.5.8** Integration testing ⏳
+   - End-to-end streaming tests
+   - Storage integration tests
+   - Load testing
 
 ---
 
-## 🎯 推荐实施顺序
+## 🎯 Recommended Implementation Order
 
-### 阶段 1: 核心数据结构（1-2 天）
+### Phase 1: Core Data Structures (1-2 days)
 ```
 1.5.1 → 1.5.2 → 1.5.3
 ```
-- 先完成 MessageMetadata 扩展
-- 然后实现 StreamingResponse 类型
-- 最后集成到 Context 生命周期
+- Complete MessageMetadata extension first
+- Then implement StreamingResponse type
+- Finally integrate into Context lifecycle
 
-### 阶段 2: API 层（1 天）
+### Phase 2: API Layer (1 day)
 ```
 1.5.4 → 1.5.5
 ```
-- REST API 端点
-- SSE 信令推送
+- REST API endpoints
+- SSE signal push
 
-### 阶段 3: 存储层（1 天）
+### Phase 3: Storage Layer (1 day)
 ```
 1.5.6
 ```
-- FileSystemMessageStorage 实现
+- FileSystemMessageStorage implementation
 
-### 阶段 4: 文档和测试（0.5 天）
+### Phase 4: Documentation and Testing (0.5 day)
 ```
 1.5.7 → 1.5.8
 ```
 - OpenSpec delta
-- 集成测试
+- Integration tests
 
 ---
 
-## 📚 关键文档索引
+## 📚 Key Document Index
 
-### 设计文档
+### Design Documents
 - `openspec/changes/refactor-context-session-architecture/design.md`
   - Decision 3.1: Context-Local Message Pool
   - Decision 4.5.1: Signal-Pull Synchronization Model
-  - API 契约详细说明
+  - Detailed API contract specifications
 
-### 实施计划
+### Implementation Plan
 - `docs/reports/refactoring/signal_pull_architecture_implementation_plan_CN.md`
-  - 详细的任务分解
-  - 代码示例和结构定义
-  - 测试用例清单
-  - 工作量估算
+  - Detailed task breakdown
+  - Code examples and structure definitions
+  - Test case checklist
+  - Effort estimation
 
-### 相关报告
+### Related Reports
 - `docs/reports/refactoring/storage_architecture_gap_analysis_CN.md`
 - `docs/reports/refactoring/frontend_backend_state_sync_review_CN.md`
 - `docs/reports/archive/refactoring/phase1_message_type_system_summary_CN.md`
 
 ---
 
-## 🔍 快速定位代码位置
+## 🔍 Quick Code Location Guide
 
-### 现有相关文件
+### Existing Related Files
 
 ```bash
-# 消息类型系统（Phase 1 已完成）
+# Message type system (Phase 1 completed)
 crates/context_manager/src/structs/
-├── message_types.rs      # RichMessageType 枚举
-├── message.rs            # InternalMessage（已有 rich_type 字段）
-├── message_compat.rs     # 兼容层
-└── message_helpers.rs     # 辅助构造器
+├── message_types.rs      # RichMessageType enum
+├── message.rs            # InternalMessage (already has rich_type field)
+├── message_compat.rs     # Compatibility layer
+└── message_helpers.rs     # Helper constructors
 
-# 元数据结构（需要扩展）
+# Metadata structure (needs extension)
 crates/context_manager/src/structs/metadata.rs
 
-# Context 生命周期（需要添加流式方法）
+# Context lifecycle (needs streaming methods)
 crates/context_manager/src/structs/context_lifecycle.rs
 
-# Web Service 路由（需要新增）
+# Web Service routes (needs new additions)
 crates/web_service/src/routes/
-├── context_routes.rs     # REST API（需要创建或扩展）
-└── sse_routes.rs         # SSE 端点（需要创建）
+├── context_routes.rs     # REST API (needs creation or extension)
+└── sse_routes.rs         # SSE endpoints (needs creation)
 
-# 存储层（需要创建）
+# Storage layer (needs creation)
 crates/context_manager/src/storage/
-└── message_storage.rs    # FileSystemMessageStorage（需要创建）
+└── message_storage.rs    # FileSystemMessageStorage (needs creation)
 ```
 
 ---
 
-## ✅ 验证清单
+## ✅ Verification Checklist
 
-在开始实施前，确认：
+Before starting implementation, confirm:
 
-- [ ] 已阅读 `design.md` 中的 Decision 3.1 和 4.5.1
-- [ ] 已阅读 `signal_pull_architecture_implementation_plan_CN.md`
-- [ ] 已理解 Context-Local Message Pool 存储结构
-- [ ] 已理解 Signal-Pull 同步模型
-- [ ] 已查看 `tasks.md` 中的 Phase 1.5 任务清单
+- [ ] Have read Decision 3.1 and 4.5.1 in `design.md`
+- [ ] Have read `signal_pull_architecture_implementation_plan_CN.md`
+- [ ] Understand Context-Local Message Pool storage structure
+- [ ] Understand Signal-Pull synchronization model
+- [ ] Have viewed Phase 1.5 task list in `tasks.md`
 
 ---
 
-## 🛠️ 开发工作流
+## 🛠️ Development Workflow
 
-### 1. 开始新任务
+### 1. Start New Task
 
 ```bash
-# 查看当前任务状态
+# View current task status
 grep -n "1.5.1" openspec/changes/refactor-context-session-architecture/tasks.md
 
-# 标记任务为进行中（手动更新 tasks.md）
-# - [ ] → - [x] （完成时）
+# Mark task as in progress (manually update tasks.md)
+# - [ ] → - [x] (when complete)
 ```
 
-### 2. 编写代码
+### 2. Write Code
 
-按照 `signal_pull_architecture_implementation_plan_CN.md` 中的代码示例和结构定义实施。
+Implement according to code examples and structure definitions in `signal_pull_architecture_implementation_plan_CN.md`.
 
-### 3. 运行测试
+### 3. Run Tests
 
 ```bash
-# 运行 context_manager 测试
+# Run context_manager tests
 cd crates/context_manager
 cargo test
 
-# 运行 web_service 测试
+# Run web_service tests
 cd ../web_service
 cargo test
 ```
 
-### 4. 验证 OpenSpec
+### 4. Validate OpenSpec
 
 ```bash
-# 验证 change 有效性
+# Validate change validity
 openspec validate refactor-context-session-architecture --strict
 ```
 
-### 5. 更新任务状态
+### 5. Update Task Status
 
-完成每个子任务后，更新 `tasks.md` 中的复选框：
+After completing each subtask, update the checkbox in `tasks.md`:
 ```markdown
-- [x] 1.5.1.1 添加 MessageSource 枚举
+- [x] 1.5.1.1 Add MessageSource enum
 ```
 
 ---
 
-## 📝 示例：开始 Task 1.5.1
+## 📝 Example: Starting Task 1.5.1
 
-### 步骤 1: 查看任务详情
+### Step 1: View Task Details
 
 ```bash
-# 查看 tasks.md 中 1.5.1 的详细要求
-grep -A 20 "1.5.1 扩展 MessageMetadata" openspec/changes/refactor-context-session-architecture/tasks.md
+# View detailed requirements for 1.5.1 in tasks.md
+grep -A 20 "1.5.1 Extend MessageMetadata" openspec/changes/refactor-context-session-architecture/tasks.md
 ```
 
-### 步骤 2: 查看实施计划中的代码示例
+### Step 2: View Code Examples in Implementation Plan
 
 ```bash
-# 查看 MessageMetadata 扩展的详细设计
-grep -A 50 "Task 1.5.1: 扩展 MessageMetadata" docs/reports/refactoring/signal_pull_architecture_implementation_plan_CN.md
+# View detailed design for MessageMetadata extension
+grep -A 50 "Task 1.5.1: Extend MessageMetadata" docs/reports/refactoring/signal_pull_architecture_implementation_plan_CN.md
 ```
 
-### 步骤 3: 查看现有代码
+### Step 3: View Existing Code
 
 ```bash
-# 查看当前的 MessageMetadata 结构
+# View current MessageMetadata structure
 cat crates/context_manager/src/structs/metadata.rs
 ```
 
-### 步骤 4: 开始实施
+### Step 4: Start Implementation
 
-按照实施计划中的结构定义，扩展 `MessageMetadata`。
+Extend `MessageMetadata` according to the structure definitions in the implementation plan.
 
 ---
 
-## 🎓 关键概念速查
+## 🎓 Key Concepts Quick Reference
 
 ### Context-Local Message Pool
-- 每个 Context 是自包含文件夹
-- 所有消息存储在 `contexts/{ctx_id}/messages_pool/`
-- 分支操作零文件 I/O（只修改 metadata.json）
-- 删除 Context = 删除整个文件夹（无需 GC）
+- Each Context is a self-contained folder
+- All messages stored in `contexts/{ctx_id}/messages_pool/`
+- Branch operations have zero file I/O (only modify metadata.json)
+- Delete Context = delete entire folder (no GC needed)
 
 ### Signal-Pull Model
-- **SSE 信令**: 只推送轻量级通知（message_id + sequence）
-- **REST 拉取**: 前端主动获取数据
-- **自愈机制**: 通过序列号自动修复丢失的信令
+- **SSE Signal**: Only push lightweight notifications (message_id + sequence)
+- **REST Pull**: Frontend actively fetches data
+- **Self-healing**: Automatically repair lost signals through sequence numbers
 
 ### StreamingResponse
-- 完整的流式响应记录（chunks + metadata）
-- 支持前端"重放"流式效果
-- 包含时间戳、间隔、token 使用等元数据
+- Complete streaming response record (chunks + metadata)
+- Supports frontend "replay" streaming effect
+- Includes timestamps, intervals, token usage, and other metadata
 
 ---
 
-## 🚨 常见问题
+## 🚨 Common Questions
 
-### Q: 如何知道从哪里开始？
-A: 从 Task 1.5.1 开始，按顺序实施。每个任务都有详细的子任务清单。
+### Q: How do I know where to start?
+A: Start with Task 1.5.1 and implement in order. Each task has a detailed subtask checklist.
 
-### Q: 如果遇到设计问题怎么办？
-A: 参考 `design.md` 中的 Decision 3.1 和 4.5.1，或查看实施计划文档。
+### Q: What if I encounter design issues?
+A: Refer to Decision 3.1 and 4.5.1 in `design.md`, or check the implementation plan document.
 
-### Q: 如何验证实施是否正确？
-A: 
-1. 运行测试（`cargo test`）
-2. 验证 OpenSpec（`openspec validate --strict`）
-3. 检查任务清单（所有子任务标记为完成）
+### Q: How do I verify if implementation is correct?
+A:
+1. Run tests (`cargo test`)
+2. Validate OpenSpec (`openspec validate --strict`)
+3. Check task list (all subtasks marked complete)
 
-### Q: 实施计划中的代码示例可以直接用吗？
-A: 代码示例是伪代码/结构定义，需要根据实际代码库调整。主要参考结构和字段定义。
-
----
-
-## 📞 需要帮助？
-
-如果在新会话中遇到问题：
-
-1. **查看设计文档**: `design.md` 包含所有技术决策
-2. **查看实施计划**: `signal_pull_architecture_implementation_plan_CN.md` 包含详细步骤
-3. **查看任务清单**: `tasks.md` 包含所有待办事项
-4. **运行 OpenSpec 命令**: `openspec show refactor-context-session-architecture`
+### Q: Can code examples in the implementation plan be used directly?
+A: Code examples are pseudocode/structure definitions and need to be adjusted for the actual codebase. Mainly reference structure and field definitions.
 
 ---
 
-**祝实施顺利！** 🚀
+## 📞 Need Help?
 
+If you encounter issues in a new session:
 
+1. **View design document**: `design.md` contains all technical decisions
+2. **View implementation plan**: `signal_pull_architecture_implementation_plan_CN.md` contains detailed steps
+3. **View task list**: `tasks.md` contains all todo items
+4. **Run OpenSpec command**: `openspec show refactor-context-session-architecture`
+
+---
+
+**Good luck with implementation!** 🚀
 
 
 

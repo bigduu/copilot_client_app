@@ -1,76 +1,76 @@
-# 默认使用OpenAI API模式
+# Default OpenAI API Mode
 
-## 🎯 变更说明
+## 🎯 Change Description
 
-应用现在默认使用 **OpenAI API模式** 而不是Tauri模式。
+The application now uses **OpenAI API mode** by default instead of Tauri mode.
 
-## ✅ 实现的变更
+## ✅ Implemented Changes
 
-### 1. ServiceFactory默认模式
-- 将 `currentMode` 默认值从 `'tauri'` 改为 `'openai'`
-- 更新构造函数逻辑，确保首次启动时自动设置为OpenAI模式
+### 1. ServiceFactory Default Mode
+- Changed the default value of `currentMode` from `'tauri'` to `'openai'`
+- Updated constructor logic to ensure OpenAI mode is automatically set on first launch
 
-### 2. localStorage处理
-- 如果localStorage中没有保存的模式，自动设置为 `'openai'`
-- 保持用户手动切换的设置不变
+### 2. localStorage Handling
+- If no mode is saved in localStorage, automatically set it to `'openai'`
+- Preserve user manually switched settings
 
-### 3. 文档更新
-- 更新README文档，明确标注OpenAI模式为默认模式
-- 调整使用示例的顺序，优先展示OpenAI模式
+### 3. Documentation Updates
+- Updated README documentation to clearly indicate OpenAI mode as the default
+- Adjusted the order of usage examples to prioritize showcasing OpenAI mode
 
-## 🔧 技术实现
+## 🔧 Technical Implementation
 
-### ServiceFactory.ts 变更
+### ServiceFactory.ts Changes
 ```typescript
-// 默认模式改为 openai
+// Default mode changed to openai
 private currentMode: ServiceMode = 'openai';
 
-// 构造函数中的逻辑
+// Constructor logic
 private constructor() {
   const savedMode = localStorage.getItem(SERVICE_MODE_KEY) as ServiceMode;
   if (savedMode && (savedMode === 'tauri' || savedMode === 'openai')) {
     this.currentMode = savedMode;
   } else {
-    // 默认设置为 openai 并保存
+    // Default to openai and save
     this.currentMode = 'openai';
     localStorage.setItem(SERVICE_MODE_KEY, 'openai');
   }
 }
 ```
 
-## 🚀 用户体验
+## 🚀 User Experience
 
-### 首次启动
-- 新用户默认使用OpenAI API模式
-- 享受标准HTTP API的兼容性
-- 可以使用任何支持OpenAI API的客户端
+### First Launch
+- New users use OpenAI API mode by default
+- Enjoy standard HTTP API compatibility
+- Can use any OpenAI API-compatible client
 
-### 现有用户
-- 如果之前手动设置过模式，保持原有设置
-- 如果没有设置过，自动切换到OpenAI模式
-- 可以随时在设置中切换回Tauri模式
+### Existing Users
+- If mode was manually set before, keep the existing setting
+- If not set, automatically switch to OpenAI mode
+- Can switch back to Tauri mode in settings at any time
 
-## 📊 模式对比
+## 📊 Mode Comparison
 
-| 特性 | OpenAI模式 (默认) | Tauri模式 |
-|------|------------------|-----------|
-| API兼容性 | ✅ 标准OpenAI API | ❌ 仅Tauri |
-| 第三方客户端 | ✅ 支持 | ❌ 不支持 |
-| 工具功能 | ❌ 不支持 | ✅ 完整支持 |
-| 性能 | 🔄 HTTP开销 | ⚡ 直接调用 |
-| 开发体验 | 🌐 Web标准 | 🖥️ 原生集成 |
+| Feature | OpenAI Mode (Default) | Tauri Mode |
+|---------|----------------------|------------|
+| API Compatibility | ✅ Standard OpenAI API | ❌ Tauri only |
+| Third-party Clients | ✅ Supported | ❌ Not supported |
+| Tool Functions | ❌ Not supported | ✅ Full support |
+| Performance | 🔄 HTTP overhead | ⚡ Direct calls |
+| Developer Experience | 🌐 Web standards | 🖥️ Native integration |
 
-## 🎉 优势
+## 🎉 Advantages
 
-1. **标准化**: 使用业界标准的OpenAI API格式
-2. **兼容性**: 支持现有的OpenAI生态系统
-3. **灵活性**: 可以使用任何OpenAI兼容的客户端
-4. **易用性**: 更符合开发者的预期
+1. **Standardization**: Uses industry-standard OpenAI API format
+2. **Compatibility**: Supports the existing OpenAI ecosystem
+3. **Flexibility**: Can use any OpenAI-compatible client
+4. **Usability**: Better aligns with developer expectations
 
-## 🔄 回退方案
+## 🔄 Rollback Options
 
-如果需要回到Tauri模式作为默认：
-1. 在系统设置中手动切换到Tauri模式
-2. 或者修改 `ServiceFactory.ts` 中的默认值
+If you need to revert to Tauri mode as default:
+1. Manually switch to Tauri mode in system settings
+2. Or modify the default value in `ServiceFactory.ts`
 
-这个变更确保了应用更好地适应现代AI应用开发的标准，同时保持了完整的向后兼容性。
+This change ensures the application better adapts to modern AI application development standards while maintaining full backward compatibility.

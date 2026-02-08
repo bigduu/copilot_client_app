@@ -1,138 +1,137 @@
 # Testing Guide - Agent Loop & Workflow System
-## 测试指南
 
-## 概述
+## Overview
 
-本测试指南涵盖了本次实现的所有新功能：
-- Agent Loop 工具调用
-- 工具批准机制
-- 错误处理和重试
-- 新的 Workflow 系统
-- 弃用端点
+This testing guide covers all new features implemented in this release:
+- Agent Loop tool calls
+- Tool approval mechanism
+- Error handling and retry
+- New Workflow system
+- Deprecated endpoints
 
 ---
 
-## 🚀 快速冒烟测试（5分钟）
+## 🚀 Quick Smoke Test (5 minutes)
 
-### 目的
-验证系统基本功能是否正常工作。
+### Purpose
+Verify basic system functionality.
 
-### 步骤
+### Steps
 
-#### 1. 启动应用
+#### 1. Start Application
 ```bash
-# 终端 1: 启动后端
+# Terminal 1: Start backend
 cd /Users/bigduu/Workspace/TauriProjects/copilot_chat
 cargo run --bin web_service
 
-# 终端 2: 启动前端（新终端窗口）
+# Terminal 2: Start frontend (new terminal window)
 yarn tauri dev
 ```
 
-#### 2. 基本聊天测试
-- [ ] 创建新聊天
-- [ ] 发送简单消息："Hello"
-- [ ] 验证收到响应
-- [ ] 验证消息保存到后端
+#### 2. Basic Chat Test
+- [ ] Create new chat
+- [ ] Send simple message: "Hello"
+- [ ] Verify response received
+- [ ] Verify message saved to backend
 
-**预期结果**：基本聊天功能正常工作
+**Expected Result**: Basic chat functionality works normally
 
-#### 3. 编译检查
+#### 3. Compilation Check
 ```bash
-# 检查后端编译
+# Check backend compilation
 cargo check --workspace
 
-# 检查前端编译
+# Check frontend compilation
 yarn build
 ```
 
-**预期结果**：零编译错误
+**Expected Result**: Zero compilation errors
 
 ---
 
-## 🔧 Agent Loop 工具调用测试
+## 🔧 Agent Loop Tool Call Tests
 
-### 测试 1: 读取文件（read_file）
+### Test 1: Read File (read_file)
 
-**目的**：验证 LLM 可以自主调用 read_file 工具
+**Purpose**: Verify LLM can autonomously call read_file tool
 
-#### 步骤
-1. 创建新聊天
-2. 发送消息：
+#### Steps
+1. Create new chat
+2. Send message:
    ```
-   请读取 README.md 文件的前10行内容
+   Please read the first 10 lines of README.md file
    ```
 
-#### 预期行为
-- [ ] LLM 生成 JSON 工具调用
-- [ ] 后端解析工具调用
-- [ ] 执行 `read_file` 工具
-- [ ] 工具结果返回给 LLM
-- [ ] LLM 生成最终响应，包含文件内容摘要
-- [ ] **不需要用户批准**（因为是读操作）
+#### Expected Behavior
+- [ ] LLM generates JSON tool call
+- [ ] Backend parses tool call
+- [ ] Execute `read_file` tool
+- [ ] Tool result returned to LLM
+- [ ] LLM generates final response with file content summary
+- [ ] **No user approval required** (because it's a read operation)
 
-#### 验证点
-- [ ] 在后端日志中看到工具调用：
+#### Verification Points
+- [ ] See tool call in backend logs:
   ```
   [ChatService] Tool call detected: read_file
   [AgentService] Executing tool: read_file
   ```
-- [ ] 前端显示最终文本响应（不是工具调用JSON）
-- [ ] 消息历史包含工具调用和结果
+- [ ] Frontend displays final text response (not tool call JSON)
+- [ ] Message history contains tool call and result
 
-#### 故障排除
-- 如果 LLM 没有调用工具 → 检查 system prompt 是否包含工具定义
-- 如果工具执行失败 → 检查文件路径是否正确
-
----
-
-### 测试 2: 搜索文件（search）
-
-**目的**：验证 search 工具正常工作
-
-#### 步骤
-1. 发送消息：
-   ```
-   搜索项目中所有的 .rs 文件
-   ```
-
-#### 预期行为
-- [ ] LLM 调用 `search` 工具
-- [ ] 返回匹配的文件列表
-- [ ] LLM 总结搜索结果
-
-#### 验证点
-- [ ] 搜索结果准确
-- [ ] 不超过20个结果（工具限制）
-- [ ] 搜索深度不超过3层（工具限制）
+#### Troubleshooting
+- If LLM doesn't call tool → Check if system prompt contains tool definitions
+- If tool execution fails → Check if file path is correct
 
 ---
 
-### 测试 3: 多步骤工具链
+### Test 2: Search Files (search)
 
-**目的**：验证 agent loop 可以连续调用多个工具
+**Purpose**: Verify search tool works normally
 
-#### 步骤
-1. 发送复杂任务：
+#### Steps
+1. Send message:
    ```
-   请搜索项目中的 Cargo.toml 文件，然后读取它的内容并告诉我项目名称
+   Search for all .rs files in the project
    ```
 
-#### 预期行为
-1. **第一步**：LLM 调用 `search` 工具查找 Cargo.toml
-   - `terminate: false`（需要继续）
-2. **第二步**：LLM 使用搜索结果，调用 `read_file` 读取文件
-   - `terminate: false`（需要处理）
-3. **第三步**：LLM 分析内容，返回最终文本响应
-   - 不再调用工具
+#### Expected Behavior
+- [ ] LLM calls `search` tool
+- [ ] Returns matching file list
+- [ ] LLM summarizes search results
 
-#### 验证点
-- [ ] Agent loop 自动执行多个步骤
-- [ ] 每个工具调用的结果正确传递到下一步
-- [ ] 最终响应准确（包含项目名称）
-- [ ] 用户只看到最终响应，不看到中间工具调用
+#### Verification Points
+- [ ] Search results are accurate
+- [ ] No more than 20 results (tool limit)
+- [ ] Search depth no more than 3 levels (tool limit)
 
-#### 后端日志示例
+---
+
+### Test 3: Multi-step Tool Chain
+
+**Purpose**: Verify agent loop can consecutively call multiple tools
+
+#### Steps
+1. Send complex task:
+   ```
+   Please search for Cargo.toml files in the project, then read its content and tell me the project name
+   ```
+
+#### Expected Behavior
+1. **Step 1**: LLM calls `search` tool to find Cargo.toml
+   - `terminate: false` (needs to continue)
+2. **Step 2**: LLM uses search results, calls `read_file` to read file
+   - `terminate: false` (needs to process)
+3. **Step 3**: LLM analyzes content, returns final text response
+   - No longer calls tools
+
+#### Verification Points
+- [ ] Agent loop automatically executes multiple steps
+- [ ] Each tool call result correctly passed to next step
+- [ ] Final response is accurate (contains project name)
+- [ ] User only sees final response, not intermediate tool calls
+
+#### Backend Log Example
 ```
 [AgentService] Iteration 1: Tool call detected
 [AgentService] Executing tool: search
@@ -143,20 +142,20 @@ yarn build
 
 ---
 
-## ✅ 工具批准测试
+## ✅ Tool Approval Tests
 
-### 测试 4: Create File (需要批准)
+### Test 4: Create File (Requires Approval)
 
-**目的**：验证需要批准的工具会暂停等待用户确认
+**Purpose**: Verify tools requiring approval pause waiting for user confirmation
 
-#### 步骤
-1. 发送消息：
+#### Steps
+1. Send message:
    ```
-   请创建一个测试文件 test_output.txt，内容是 "Hello from agent"
+   Please create a test file test_output.txt with content "Hello from agent"
    ```
 
-#### 预期行为
-1. **LLM 生成工具调用**：
+#### Expected Behavior
+1. **LLM generates tool call**:
    ```json
    {
      "tool": "create_file",
@@ -168,42 +167,42 @@ yarn build
    }
    ```
 
-2. **后端暂停 agent loop**：
-   - 检测到 `create_file.requires_approval == true`
-   - 创建 `ApprovalRequest`
-   - 返回 `ServiceResponse::AwaitingAgentApproval`
+2. **Backend pauses agent loop**:
+   - Detects `create_file.requires_approval == true`
+   - Creates `ApprovalRequest`
+   - Returns `ServiceResponse::AwaitingAgentApproval`
 
-3. **前端应该显示批准模态框**：
-   ⚠️ **注意**：这一步需要前端集成完成后才能测试
-   - 模态框标题："Agent Tool Call Approval"
-   - 工具名称：`create_file`
-   - 参数显示：`path` 和 `content`
+3. **Frontend should display approval modal**:
+   ⚠️ **Note**: This step can only be tested after frontend integration is complete
+   - Modal title: "Agent Tool Call Approval"
+   - Tool name: `create_file`
+   - Parameter display: `path` and `content`
 
-4. **用户批准**：
-   - 点击 "Approve" 按钮
-   - 前端调用：`POST /v1/chat/{session_id}/approve-agent`
+4. **User approves**:
+   - Click "Approve" button
+   - Frontend calls: `POST /v1/chat/{session_id}/approve-agent`
 
-5. **Agent loop 继续**：
-   - 执行 `create_file` 工具
-   - 文件被创建
-   - 返回最终响应
+5. **Agent loop continues**:
+   - Execute `create_file` tool
+   - File is created
+   - Return final response
 
-#### 验证点
-- [ ] Agent loop 在批准前暂停
-- [ ] 批准请求存储在 `ApprovalManager` 中
-- [ ] 批准 API 端点工作正常
-- [ ] 批准后工具成功执行
-- [ ] 文件实际被创建
+#### Verification Points
+- [ ] Agent loop pauses before approval
+- [ ] Approval request stored in `ApprovalManager`
+- [ ] Approval API endpoint works normally
+- [ ] Tool executes successfully after approval
+- [ ] File is actually created
 
-#### 手动 API 测试（如果前端未集成）
+#### Manual API Test (if frontend not integrated)
 ```bash
-# 1. 获取 session_id（从后端日志或数据库）
+# 1. Get session_id (from backend logs or database)
 SESSION_ID="<your-session-id>"
 
-# 2. 发送需要批准的消息后，检查批准请求
-# （需要实现 GET /v1/chat/{session_id}/pending-approval 端点）
+# 2. After sending message requiring approval, check approval request
+# (Need to implement GET /v1/chat/{session_id}/pending-approval endpoint)
 
-# 3. 手动批准
+# 3. Manual approval
 REQUEST_ID="<request-id-from-logs>"
 curl -X POST "http://localhost:8000/v1/chat/${SESSION_ID}/approve-agent" \
   -H "Content-Type: application/json" \
@@ -212,73 +211,73 @@ curl -X POST "http://localhost:8000/v1/chat/${SESSION_ID}/approve-agent" \
     \"approved\": true
   }"
 
-# 4. 检查响应和文件创建
+# 4. Check response and file creation
 ls -la test_output.txt
 cat test_output.txt
 ```
 
 ---
 
-### 测试 5: 拒绝工具调用
+### Test 5: Reject Tool Call
 
-**目的**：验证用户可以拒绝工具调用
+**Purpose**: Verify user can reject tool call
 
-#### 步骤
-1. 发送需要批准的请求（如创建文件）
-2. **拒绝**工具调用（提供原因）
+#### Steps
+1. Send request requiring approval (e.g., create file)
+2. **Reject** tool call (provide reason)
 
-#### 预期行为
-- [ ] Agent loop 接收拒绝决定
-- [ ] 拒绝原因返回给 LLM
-- [ ] LLM 生成合适的响应（如：道歉或提供替代方案）
-- [ ] 工具不被执行（文件未创建）
+#### Expected Behavior
+- [ ] Agent loop receives rejection decision
+- [ ] Rejection reason returned to LLM
+- [ ] LLM generates appropriate response (e.g., apology or alternative solution)
+- [ ] Tool not executed (file not created)
 
-#### 手动 API 测试
+#### Manual API Test
 ```bash
 curl -X POST "http://localhost:8000/v1/chat/${SESSION_ID}/approve-agent" \
   -H "Content-Type: application/json" \
   -d "{
     \"request_id\": \"${REQUEST_ID}\",
     \"approved\": false,
-    \"reason\": \"I don't want to create this file\"
+    \"reason\": "I don't want to create this file"
   }"
 ```
 
 ---
 
-## 🔥 错误处理和重试测试
+## 🔥 Error Handling and Retry Tests
 
-### 测试 6: 工具执行失败
+### Test 6: Tool Execution Failure
 
-**目的**：验证工具执行失败时的错误处理
+**Purpose**: Verify error handling when tool execution fails
 
-#### 步骤
-1. 发送会导致工具失败的请求：
+#### Steps
+1. Send request that will cause tool failure:
    ```
-   请读取一个不存在的文件：/nonexistent/file.txt
+   Please read a non-existent file: /nonexistent/file.txt
    ```
 
-#### 预期行为
-1. **工具执行失败**
-2. **错误记录**：`tool_execution_failures` 递增
-3. **结构化错误反馈给 LLM**：
+#### Expected Behavior
+1. **Tool execution fails**
+2. **Error recorded**: `tool_execution_failures` increments
+3. **Structured error feedback to LLM**:
    ```
    Error executing tool 'read_file': No such file or directory
-   
-   You have 2 retries remaining. 
+
+   You have 2 retries remaining.
    Please try a different approach or ask the user for help.
    ```
-4. **LLM 响应**：
-   - 可能尝试不同的路径
-   - 或向用户说明文件不存在
+4. **LLM response**:
+   - May try different path
+   - Or explain to user that file doesn't exist
 
-#### 验证点
-- [ ] 错误被捕获，不导致崩溃
-- [ ] 错误消息返回给 LLM
-- [ ] LLM 生成合理的响应
-- [ ] Agent loop 继续（不中断）
+#### Verification Points
+- [ ] Error captured, doesn't cause crash
+- [ ] Error message returned to LLM
+- [ ] LLM generates reasonable response
+- [ ] Agent loop continues (not interrupted)
 
-#### 后端日志检查
+#### Backend Log Check
 ```
 [ChatService] Tool execution failed: read_file
 [AgentService] Recording tool failure (1/3)
@@ -287,75 +286,75 @@ curl -X POST "http://localhost:8000/v1/chat/${SESSION_ID}/approve-agent" \
 
 ---
 
-### 测试 7: 超时处理
+### Test 7: Timeout Handling
 
-**目的**：验证长时间运行的工具会超时
+**Purpose**: Verify long-running tools timeout
 
-#### 准备
-需要创建一个会超时的测试场景。最简单的方法是临时修改 `AgentLoopConfig`：
+#### Preparation
+Need to create a test scenario that will timeout. Simplest method is to temporarily modify `AgentLoopConfig`:
 
 ```rust
-// 在 agent_service.rs 中临时修改
+// Temporarily modify in agent_service.rs
 pub struct AgentLoopConfig {
     // ...
-    pub tool_execution_timeout: Duration::from_secs(5), // 改为 5 秒测试
+    pub tool_execution_timeout: Duration::from_secs(5), // Change to 5 seconds for testing
 }
 ```
 
-#### 步骤
-1. 发送一个需要长时间执行的命令（如果命令工具已迁移到 workflow，则跳过此测试）
+#### Steps
+1. Send command requiring long execution (if command tool has been migrated to workflow, skip this test)
 
-#### 预期行为
-- [ ] 工具执行在5秒后超时
-- [ ] 超时错误返回给 LLM
-- [ ] Agent loop 记录超时为失败
-- [ ] LLM 收到超时反馈
+#### Expected Behavior
+- [ ] Tool execution times out after 5 seconds
+- [ ] Timeout error returned to LLM
+- [ ] Agent loop records timeout as failure
+- [ ] LLM receives timeout feedback
 
-#### 后端日志
+#### Backend Log
 ```
 [ChatService] Tool execution timed out after 60s
 [AgentService] Recording tool failure (timeout)
 ```
 
-**重要**：测试后恢复配置到 60 秒
+**Important**: Restore configuration to 60 seconds after testing
 
 ---
 
-### 测试 8: 最大重试次数
+### Test 8: Maximum Retry Count
 
-**目的**：验证达到最大重试次数后 agent loop 停止
+**Purpose**: Verify agent loop stops after reaching maximum retry count
 
-#### 步骤
-1. 构造一个会连续失败的场景（如连续读取不存在的文件）
-2. 让 LLM 多次重试
+#### Steps
+1. Construct scenario that will fail consecutively (e.g., continuously read non-existent files)
+2. Let LLM retry multiple times
 
-#### 预期行为
-- **第1次失败**：错误反馈，2次重试剩余
-- **第2次失败**：错误反馈，1次重试剩余
-- **第3次失败**：错误反馈，0次重试剩余
-- **停止 loop**：返回最终错误响应给用户
+#### Expected Behavior
+- **1st failure**: Error feedback, 2 retries remaining
+- **2nd failure**: Error feedback, 1 retry remaining
+- **3rd failure**: Error feedback, 0 retries remaining
+- **Stop loop**: Return final error response to user
 
-#### 验证点
-- [ ] Agent loop 在3次失败后停止
-- [ ] `should_continue()` 返回 false
-- [ ] 用户收到错误说明
+#### Verification Points
+- [ ] Agent loop stops after 3 failures
+- [ ] `should_continue()` returns false
+- [ ] User receives error explanation
 
 ---
 
-### 测试 9: 最大迭代次数
+### Test 9: Maximum Iteration Count
 
-**目的**：验证 agent loop 不会无限循环
+**Purpose**: Verify agent loop doesn't run infinitely
 
-#### 步骤
-1. 发送一个可能导致长循环的任务
-2. 观察是否在10次迭代后停止
+#### Steps
+1. Send task that may cause long loop
+2. Observe if stops after 10 iterations
 
-#### 预期行为
-- [ ] Agent loop 最多执行10次迭代
-- [ ] 达到限制后返回部分结果或错误
-- [ ] 不会无限循环
+#### Expected Behavior
+- [ ] Agent loop executes maximum 10 iterations
+- [ ] Returns partial results or error after reaching limit
+- [ ] Doesn't run infinitely
 
-#### 后端日志
+#### Backend Log
 ```
 [AgentService] Iteration 10 reached, stopping loop
 [AgentService] Max iterations exceeded
@@ -363,16 +362,16 @@ pub struct AgentLoopConfig {
 
 ---
 
-## 🔄 Workflow 系统测试
+## 🔄 Workflow System Tests
 
-### 测试 10: 列出可用 Workflows
+### Test 10: List Available Workflows
 
-#### API 测试
+#### API Test
 ```bash
 curl http://localhost:8000/v1/workflows/available
 ```
 
-#### 预期响应
+#### Expected Response
 ```json
 {
   "workflows": [
@@ -408,18 +407,18 @@ curl http://localhost:8000/v1/workflows/available
 }
 ```
 
-#### 验证点
-- [ ] 返回所有4个 workflows
-- [ ] 每个 workflow 包含正确的元数据
-- [ ] JSON 格式正确
+#### Verification Points
+- [ ] Returns all 4 workflows
+- [ ] Each workflow contains correct metadata
+- [ ] JSON format is correct
 
 ---
 
-### 测试 11: 执行 EchoWorkflow
+### Test 11: Execute EchoWorkflow
 
-**目的**：测试最简单的 workflow
+**Purpose**: Test simplest workflow
 
-#### API 测试
+#### API Test
 ```bash
 curl -X POST http://localhost:8000/v1/workflows/execute \
   -H "Content-Type: application/json" \
@@ -431,7 +430,7 @@ curl -X POST http://localhost:8000/v1/workflows/execute \
   }'
 ```
 
-#### 预期响应
+#### Expected Response
 ```json
 {
   "success": true,
@@ -441,18 +440,18 @@ curl -X POST http://localhost:8000/v1/workflows/execute \
 }
 ```
 
-#### 验证点
-- [ ] Workflow 执行成功
-- [ ] 返回正确的 echo 内容
-- [ ] 响应格式正确
+#### Verification Points
+- [ ] Workflow executes successfully
+- [ ] Returns correct echo content
+- [ ] Response format is correct
 
 ---
 
-### 测试 12: ExecuteCommandWorkflow
+### Test 12: ExecuteCommandWorkflow
 
-**目的**：测试命令执行 workflow（取代了已弃用的 execute_command 工具）
+**Purpose**: Test command execution workflow (replaces deprecated execute_command tool)
 
-#### API 测试
+#### API Test
 ```bash
 curl -X POST http://localhost:8000/v1/workflows/execute \
   -H "Content-Type: application/json" \
@@ -464,7 +463,7 @@ curl -X POST http://localhost:8000/v1/workflows/execute \
   }'
 ```
 
-#### 预期响应
+#### Expected Response
 ```json
 {
   "success": true,
@@ -477,31 +476,31 @@ curl -X POST http://localhost:8000/v1/workflows/execute \
 }
 ```
 
-#### 验证点
-- [ ] 命令成功执行
-- [ ] stdout 包含预期输出
-- [ ] exit_code 为 0
-- [ ] 5分钟超时保护生效
+#### Verification Points
+- [ ] Command executes successfully
+- [ ] stdout contains expected output
+- [ ] exit_code is 0
+- [ ] 5-minute timeout protection is active
 
-#### 安全测试
-- [ ] 尝试危险命令（应被 approval 机制拦截）
-- [ ] 验证 custom_prompt 包含安全警告
+#### Security Test
+- [ ] Try dangerous command (should be intercepted by approval mechanism)
+- [ ] Verify custom_prompt contains security warning
 
 ---
 
-### 测试 13: DeleteFileWorkflow
+### Test 13: DeleteFileWorkflow
 
-**目的**：测试文件删除 workflow（需要明确确认）
+**Purpose**: Test file deletion workflow (requires explicit confirmation)
 
-#### 准备
+#### Preparation
 ```bash
-# 创建测试文件
+# Create test file
 echo "Test content" > /tmp/test_delete.txt
 ```
 
-#### API 测试
+#### API Test
 ```bash
-# 测试1：没有确认（应失败）
+# Test 1: Without confirmation (should fail)
 curl -X POST http://localhost:8000/v1/workflows/execute \
   -H "Content-Type: application/json" \
   -d '{
@@ -512,9 +511,9 @@ curl -X POST http://localhost:8000/v1/workflows/execute \
     }
   }'
 
-# 预期：错误 "Deletion not confirmed..."
+# Expected: Error "Deletion not confirmed..."
 
-# 测试2：有确认（应成功）
+# Test 2: With confirmation (should succeed)
 curl -X POST http://localhost:8000/v1/workflows/execute \
   -H "Content-Type: application/json" \
   -d '{
@@ -525,23 +524,23 @@ curl -X POST http://localhost:8000/v1/workflows/execute \
     }
   }'
 
-# 验证文件被删除
-ls /tmp/test_delete.txt  # 应该显示 "No such file"
+# Verify file is deleted
+ls /tmp/test_delete.txt  # Should show "No such file"
 ```
 
-#### 验证点
-- [ ] 没有 "DELETE" 确认时拒绝删除
-- [ ] 有 "DELETE" 确认时成功删除
-- [ ] 文件实际被删除
-- [ ] 不存在的文件返回错误
+#### Verification Points
+- [ ] Rejects deletion without "DELETE" confirmation
+- [ ] Successfully deletes with "DELETE" confirmation
+- [ ] File is actually deleted
+- [ ] Returns error for non-existent file
 
 ---
 
-### 测试 14: CreateFileWorkflow
+### Test 14: CreateFileWorkflow
 
-**目的**：验证 workflow 版本的 create_file
+**Purpose**: Verify workflow version of create_file
 
-#### API 测试
+#### API Test
 ```bash
 curl -X POST http://localhost:8000/v1/workflows/execute \
   -H "Content-Type: application/json" \
@@ -553,26 +552,26 @@ curl -X POST http://localhost:8000/v1/workflows/execute \
     }
   }'
 
-# 验证文件创建
+# Verify file creation
 cat /tmp/workflow_test.txt
 ```
 
-#### 验证点
-- [ ] 文件成功创建
-- [ ] 内容正确
-- [ ] 如果目录不存在，自动创建父目录
+#### Verification Points
+- [ ] File created successfully
+- [ ] Content is correct
+- [ ] Automatically creates parent directory if it doesn't exist
 
 ---
 
-## ⚠️ 弃用端点测试
+## ⚠️ Deprecated Endpoint Tests
 
-### 测试 15: 弃用警告
+### Test 15: Deprecation Warning
 
-**目的**：验证弃用端点返回警告
+**Purpose**: Verify deprecated endpoints return warnings
 
-#### API 测试
+#### API Test
 ```bash
-# 测试弃用的 execute_tool 端点
+# Test deprecated execute_tool endpoint
 curl -X POST http://localhost:8000/tools/execute \
   -H "Content-Type: application/json" \
   -d '{
@@ -581,141 +580,141 @@ curl -X POST http://localhost:8000/tools/execute \
       "path": "README.md"
     }
   }' \
-  -i  # 显示 headers
+  -i  # Show headers
 ```
 
-#### 验证点
-- [ ] 响应 headers 包含 `X-Deprecated: true`
-- [ ] 后端日志包含弃用警告
-- [ ] 功能仍然工作（向后兼容）
+#### Verification Points
+- [ ] Response headers contain `X-Deprecated: true`
+- [ ] Backend logs contain deprecation warning
+- [ ] Functionality still works (backward compatible)
 
-#### 后端日志检查
+#### Backend Log Check
 ```
 WARN [tool_controller] Deprecated endpoint called: /tools/execute
 ```
 
 ---
 
-## 🧪 集成测试
+## 🧪 Integration Tests
 
-### 测试 16: 完整对话流程
+### Test 16: Complete Conversation Flow
 
-**目的**：测试完整的多轮对话，包含工具调用
+**Purpose**: Test complete multi-turn conversation with tool calls
 
-#### 场景
+#### Scenario
 ```
-用户: 请帮我分析项目结构
+User: Please help me analyze project structure
  ↓
-LLM: [调用 search 工具搜索文件]
+LLM: [Calls search tool to find files]
  ↓
-Agent Loop: [执行 search，返回结果]
+Agent Loop: [Executes search, returns results]
  ↓
-LLM: [调用 read_file 读取关键文件]
+LLM: [Calls read_file to read key files]
  ↓
-Agent Loop: [执行 read_file，返回内容]
+Agent Loop: [Executes read_file, returns content]
  ↓
-LLM: [返回最终分析结果]
+LLM: [Returns final analysis result]
  ↓
-用户: 请创建一个 TODO.md 文件总结你的发现
+User: Please create a TODO.md file summarizing your findings
  ↓
-LLM: [调用 create_file 工具]
+LLM: [Calls create_file tool]
  ↓
-Agent Loop: [检测需要批准，暂停]
+Agent Loop: [Detects approval needed, pauses]
  ↓
-前端: [显示批准模态框]
+Frontend: [Displays approval modal]
  ↓
-用户: [批准]
+User: [Approves]
  ↓
-Agent Loop: [执行 create_file，文件创建]
+Agent Loop: [Executes create_file, file created]
  ↓
-LLM: [确认完成]
+LLM: [Confirms completion]
 ```
 
-#### 验证点
-- [ ] 完整流程无中断
-- [ ] 工具调用正确执行
-- [ ] 批准机制正常工作
-- [ ] 对话历史正确保存
-- [ ] 用户体验流畅
+#### Verification Points
+- [ ] Complete flow without interruption
+- [ ] Tool calls execute correctly
+- [ ] Approval mechanism works normally
+- [ ] Conversation history saved correctly
+- [ ] User experience is smooth
 
 ---
 
-## 📝 测试检查清单
+## 📝 Test Checklist
 
-### 冒烟测试 (必须)
-- [ ] 应用启动成功
-- [ ] 基本聊天功能工作
-- [ ] 零编译错误
-- [ ] 零linter错误
+### Smoke Test (Required)
+- [ ] Application starts successfully
+- [ ] Basic chat function works
+- [ ] Zero compilation errors
+- [ ] Zero linter errors
 
-### Agent Loop 功能
-- [ ] read_file 工具自动调用
-- [ ] search 工具自动调用
-- [ ] 多步骤工具链工作
-- [ ] 工具结果正确传递
+### Agent Loop Functions
+- [ ] read_file tool auto-calls
+- [ ] search tool auto-calls
+- [ ] Multi-step tool chain works
+- [ ] Tool results correctly passed
 
-### 批准机制
-- [ ] create_file 需要批准
-- [ ] 批准 API 端点工作
-- [ ] 拒绝工具调用工作
-- [ ] 批准请求正确存储
+### Approval Mechanism
+- [ ] create_file requires approval
+- [ ] Approval API endpoint works
+- [ ] Reject tool call works
+- [ ] Approval request correctly stored
 
-### 错误处理
-- [ ] 工具执行失败被捕获
-- [ ] 错误反馈给 LLM
-- [ ] 超时机制工作
-- [ ] 最大重试次数生效
-- [ ] 最大迭代次数生效
+### Error Handling
+- [ ] Tool execution failure captured
+- [ ] Error feedback to LLM
+- [ ] Timeout mechanism works
+- [ ] Maximum retry count active
+- [ ] Maximum iteration count active
 
-### Workflow 系统
-- [ ] 列出 workflows 工作
-- [ ] EchoWorkflow 执行成功
-- [ ] ExecuteCommandWorkflow 工作
-- [ ] DeleteFileWorkflow 工作（带确认）
-- [ ] CreateFileWorkflow 工作
+### Workflow System
+- [ ] List workflows works
+- [ ] EchoWorkflow executes successfully
+- [ ] ExecuteCommandWorkflow works
+- [ ] DeleteFileWorkflow works (with confirmation)
+- [ ] CreateFileWorkflow works
 
-### 弃用警告
-- [ ] 弃用端点返回警告
-- [ ] 警告记录到日志
-- [ ] 功能仍然向后兼容
+### Deprecation Warnings
+- [ ] Deprecated endpoints return warnings
+- [ ] Warnings logged
+- [ ] Functionality still backward compatible
 
 ---
 
-## 🔍 调试技巧
+## 🔍 Debugging Tips
 
-### 查看后端日志
+### View Backend Logs
 ```bash
-# 启动时显示所有日志
+# Show all logs at startup
 RUST_LOG=debug cargo run --bin web_service
 ```
 
-### 关键日志位置
-- **Agent Loop 开始**: `[AgentService] Starting agent loop`
-- **工具调用**: `[AgentService] Executing tool: {tool_name}`
-- **批准请求**: `[ChatService] Tool requires approval`
-- **错误**: `[AgentService] Tool execution failed`
-- **迭代**: `[AgentService] Iteration {n}`
+### Key Log Locations
+- **Agent Loop Start**: `[AgentService] Starting agent loop`
+- **Tool Call**: `[AgentService] Executing tool: {tool_name}`
+- **Approval Request**: `[ChatService] Tool requires approval`
+- **Error**: `[AgentService] Tool execution failed`
+- **Iteration**: `[AgentService] Iteration {n}`
 
-### 数据库检查
+### Database Check
 ```sql
--- 查看聊天上下文
+-- View chat context
 SELECT * FROM chat_sessions WHERE id = '<session-id>';
 
--- 查看消息历史
+-- View message history
 SELECT * FROM messages WHERE session_id = '<session-id>' ORDER BY created_at;
 
--- 查看工具调用记录（如果实现了）
+-- View tool call records (if implemented)
 SELECT * FROM tool_call_history WHERE session_id = '<session-id>';
 ```
 
-### API 调试
-使用 `httpie` 或 `Postman` 进行更友好的 API 测试：
+### API Debugging
+Use `httpie` or `Postman` for more friendly API testing:
 
 ```bash
-# 安装 httpie
+# Install httpie
 brew install httpie
 
-# 使用示例
+# Usage example
 http POST localhost:8000/v1/workflows/execute \
   workflow_name=echo \
   parameters:='{"message": "test"}'
@@ -723,9 +722,9 @@ http POST localhost:8000/v1/workflows/execute \
 
 ---
 
-## ⚡ 自动化测试建议
+## ⚡ Automated Test Recommendations
 
-### 单元测试（推荐）
+### Unit Tests (Recommended)
 
 ```rust
 // crates/web_service/src/services/approval_manager.rs
@@ -738,144 +737,144 @@ mod tests {
         let manager = ApprovalManager::new();
         let session_id = Uuid::new_v4();
         let tool_call = /* ... */;
-        
-        // 创建请求
+
+        // Create request
         let request_id = manager.create_request(
-            session_id, 
-            tool_call, 
+            session_id,
+            tool_call,
             "test_tool".to_string(),
             "Test description".to_string()
         ).await.unwrap();
-        
-        // 验证请求存在
+
+        // Verify request exists
         let pending = manager.get_pending_request(&session_id).await;
         assert!(pending.is_some());
-        
-        // 批准请求
+
+        // Approve request
         let result = manager.approve_request(&request_id, true, None).await;
         assert!(result.is_ok());
-        
-        // 验证请求被移除
+
+        // Verify request removed
         let pending = manager.get_pending_request(&session_id).await;
         assert!(pending.is_none());
     }
 }
 ```
 
-### 集成测试（推荐）
+### Integration Tests (Recommended)
 
 ```rust
 // crates/web_service/tests/agent_loop_tests.rs
 #[tokio::test]
 async fn test_agent_loop_with_approval() {
-    // 启动测试服务器
+    // Start test server
     let app_state = create_test_app_state().await;
-    
-    // 发送需要批准的消息
+
+    // Send message requiring approval
     let response = send_message(
         app_state.clone(),
         "Create a test file"
     ).await;
-    
-    // 验证返回批准请求
+
+    // Verify returns approval request
     assert!(matches!(response, ServiceResponse::AwaitingAgentApproval { .. }));
-    
-    // 批准
+
+    // Approve
     approve_agent_tool_call(app_state, request_id, true).await;
-    
-    // 验证工具执行
+
+    // Verify tool execution
     assert!(Path::new("test_file.txt").exists());
 }
 ```
 
 ---
 
-## 📊 测试报告模板
+## 📊 Test Report Template
 
-完成测试后，使用此模板记录结果：
+After completing tests, use this template to record results:
 
 ```markdown
-# Agent Loop 测试报告
-日期: YYYY-MM-DD
-测试人员: [你的名字]
+# Agent Loop Test Report
+Date: YYYY-MM-DD
+Tester: [Your Name]
 
-## 测试环境
+## Test Environment
 - OS: macOS / Linux / Windows
-- Rust版本: [cargo --version]
-- Node版本: [node --version]
+- Rust Version: [cargo --version]
+- Node Version: [node --version]
 
-## 测试结果总结
-- 总测试数: X
-- 通过: Y
-- 失败: Z
-- 跳过: W
+## Test Results Summary
+- Total Tests: X
+- Passed: Y
+- Failed: Z
+- Skipped: W
 
-## 详细结果
+## Detailed Results
 
-### ✅ 通过的测试
-1. read_file 工具调用 - ✅
-2. search 工具调用 - ✅
+### ✅ Passed Tests
+1. read_file tool call - ✅
+2. search tool call - ✅
 ...
 
-### ❌ 失败的测试
-1. create_file 批准 - ❌
-   - 原因: 批准模态框未显示
-   - 错误信息: [详细错误]
-   - 待修复
+### ❌ Failed Tests
+1. create_file approval - ❌
+   - Reason: Approval modal not displayed
+   - Error Message: [Detailed error]
+   - To be fixed
 
-### ⏭️ 跳过的测试
-1. 前端批准 UI - ⏭️
-   - 原因: 前端集成未完成
-   - 计划: 下一个sprint完成
+### ⏭️ Skipped Tests
+1. Frontend approval UI - ⏭️
+   - Reason: Frontend integration not complete
+   - Plan: Complete in next sprint
 
-## 发现的问题
-1. [问题1描述]
-2. [问题2描述]
+## Issues Found
+1. [Issue 1 description]
+2. [Issue 2 description]
 
-## 建议
-1. [改进建议1]
-2. [改进建议2]
+## Recommendations
+1. [Improvement recommendation 1]
+2. [Improvement recommendation 2]
 ```
 
 ---
 
-## 🎯 优先级
+## 🎯 Priority
 
-### P0 - 必须测试（阻塞发布）
-- [ ] 基本聊天功能
-- [ ] read_file 工具调用
-- [ ] 工具执行失败处理
-- [ ] Workflow 执行
+### P0 - Must Test (Blocking Release)
+- [ ] Basic chat function
+- [ ] read_file tool call
+- [ ] Tool execution failure handling
+- [ ] Workflow execution
 
-### P1 - 应该测试（重要功能）
-- [ ] 多步骤工具链
-- [ ] 工具批准机制
-- [ ] 超时处理
-- [ ] 所有 workflows
+### P1 - Should Test (Important Functions)
+- [ ] Multi-step tool chain
+- [ ] Tool approval mechanism
+- [ ] Timeout handling
+- [ ] All workflows
 
-### P2 - 可以测试（非关键）
-- [ ] 弃用警告
-- [ ] 最大迭代次数
-- [ ] 边界情况
-
----
-
-## 📞 获取帮助
-
-如果遇到问题：
-1. 检查后端日志（`RUST_LOG=debug`）
-2. 查看文档（`docs/architecture/`）
-3. 参考实现总结（`IMPLEMENTATION_SESSION_COMPLETE.md`）
+### P2 - Can Test (Non-critical)
+- [ ] Deprecation warnings
+- [ ] Maximum iteration count
+- [ ] Boundary cases
 
 ---
 
-## ✨ 测试完成后
+## 📞 Getting Help
 
-完成测试后：
-1. 记录测试结果
-2. 创建 issue 跟踪失败的测试
-3. 更新文档（如有需要）
-4. 准备下一阶段工作
+If you encounter issues:
+1. Check backend logs (`RUST_LOG=debug`)
+2. View documentation (`docs/architecture/`)
+3. Reference implementation summary (`IMPLEMENTATION_SESSION_COMPLETE.md`)
+
+---
+
+## ✨ After Testing
+
+After completing tests:
+1. Record test results
+2. Create issue to track failed tests
+3. Update documentation (if needed)
+4. Prepare for next phase work
 
 ---
 

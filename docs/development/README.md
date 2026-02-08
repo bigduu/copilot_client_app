@@ -1,22 +1,22 @@
-# 开发指南
+# Development Guide
 
-本目录包含项目开发相关的指南和规范文档。
+This directory contains guides and standards related to project development.
 
-## 📋 文档列表
+## 📋 Document List
 
-- [`STYLING_GUIDELINES.md`](./STYLING_GUIDELINES.md) - 代码样式和格式规范指南
+- [`STYLING_GUIDELINES.md`](./STYLING_GUIDELINES.md) - Code styling and formatting guidelines
 
-### 🧩 组件文档
+### 🧩 Component Documentation
 
-- [`components/SystemPromptSelector.md`](./components/SystemPromptSelector.md) - SystemPromptSelector 组件使用指南
+- [`components/SystemPromptSelector.md`](./components/SystemPromptSelector.md) - SystemPromptSelector component usage guide
 
-## 📖 使用说明
+## 📖 Usage Instructions
 
-这些文档为开发团队提供了统一的开发标准和最佳实践。建议所有开发人员在开始贡献代码前仔细阅读相关指南。
+These documents provide unified development standards and best practices for the development team. It is recommended that all developers read the relevant guidelines carefully before contributing code.
 
-## 🔄 维护
+## 🔄 Maintenance
 
-如需添加新的开发指南或更新现有文档，请确保：
-- 遵循项目的文档格式标准
-- 保持内容清晰、简洁
-- 及时更新本 README 文件的文档列表
+When adding new development guides or updating existing documents, please ensure:
+- Follow the project's documentation format standards
+- Keep content clear and concise
+- Update the document list in this README file in a timely manner

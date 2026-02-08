@@ -1,31 +1,31 @@
 # System Prompt Persistence - Implementation Status
 
-## 已完成的工作 ✅
+## Completed Work ✅
 
-### 1. 数据结构定义 (100%)
+### 1. Data Structure Definition (100%)
 
-**文件**: `crates/context_manager/src/structs/system_prompt_snapshot.rs`
+**File**: `crates/context_manager/src/structs/system_prompt_snapshot.rs`
 
-- ✅ `SystemPromptSnapshot` - 主快照结构
-- ✅ `PromptSource` - 提示来源枚举
-- ✅ `PromptFragmentInfo` - 片段信息（可选）
-- ✅ `PromptStats` - 统计信息
-- ✅ 辅助方法和单元测试
+- ✅ `SystemPromptSnapshot` - Main snapshot structure
+- ✅ `PromptSource` - Prompt source enumeration
+- ✅ `PromptFragmentInfo` - Fragment information (optional)
+- ✅ `PromptStats` - Statistics information
+- ✅ Helper methods and unit tests
 
-**特点**:
-- 包含版本号、时间戳、上下文ID
-- 记录代理角色和工具列表
-- 支持序列化/反序列化
-- 包含完整的增强 system prompt
+**Features**:
+- Includes version number, timestamp, context ID
+- Records agent role and tool list
+- Supports serialization/deserialization
+- Contains complete enhanced system prompt
 
-### 2. 存储接口扩展 (100%)
+### 2. Storage Interface Extension (100%)
 
-**文件**: `crates/web_service/src/storage/provider.rs`
+**File**: `crates/web_service/src/storage/provider.rs`
 
-- ✅ `save_system_prompt_snapshot()` - 保存快照
-- ✅ `load_system_prompt_snapshot()` - 加载快照
+- ✅ `save_system_prompt_snapshot()` - Save snapshot
+- ✅ `load_system_prompt_snapshot()` - Load snapshot
 
-**改动**:
+**Changes**:
 ```rust
 /// Save system prompt snapshot for debugging and tracing
 async fn save_system_prompt_snapshot(
@@ -41,19 +41,19 @@ async fn load_system_prompt_snapshot(
 ) -> Result<Option<SystemPromptSnapshot>>;
 ```
 
-## 待完成的工作 ⏳
+## Pending Work ⏳
 
-### 3. MessagePoolStorageProvider 实现 (0%)
+### 3. MessagePoolStorageProvider Implementation (0%)
 
-**文件**: `crates/web_service/src/storage/message_pool_provider.rs`
+**File**: `crates/web_service/src/storage/message_pool_provider.rs`
 
-**需要添加**:
+**To Add**:
 
 ```rust
 #[async_trait]
 impl StorageProvider for MessagePoolStorageProvider {
-    // ... 现有方法 ...
-    
+    // ... existing methods ...
+
     async fn save_system_prompt_snapshot(
         &self,
         context_id: Uuid,
@@ -61,54 +61,54 @@ impl StorageProvider for MessagePoolStorageProvider {
     ) -> Result<()> {
         let context_dir = self.get_context_dir(context_id);
         let snapshot_path = context_dir.join("system_prompt.json");
-        
-        // 序列化并写入文件
+
+        // Serialize and write to file
         let json = serde_json::to_string_pretty(snapshot)
             .map_err(|e| AppError::SerializationError(e.to_string()))?;
-        
+
         tokio::fs::write(&snapshot_path, json)
             .await
             .map_err(|e| AppError::IoError(e.to_string()))?;
-        
+
         tracing::debug!(
             context_id = %context_id,
             version = snapshot.version,
             "Saved system prompt snapshot"
         );
-        
+
         Ok(())
     }
-    
+
     async fn load_system_prompt_snapshot(
         &self,
         context_id: Uuid,
     ) -> Result<Option<SystemPromptSnapshot>> {
         let context_dir = self.get_context_dir(context_id);
         let snapshot_path = context_dir.join("system_prompt.json");
-        
+
         if !snapshot_path.exists() {
             return Ok(None);
         }
-        
+
         let json = tokio::fs::read_to_string(&snapshot_path)
             .await
             .map_err(|e| AppError::IoError(e.to_string()))?;
-        
+
         let snapshot: SystemPromptSnapshot = serde_json::from_str(&json)
             .map_err(|e| AppError::SerializationError(e.to_string()))?;
-        
+
         Ok(Some(snapshot))
     }
 }
 ```
 
-**预计时间**: 30 分钟
+**Estimated Time**: 30 minutes
 
-### 4. MemoryStorageProvider 实现 (0%)
+### 4. MemoryStorageProvider Implementation (0%)
 
-**文件**: `crates/web_service/src/storage/memory_provider.rs`
+**File**: `crates/web_service/src/storage/memory_provider.rs`
 
-**需要添加**:
+**To Add**:
 
 ```rust
 use std::collections::HashMap;
@@ -117,22 +117,22 @@ use tokio::sync::RwLock;
 
 pub struct MemoryStorageProvider {
     contexts: Arc<RwLock<HashMap<Uuid, ChatContext>>>,
-    snapshots: Arc<RwLock<HashMap<Uuid, SystemPromptSnapshot>>>, // 新增
+    snapshots: Arc<RwLock<HashMap<Uuid, SystemPromptSnapshot>>>, // New
 }
 
 impl MemoryStorageProvider {
     pub fn new() -> Self {
         Self {
             contexts: Arc::new(RwLock::new(HashMap::new())),
-            snapshots: Arc::new(RwLock::new(HashMap::new())), // 新增
+            snapshots: Arc::new(RwLock::new(HashMap::new())), // New
         }
     }
 }
 
 #[async_trait]
 impl StorageProvider for MemoryStorageProvider {
-    // ... 现有方法 ...
-    
+    // ... existing methods ...
+
     async fn save_system_prompt_snapshot(
         &self,
         context_id: Uuid,
@@ -142,7 +142,7 @@ impl StorageProvider for MemoryStorageProvider {
         snapshots.insert(context_id, snapshot.clone());
         Ok(())
     }
-    
+
     async fn load_system_prompt_snapshot(
         &self,
         context_id: Uuid,
@@ -153,15 +153,15 @@ impl StorageProvider for MemoryStorageProvider {
 }
 ```
 
-**预计时间**: 15 分钟
+**Estimated Time**: 15 minutes
 
-### 5. LlmRequestBuilder 集成 (0%)
+### 5. LlmRequestBuilder Integration (0%)
 
-**文件**: `crates/web_service/src/services/llm_request_builder.rs`
+**File**: `crates/web_service/src/services/llm_request_builder.rs`
 
-**需要修改**:
+**Required Changes**:
 
-1. 添加导入:
+1. Add imports:
 ```rust
 use context_manager::structs::system_prompt_snapshot::{
     SystemPromptSnapshot, PromptSource, PromptStats
@@ -169,29 +169,29 @@ use context_manager::structs::system_prompt_snapshot::{
 use chrono::Utc;
 ```
 
-2. 修改 `build()` 方法签名和实现:
+2. Modify `build()` method signature and implementation:
 ```rust
 pub async fn build(
     &self,
     context: &Arc<RwLock<ChatContext>>,
-    storage: &Arc<dyn StorageProvider>, // 新增参数
+    storage: &Arc<dyn StorageProvider>, // New parameter
 ) -> Result<BuiltLlmRequest, AppError> {
     let prepared = {
         let mut context_lock = context.write().await;
         context_lock.prepare_llm_request_async().await
     };
-    
-    // ... 现有的 system prompt 处理逻辑 ...
-    
-    // 生成并保存快照
+
+    // ... existing system prompt processing logic ...
+
+    // Generate and save snapshot
     if let Some(ref enhanced) = prepared.enhanced_system_prompt {
         let snapshot = self.create_snapshot(
             &context.read().await,
             &prepared,
             enhanced,
         ).await;
-        
-        // 异步保存，不阻塞主流程
+
+        // Save asynchronously without blocking main flow
         let storage_clone = storage.clone();
         let snapshot_clone = snapshot.clone();
         tokio::spawn(async move {
@@ -203,12 +203,12 @@ pub async fn build(
             }
         });
     }
-    
-    // ... 其余代码 ...
+
+    // ... remaining code ...
 }
 ```
 
-3. 添加辅助方法:
+3. Add helper method:
 ```rust
 impl LlmRequestBuilder {
     async fn create_snapshot(
@@ -217,10 +217,10 @@ impl LlmRequestBuilder {
         prepared: &PreparedLlmRequest,
         enhanced_prompt: &str,
     ) -> SystemPromptSnapshot {
-        // 获取版本号（暂时使用简单递增）
-        let version = 1; // TODO: 实现版本管理
-        
-        // 确定 prompt 来源
+        // Get version number (using simple increment for now)
+        let version = 1; // TODO: Implement version management
+
+        // Determine prompt source
         let base_prompt_source = if prepared.branch_system_prompt.is_some() {
             PromptSource::Branch {
                 branch_name: prepared.branch_name.clone(),
@@ -232,14 +232,14 @@ impl LlmRequestBuilder {
         } else {
             PromptSource::Default
         };
-        
-        // 收集工具列表
+
+        // Collect tool list
         let available_tools: Vec<String> = prepared
             .available_tools
             .iter()
             .map(|t| t.name.clone())
             .collect();
-        
+
         SystemPromptSnapshot::new(
             version,
             context.id,
@@ -252,13 +252,13 @@ impl LlmRequestBuilder {
 }
 ```
 
-**预计时间**: 45 分钟
+**Estimated Time**: 45 minutes
 
-### 6. 更新 ChatService 调用 (0%)
+### 6. Update ChatService Call (0%)
 
-**文件**: `crates/web_service/src/services/chat_service.rs`
+**File**: `crates/web_service/src/services/chat_service.rs`
 
-**需要修改**:
+**Required Changes**:
 
 ```rust
 impl<T: StorageProvider + 'static> ChatService<T> {
@@ -266,33 +266,33 @@ impl<T: StorageProvider + 'static> ChatService<T> {
         &mut self,
         context: &Arc<RwLock<ChatContext>>,
     ) -> Result<...> {
-        // 获取 storage 引用
+        // Get storage reference
         let storage = self.session_manager.storage.clone();
-        
-        // 构建请求时传入 storage
+
+        // Pass storage when building request
         let built_request = self.llm_request_builder
-            .build(context, &storage) // 添加 storage 参数
+            .build(context, &storage) // Add storage parameter
             .await?;
-        
-        // ... 其余代码 ...
+
+        // ... remaining code ...
     }
 }
 ```
 
-**注意**: 需要在 `ChatSessionManager` 中暴露 `storage` 字段。
+**Note**: Need to expose `storage` field in `ChatSessionManager`.
 
-**预计时间**: 15 分钟
+**Estimated Time**: 15 minutes
 
-### 7. 添加 SessionManager 的 storage 访问器 (0%)
+### 7. Add SessionManager Storage Accessor (0%)
 
-**文件**: `crates/web_service/src/services/session_manager.rs`
+**File**: `crates/web_service/src/services/session_manager.rs`
 
-**需要添加**:
+**To Add**:
 
 ```rust
 impl<T: StorageProvider> ChatSessionManager<T> {
-    // ... 现有方法 ...
-    
+    // ... existing methods ...
+
     /// Get a reference to the storage provider
     pub fn storage(&self) -> &Arc<T> {
         &self.storage
@@ -300,107 +300,107 @@ impl<T: StorageProvider> ChatSessionManager<T> {
 }
 ```
 
-**预计时间**: 5 分钟
+**Estimated Time**: 5 minutes
 
-## 测试计划
+## Test Plan
 
-### 单元测试
+### Unit Tests
 
-1. **SystemPromptSnapshot 测试** ✅
-   - 已在 `system_prompt_snapshot.rs` 中实现
-   - 测试序列化/反序列化
-   - 测试创建和预览
+1. **SystemPromptSnapshot Tests** ✅
+   - Implemented in `system_prompt_snapshot.rs`
+   - Test serialization/deserialization
+   - Test creation and preview
 
-2. **存储测试** ⏳
-   - 测试保存和加载快照
-   - 测试不存在的快照返回 None
-   - 测试序列化错误处理
+2. **Storage Tests** ⏳
+   - Test save and load snapshot
+   - Test non-existent snapshot returns None
+   - Test serialization error handling
 
-### 集成测试
+### Integration Tests
 
-1. **端到端测试** ⏳
-   - 创建 context
-   - 发送消息
-   - 验证 `system_prompt.json` 文件创建
-   - 验证内容正确性
+1. **End-to-End Tests** ⏳
+   - Create context
+   - Send message
+   - Verify `system_prompt.json` file creation
+   - Verify content correctness
 
-2. **版本测试** ⏳
-   - 多次发送消息
-   - 验证版本号递增
+2. **Version Tests** ⏳
+   - Send multiple messages
+   - Verify version number increments
 
-## 剩余工作总时间估算
+## Total Remaining Work Time Estimate
 
-- MessagePoolStorageProvider 实现: 30分钟
-- MemoryStorageProvider 实现: 15分钟
-- LlmRequestBuilder 集成: 45分钟
-- ChatService 更新: 15分钟
-- SessionManager 访问器: 5分钟
-- 测试: 30分钟
+- MessagePoolStorageProvider implementation: 30 minutes
+- MemoryStorageProvider implementation: 15 minutes
+- LlmRequestBuilder integration: 45 minutes
+- ChatService update: 15 minutes
+- SessionManager accessor: 5 minutes
+- Testing: 30 minutes
 
-**总计**: 约 2.5 小时
+**Total**: Approximately 2.5 hours
 
-## 下一步建议
+## Next Steps Recommendations
 
-### 选项 1: 继续实施
-按照上面的顺序完成剩余步骤 3-7。
+### Option 1: Continue Implementation
+Complete remaining steps 3-7 in the order above.
 
-### 选项 2: 最小验证
-只实现 MessagePoolStorageProvider 和 LlmRequestBuilder 集成，快速验证功能。
+### Option 2: Minimal Validation
+Only implement MessagePoolStorageProvider and LlmRequestBuilder integration to quickly validate functionality.
 
-### 选项 3: 分阶段进行
-1. 先完成存储实现（步骤 3-4）
-2. 测试存储功能
-3. 再集成到 LlmRequestBuilder（步骤 5-7）
+### Option 3: Phased Approach
+1. Complete storage implementation first (steps 3-4)
+2. Test storage functionality
+3. Then integrate into LlmRequestBuilder (steps 5-7)
 
-## 已创建的文件
+## Created Files
 
-1. ✅ `/crates/context_manager/src/structs/system_prompt_snapshot.rs` - 数据结构
-2. ✅ `/docs/architecture/SYSTEM_PROMPT_PERSISTENCE_DESIGN.md` - 设计文档
-3. ✅ `/docs/architecture/SYSTEM_PROMPT_IMPLEMENTATION_STATUS.md` - 本文档
+1. ✅ `/crates/context_manager/src/structs/system_prompt_snapshot.rs` - Data structure
+2. ✅ `/docs/architecture/SYSTEM_PROMPT_PERSISTENCE_DESIGN.md` - Design document
+3. ✅ `/docs/architecture/SYSTEM_PROMPT_IMPLEMENTATION_STATUS.md` - This document
 
-## 依赖关系
+## Dependencies
 
 ```
-SystemPromptSnapshot (完成)
+SystemPromptSnapshot (completed)
     ↓
-StorageProvider trait (完成)
+StorageProvider trait (completed)
     ↓
-MessagePoolStorageProvider impl (待完成)
+MessagePoolStorageProvider impl (pending)
     ↓
-LlmRequestBuilder integration (待完成)
+LlmRequestBuilder integration (pending)
     ↓
-ChatService update (待完成)
+ChatService update (pending)
     ↓
-测试验证 (待完成)
+Testing validation (pending)
 ```
 
-## 验证清单
+## Verification Checklist
 
-完成后需要验证：
+After completion, verify:
 
-- [ ] `data/contexts/{context_id}/system_prompt.json` 文件创建
-- [ ] JSON 格式正确且可读
-- [ ] `enhanced_prompt` 字段包含完整内容
-- [ ] `available_tools` 列表正确
-- [ ] 版本号正确递增
-- [ ] 时间戳准确
-- [ ] 代理角色正确记录
-- [ ] 不影响现有功能（保存失败不阻塞）
+- [ ] `data/contexts/{context_id}/system_prompt.json` file created
+- [ ] JSON format is correct and readable
+- [ ] `enhanced_prompt` field contains complete content
+- [ ] `available_tools` list is correct
+- [ ] Version number increments correctly
+- [ ] Timestamp is accurate
+- [ ] Agent role is correctly recorded
+- [ ] Does not affect existing functionality (save failure does not block)
 
-## 使用示例
+## Usage Examples
 
-完成后，你可以：
+After completion, you can:
 
 ```bash
-# 发送一条消息后
+# After sending a message
 cat data/contexts/091a3d54-f001-4d1e-b0f8-2d152c5ba7d5/system_prompt.json
 
-# 查看完整的 system prompt
+# View complete system prompt
 jq '.enhanced_prompt' system_prompt.json
 
-# 查看工具列表
+# View tool list
 jq '.available_tools' system_prompt.json
 
-# 查看统计信息
+# View statistics
 jq '.stats' system_prompt.json
 ```

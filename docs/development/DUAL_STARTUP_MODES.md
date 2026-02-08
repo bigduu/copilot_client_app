@@ -1,64 +1,64 @@
-# 双重启动模式说明
+# Dual Startup Modes Guide
 
-本项目支持两种启动模式，以适应不同的开发需求。
+This project supports two startup modes to accommodate different development needs.
 
-## 集成模式 (默认)
+## Integrated Mode (Default)
 
-这是最简单、最推荐的开发方式。通过单个命令，可以同时启动 Tauri 应用和后端的 Web 服务。Tauri 会在后台自动管理后端服务的生命周期。
+This is the simplest and most recommended development approach. With a single command, you can start both the Tauri application and the backend web service simultaneously. Tauri will automatically manage the backend service lifecycle in the background.
 
-**启动命令:**
+**Startup Command:**
 ```bash
 npm run tauri dev
 ```
 
-## 独立模式 (前后端分离)
+## Standalone Mode (Frontend/Backend Separation)
 
-此模式适用于需要独立调试前端或后端的场景，例如：
-- 专注于前端 UI 开发，不希望每次都重新编译整个 Tauri 应用。
-- 对后端 API 进行单独的测试或开发。
+This mode is suitable for scenarios where you need to debug the frontend or backend independently, such as:
+- Focusing on frontend UI development without recompiling the entire Tauri application each time.
+- Testing or developing backend APIs separately.
 
-在这种模式下，你需要分别启动后端服务和前端开发服务器。
+In this mode, you need to start the backend service and frontend development server separately.
 
-**1. 启动后端服务:**
-在项目根目录运行以下命令：
+**1. Start Backend Service:**
+Run the following command in the project root directory:
 ```bash
 cargo run --package web_service_standalone
 ```
 
-#### 无头模式（不自动打开浏览器）
+#### Headless Mode (Don't Auto-Open Browser)
 
-在无头环境（远程服务器/CI/纯终端）下，可以开启无头模式。此时登录会把 `verification_url` 和 `user_code` 打印到终端，手动复制到浏览器完成授权。
+In headless environments (remote servers/CI/pure terminal), you can enable headless mode. During login, the `verification_url` and `user_code` will be printed to the terminal, which you can manually copy to a browser to complete authorization.
 
 ```bash
 cargo run --package web_service_standalone -- --headless
 ```
 
-或使用环境变量：
+Or using environment variables:
 
 ```bash
 COPILOT_CHAT_HEADLESS=1 cargo run --package web_service_standalone
 ```
 
-#### 端口配置
+#### Port Configuration
 
-推荐通过在项目根目录创建 `.env` 文件来配置端口。`web_service_standalone` 程序在启动时会自动加载此文件。
+It's recommended to configure ports by creating a `.env` file in the project root directory. The `web_service_standalone` program will automatically load this file on startup.
 
-例如，要将端口设置为 `8000`，请创建 `.env` 文件并添加以下内容：
+For example, to set the port to `8000`, create a `.env` file and add the following content:
 ```dotenv
 APP_PORT=8000
 ```
 
-如果未进行配置，服务将默认在 `8080` 端口启动。
+If not configured, the service will start on port `8080` by default.
 
-作为替代或覆盖 `.env` 文件中设置的方式，你仍然可以直接使用环境变量来指定端口。这种方式的优先级更高。
+As an alternative or to override settings in the `.env` file, you can also use environment variables directly to specify the port. This method has higher priority.
 ```bash
 APP_PORT=8000 cargo run --package web_service_standalone
 ```
 
-**2. 启动前端开发服务器:**
-在另一个终端中，运行以下命令：
+**2. Start Frontend Development Server:**
+In another terminal, run the following command:
 ```bash
 npm run dev
 ```
 
-**注意**: 在独立模式下，前端应用将自动连接到本地运行的后端服务。
+**Note**: In standalone mode, the frontend application will automatically connect to the locally running backend service.

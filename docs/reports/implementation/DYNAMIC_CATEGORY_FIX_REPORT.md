@@ -1,45 +1,45 @@
-# 前端硬编码修复报告 - 实现完全动态的类别类型系统
+# Frontend Hardcode Fix Report - Implementing a Fully Dynamic Category Type System
 
-## 修复概述
+## Fix Overview
 
-成功移除了前端的所有硬编码类别类型定义，实现了完全动态的类别类型系统。现在前端完全依赖后端传来的字符串值，真正实现了"前端不能有任何hardcode定义"的核心原则。
+Successfully removed all hardcoded category type definitions from the frontend, implementing a fully dynamic category type system. The frontend now relies entirely on string values passed from the backend, truly achieving the core principle of "no hardcode definitions in the frontend."
 
-## 核心原则验证
+## Core Principle Verification
 
-✅ **1. tools 注册到 tool_category 里面** - 后端管理  
-✅ **2. tool_category 暴露给前端** - 后端API提供  
-✅ **3. 前端只负责解析tool_categories然后展示** - 完全实现  
-✅ **4. 后端可以离线控制发行版功能** - 后端枚举控制  
-✅ **5. 前端不能有任何hardcode定义** - **已修复！**
+✅ **1. Tools registered within tool_category** - Backend managed
+✅ **2. tool_category exposed to frontend** - Backend API provided
+✅ **3. Frontend only parses and displays tool_categories** - Fully implemented
+✅ **4. Backend can control release features offline** - Backend enum controlled
+✅ **5. Frontend cannot have any hardcode definitions** - **Fixed!**
 
-## 修复的文件清单
+## List of Fixed Files
 
 ### 1. `src/types/toolCategory.ts`
-**修复前**：
+**Before Fix:**
 ```typescript
 export type CategoryType =
   | "FileOperations"
-  | "CommandExecution" 
+  | "CommandExecution"
   | "GeneralAssistant";
 
 export interface ToolCategoryInfo {
   // ...
-  category_type: CategoryType; // 硬编码枚举类型
+  category_type: CategoryType; // hardcoded enum type
 }
 ```
 
-**修复后**：
+**After Fix:**
 ```typescript
-// 移除了硬编码的 CategoryType 枚举
+// Removed hardcoded CategoryType enum
 
 export interface ToolCategoryInfo {
   // ...
-  category_type: string; // 完全由后端控制，不再硬编码类型
+  category_type: string; // fully controlled by backend, no longer hardcoded type
 }
 ```
 
 ### 2. `src/types/toolConfig.ts`
-**修复前**：
+**Before Fix:**
 ```typescript
 getCategoryDisplayName(categoryId: string): string {
   switch (categoryId) {
@@ -51,30 +51,30 @@ getCategoryDisplayName(categoryId: string): string {
 }
 ```
 
-**修复后**：
+**After Fix:**
 ```typescript
 getCategoryDisplayName(categoryId: string, categoriesData?: ToolCategoryInfo[]): string {
-  // 优先从后端数据获取显示名称
+  // Priority: get display name from backend data
   if (categoriesData) {
     const category = categoriesData.find(cat => cat.id === categoryId);
     if (category) {
       return category.name || category.id;
     }
   }
-  
-  // 如果后端数据不可用，提供基本的默认映射（但不限制类型）
+
+  // If backend data is unavailable, provide basic default mapping (but don't restrict types)
   const defaultNames: Record<string, string> = {
     "file_operations": "文件操作",
-    "command_execution": "命令执行", 
+    "command_execution": "命令执行",
     "general_assistant": "通用助手"
   };
-  
-  return defaultNames[categoryId] || categoryId; // 直接返回 ID 作为回退
+
+  return defaultNames[categoryId] || categoryId; // return ID directly as fallback
 }
 ```
 
 ### 3. `src/components/SystemPromptSelector/index.tsx`
-**修复前**：
+**Before Fix:**
 ```typescript
 const getCategoryIcon = (category: string): React.ReactNode => {
   switch (category) {
@@ -86,9 +86,9 @@ const getCategoryIcon = (category: string): React.ReactNode => {
 };
 ```
 
-**修复后**：
+**After Fix:**
 ```typescript
-// 动态图标映射配置 - 可以通过配置扩展，不再硬编码
+// Dynamic icon mapping configuration - can be extended via config, no longer hardcoded
 const defaultIconMap: Record<string, React.ReactNode> = {
   "file_operations": <FileTextOutlined />,
   "command_execution": <PlayCircleOutlined />,
@@ -96,12 +96,12 @@ const defaultIconMap: Record<string, React.ReactNode> = {
 };
 
 const getCategoryIcon = (category: string) => {
-  return defaultIconMap[category] || <ToolOutlined />; // 使用默认图标作为回退
+  return defaultIconMap[category] || <ToolOutlined />; // use default icon as fallback
 };
 ```
 
 ### 4. `src/components/SystemPromptModal/index.tsx`
-**修复前**：
+**Before Fix:**
 ```typescript
 const getCategoryIcon = (category: string): React.ReactNode => {
   switch (category) {
@@ -113,9 +113,9 @@ const getCategoryIcon = (category: string): React.ReactNode => {
 };
 ```
 
-**修复后**：
+**After Fix:**
 ```typescript
-// 动态图标映射配置 - 可以通过配置扩展，不再硬编码
+// Dynamic icon mapping configuration - can be extended via config, no longer hardcoded
 const defaultIconMap: Record<string, React.ReactNode> = {
   "file_operations": <FileTextOutlined />,
   "command_execution": <PlayCircleOutlined />,
@@ -123,159 +123,159 @@ const defaultIconMap: Record<string, React.ReactNode> = {
 };
 
 const getCategoryIcon = (category: string) => {
-  return defaultIconMap[category] || <ToolOutlined />; // 使用默认图标作为回退
+  return defaultIconMap[category] || <ToolOutlined />; // use default icon as fallback
 };
 ```
 
 ### 5. `src/utils/testStrictMode.ts`
-**修复前**：
+**Before Fix:**
 ```typescript
-category_type: 'GeneralAssistant', // 硬编码枚举值
+category_type: 'GeneralAssistant', // hardcoded enum value
 ```
 
-**修复后**：
+**After Fix:**
 ```typescript
-category_type: 'general_assistant', // 使用后端的字符串格式，不再使用硬编码枚举
+category_type: 'general_assistant', // use backend string format, no longer using hardcoded enum
 ```
 
-## 新增功能
+## New Features
 
-### 动态类别配置管理器 (`src/utils/dynamicCategoryConfig.ts`)
+### Dynamic Category Configuration Manager (`src/utils/dynamicCategoryConfig.ts`)
 
-创建了一个完全动态的类别配置管理器，演示如何：
+Created a fully dynamic category configuration manager demonstrating how to:
 
-1. **完全动态处理新类别类型**
-2. **运行时注册新类别配置**
-3. **提供默认回退机制**
-4. **测试新类别类型的处理能力**
+1. **Fully dynamically handle new category types**
+2. **Register new category configurations at runtime**
+3. **Provide default fallback mechanisms**
+4. **Test processing capabilities for new category types**
 
-关键特性：
-- 支持任意新的类别类型字符串
-- 提供默认图标、颜色、显示名称的回退机制
-- 可以动态注册新类别的UI配置
-- 包含完整的测试用例
+Key Features:
+- Supports arbitrary new category type strings
+- Provides fallback mechanisms for default icons, colors, and display names
+- Can dynamically register UI configurations for new categories
+- Includes complete test cases
 
-## 验证测试
+## Verification Tests
 
-### 测试场景 1：现有类别类型
+### Test Scenario 1: Existing Category Types
 ```typescript
-// 这些类别类型正常工作
+// These category types work normally
 const existingTypes = [
-  'file_operations', 
-  'command_execution', 
+  'file_operations',
+  'command_execution',
   'general_assistant'
 ];
 ```
 
-### 测试场景 2：新增类别类型
+### Test Scenario 2: New Category Types
 ```typescript
-// 这些新类别类型可以自动处理
+// These new category types can be automatically handled
 const newTypes = [
-  'database_operations',  // 🗄️ 数据库操作
-  'network_operations',   // 🌐 网络操作  
-  'ai_services',          // 🧠 AI服务
-  'blockchain_operations', // 🆕 区块链操作
-  'iot_management',       // 🆕 物联网管理
-  'quantum_computing'     // 🆕 量子计算
+  'database_operations',  // 🗄️ Database Operations
+  'network_operations',   // 🌐 Network Operations
+  'ai_services',          // 🧠 AI Services
+  'blockchain_operations', // 🆕 Blockchain Operations
+  'iot_management',       // 🆕 IoT Management
+  'quantum_computing'     // 🆕 Quantum Computing
 ];
 ```
 
-### 测试场景 3：完全未知类别类型
+### Test Scenario 3: Completely Unknown Category Types
 ```typescript
-// 后端添加任何新类别类型，前端都能处理
+// Frontend can handle any new category type added by backend
 const unknownType = 'some_future_category_type';
-// 前端会：
-// 1. 使用默认图标 🔧
-// 2. 使用默认颜色 'default'  
-// 3. 显示原始类别ID或格式化名称
-// 4. 正常渲染UI，不会报错
+// Frontend will:
+// 1. Use default icon 🔧
+// 2. Use default color 'default'
+// 3. Display raw category ID or formatted name
+// 4. Render UI normally without errors
 ```
 
-## 关键改进
+## Key Improvements
 
-### 1. 移除硬编码限制
-- ❌ 删除了 `CategoryType` 枚举定义
-- ❌ 删除了所有 switch-case 硬编码逻辑
-- ✅ 改为配置驱动的动态映射
+### 1. Removed Hardcode Restrictions
+- ❌ Deleted `CategoryType` enum definition
+- ❌ Deleted all switch-case hardcoded logic
+- ✅ Changed to configuration-driven dynamic mapping
 
-### 2. 实现真正的零硬编码
-- ✅ `category_type` 字段现在是纯 `string` 类型
-- ✅ 前端完全依赖后端传来的字符串值
-- ✅ 新类别类型无需修改前端代码
+### 2. Achieved True Zero Hardcode
+- ✅ `category_type` field is now pure `string` type
+- ✅ Frontend fully relies on string values from backend
+- ✅ New category types require no frontend code changes
 
-### 3. 保持向后兼容
-- ✅ 现有的三种类别类型继续正常工作
-- ✅ UI渲染逻辑保持不变
-- ✅ 提供合理的默认回退机制
+### 3. Maintained Backward Compatibility
+- ✅ Existing three category types continue to work normally
+- ✅ UI rendering logic remains unchanged
+- ✅ Provides reasonable default fallback mechanisms
 
-### 4. 提升扩展性
-- ✅ 支持无限数量的新类别类型
-- ✅ 可以动态配置UI元素（图标、颜色、名称）
-- ✅ 包含完整的测试框架
+### 4. Enhanced Extensibility
+- ✅ Supports unlimited number of new category types
+- ✅ Can dynamically configure UI elements (icons, colors, names)
+- ✅ Includes complete testing framework
 
-## 验证结果
+## Verification Results
 
-### TypeScript 编译检查
+### TypeScript Compilation Check
 ```bash
 npx tsc --noEmit --skipLibCheck
-# ✅ 编译通过，无类型错误
+# ✅ Compilation passed, no type errors
 ```
 
-### 核心原则验证
-1. **后端增加新 category 时，前端代码零修改** ✅
-2. **前端完全依赖后端动态配置** ✅  
-3. **保持类型安全的同时实现动态性** ✅
-4. **测试验证添加新类别类型的场景** ✅
+### Core Principle Verification
+1. **When backend adds new category, frontend code requires zero changes** ✅
+2. **Frontend fully relies on backend dynamic configuration** ✅
+3. **Maintains type safety while achieving dynamic capability** ✅
+4. **Tests verify scenarios for adding new category types** ✅
 
-## 示例：添加新类别类型
+## Example: Adding a New Category Type
 
-假设后端添加了新的类别类型 `"video_processing"`：
+Assume backend adds a new category type `"video_processing"`:
 
-### 后端操作
+### Backend Operation
 ```rust
-// 后端只需要在 CategoryType 枚举中添加
+// Backend only needs to add to CategoryType enum
 pub enum CategoryType {
     FileOperations,
-    CommandExecution, 
+    CommandExecution,
     GeneralAssistant,
-    VideoProcessing,  // 新增！
+    VideoProcessing,  // New!
 }
 ```
 
-### 前端处理
+### Frontend Processing
 ```typescript
-// 前端自动处理，无需修改任何代码
+// Frontend automatically handles without any code changes
 const categoryInfo: ToolCategoryInfo = {
   // ...
-  category_type: "video_processing", // 后端传来的字符串
+  category_type: "video_processing", // string from backend
 };
 
-// UI 自动渲染：
-// - 图标: 🔧 (默认)
-// - 颜色: default
-// - 名称: "video_processing" 或 "Video Processing"
-// - 完全正常工作！
+// UI automatically renders:
+// - Icon: 🔧 (default)
+// - Color: default
+// - Name: "video_processing" or "Video Processing"
+// - Works completely normally!
 ```
 
-### 可选的UI优化
+### Optional UI Optimization
 ```typescript
-// 如果需要特殊的UI配置，可以动态注册
+// If special UI configuration is needed, can register dynamically
 dynamicCategoryManager.registerCategoryConfig(
   'video_processing',
-  '🎬', // 特定图标
-  'red', // 特定颜色  
-  '视频处理' // 中文名称
+  '🎬', // specific icon
+  'red', // specific color
+  '视频处理' // Chinese name
 );
 ```
 
-## 总结
+## Summary
 
-此次修复完全解决了前端硬编码问题，实现了真正的动态类别类型系统：
+This fix completely resolved the frontend hardcode issue, implementing a true dynamic category type system:
 
-✅ **移除了所有前端硬编码定义**  
-✅ **实现了完全动态的类别类型处理**  
-✅ **保证了后端增加新类别时前端零修改**  
-✅ **提供了完整的测试验证框架**  
-✅ **保持了向后兼容性和类型安全**  
+✅ **Removed all frontend hardcode definitions**
+✅ **Implemented fully dynamic category type handling**
+✅ **Ensured zero frontend modifications when backend adds new categories**
+✅ **Provided complete test verification framework**
+✅ **Maintained backward compatibility and type safety**
 
-现在系统完全符合"前端不能有任何hardcode定义"的核心原则，真正实现了后端驱动的动态配置架构。
+The system now fully complies with the core principle of "no hardcode definitions in the frontend," truly achieving a backend-driven dynamic configuration architecture.

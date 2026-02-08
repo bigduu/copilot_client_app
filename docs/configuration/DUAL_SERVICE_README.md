@@ -1,61 +1,61 @@
-# 双服务模式重构说明
+# Dual Service Mode Refactoring Guide
 
-## 概述
+## Overview
 
-本次重构实现了两种服务模式的支持：
-1. **OpenAI模式** - 使用标准的OpenAI API兼容接口 (默认)
-2. **Tauri模式** - 使用原有的Tauri命令方式
+This refactoring implements support for two service modes:
+1. **OpenAI Mode** - Uses standard OpenAI API-compatible interface (default)
+2. **Tauri Mode** - Uses the original Tauri command approach
 
-## 🎯 实现的功能
+## 🎯 Implemented Features
 
-### 后端 (Rust)
-- ✅ 保持现有Tauri Commands正常工作
-- ✅ 新增actix-web服务，提供OpenAI兼容API
-- ✅ 自动启动Web服务在`localhost:8080`
-- ✅ 支持流式和非流式响应
-- ✅ 支持图片消息处理
+### Backend (Rust)
+- ✅ Keep existing Tauri Commands working normally
+- ✅ Added actix-web service providing OpenAI-compatible API
+- ✅ Auto-start Web service on `localhost:8080`
+- ✅ Support streaming and non-streaming responses
+- ✅ Support image message processing
 
-### 前端 (TypeScript/React)
-- ✅ 抽象服务接口，支持两种实现
-- ✅ ServiceFactory管理服务切换
-- ✅ 系统设置中添加服务模式切换开关
-- ✅ 保持向后兼容性
+### Frontend (TypeScript/React)
+- ✅ Abstract service interface supporting both implementations
+- ✅ ServiceFactory manages service switching
+- ✅ Added service mode toggle switch in system settings
+- ✅ Maintain backward compatibility
 
-## 🔧 技术架构
+## 🔧 Technical Architecture
 
-### 服务抽象层
+### Service Abstraction Layer
 ```
 ServiceFactory
-├── ChatService (聊天功能)
-│   ├── TauriChatService (Tauri实现)
-│   └── OpenAIService (OpenAI API实现)
-├── ToolService (工具功能，仅Tauri)
-└── UtilityService (工具功能，仅Tauri)
+├── ChatService (chat functionality)
+│   ├── TauriChatService (Tauri implementation)
+│   └── OpenAIService (OpenAI API implementation)
+├── ToolService (tool functionality, Tauri only)
+└── UtilityService (utility functionality, Tauri only)
 ```
 
-### API端点 (OpenAI兼容)
-- `POST /v1/chat/completions` - 聊天完成接口
-- `GET /v1/models` - 获取可用模型
+### API Endpoints (OpenAI Compatible)
+- `POST /v1/chat/completions` - Chat completion endpoint
+- `GET /v1/models` - Get available models
 
-## 🚀 使用方式
+## 🚀 Usage
 
-### 方式1：OpenAI API模式 (默认)
+### Method 1: OpenAI API Mode (Default)
 ```javascript
-// 使用ServiceFactory (自动使用OpenAI模式)
+// Using ServiceFactory (automatically uses OpenAI mode)
 import { serviceFactory } from '../services/ServiceFactory';
 
 await serviceFactory.executePrompt(messages, model, onChunk);
 await serviceFactory.getModels();
 ```
 
-### 方式2：直接使用OpenAI库
+### Method 2: Using OpenAI Library Directly
 ```javascript
-// 使用标准OpenAI库
+// Using standard OpenAI library
 import OpenAI from 'openai';
 
 const client = new OpenAI({
   baseURL: 'http://localhost:8080/v1',
-  apiKey: 'dummy-key' // 不需要真实key
+  apiKey: 'dummy-key' // No real key needed
 });
 
 const response = await client.chat.completions.create({
@@ -65,54 +65,54 @@ const response = await client.chat.completions.create({
 });
 ```
 
-## ⚙️ 切换服务模式
+## ⚙️ Switching Service Modes
 
-**默认模式**: OpenAI API模式
+**Default Mode**: OpenAI API Mode
 
-### 切换步骤
-1. 打开系统设置 (Settings)
-2. 找到 "Service Mode" 开关
-3. 切换到 OpenAI 或 Tauri 模式
-4. 设置会自动保存到localStorage
+### Switching Steps
+1. Open system settings (Settings)
+2. Find the "Service Mode" toggle
+3. Switch to OpenAI or Tauri mode
+4. Settings are automatically saved to localStorage
 
-### 模式说明
-- **OpenAI模式** (默认): 使用HTTP API调用，兼容标准OpenAI客户端
-- **Tauri模式**: 使用原生Tauri命令，更直接的系统集成
+### Mode Descriptions
+- **OpenAI Mode** (default): Uses HTTP API calls, compatible with standard OpenAI clients
+- **Tauri Mode**: Uses native Tauri commands for more direct system integration
 
-## 🔄 数据流转
+## 🔄 Data Flow
 
-### OpenAI模式 (默认)
+### OpenAI Mode (Default)
 ```
-前端 → ServiceFactory → OpenAIService → HTTP请求 → actix-web → CopilotClient → GitHub Copilot API
-```
-
-### Tauri模式
-```
-前端 → ServiceFactory → TauriChatService → Tauri Command → CopilotClient → GitHub Copilot API
+Frontend → ServiceFactory → OpenAIService → HTTP Request → actix-web → CopilotClient → GitHub Copilot API
 ```
 
-## 📝 注意事项
+### Tauri Mode
+```
+Frontend → ServiceFactory → TauriChatService → Tauri Command → CopilotClient → GitHub Copilot API
+```
 
-1. **工具功能** - 目前仅在Tauri模式下可用，因为它们不是标准OpenAI API的一部分
-2. **自动启动** - Web服务在应用启动时自动启动，无需手动控制
-3. **向后兼容** - 现有代码无需修改，会自动使用ServiceFactory
-4. **错误处理** - 两种模式都有完整的错误处理和日志记录
+## 📝 Notes
 
-## 🛠️ 开发说明
+1. **Tool Functions** - Currently only available in Tauri mode, as they are not part of the standard OpenAI API
+2. **Auto-start** - Web service starts automatically when the app launches, no manual control needed
+3. **Backward Compatible** - Existing code requires no changes, will automatically use ServiceFactory
+4. **Error Handling** - Both modes have complete error handling and logging
 
-### 添加新的服务功能
-1. 在相应的Service接口中添加方法
-2. 在TauriService中实现Tauri版本
-3. 如果适用，在OpenAIService中实现OpenAI版本
-4. 在ServiceFactory中添加便捷方法
+## 🛠️ Development Notes
 
-### 测试
-- Tauri模式：使用现有的测试方法
-- OpenAI模式：可以使用任何支持OpenAI API的客户端测试
+### Adding New Service Features
+1. Add methods to the corresponding Service interface
+2. Implement Tauri version in TauriService
+3. If applicable, implement OpenAI version in OpenAIService
+4. Add convenience methods in ServiceFactory
 
-## 🎉 优势
+### Testing
+- Tauri Mode: Use existing testing methods
+- OpenAI Mode: Can test using any OpenAI API-compatible client
 
-1. **灵活性** - 支持两种不同的使用方式
-2. **兼容性** - 与现有OpenAI生态系统兼容
-3. **渐进式** - 可以逐步迁移到新模式
-4. **可扩展** - 易于添加更多服务实现
+## 🎉 Advantages
+
+1. **Flexibility** - Supports two different usage methods
+2. **Compatibility** - Compatible with the existing OpenAI ecosystem
+3. **Gradual Migration** - Can gradually migrate to the new mode
+4. **Extensible** - Easy to add more service implementations

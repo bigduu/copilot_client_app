@@ -1,75 +1,75 @@
-# 消息"卡住"问题修复报告
+# Message "Stuck" Issue Fix Report
 
-## 问题描述
+## Problem Description
 
-用户报告在发送消息后，消息显示"卡住"了。从日志中可以看到以下异常行为：
+Users reported that messages appeared "stuck" after sending. The following abnormal behavior was observed in the logs:
 
-### 前端日志异常
+### Frontend Log Anomalies
 ```
-chatInteractionMachine.ts:235 [ChatMachine] Entering IDLE state  (重复3次)
+chatInteractionMachine.ts:235 [ChatMachine] Entering IDLE state  (repeated 3 times)
 chatSessionSlice.ts:266 [ChatSlice] Skipping empty assistant message
 ```
 
-### 后端日志正常
-- Stream 正常完成
-- 消息正确保存
-- FSM 状态正常转换
+### Backend Logs Normal
+- Stream completed normally
+- Messages saved correctly
+- FSM state transitions normal
 
-## 根本原因分析
+## Root Cause Analysis
 
-经过调查，发现了以下几个关键问题：
+After investigation, several key issues were identified:
 
-### 1. 状态机重复初始化
-**位置**: `src/hooks/useChatManager.ts:82-113`
+### 1. State Machine Re-initialization
+**Location**: `src/hooks/useChatManager.ts:82-113`
 
-**问题**: `useMemo` 的依赖项包含了 `streamingMessageId` 和 `updateMessageContent`，导致每次这些值变化时，状态机都会重新创建。这导致状态机多次进入 IDLE 状态。
+**Issue**: The `useMemo` dependencies included `streamingMessageId` and `updateMessageContent`, causing the state machine to be recreated whenever these values changed. This caused the state machine to enter the IDLE state multiple times.
 
 ```typescript
-// ❌ 问题代码
+// ❌ Problematic code
 const providedChatMachine = useMemo(() => {
   return chatMachine.provide({
     actions: { ... }
   });
-}, [streamingMessageId, updateMessageContent]); // 依赖项导致频繁重建
+}, [streamingMessageId, updateMessageContent]); // Dependencies cause frequent rebuilds
 ```
 
-**修复**: 移除依赖项，状态机只在组件挂载时初始化一次。action 内部通过闭包访问最新的状态。
+**Fix**: Remove dependencies so the state machine initializes only once when the component mounts. Actions access the latest state through closures internally.
 
 ```typescript
-// ✅ 修复后
+// ✅ Fixed
 const providedChatMachine = useMemo(() => {
   return chatMachine.provide({
     actions: { ... }
   });
-}, []); // 只在组件挂载时初始化一次
+}, []); // Initialize only once when component mounts
 ```
 
-### 2. SSE 流中 onDone 被调用两次
-**位置**: `src/services/BackendContextService.ts:266-317`
+### 2. onDone Called Twice in SSE Stream
+**Location**: `src/services/BackendContextService.ts:266-317`
 
-**问题**: `sendMessageStream` 方法中，`onDone` 回调可能被调用两次：
-1. 当解析到 `parsed.done` 时调用一次
-2. 当 `while` 循环结束时再调用一次
+**Issue**: In the `sendMessageStream` method, the `onDone` callback could be called twice:
+1. Once when `parsed.done` is parsed
+2. Again when the `while` loop ends
 
 ```typescript
-// ❌ 问题代码
+// ❌ Problematic code
 while (true) {
-  // ... 处理消息
+  // ... process messages
   if (parsed.done) {
-    onDone();  // 第一次调用
+    onDone();  // First call
     return;
   }
 }
-onDone();  // 第二次调用（如果没有 return）
+onDone();  // Second call (if no return)
 ```
 
-**修复**: 添加 `streamCompleted` 标志，防止重复调用。
+**Fix**: Add a `streamCompleted` flag to prevent duplicate calls.
 
 ```typescript
-// ✅ 修复后
+// ✅ Fixed
 let streamCompleted = false;
 while (true) {
-  // ... 处理消息
+  // ... process messages
   if (parsed.done) {
     streamCompleted = true;
     onDone();
@@ -81,22 +81,22 @@ if (!streamCompleted) {
 }
 ```
 
-### 3. 陈旧闭包导致消息状态不一致
-**位置**: `src/hooks/useChatManager.ts:275-289`
+### 3. Stale Closure Causing Message State Inconsistency
+**Location**: `src/hooks/useChatManager.ts:275-289`
 
-**问题**: `onChunk` 回调中使用的 `baseMessages` 是在函数开始时捕获的，可能已经过时。每次调用 `setMessages` 会触发重新渲染，导致 `baseMessages` 变化，但 `onChunk` 回调中的 `baseMessages` 仍然是旧值。
+**Issue**: The `baseMessages` used in the `onChunk` callback were captured at the start of the function and may be outdated. Each call to `setMessages` triggers a re-render, causing `baseMessages` to change, but `baseMessages` in the `onChunk` callback remains the old value.
 
 ```typescript
-// ❌ 问题代码
+// ❌ Problematic code
 const sendMessage = useCallback(async (content: string) => {
-  // baseMessages 在这里被捕获
+  // baseMessages captured here
   const messages = [...baseMessages, userMessage, assistantMessage];
-  
+
   await backendService.sendMessageStream(
     chatId,
     content,
     (chunk: string) => {
-      // 使用陈旧的 baseMessages
+      // Using stale baseMessages
       const currentMessages = [...baseMessages, userMessage, updatedAssistant];
       setMessages(chatId, currentMessages);
     }
@@ -104,17 +104,17 @@ const sendMessage = useCallback(async (content: string) => {
 }, [baseMessages, ...]);
 ```
 
-**修复**: 在回调中从 store 实时获取最新的消息列表。
+**Fix**: Get the latest message list from the store in real-time within the callback.
 
 ```typescript
-// ✅ 修复后
+// ✅ Fixed
 (chunk: string) => {
   accumulatedContent += chunk;
   const updatedAssistantMessage = {
     ...assistantMessage,
     content: accumulatedContent,
   };
-  // 从 store 获取最新状态，避免陈旧闭包
+  // Get latest state from store to avoid stale closure
   const { chats } = useAppStore.getState();
   const currentChat = chats.find((c) => c.id === chatId);
   if (currentChat) {
@@ -126,32 +126,32 @@ const sendMessage = useCallback(async (content: string) => {
 }
 ```
 
-## 影响范围
+## Impact Scope
 
-这些问题可能导致以下用户可见的症状：
-1. 消息发送后 UI 没有更新或更新不完整
-2. 加载指示器没有消失
-3. 消息列表中出现重复或丢失的消息
-4. 状态机状态异常
+These issues could cause the following user-visible symptoms:
+1. UI not updating or updating incompletely after message sent
+2. Loading indicator not disappearing
+3. Duplicate or missing messages in the message list
+4. Abnormal state machine states
 
-## 测试建议
+## Testing Recommendations
 
-修复后，请测试以下场景：
-1. **基本消息发送**: 发送一条简单的消息，确认响应正常显示
-2. **长响应流式传输**: 发送一个需要长响应的问题，确认流式传输平滑
-3. **连续发送**: 快速连续发送多条消息，确认状态同步正常
-4. **切换对话**: 在流式传输过程中切换到另一个对话，确认状态正确重置
-5. **网络中断**: 模拟网络中断，确认错误处理正确
+After the fix, please test the following scenarios:
+1. **Basic message sending**: Send a simple message and confirm the response displays normally
+2. **Long response streaming**: Send a question requiring a long response and confirm smooth streaming
+3. **Continuous sending**: Quickly send multiple messages in succession and confirm state synchronization
+4. **Switching conversations**: Switch to another conversation during streaming and confirm state resets correctly
+5. **Network interruption**: Simulate network interruption and confirm proper error handling
 
-## 相关文件
+## Related Files
 
-- `src/hooks/useChatManager.ts` - 状态机初始化和消息发送逻辑
-- `src/services/BackendContextService.ts` - SSE 流处理
-- `src/store/slices/chatSessionSlice.ts` - 消息状态管理
+- `src/hooks/useChatManager.ts` - State machine initialization and message sending logic
+- `src/services/BackendContextService.ts` - SSE stream handling
+- `src/store/slices/chatSessionSlice.ts` - Message state management
 
-## 参考
+## References
 
-- 相关 Issue: 消息卡住问题
-- 修复日期: 2025-11-03
-- 修复人员: AI Assistant
+- Related Issue: Message stuck issue
+- Fix Date: 2025-11-03
+- Fixed By: AI Assistant
 

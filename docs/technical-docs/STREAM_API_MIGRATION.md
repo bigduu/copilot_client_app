@@ -1,72 +1,72 @@
-# 流式 API 未来升级指南
+# Streaming API Future Upgrade Guide
 
-**创建日期**: 2025-11-08  
-**状态**: 📋 可选升级（非必须）
-
----
-
-## 概述
-
-`chat_service.rs` 中使用的是**现有的稳定流式处理 API**，工作正常。Phase 1.5 实现了**新的 Signal-Pull 架构的流式 API**，提供了更多功能。两套 API 可以并存，迁移到新 API 是可选的架构升级，不是必须的清理工作。
+**Created Date**: 2025-11-08
+**Status**: 📋 Optional Upgrade (Not Required)
 
 ---
 
-## 旧 API vs 新 API 对比
+## Overview
 
-### 1. 开始流式响应
+The `chat_service.rs` uses the **existing stable streaming processing API**, which works correctly. Phase 1.5 implemented the **new Signal-Pull architecture streaming API**, providing more features. Both APIs can coexist, and migrating to the new API is an optional architectural upgrade, not a mandatory cleanup task.
 
-#### ❌ 旧 API (chat_service.rs 第 688 行)
+---
+
+## Old API vs New API Comparison
+
+### 1. Start Streaming Response
+
+#### ❌ Old API (chat_service.rs line 688)
 ```rust
-// 返回 (message_id, Vec<ContextUpdate>)
+// Returns (message_id, Vec<ContextUpdate>)
 let result = ctx.begin_streaming_response();
 let (message_id, _updates) = result;
 ```
 
-#### ✅ 新 API (Phase 1.5)
+#### ✅ New API (Phase 1.5)
 ```rust
-// 返回 message_id，内部处理状态转换
+// Returns message_id, handles state transition internally
 let message_id = ctx.begin_streaming_llm_response(Some("gpt-4".to_string()));
 ```
 
-**优势**:
-- 新 API 支持指定模型名称
-- 使用 `RichMessageType::StreamingResponse`
-- 自动创建 `StreamingResponseMsg` 和元数据
+**Advantages**:
+- New API supports specifying model name
+- Uses `RichMessageType::StreamingResponse`
+- Automatically creates `StreamingResponseMsg` and metadata
 
 ---
 
-### 2. 追加流式内容
+### 2. Append Streaming Content
 
-#### ❌ 旧 API (chat_service.rs 第 700 行)
+#### ❌ Old API (chat_service.rs line 700)
 ```rust
-// 返回 Option<(ContextUpdate, u64)>
+// Returns Option<(ContextUpdate, u64)>
 ctx.apply_streaming_delta(message_id, content.clone());
 ```
 
-#### ✅ 新 API (Phase 1.5)
+#### ✅ New API (Phase 1.5)
 ```rust
-// 返回 Option<u64> 序列号
+// Returns Option<u64> sequence number
 let sequence = ctx.append_streaming_chunk(message_id, content);
 ```
 
-**优势**:
-- 新 API 支持序列号追踪（Signal-Pull 核心）
-- 自动记录 `StreamChunk` 元数据
-- 支持增量内容拉取
+**Advantages**:
+- New API supports sequence number tracking (Signal-Pull core)
+- Automatically records `StreamChunk` metadata
+- Supports incremental content pulling
 
 ---
 
-### 3. 完成流式响应
+### 3. Complete Streaming Response
 
-#### ❌ 旧 API (chat_service.rs 第 736 行)
+#### ❌ Old API (chat_service.rs line 736)
 ```rust
-// 返回 Vec<ContextUpdate>
+// Returns Vec<ContextUpdate>
 let _updates = ctx.finish_streaming_response(message_id);
 ```
 
-#### ✅ 新 API (Phase 1.5)
+#### ✅ New API (Phase 1.5)
 ```rust
-// 返回 bool，支持完整元数据
+// Returns bool, supports complete metadata
 let finalized = ctx.finalize_streaming_response(
     message_id,
     Some("stop".to_string()),    // finish_reason
@@ -74,79 +74,79 @@ let finalized = ctx.finalize_streaming_response(
 );
 ```
 
-**优势**:
-- 新 API 支持 `finish_reason` 和 `usage` 统计
-- 自动计算流式元数据（duration, chunk intervals）
-- 保存 `StreamingMetadata` 到 `MessageMetadata`
+**Advantages**:
+- New API supports `finish_reason` and `usage` statistics
+- Automatically calculates streaming metadata (duration, chunk intervals)
+- Saves `StreamingMetadata` to `MessageMetadata`
 
 ---
 
-### 4. 中止流式响应
+### 4. Abort Streaming Response
 
-#### ❌ 旧 API (chat_service.rs 第 714 行)
+#### ❌ Old API (chat_service.rs line 714)
 ```rust
-// 返回 Vec<ContextUpdate>
+// Returns Vec<ContextUpdate>
 let _ = ctx.abort_streaming_response(
     message_id,
     format!("stream error: {}", e),
 );
 ```
 
-#### ✅ 新 API (Phase 1.5)
+#### ✅ New API (Phase 1.5)
 ```rust
-// 应该使用 finalize_streaming_response 并标记错误
+// Should use finalize_streaming_response with error marking
 let _ = ctx.finalize_streaming_response(
     message_id,
-    Some(format!("error: {}", e)),  // finish_reason 记录错误
-    None                             // 无 usage
+    Some(format!("error: {}", e)),  // finish_reason records error
+    None                             // no usage
 );
 ```
 
-**说明**: 新架构中没有单独的 `abort` 方法，错误通过 `finish_reason` 记录
+**Note**: The new architecture does not have a separate `abort` method; errors are recorded through `finish_reason`
 
 ---
 
-## 受影响的文件
+## Affected Files
 
 ### web_service/src/services/chat_service.rs
 
-**使用旧 API 的位置**:
+**Locations using old API**:
 
-1. **第 688 行** - `process_message` 方法
+1. **Line 688** - `process_message` method
    ```rust
    let result = ctx.begin_streaming_response();
    ```
 
-2. **第 700 行** - `process_message` 方法
+2. **Line 700** - `process_message` method
    ```rust
    ctx.apply_streaming_delta(message_id, content.clone());
    ```
 
-3. **第 714 行** - `process_message` 方法错误处理
+3. **Line 714** - `process_message` method error handling
    ```rust
    ctx.abort_streaming_response(message_id, format!("stream error: {}", e));
    ```
 
-4. **第 736 行** - `process_message` 方法完成
+4. **Line 736** - `process_message` method completion
    ```rust
    ctx.finish_streaming_response(message_id);
    ```
 
-**可能受影响的其他位置**:
-- `copilot_stream_handler.rs` - 可能也使用旧 API
-- `agent_loop_runner.rs` - 可能也使用旧 API
+**Other potentially affected locations**:
+- `copilot_stream_handler.rs` - may also use old API
+- `agent_loop_runner.rs` - may also use old API
 
 ---
 
-## 迁移步骤
+## Migration Steps
 
-### Phase 1: 迁移 chat_service.rs
+### Phase 1: Migrate chat_service.rs
 
-#### 1.1 修改 `begin_streaming_response` 调用
+#### 1.1 Modify `begin_streaming_response` call
 
-**位置**: 第 685-693 行
+**Location**: Lines 685-693
 
-**修改前**:
+**Before**:
 ```rust
 let (message_id, _) = {
     let mut ctx = context.write().await;
@@ -159,11 +159,11 @@ let (message_id, _) = {
 };
 ```
 
-**修改后**:
+**After**:
 ```rust
 let message_id = {
     let mut ctx = context.write().await;
-    // 使用新的 Phase 1.5 API
+    // Use new Phase 1.5 API
     let model = llm_request.prepared.model_id.clone();
     let message_id = ctx.begin_streaming_llm_response(Some(model));
     log::info!(
@@ -174,31 +174,31 @@ let message_id = {
 };
 ```
 
-#### 1.2 修改 `apply_streaming_delta` 调用
+#### 1.2 Modify `apply_streaming_delta` call
 
-**位置**: 第 698-701 行
+**Location**: Lines 698-701
 
-**修改前**:
+**Before**:
 ```rust
 let mut ctx = context.write().await;
 // apply_streaming_delta already updates state, no need for manual event
 ctx.apply_streaming_delta(message_id, content.clone());
 ```
 
-**修改后**:
+**After**:
 ```rust
 let mut ctx = context.write().await;
-// 使用新的 Phase 1.5 API，返回序列号
+// Use new Phase 1.5 API, returns sequence number
 if let Some(sequence) = ctx.append_streaming_chunk(message_id, content) {
     log::trace!("Appended chunk, sequence: {}", sequence);
 }
 ```
 
-#### 1.3 修改 `abort_streaming_response` 调用
+#### 1.3 Modify `abort_streaming_response` call
 
-**位置**: 第 712-717 行
+**Location**: Lines 712-717
 
-**修改前**:
+**Before**:
 ```rust
 let mut ctx = context.write().await;
 // abort_streaming_response already handles error state transition
@@ -208,23 +208,23 @@ let _ = ctx.abort_streaming_response(
 );
 ```
 
-**修改后**:
+**After**:
 ```rust
 let mut ctx = context.write().await;
-// 使用 finalize 标记错误
+// Use finalize to mark error
 let error_msg = format!("stream error: {}", e);
 ctx.finalize_streaming_response(
     message_id,
-    Some(error_msg),  // finish_reason 记录错误
-    None              // 没有 usage 数据
+    Some(error_msg),  // finish_reason records error
+    None              // no usage data
 );
 ```
 
-#### 1.4 修改 `finish_streaming_response` 调用
+#### 1.4 Modify `finish_streaming_response` call
 
-**位置**: 第 733-737 行
+**Location**: Lines 733-737
 
-**修改前**:
+**Before**:
 ```rust
 let mut ctx = context.write().await;
 // finish_streaming_response already handles state transitions:
@@ -233,36 +233,36 @@ let _ = ctx.finish_streaming_response(message_id);
 log::info!("FSM: Finished streaming response");
 ```
 
-**修改后**:
+**After**:
 ```rust
 let mut ctx = context.write().await;
-// 使用新的 Phase 1.5 API
-// TODO: 从 LLM 响应中提取 usage 信息
+// Use new Phase 1.5 API
+// TODO: Extract usage info from LLM response
 let finalized = ctx.finalize_streaming_response(
     message_id,
-    Some("stop".to_string()),  // 正常完成
-    None                        // TODO: 添加 usage
+    Some("stop".to_string()),  // normal completion
+    None                        // TODO: add usage
 );
 log::info!("FSM: Finished streaming response (finalized: {})", finalized);
 ```
 
 ---
 
-### Phase 2: 迁移其他服务
+### Phase 2: Migrate Other Services
 
-检查并迁移其他使用旧 API 的文件：
+Check and migrate other files using the old API:
 
 ```bash
-# 查找所有使用旧 API 的文件
+# Find all files using old API
 grep -r "begin_streaming_response\|apply_streaming_delta\|finish_streaming_response\|abort_streaming_response" \
   crates/web_service/src/services/
 ```
 
 ---
 
-### Phase 3: 废弃旧 API
+### Phase 3: Deprecate Old API
 
-在 `context_manager/src/structs/context_lifecycle.rs` 中标记旧 API 为废弃：
+Mark old API as deprecated in `context_manager/src/structs/context_lifecycle.rs`:
 
 ```rust
 #[deprecated(
@@ -310,32 +310,32 @@ where
 
 ---
 
-### Phase 4: 移除旧 API
+### Phase 4: Remove Old API
 
-在 v0.3.0 中完全移除这些废弃方法。
+Completely remove these deprecated methods in v0.3.0.
 
 ---
 
-## 新 API 的优势
+## New API Advantages
 
-### 1. Signal-Pull 架构支持
+### 1. Signal-Pull Architecture Support
 
-新 API 生成的 `StreamingResponse` 消息类型支持：
-- ✅ 序列号追踪（`StreamChunk.sequence`）
-- ✅ 增量内容拉取（`get_streaming_chunks_after`）
-- ✅ 前端自愈机制
+The new API's `StreamingResponse` message type supports:
+- ✅ Sequence number tracking (`StreamChunk.sequence`)
+- ✅ Incremental content pulling (`get_streaming_chunks_after`)
+- ✅ Frontend self-healing mechanism
 
 ### 2. Rich Message Types
 
-新 API 使用 `RichMessageType::StreamingResponse`，包含：
-- ✅ 完整的 chunks 历史
-- ✅ 时间戳和时长统计
-- ✅ 模型信息和 usage 统计
-- ✅ 每个 chunk 的间隔时间
+The new API uses `RichMessageType::StreamingResponse`, containing:
+- ✅ Complete chunks history
+- ✅ Timestamp and duration statistics
+- ✅ Model information and usage statistics
+- ✅ Interval time for each chunk
 
-### 3. 元数据完整性
+### 3. Metadata Completeness
 
-新 API 自动保存到 `MessageMetadata.streaming`：
+The new API automatically saves to `MessageMetadata.streaming`:
 - ✅ `chunks_count`
 - ✅ `started_at` / `completed_at`
 - ✅ `total_duration_ms`
@@ -343,74 +343,74 @@ where
 
 ---
 
-## 测试验证
+## Testing Verification
 
-迁移后需要验证的场景：
+Scenarios to verify after migration:
 
-### 1. 正常流式响应
-- [ ] LLM 流式响应完整接收
-- [ ] 序列号正确递增
-- [ ] 元数据正确保存
-- [ ] 状态转换正确
+### 1. Normal Streaming Response
+- [ ] LLM streaming response fully received
+- [ ] Sequence numbers increment correctly
+- [ ] Metadata saved correctly
+- [ ] State transitions correct
 
-### 2. 错误处理
-- [ ] 流式中断时正确 finalize
-- [ ] 错误信息记录在 finish_reason
-- [ ] 状态正确回到 Idle
+### 2. Error Handling
+- [ ] Correctly finalizes on streaming interruption
+- [ ] Error information recorded in finish_reason
+- [ ] State correctly returns to Idle
 
-### 3. 工具调用
-- [ ] 流式响应包含工具调用时正确解析
-- [ ] agent loop 正常触发
+### 3. Tool Calls
+- [ ] Correctly parses when streaming response contains tool calls
+- [ ] Agent loop triggers normally
 
-### 4. 存储持久化
-- [ ] StreamingResponse 消息正确保存
-- [ ] 从存储加载后 chunks 完整
-- [ ] 元数据完整保存
+### 4. Storage Persistence
+- [ ] StreamingResponse messages saved correctly
+- [ ] Chunks complete after loading from storage
+- [ ] Metadata fully saved
 
 ---
 
-## 时间表
+## Timeline
 
-| 阶段 | 任务 | 预计时间 | 状态 |
+| Phase | Task | Estimated Time | Status |
 |------|------|----------|------|
-| Phase 1 | 迁移 chat_service.rs | 1-2 小时 | 📅 待开始 |
-| Phase 2 | 迁移其他服务 | 1 小时 | 📅 待开始 |
-| Phase 3 | 标记旧 API 废弃 | 30 分钟 | 📅 待开始 |
-| Phase 4 | 测试验证 | 1 小时 | 📅 待开始 |
-| Phase 5 | 移除旧 API (v0.3.0) | - | 🔜 计划中 |
+| Phase 1 | Migrate chat_service.rs | 1-2 hours | 📅 Pending |
+| Phase 2 | Migrate other services | 1 hour | 📅 Pending |
+| Phase 3 | Mark old API as deprecated | 30 minutes | 📅 Pending |
+| Phase 4 | Testing verification | 1 hour | 📅 Pending |
+| Phase 5 | Remove old API (v0.3.0) | - | 🔜 Planned |
 
 ---
 
-## 兼容性说明
+## Compatibility Notes
 
-### 向后兼容
+### Backward Compatibility
 
-- ✅ 迁移过程中保留旧 API
-- ✅ 添加废弃警告
-- ✅ 给用户足够迁移时间
+- ✅ Retain old API during migration
+- ✅ Add deprecation warnings
+- ✅ Give users enough migration time
 
-### 破坏性变更
+### Breaking Changes
 
-在 v0.3.0 移除旧 API 时：
-- ❌ `begin_streaming_response()` 将被移除
-- ❌ `apply_streaming_delta()` 将被移除
-- ❌ `finish_streaming_response()` 将被移除
-- ❌ `abort_streaming_response()` 将被移除
+When removing old API in v0.3.0:
+- ❌ `begin_streaming_response()` will be removed
+- ❌ `apply_streaming_delta()` will be removed
+- ❌ `finish_streaming_response()` will be removed
+- ❌ `abort_streaming_response()` will be removed
 
-**迁移路径**: 参见本文档 Phase 1 部分
-
----
-
-## 参考资源
-
-- [Phase 1.5 完成总结](openspec/changes/refactor-context-session-architecture/PHASE_1.5_COMPLETION_SUMMARY.md)
-- [Signal-Pull 架构规范](openspec/changes/refactor-context-session-architecture/specs/sync/spec.md)
-- [流式处理测试](crates/context_manager/tests/streaming_tests.rs)
-- [集成测试](crates/web_service/tests/signal_pull_integration_tests.rs)
+**Migration Path**: See Phase 1 section of this document
 
 ---
 
-**状态**: 📋 **可选的架构升级**  
-**优先级**: 🔵 **低-中** - 现有 API 工作正常，新 API 提供额外功能  
-**建议**: 根据需求决定是否升级。如果需要 Signal-Pull 的序列号追踪和增量拉取功能，则考虑迁移
+## Reference Resources
+
+- [Phase 1.5 Completion Summary](openspec/changes/refactor-context-session-architecture/PHASE_1.5_COMPLETION_SUMMARY.md)
+- [Signal-Pull Architecture Specification](openspec/changes/refactor-context-session-architecture/specs/sync/spec.md)
+- [Streaming Tests](crates/context_manager/tests/streaming_tests.rs)
+- [Integration Tests](crates/web_service/tests/signal_pull_integration_tests.rs)
+
+---
+
+**Status**: 📋 **Optional Architecture Upgrade**
+**Priority**: 🔵 **Low-Medium** - Existing API works normally, new API provides additional features
+**Recommendation**: Decide whether to upgrade based on requirements. Consider migration if you need Signal-Pull's sequence number tracking and incremental pull features
 

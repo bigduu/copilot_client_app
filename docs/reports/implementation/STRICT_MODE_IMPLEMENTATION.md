@@ -1,72 +1,72 @@
-# 严格模式验证逻辑实现文档
+# Strict Mode Validation Logic Implementation Documentation
 
-## 概述
+## Overview
 
-本文档描述了在前端实现的 `strict_tools_mode` 验证逻辑，确保用户在严格模式下只能发送以 `/` 开头的工具调用格式消息。
+This document describes the `strict_tools_mode` validation logic implemented in the frontend, ensuring users can only send messages in tool call format starting with `/` when in strict mode.
 
-## 实现内容
+## Implementation Contents
 
-### 1. 类型定义 (`src/types/toolCategory.ts`)
+### 1. Type Definitions (`src/types/toolCategory.ts`)
 
-- **ToolCategoryInfo 接口**: 匹配后端 ToolCategory 结构，包含 `strict_tools_mode` 字段
-- **MessageValidationResult 接口**: 定义验证结果结构
-- **ToolCategoryService 类**: 提供验证逻辑和工具方法
+- **ToolCategoryInfo Interface**: Matches backend ToolCategory structure, includes `strict_tools_mode` field
+- **MessageValidationResult Interface**: Defines validation result structure
+- **ToolCategoryService Class**: Provides validation logic and utility methods
 
 ### 2. React Hook (`src/hooks/useToolCategoryValidation.ts`)
 
-提供以下功能：
-- `validateMessage()`: 验证消息是否符合严格模式要求
-- `isStrictMode()`: 检查当前是否为严格模式
-- `getStrictModePlaceholder()`: 获取严格模式的输入提示
-- `getStrictModeErrorMessage()`: 获取严格模式的错误提示
+Provides the following functions:
+- `validateMessage()`: Validates if message meets strict mode requirements
+- `isStrictMode()`: Checks if currently in strict mode
+- `getStrictModePlaceholder()`: Gets input placeholder for strict mode
+- `getStrictModeErrorMessage()`: Gets error message for strict mode
 
-### 3. 后端 API (`src-tauri/src/command/tools.rs`)
+### 3. Backend API (`src-tauri/src/command/tools.rs`)
 
-新增命令：
-- `get_tool_category_info(category_id)`: 根据类别ID获取工具类别信息
+New command:
+- `get_tool_category_info(category_id)`: Gets tool category information by category ID
 
-### 4. 前端组件更新
+### 4. Frontend Component Updates
 
-#### MessageInput 组件 (`src/components/MessageInput/index.tsx`)
-- 添加 `validateMessage` 属性
-- 在消息发送前进行验证
-- 显示错误提示
+#### MessageInput Component (`src/components/MessageInput/index.tsx`)
+- Added `validateMessage` property
+- Validates before message sending
+- Displays error prompts
 
-#### InputContainer 组件 (`src/components/InputContainer/index.tsx`)
-- 集成工具类别验证逻辑
-- 显示严格模式警告提示
-- 更新输入提示文本
-- 传递验证函数给 MessageInput
+#### InputContainer Component (`src/components/InputContainer/index.tsx`)
+- Integrated tool category validation logic
+- Displays strict mode warning prompts
+- Updates input placeholder text
+- Passes validation function to MessageInput
 
-## 验证规则
+## Validation Rules
 
-### 严格模式验证逻辑
+### Strict Mode Validation Logic
 
 ```typescript
 function validateMessageForStrictMode(
   message: string,
   categoryInfo: ToolCategoryInfo | null
 ): MessageValidationResult {
-  // 如果没有类别信息或者没有启用严格模式，允许所有消息
+  // If no category info or strict mode not enabled, allow all messages
   if (!categoryInfo || !categoryInfo.strict_tools_mode) {
     return { isValid: true };
   }
 
   const trimmedMessage = message.trim();
-  
-  // 严格模式下，消息必须以 / 开头
+
+  // In strict mode, messages must start with /
   if (!trimmedMessage.startsWith('/')) {
     return {
       isValid: false,
-      errorMessage: `严格模式下只能使用工具调用，请以 / 开头输入工具命令`
+      errorMessage: `In strict mode, only tool calls are allowed. Please enter tool commands starting with /`
     };
   }
 
-  // 检查消息长度（至少要有工具名）
+  // Check message length (must have at least tool name)
   if (trimmedMessage.length <= 1) {
     return {
       isValid: false,
-      errorMessage: `请输入完整的工具调用命令，格式：/工具名 参数`
+      errorMessage: `Please enter a complete tool call command, format: /tool_name parameters`
     };
   }
 
@@ -74,128 +74,128 @@ function validateMessageForStrictMode(
 }
 ```
 
-## 用户体验
+## User Experience
 
-### 1. 视觉提示
-- **严格模式警告**: 在严格模式下显示红色警告框
-- **输入提示**: 自动更新 placeholder 文本提示用户格式要求
-- **错误提示**: 输入无效格式时显示清晰的错误消息
+### 1. Visual Cues
+- **Strict Mode Warning**: Displays red warning box in strict mode
+- **Input Prompt**: Automatically updates placeholder text to prompt user for format requirements
+- **Error Messages**: Displays clear error messages when invalid format is entered
 
-### 2. 实时验证
-- 在用户点击发送或按 Enter 时验证消息格式
-- 验证失败时阻止消息发送并显示错误提示
-- 不影响非严格模式的正常使用
+### 2. Real-time Validation
+- Validates message format when user clicks send or presses Enter
+- Blocks message sending and displays error prompt when validation fails
+- Does not affect normal use in non-strict mode
 
-## 测试验证
+## Test Verification
 
-### 测试用例
+### Test Cases
 
-1. **非严格模式测试**:
-   - 普通消息: ✅ 允许发送
-   - 工具调用: ✅ 允许发送
+1. **Non-strict Mode Test**:
+   - Normal message: ✅ Allowed to send
+   - Tool call: ✅ Allowed to send
 
-2. **严格模式测试**:
-   - 普通消息: ❌ 被阻止，显示错误提示
-   - `/tool_call`: ✅ 允许发送
-   - `/`: ❌ 被阻止，提示格式不完整
-   - `/read_file example.txt`: ✅ 允许发送
+2. **Strict Mode Test**:
+   - Normal message: ❌ Blocked, displays error prompt
+   - `/tool_call`: ✅ Allowed to send
+   - `/`: ❌ Blocked, prompts incomplete format
+   - `/read_file example.txt`: ✅ Allowed to send
 
-### 运行测试
+### Running Tests
 
 ```typescript
 import { runStrictModeTests } from './src/utils/testStrictMode';
 
-// 在浏览器控制台运行
+// Run in browser console
 runStrictModeTests();
 ```
 
-## 配置示例
+## Configuration Example
 
-根据后端实现，以下类别启用了严格模式：
+According to backend implementation, the following categories have strict mode enabled:
 
 - **CommandExecutionCategory**: `strict_tools_mode: true`
-- **FileOperationsCategory**: `strict_tools_mode: false`  
+- **FileOperationsCategory**: `strict_tools_mode: false`
 - **GeneralAssistantCategory**: `strict_tools_mode: false`
 
-## 使用方法
+## Usage Methods
 
-### 1. 在组件中使用验证
+### 1. Using Validation in Components
 
 ```typescript
 import { useToolCategoryValidation } from '../hooks/useToolCategoryValidation';
 
 function ChatComponent() {
   const { validateMessage, isStrictMode } = useToolCategoryValidation(toolCategory);
-  
+
   const handleSubmit = (message: string) => {
     const validation = validateMessage(message);
     if (!validation.isValid) {
       showError(validation.errorMessage);
       return;
     }
-    // 发送消息
+    // Send message
   };
 }
 ```
 
-### 2. 检查严格模式状态
+### 2. Checking Strict Mode Status
 
 ```typescript
 if (isStrictMode()) {
-  // 显示严格模式提示
+  // Display strict mode prompt
   showStrictModeWarning();
 }
 ```
 
-## 技术要点
+## Technical Points
 
-### 1. 向后兼容性
-- 如果没有工具类别信息，默认允许所有消息
-- 现有功能不受影响
+### 1. Backward Compatibility
+- Defaults to allowing all messages if no tool category information
+- Existing features are not affected
 
-### 2. 性能优化
-- 使用 React Hook 缓存验证逻辑
-- 只在必要时调用后端 API
+### 2. Performance Optimization
+- Uses React Hook to cache validation logic
+- Only calls backend API when necessary
 
-### 3. 错误处理
-- 优雅处理 API 调用失败
-- 提供清晰的用户反馈
+### 3. Error Handling
+- Gracefully handles API call failures
+- Provides clear user feedback
 
-## 已知问题和解决方案
+## Known Issues and Solutions
 
-### ID 映射不匹配问题
+### ID Mapping Mismatch Issue
 
-**问题**: 前端和后端使用了不同的工具类别 ID
-- 前端使用: `"command_executor"`
-- 后端定义: `"command_execution"`
+**Issue**: Frontend and backend use different tool category IDs
+- Frontend uses: `"command_executor"`
+- Backend defines: `"command_execution"`
 
-**解决方案**:
-1. 修改 [`src/types/toolConfig.ts`](src/types/toolConfig.ts) 中的映射函数
-2. 修改 [`src/types/chat.ts`](src/types/chat.ts) 中的枚举值
-3. 确保前后端使用一致的 ID: `"command_execution"`
+**Solution**:
+1. Modify mapping function in [`src/types/toolConfig.ts`](src/types/toolConfig.ts)
+2. Modify enum value in [`src/types/chat.ts`](src/types/chat.ts)
+3. Ensure consistent ID between frontend and backend: `"command_execution"`
 
-### 缓存问题
+### Cache Issue
 
-**问题**: 旧聊天会话仍使用缓存的旧 ID
-**解决方案**: 创建新聊天会话来测试功能
+**Issue**: Old chat sessions still use cached old IDs
+**Solution**: Create new chat sessions to test functionality
 
-## 测试结果
+## Test Results
 
-✅ **严格模式验证成功**: 在命令执行类别中，普通消息被正确阻止
-✅ **错误提示正确**: 显示"严格模式下只能使用工具调用，请以 / 开头输入工具命令"
-✅ **工具调用允许**: 以 `/` 开头的消息可以正常发送
-✅ **非严格模式正常**: 其他类别不受影响
+✅ **Strict Mode Validation Success**: In command execution category, normal messages are correctly blocked
+✅ **Error Prompt Correct**: Displays "In strict mode, only tool calls are allowed. Please enter tool commands starting with /"
+✅ **Tool Calls Allowed**: Messages starting with `/` can be sent normally
+✅ **Non-strict Mode Normal**: Other categories are not affected
 
-## 总结
+## Summary
 
-严格模式验证逻辑已成功实现，确保：
+Strict mode validation logic has been successfully implemented, ensuring:
 
-✅ 用户在严格模式下只能发送工具调用格式的消息
-✅ 提供清晰的用户界面反馈和错误提示
-✅ 不影响非严格模式的正常使用
-✅ 保持良好的用户体验和性能
-✅ 前后端 ID 映射一致性
+✅ Users can only send messages in tool call format in strict mode
+✅ Provides clear user interface feedback and error prompts
+✅ Does not affect normal use in non-strict mode
+✅ Maintains good user experience and performance
+✅ Frontend-backend ID mapping consistency
 
-实现完全符合任务要求，为用户提供了安全、直观的工具调用体验。
+Implementation fully meets task requirements, providing users with a safe and intuitive tool calling experience.
 
-**重要提示**: 如果遇到验证不生效的问题，请创建新的聊天会话进行测试，避免旧数据缓存的影响。
+**Important Note**: If validation does not take effect, please create a new chat session for testing to avoid the impact of old data caching.

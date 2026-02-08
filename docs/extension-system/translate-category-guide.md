@@ -1,153 +1,153 @@
-# 翻译类别使用指南
+# Translate Category Usage Guide
 
-## 概述
+## Overview
 
-翻译类别是一个专业的中英文翻译工具，具有技术和金融领域的双重专业知识。它是一个非严格模式的类别，不包含任何工具，专门用于纯翻译服务。
+The Translate category is a professional Chinese-English translation tool with dual expertise in technology and finance. It is a non-strict mode category that contains no tools and is dedicated to pure translation services.
 
-## 🎯 设计理念
+## 🎯 Design Philosophy
 
-- **纯翻译功能**: 只进行翻译，绝不回答问题或提供解释
-- **技术优先**: 主要专业领域为完整技术栈
-- **金融补充**: 金融知识作为丰富的领域专家知识
-- **口语化表达**: 使用自然、地道的日常用语
+- **Pure Translation Functionality**: Only translates, never answers questions or provides explanations
+- **Technology First**: Primary expertise is the full technology stack
+- **Finance Supplement**: Financial knowledge as rich domain expert knowledge
+- **Colloquial Expression**: Uses natural, authentic everyday language
 
-## 特性
+## Features
 
-### 🎯 **核心功能**
-- **纯翻译服务**: 只进行翻译，不回答问题或提供解释
-- **双向翻译**: 中文 ↔ 英文
-- **口语化翻译**: 使用自然、地道的日常用语
-- **金融专业**: 具备金融和交易领域的专业术语知识
+### 🎯 **Core Functions**
+- **Pure Translation Service**: Only translates, does not answer questions or provide explanations
+- **Bidirectional Translation**: Chinese ↔ English
+- **Colloquial Translation**: Uses natural, authentic everyday language
+- **Financial Expertise**: Has professional terminology knowledge in finance and trading
 
-### 💻 **技术栈专业知识** (主要专业领域)
+### 💻 **Technology Stack Expertise** (Primary Domain)
 
-#### 核心技术栈
-- **Java/Spring Boot**: microservices (微服务), REST API (REST接口), dependency injection (依赖注入)
-- **云平台**: GCP (谷歌云平台), AWS (亚马逊云服务), serverless (无服务器)
-- **Rust**: memory safety (内存安全), ownership (所有权), cargo (包管理器)
+#### Core Technology Stack
+- **Java/Spring Boot**: microservices, REST API, dependency injection
+- **Cloud Platforms**: GCP (Google Cloud Platform), AWS (Amazon Web Services), serverless
+- **Rust**: memory safety, ownership, cargo
 
-#### 消息与数据
-- **消息系统**: Kafka (消息队列), Solace (消息中间件), Pub/Sub (发布订阅)
-- **数据工程**: Dataflow (数据流), Airflow (工作流编排), ETL (数据提取转换加载)
-- **数据库**: BigQuery (大数据仓库), BigTable (大表), MongoDB (文档数据库), PostgreSQL (关系数据库), Redis (缓存)
+#### Messaging and Data
+- **Messaging Systems**: Kafka, Solace, Pub/Sub
+- **Data Engineering**: Dataflow, Airflow, ETL (Extract, Transform, Load)
+- **Databases**: BigQuery, BigTable, MongoDB, PostgreSQL, Redis
 
-#### 基础设施
-- **基础设施**: Terraform (基础设施即代码), Jenkins (持续集成), CI/CD (持续集成/持续部署)
+#### Infrastructure
+- **Infrastructure**: Terraform, Jenkins, CI/CD
 
-### 💼 **金融专业知识** (补充领域专家知识)
+### 💼 **Financial Expertise** (Supplementary Domain Knowledge)
 
-#### 常见金融缩写
-- **P&L** (盈亏/损益), **ROI** (投资回报率), **IPO** (首次公开募股), **M&A** (并购)
-- **PE/PB** (市盈率/市净率), **ETF** (交易所交易基金)
+#### Common Financial Abbreviations
+- **P&L** (Profit & Loss), **ROI** (Return on Investment), **IPO** (Initial Public Offering), **M&A** (Mergers & Acquisitions)
+- **PE/PB** (Price-to-Earnings/Price-to-Book), **ETF** (Exchange-Traded Fund)
 
-#### 交易术语
-- **long position** (多头/做多)
-- **short position** (空头/做空)
-- **bull market** (牛市)
-- **bear market** (熊市)
-- **bid/ask** (买价/卖价)
-- **spread** (价差)
-- **volume** (成交量)
-- **volatility** (波动率)
-- **support/resistance** (支撑位/阻力位)
-- **breakout/pullback** (突破/回调)
+#### Trading Terminology
+- **long position**
+- **short position**
+- **bull market**
+- **bear market**
+- **bid/ask**
+- **spread**
+- **volume**
+- **volatility**
+- **support/resistance**
+- **breakout/pullback**
 
-## 使用示例
+## Usage Examples
 
-### 📝 **一般翻译**
+### 📝 **General Translation**
 ```
-用户输入: "你好吗?"
-输出: "How are you doing?"
+User Input: "你好吗?"
+Output: "How are you doing?"
 
-用户输入: "What time is it?"
-输出: "现在几点了？"
-```
-
-### 💻 **技术翻译** (主要场景)
-```
-用户输入: "微服务架构"
-输出: "Microservices architecture"
-
-用户输入: "Deploy to GCP"
-输出: "部署到GCP"
-
-用户输入: "BigQuery查询优化"
-输出: "BigQuery query optimization"
-
-用户输入: "Redis cache hit rate"
-输出: "Redis缓存命中率"
-
-用户输入: "Kafka consumer lag"
-输出: "Kafka消费者延迟"
-
-用户输入: "Terraform infrastructure"
-输出: "Terraform基础设施"
+User Input: "What time is it?"
+Output: "现在几点了？"
 ```
 
-### 💰 **金融翻译** (补充场景)
+### 💻 **Technical Translation** (Primary Scenario)
 ```
-用户输入: "今天的P&L怎么样?"
-输出: "How's today's P&L?"
+User Input: "微服务架构"
+Output: "Microservices architecture"
 
-用户输入: "The market is bullish"
-输出: "市场看涨"
+User Input: "Deploy to GCP"
+Output: "部署到GCP"
 
-用户输入: "PE ratio is too high"
-输出: "市盈率太高了"
+User Input: "BigQuery查询优化"
+Output: "BigQuery query optimization"
+
+User Input: "Redis cache hit rate"
+Output: "Redis缓存命中率"
+
+User Input: "Kafka consumer lag"
+Output: "Kafka消费者延迟"
+
+User Input: "Terraform infrastructure"
+Output: "Terraform基础设施"
 ```
 
-## 重要规则
+### 💰 **Financial Translation** (Supplementary Scenario)
+```
+User Input: "今天的P&L怎么样?"
+Output: "How's today's P&L?"
 
-### ✅ **会做的事情**
-1. 将中文翻译成英文
-2. 将英文翻译成中文
-3. 使用自然、口语化的表达
-4. 正确处理金融术语和缩写
-5. 保持翻译的准确性和地道性
+User Input: "The market is bullish"
+Output: "市场看涨"
 
-### ❌ **不会做的事情**
-1. **不回答问题** - 即使用户问问题，也只翻译问题本身
-2. **不提供解释** - 不解释术语含义或背景
-3. **不进行对话** - 不参与任何形式的交流
-4. **不提供建议** - 不给出投资或交易建议
-5. **不添加额外信息** - 只输出翻译结果
+User Input: "PE ratio is too high"
+Output: "市盈率太高了"
+```
 
-## 技术实现
+## Important Rules
 
-### 类别配置
+### ✅ **Will Do**
+1. Translate Chinese to English
+2. Translate English to Chinese
+3. Use natural, colloquial expressions
+4. Correctly handle financial terms and abbreviations
+5. Maintain translation accuracy and authenticity
+
+### ❌ **Will Not Do**
+1. **Does not answer questions** - Even if the user asks a question, only translates the question itself
+2. **Does not provide explanations** - Does not explain term meanings or background
+3. **Does not engage in conversation** - Does not participate in any form of interaction
+4. **Does not provide advice** - Does not give investment or trading advice
+5. **Does not add extra information** - Only outputs translation results
+
+## Technical Implementation
+
+### Category Configuration
 - **ID**: `translate`
-- **显示名称**: `Translate`
-- **图标**: `🌐` (TranslationOutlined)
-- **严格模式**: `false` (允许自然语言交互)
-- **优先级**: `80` (中高优先级)
-- **工具数量**: `0` (无需工具)
+- **Display Name**: `Translate`
+- **Icon**: `🌐` (TranslationOutlined)
+- **Strict Mode**: `false` (allows natural language interaction)
+- **Priority**: `80` (medium-high priority)
+- **Tool Count**: `0` (no tools needed)
 
-### 系统架构
-- 使用 `auto_register_category!` 宏自动注册
-- 继承 `Category` trait
-- 无参数构造函数 `new()`
-- 支持启用/禁用控制
+### System Architecture
+- Automatically registered using `auto_register_category!` macro
+- Implements `Category` trait
+- Parameterless constructor `new()`
+- Supports enable/disable control
 
-## 使用场景
+## Usage Scenarios
 
-### 🎯 **适用场景**
-- 金融文档翻译
-- 交易术语转换
-- 投资报告翻译
-- 财经新闻翻译
-- 日常中英文翻译
+### 🎯 **Applicable Scenarios**
+- Financial document translation
+- Trading terminology conversion
+- Investment report translation
+- Financial news translation
+- Daily Chinese-English translation
 
-### 🚫 **不适用场景**
-- 需要解释的复杂概念
-- 需要上下文分析的内容
-- 需要专业建议的问题
-- 需要对话交流的场景
+### 🚫 **Not Applicable Scenarios**
+- Complex concepts requiring explanation
+- Content requiring context analysis
+- Questions requiring professional advice
+- Scenarios requiring conversational interaction
 
-## 注意事项
+## Notes
 
-1. **专注翻译**: 这个类别的唯一目的就是翻译，不要期望它做其他事情
-2. **金融优先**: 遇到缩写或专业术语时，会优先按金融领域理解
-3. **口语化**: 翻译结果会使用自然、地道的表达方式
-4. **字面翻译**: 严格按照原文进行翻译，不添加或删减内容
+1. **Focus on Translation**: The sole purpose of this category is translation; do not expect it to do other things
+2. **Finance First**: When encountering abbreviations or professional terms, they will be interpreted according to the financial domain first
+3. **Colloquial**: Translation results will use natural, authentic expressions
+4. **Literal Translation**: Strictly translates according to the original text without adding or omitting content
 
-这个翻译类别特别适合金融从业者、交易员、投资者等需要频繁进行中英文翻译的用户使用。
+This translation category is particularly suitable for financial practitioners, traders, investors, and other users who frequently need Chinese-English translation.

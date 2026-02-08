@@ -1,22 +1,22 @@
-# Agent Loop 修复总结 - Streaming API 工具注入问题
+# Agent Loop Fix Summary - Streaming API Tool Injection Issue
 
-## 🔴 问题症状
+## 🔴 Problem Symptoms
 
-用户输入：`Create File: test file name with hello world content`
-- ❌ LLM 只是**解释**命令，不实际执行
-- ❌ 没有工具调用
-- ❌ 没有批准模态框
+User input: `Create File: test file name with hello world content`
+- ❌ LLM only **explains** the command, doesn't actually execute
+- ❌ No tool call
+- ❌ No approval modal
 
-## 🔍 根本原因
+## 🔍 Root Cause
 
-通过分析后端日志发现：
-1. **关键日志缺失**：整个日志中完全没有看到 `"Enhanced system prompt injected into messages"`
-2. **代码分析**：`process_message_stream` 方法（streaming API）直接将消息发送给 LLM，**完全没有调用 SystemPromptEnhancer**
-3. **对比**：`process_message` 方法（非 streaming API）正确实现了 system prompt enhancement
+Analysis of backend logs revealed:
+1. **Critical log missing**: `"Enhanced system prompt injected into messages"` was completely absent from logs
+2. **Code analysis**: `process_message_stream` method (streaming API) sent messages directly to LLM **without calling SystemPromptEnhancer**
+3. **Comparison**: `process_message` method (non-streaming API) correctly implemented system prompt enhancement
 
-### 问题代码位置
+### Problem Code Location
 
-`crates/web_service/src/services/chat_service.rs` 第605-617行（修复前）：
+`crates/web_service/src/services/chat_service.rs` lines 605-617 (before fix):
 
 ```rust
 // Convert to LLM client format
@@ -26,7 +26,7 @@ let chat_messages: Vec<ChatMessage> =
 // Build request with streaming enabled
 let request = ChatCompletionRequest {
     model: model_id,
-    messages: chat_messages,  // ❌ 直接使用，没有增强！
+    messages: chat_messages,  // ❌ Used directly without enhancement!
     stream: Some(true),
     tools: None,
     tool_choice: None,
@@ -34,18 +34,18 @@ let request = ChatCompletionRequest {
 };
 ```
 
-**后果**：
-- 工具定义没有被注入到 system prompt
-- LLM 不知道有哪些工具可用
-- LLM 只能用自然语言解释，无法实际调用工具
+**Consequences**:
+- Tool definitions were not injected into system prompt
+- LLM didn't know which tools were available
+- LLM could only explain in natural language, unable to actually call tools
 
-## ✅ 修复方案
+## ✅ Fix Solution
 
-在 `process_message_stream` 方法中添加完整的 system prompt enhancement 逻辑：
+Add complete system prompt enhancement logic to `process_message_stream` method:
 
-### 修复内容
+### Fix Details
 
-1. **获取 System Prompt 信息**（第600-608行）：
+1. **Get System Prompt Info** (lines 600-608):
    ```rust
    // Get system prompt and agent role for enhancement
    let system_prompt_id = context_lock.config.system_prompt_id.clone();
@@ -58,7 +58,7 @@ let request = ChatCompletionRequest {
        };
    ```
 
-2. **加载最终 System Prompt**（第612-626行）：
+2. **Load Final System Prompt** (lines 612-626):
    ```rust
    // Load system prompt by ID if not in branch
    let final_system_prompt_content = if let Some(content) = system_prompt_content {
@@ -76,7 +76,7 @@ let request = ChatCompletionRequest {
    };
    ```
 
-3. **增强 System Prompt**（第631-652行）：
+3. **Enhance System Prompt** (lines 631-652):
    ```rust
    // Enhance system prompt if available
    let enhanced_system_prompt = if let Some(base_prompt) = &final_system_prompt_content {
@@ -102,7 +102,7 @@ let request = ChatCompletionRequest {
    };
    ```
 
-4. **注入到消息列表**（第654-671行）：
+4. **Inject into Message List** (lines 654-671):
    ```rust
    // Convert to LLM client format
    let mut chat_messages: Vec<ChatMessage> =
@@ -120,100 +120,100 @@ let request = ChatCompletionRequest {
                tool_call_id: None,
            },
        );
-       log::info!("Enhanced system prompt injected into messages");  // ← 🎯 关键日志！
+       log::info!("Enhanced system prompt injected into messages");  // ← 🎯 Key log!
    }
    ```
 
-## 🧪 测试步骤
+## 🧪 Testing Steps
 
-### 1. 重启后端
+### 1. Restart Backend
 
 ```bash
 cd /Users/bigduu/Workspace/TauriProjects/copilot_chat
 RUST_LOG=debug cargo run --bin web_service
 ```
 
-### 2. 测试工具调用
+### 2. Test Tool Call
 
-在聊天界面发送：
+Send in chat interface:
 ```
 Create File: test.txt with content "Hello, World!"
 ```
 
-### 3. 验证日志
+### 3. Verify Logs
 
-**现在应该看到的日志**：
+**Logs you should now see**:
 ```
 [INFO] === ChatService::process_message_stream START ===
 [INFO] System prompt enhanced successfully for role: Actor
-[INFO] Enhanced system prompt injected into messages  ← 🎯 关键！这行之前没有
+[INFO] Enhanced system prompt injected into messages  ← 🎯 Key! This line was missing before
 [INFO] Sending request to LLM
-[INFO] Tool call detected: create_file                ← 🎯 工具调用！
+[INFO] Tool call detected: create_file                ← 🎯 Tool call!
 [INFO] Executing tool: create_file
 [INFO] Tool execution successful
 ```
 
-### 4. 验证行为
+### 4. Verify Behavior
 
-**预期行为（✅ 正确）**：
-1. LLM 输出 JSON 格式的工具调用
-2. 后端检测到工具调用
-3. 显示批准模态框（如果 `create_file` 需要批准）
-4. 批准后实际创建文件
+**Expected behavior (✅ correct)**:
+1. LLM outputs JSON format tool call
+2. Backend detects tool call
+3. Approval modal appears (if `create_file` requires approval)
+4. File actually created after approval
 
-**不应该看到（❌ 错误）**：
+**Should NOT see (❌ wrong)**:
 ```
 It seems like you're requesting to create a file...
 ```
 
-## 📊 修复影响
+## 📊 Fix Impact
 
-### 修复的功能
-- ✅ **LLM-driven Agent Loop** - LLM 现在可以自主调用工具
-- ✅ **Tool Call Approval** - 需要批准的工具会弹出批准模态框
-- ✅ **Streaming API 工具注入** - 修复了 streaming API 的工具定义注入
-- ✅ **Agent Loop Error Handling** - 工具执行错误和超时处理
+### Fixed Features
+- ✅ **LLM-driven Agent Loop** - LLM can now autonomously call tools
+- ✅ **Tool Call Approval** - Tools requiring approval show approval modal
+- ✅ **Streaming API Tool Injection** - Fixed tool definition injection in streaming API
+- ✅ **Agent Loop Error Handling** - Tool execution errors and timeout handling
 
-### 未受影响的功能
-- ✅ **User-invoked Workflows** - 用户显式调用的工作流（如果有）不受影响
-- ✅ **Non-streaming API** - `process_message` 方法已经正确实现，不受影响
+### Unaffected Features
+- ✅ **User-invoked Workflows** - User explicitly invoked workflows (if any) unaffected
+- ✅ **Non-streaming API** - `process_message` method already correctly implemented, unaffected
 
-## 🎯 关键要点
+## 🎯 Key Takeaways
 
 1. **Streaming vs Non-Streaming**
-   - 项目有两个 API 路径处理消息
-   - `process_message` - 非 streaming，已正确实现
-   - `process_message_stream` - streaming，之前缺失工具注入 **← 已修复**
+   - Project has two API paths for handling messages
+   - `process_message` - non-streaming, correctly implemented
+   - `process_message_stream` - streaming, previously missing tool injection **← Fixed**
 
-2. **System Prompt Enhancement 的重要性**
-   - SystemPromptEnhancer 负责将工具定义注入到 system prompt
-   - 没有这一步，LLM 不知道有哪些工具可用
-   - 这是 Agent Loop 的核心机制
+2. **Importance of System Prompt Enhancement**
+   - SystemPromptEnhancer is responsible for injecting tool definitions into system prompt
+   - Without this step, LLM doesn't know which tools are available
+   - This is the core mechanism of Agent Loop
 
-3. **调试关键**
-   - 查找 `"Enhanced system prompt injected into messages"` 日志
-   - 如果没有这行日志，说明工具定义没有注入
-   - 如果 LLM 只是解释而不执行，99% 是这个问题
+3. **Debugging Key**
+   - Look for `"Enhanced system prompt injected into messages"` log
+   - If this log line is missing, tool definitions were not injected
+   - If LLM only explains without executing, 99% chance it's this issue
 
-## 📝 后续建议
+## 📝 Follow-up Recommendations
 
-1. **添加集成测试**
-   - 测试 streaming API 的工具调用
-   - 验证 system prompt enhancement 在 streaming 场景下的工作
+1. **Add Integration Tests**
+   - Test tool calls via streaming API
+   - Verify system prompt enhancement works in streaming scenarios
 
-2. **代码重构**
-   - `process_message` 和 `process_message_stream` 有大量重复代码
-   - 考虑提取共享逻辑到单独的辅助方法
+2. **Code Refactoring**
+   - `process_message` and `process_message_stream` have significant duplicate code
+   - Consider extracting shared logic into separate helper methods
 
-3. **文档更新**
-   - 在 `AGENT_LOOP_ARCHITECTURE.md` 中添加 streaming API 的说明
-   - 明确指出 system prompt enhancement 的重要性
+3. **Documentation Update**
+   - Add streaming API explanation in `AGENT_LOOP_ARCHITECTURE.md`
+   - Clearly state the importance of system prompt enhancement
 
-## ✨ 总结
+## ✨ Summary
 
-这次修复解决了一个关键但隐蔽的 bug：streaming API 路径没有正确注入工具定义。通过在 `process_message_stream` 中添加完整的 system prompt enhancement 逻辑，现在 Agent Loop 在 streaming 模式下也能正常工作了。
+This fix resolved a critical but subtle bug: the streaming API path was not correctly injecting tool definitions. By adding complete system prompt enhancement logic to `process_message_stream`, the Agent Loop now works properly in streaming mode.
 
-**修复验证**：
-- ✅ 编译通过
-- ⏳ 需要运行时测试确认
+**Fix Verification**:
+- ✅ Compilation passed
+- ⏳ Runtime testing confirmation needed
 
