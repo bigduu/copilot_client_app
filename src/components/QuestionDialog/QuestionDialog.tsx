@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { Button, Card, Input, Radio, Space, Typography, message } from 'antd';
 import styles from './QuestionDialog.module.css';
 
@@ -28,6 +28,9 @@ export const QuestionDialog: React.FC<QuestionDialogProps> = ({
   const [customInput, setCustomInput] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  // Track consecutive empty responses to stop polling when conversation is done
+  const emptyCountRef = useRef(0);
+  const MAX_EMPTY_COUNT = 3; // Stop polling after 3 consecutive empty responses
 
   // Fetch pending question
   const fetchPendingQuestion = useCallback(async () => {
@@ -36,6 +39,7 @@ export const QuestionDialog: React.FC<QuestionDialogProps> = ({
       if (!response.ok) {
         if (response.status === 404) {
           setPendingQuestion(null);
+          emptyCountRef.current += 1;
           return;
         }
         throw new Error(`HTTP ${response.status}`);
@@ -43,8 +47,10 @@ export const QuestionDialog: React.FC<QuestionDialogProps> = ({
       const data: PendingQuestion = await response.json();
       if (data.has_pending_question) {
         setPendingQuestion(data);
+        emptyCountRef.current = 0; // Reset counter when we have a question
       } else {
         setPendingQuestion(null);
+        emptyCountRef.current += 1;
       }
     } catch (err) {
       console.error('Failed to fetch pending question:', err);
@@ -54,17 +60,31 @@ export const QuestionDialog: React.FC<QuestionDialogProps> = ({
   }, [sessionId, apiBaseUrl]);
 
   // Poll for pending question periodically
+  // Stop polling when conversation is done (no pending questions for a while)
+  const shouldStopPolling = emptyCountRef.current >= MAX_EMPTY_COUNT;
+  const pollInterval = pendingQuestion?.has_pending_question ? 3000 : 15000;
+
   useEffect(() => {
+    // Don't start polling if we've already determined the conversation is done
+    if (shouldStopPolling) {
+      return;
+    }
+
     fetchPendingQuestion();
 
     const interval = setInterval(() => {
       if (!isSubmitting) {
+        // Check again inside the interval in case count changed
+        if (emptyCountRef.current >= MAX_EMPTY_COUNT) {
+          clearInterval(interval);
+          return;
+        }
         fetchPendingQuestion();
       }
-    }, 3000);
+    }, pollInterval);
 
     return () => clearInterval(interval);
-  }, [fetchPendingQuestion, isSubmitting]);
+  }, [fetchPendingQuestion, isSubmitting, pollInterval, shouldStopPolling]);
 
   // Submit response
   const handleSubmit = async () => {
@@ -95,6 +115,7 @@ export const QuestionDialog: React.FC<QuestionDialogProps> = ({
       setPendingQuestion(null);
       setSelectedOption(null);
       setCustomInput('');
+      emptyCountRef.current = 0; // Reset counter to resume polling
       onResponseSubmitted?.();
     } catch (err) {
       console.error('Failed to submit response:', err);
