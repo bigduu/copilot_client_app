@@ -233,6 +233,23 @@ export class AgentClient {
   }
 
   /**
+   * Delete a persisted backend session
+   */
+  async deleteSession(sessionId: string): Promise<void> {
+    const encodedSessionId = encodeURIComponent(sessionId);
+    const response = await fetch(
+      `${this.baseUrl}/api/v1/sessions/${encodedSessionId}`,
+      {
+        method: "DELETE",
+      },
+    );
+
+    if (!response.ok) {
+      throw new Error(`Failed to delete session: ${response.statusText}`);
+    }
+  }
+
+  /**
    * Get chat history
    */
   async getHistory(sessionId: string): Promise<HistoryResponse> {
