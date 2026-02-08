@@ -15,7 +15,7 @@ use rfd::AsyncFileDialog;
 #[tauri::command]
 pub async fn pick_folder() -> Result<Option<String>, String> {
     let file_dialog = AsyncFileDialog::new()
-        .set_title("选择工作区文件夹")
+        .set_title("Select Workspace Folder")
         .set_can_create_directories(true);
 
     let folder_path = file_dialog.pick_folder().await;
