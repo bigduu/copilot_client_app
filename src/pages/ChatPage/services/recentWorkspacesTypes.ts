@@ -1,22 +1,12 @@
-export interface WorkspaceInfo {
-  path: string;
-  is_valid: boolean;
-  error_message?: string;
-  file_count?: number;
-  last_modified?: string;
-  size_bytes?: number;
-  workspace_name?: string;
-}
+/**
+ * @deprecated Workspace types have been unified. Import from 'src/services/workspace' instead.
+ */
 
-export interface WorkspaceMetadata {
-  workspace_name?: string;
-  description?: string;
-  tags?: string[];
-}
+export type {
+  Workspace as WorkspaceInfo,
+  WorkspaceMetadata,
+  WorkspaceServiceOptions as RecentWorkspacesManagerOptions,
+} from "../../../services/workspace";
 
-export interface RecentWorkspacesManagerOptions {
-  maxRecentWorkspaces?: number;
-  cacheTimeoutMs?: number;
-  apiBaseUrl?: string;
-  requestTimeoutMs?: number;
-}
+// Also export Workspace itself
+export type { Workspace } from "../../../services/workspace";

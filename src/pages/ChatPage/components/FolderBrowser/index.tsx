@@ -64,7 +64,7 @@ export const FolderBrowser: React.FC<FolderBrowserProps> = ({
       setFolders(result.folders);
     } catch (error) {
       console.error("Failed to load directory:", error);
-      message.error("无法读取文件夹");
+      message.error("Unable to read folder");
     } finally {
       setLoading(false);
     }
@@ -115,7 +115,7 @@ export const FolderBrowser: React.FC<FolderBrowserProps> = ({
 
   return (
     <Modal
-      title="选择工作区文件夹"
+      title="Select Workspace Folder"
       open={visible}
       onCancel={onClose}
       width={700}
@@ -124,7 +124,7 @@ export const FolderBrowser: React.FC<FolderBrowserProps> = ({
       <Space direction="vertical" size="middle" style={{ width: "100%" }}>
         <Space>
           <Button icon={<HomeOutlined />} onClick={handleGoHome} size="small">
-            主目录
+            Home
           </Button>
           <Button
             icon={<ArrowLeftOutlined />}
@@ -132,7 +132,7 @@ export const FolderBrowser: React.FC<FolderBrowserProps> = ({
             disabled={!parentPath}
             size="small"
           >
-            上一级
+            Parent Directory
           </Button>
           <Button
             type="primary"
@@ -140,7 +140,7 @@ export const FolderBrowser: React.FC<FolderBrowserProps> = ({
             onClick={handleSelectCurrent}
             size="small"
           >
-            选择当前文件夹
+            Select Current Folder
           </Button>
         </Space>
 
@@ -161,7 +161,7 @@ export const FolderBrowser: React.FC<FolderBrowserProps> = ({
 
         <Card size="small" styles={{ body: { padding: token.paddingXS } }}>
           <Text type="secondary" style={{ fontSize: 12 }}>
-            当前路径：
+            Current Path:
           </Text>{" "}
           <Text code>{currentPath}</Text>
         </Card>
@@ -170,7 +170,7 @@ export const FolderBrowser: React.FC<FolderBrowserProps> = ({
           {folders.length === 0 && !loading ? (
             <Empty
               image={Empty.PRESENTED_IMAGE_SIMPLE}
-              description={<Text type="secondary">此文件夹为空</Text>}
+              description={<Text type="secondary">This folder is empty</Text>}
             />
           ) : (
             <List
@@ -197,7 +197,7 @@ export const FolderBrowser: React.FC<FolderBrowserProps> = ({
         </Spin>
 
         <Text type="secondary" style={{ fontSize: 12 }}>
-          💡 提示：点击文件夹进入，点击"选择当前文件夹"确认选择
+          💡 Tip: Click a folder to enter, click "Select Current Folder" to confirm
         </Text>
       </Space>
     </Modal>

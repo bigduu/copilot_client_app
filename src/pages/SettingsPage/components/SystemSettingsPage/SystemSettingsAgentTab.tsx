@@ -1,6 +1,6 @@
 import React from "react";
 import { Card, Space, Typography, theme } from "antd";
-import { ClaudeInstallPanel } from "../../../AgentPage/components/ClaudeInstallPanel";
+import { ClaudeInstallPanel } from "../../../../services/agent/ClaudeInstallPanel";
 
 const { Text } = Typography;
 const { useToken } = theme;

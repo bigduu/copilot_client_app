@@ -13,6 +13,9 @@ import { useAppStore } from "../../store";
 import type { Message } from "../../types/chat";
 import { ChatInputArea } from "./ChatInputArea";
 import { ChatMessagesList } from "./ChatMessagesList";
+import { TodoList } from "../../../../components/TodoList";
+import { QuestionDialog } from "../../../../components/QuestionDialog";
+import { getBackendBaseUrl } from "../../../../shared/utils/backendBaseUrl";
 import "./styles.css";
 import { useChatViewScroll } from "./useChatViewScroll";
 import type { WorkflowDraft } from "../InputContainer";
@@ -129,6 +132,9 @@ export const ChatView: React.FC = () => {
     ];
   }, [renderableMessages, workflowDraft]);
 
+  // Get agent session ID from chat config (created by Agent Server)
+  const agentSessionId = currentChat?.config?.agentSessionId;
+
   const rowVirtualizer = useVirtualizer({
     count: renderableMessagesWithDraft.length,
     getScrollElement: () => messagesListRef.current,
@@ -155,6 +161,13 @@ export const ChatView: React.FC = () => {
     return screens.xs ? 16 : 32;
   };
 
+  // Get API base URL for TodoList
+  const apiBaseUrl = useMemo(() => {
+    const baseUrl = getBackendBaseUrl();
+    // Remove /v1 suffix if present since todo API is at /api/v1
+    return baseUrl.replace(/\/v1$/, '');
+  }, []);
+
   return (
     <Layout
       style={{
@@ -174,6 +187,43 @@ export const ChatView: React.FC = () => {
           height: "100%",
         }}
       >
+        {/* TodoList - show when there is an active agent session */}
+        {agentSessionId && (
+          <div
+            style={{
+              padding: `0 ${getContainerPadding()}px`,
+              paddingTop: getContainerPadding(),
+              maxWidth: getContainerMaxWidth(),
+              margin: "0 auto",
+              width: "100%",
+            }}
+          >
+            <TodoList
+              sessionId={agentSessionId}
+              apiBaseUrl={apiBaseUrl}
+              initialCollapsed={true}
+            />
+          </div>
+        )}
+
+        {/* QuestionDialog - show when there's an active agent session */}
+        {agentSessionId && (
+          <div
+            style={{
+              padding: `0 ${getContainerPadding()}px`,
+              paddingTop: getContainerPadding(),
+              maxWidth: getContainerMaxWidth(),
+              margin: "0 auto",
+              width: "100%",
+            }}
+          >
+            <QuestionDialog
+              sessionId={agentSessionId}
+              apiBaseUrl={apiBaseUrl}
+            />
+          </div>
+        )}
+
         <ChatMessagesList
           currentChatId={currentChatId}
           convertRenderableEntry={convertRenderableEntry}

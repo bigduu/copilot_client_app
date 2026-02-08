@@ -21,12 +21,12 @@ const WorkspacePickerValidationStatus: React.FC<
           type="success"
           message={
             <Space>
-              <span>有效的工作区</span>
+              <span>Valid Workspace</span>
               {result.workspace_name && (
                 <Text type="secondary">({result.workspace_name})</Text>
               )}
               {result.file_count !== undefined && (
-                <Text type="secondary">- {result.file_count} 个文件</Text>
+                <Text type="secondary">- {result.file_count} files</Text>
               )}
             </Space>
           }
@@ -35,7 +35,7 @@ const WorkspacePickerValidationStatus: React.FC<
       ) : (
         <Alert
           type="error"
-          message={result.error_message || "无效的工作区路径"}
+          message={result.error_message || "Invalid workspace path"}
           showIcon
         />
       )}

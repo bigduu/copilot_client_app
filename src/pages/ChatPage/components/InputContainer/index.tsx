@@ -3,7 +3,7 @@ import { Space, theme, Tag, Alert, message as antdMessage, Spin } from "antd";
 import { ToolOutlined, RobotOutlined } from "@ant-design/icons";
 import { MessageInput } from "../MessageInput";
 import InputPreview from "./InputPreview";
-import { useChatStreaming } from "../../hooks/useChatManager/useChatStreaming";
+import { useMessageStreaming } from "../../hooks/useChatManager/useMessageStreaming";
 import { selectCurrentChat, useAppStore } from "../../store";
 import { useSystemPrompt } from "../../hooks/useSystemPrompt";
 import { useChatInputHistory } from "../../hooks/useChatInputHistory";
@@ -57,7 +57,7 @@ export const InputContainer: React.FC<InputContainerProps> = ({
   const isProcessing = useAppStore((state) => state.isProcessing);
   const setProcessing = useAppStore((state) => state.setProcessing);
 
-  const { sendMessage, cancel: cancelMessage, agentAvailable } = useChatStreaming({
+  const { sendMessage, cancel: cancelMessage, agentAvailable } = useMessageStreaming({
     currentChat,
     addMessage,
     setProcessing,
@@ -88,7 +88,7 @@ export const InputContainer: React.FC<InputContainerProps> = ({
         .then(() => {
           customEvent.detail?.resolve?.();
         })
-        .catch((error) => {
+        .catch((error: unknown) => {
           customEvent.detail?.reject?.(error);
         });
     };

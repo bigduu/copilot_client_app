@@ -27,7 +27,7 @@ export interface WorkspacePickerProps {
 const WorkspacePicker: React.FC<WorkspacePickerProps> = ({
   value = "",
   onChange,
-  placeholder = "例如 /Users/alice/Workspace/MyProject",
+  placeholder = "e.g. /Users/alice/Workspace/MyProject",
   disabled = false,
   allowBrowse = true,
   showRecentWorkspaces = true,
@@ -77,14 +77,14 @@ const WorkspacePicker: React.FC<WorkspacePickerProps> = ({
         addonBefore={
           <Space>
             <FolderOutlined />
-            <Text>工作区</Text>
+            <Text>Workspace</Text>
           </Space>
         }
         addonAfter={
           allowBrowse ? (
             <Button
-              aria-label="浏览文件夹"
-              title="浏览文件夹"
+              aria-label="Browse folder"
+              title="Browse folder"
               icon={<FolderOutlined />}
               onClick={handleBrowseClick}
               disabled={disabled}

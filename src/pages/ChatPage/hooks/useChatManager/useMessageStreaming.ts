@@ -7,13 +7,13 @@ import { streamingMessageBus } from "../../utils/streamingMessageBus";
 import { useAppStore } from "../../store";
 import { getSystemPromptEnhancementText } from "../../../../shared/utils/systemPromptEnhancement";
 
-export interface UseChatStreaming {
+export interface UseMessageStreaming {
   sendMessage: (content: string, images?: ImageFile[]) => Promise<void>;
   cancel: () => void;
   agentAvailable: boolean | null;
 }
 
-interface UseChatStreamingDeps {
+interface UseMessageStreamingDeps {
   currentChat: any | null;
   addMessage: (chatId: string, message: any) => Promise<void>;
   setProcessing: (isProcessing: boolean) => void;
@@ -25,7 +25,7 @@ interface UseChatStreamingDeps {
  *
  * Agent-only flow using the local agent endpoints (localhost:8080).
  */
-export function useChatStreaming(deps: UseChatStreamingDeps): UseChatStreaming {
+export function useMessageStreaming(deps: UseMessageStreamingDeps): UseMessageStreaming {
   const { modal, message: appMessage } = AntApp.useApp();
   const abortRef = useRef<AbortController | null>(null);
   const streamingMessageIdRef = useRef<string | null>(null);

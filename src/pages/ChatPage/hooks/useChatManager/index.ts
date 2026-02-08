@@ -9,8 +9,8 @@
 import { useChatState } from "./useChatState";
 import { useChatTitleGeneration } from "./useChatTitleGeneration";
 import { useChatOperations } from "./useChatOperations";
-import { useChatStateMachine } from "./useChatStateMachine";
-import { useChatStreaming } from "./useChatStreaming";
+import { useMessageStreaming } from "./useMessageStreaming";
+import { useChatHistory } from "./useChatHistory";
 
 /**
  * Unified hook for managing all chat-related state and interactions.
@@ -28,18 +28,17 @@ export const useChatManager = () => {
   // Phase 3: Chat operations (CRUD)
   const operations = useChatOperations(state);
 
-  // Phase 4: Streaming (Agent Server priority, fallback to OpenAI)
-  const streaming = useChatStreaming({
+  // Phase 4: Message streaming (Agent Server)
+  const streaming = useMessageStreaming({
     currentChat: state.currentChat,
     addMessage: state.addMessage,
     setProcessing: state.setProcessing,
     updateChat: state.updateChat,
   });
 
-  const stateMachine = useChatStateMachine(state, {
-    onCancel: streaming.cancel,
+  // Phase 5: Chat history management
+  const history = useChatHistory(state, {
     onRetry: streaming.sendMessage,
-    isProcessing: state.isProcessing,
   });
 
   // Compose and return the complete interface
@@ -52,12 +51,10 @@ export const useChatManager = () => {
     unpinnedChats: state.unpinnedChats,
     chatCount: state.chatCount,
 
-    // State from useChatStateMachine (overrides baseMessages with currentMessages)
-    currentMessages: stateMachine.currentMessages,
-    interactionState: stateMachine.interactionState,
-    pendingAgentApproval: stateMachine.pendingAgentApproval,
+    // State from useChatHistory
+    currentMessages: history.currentMessages,
 
-    // State from useChatStreaming
+    // State from useMessageStreaming
     agentAvailable: streaming.agentAvailable,
 
     // State from useChatTitleGeneration
@@ -90,13 +87,18 @@ export const useChatManager = () => {
     deleteEmptyChats: operations.deleteEmptyChats,
     deleteAllUnpinnedChats: operations.deleteAllUnpinnedChats,
 
-    // Actions from useChatStateMachine
-    send: stateMachine.send,
-    setPendingAgentApproval: stateMachine.setPendingAgentApproval,
-    retryLastMessage: stateMachine.retryLastMessage,
+    // Actions from useChatHistory
+    retryLastMessage: history.retryLastMessage,
 
-    // Actions from useChatOpenAIStreaming
+    // Actions from useMessageStreaming
     sendMessage: streaming.sendMessage,
     cancelMessage: streaming.cancel,
   };
 };
+
+// Re-export types
+export type { UseChatState } from "./types";
+export type { UseChatOperations } from "./useChatOperations";
+export type { UseMessageStreaming } from "./useMessageStreaming";
+export type { UseChatTitleGeneration } from "./useChatTitleGeneration";
+export type { UseChatHistory } from "./useChatHistory";

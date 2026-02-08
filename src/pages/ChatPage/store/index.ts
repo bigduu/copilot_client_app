@@ -7,7 +7,7 @@ import { FavoritesSlice, createFavoritesSlice } from "./slices/favoritesSlice";
 import { SessionSlice, createSessionSlice } from "./slices/appSettingsSlice";
 import { SkillSlice, createSkillSlice } from "./slices/skillSlice";
 import { AgentClient } from "../services/AgentService";
-import { serviceFactory } from "../../AgentPage/services/ServiceFactory";
+import { serviceFactory } from "../../../services/common/ServiceFactory";
 import { readStoredProxyAuth } from "../../../shared/utils/proxyAuth";
 import type { ChatItem, Message } from "../types/chat";
 
