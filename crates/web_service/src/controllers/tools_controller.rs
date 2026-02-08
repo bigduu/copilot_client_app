@@ -2,9 +2,9 @@ use actix_web::{post, web, HttpResponse};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-use builtin_tools::{normalize_tool_ref, BuiltinToolExecutor};
-use copilot_agent_core::tools::{FunctionCall, ToolCall};
-use copilot_agent_core::ToolExecutor;
+use agent_core::tools::{FunctionCall, ToolCall};
+use agent_core::ToolExecutor;
+use agent_tools::{normalize_tool_ref, BuiltinToolExecutor};
 
 use crate::error::AppError;
 

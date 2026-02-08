@@ -1,8 +1,8 @@
 use crate::{error::AppError, server::AppState};
 use actix_web::{get, post, web, HttpResponse};
+use agent_llm::api::models::{ChatCompletionRequest, ChatCompletionResponse};
+use agent_llm::ProxyAuthRequiredError;
 use bytes::Bytes;
-use copilot_client::api::models::{ChatCompletionRequest, ChatCompletionResponse};
-use copilot_client::ProxyAuthRequiredError;
 use futures_util::StreamExt;
 use serde::Serialize;
 use tokio::sync::mpsc;

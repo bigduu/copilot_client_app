@@ -3,14 +3,13 @@ use actix_web::{
     dev::{Service, ServiceResponse},
     test, App, Error,
 };
+use agent_llm::client_trait::CopilotClientTrait;
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
 use bytes::Bytes;
 use chat_core::ProxyAuth;
-use copilot_client::client_trait::CopilotClientTrait;
 use reqwest::Response;
 use serde_json::{json, Value};
-use skill_manager::SkillManager;
 use std::sync::{Arc, Mutex};
 use tempfile::tempdir;
 use tokio::sync::mpsc::Sender;
@@ -24,7 +23,7 @@ struct MockCopilotClient {
 impl CopilotClientTrait for MockCopilotClient {
     async fn send_chat_completion_request(
         &self,
-        _request: copilot_client::api::models::ChatCompletionRequest,
+        _request: agent_llm::api::models::ChatCompletionRequest,
     ) -> Result<Response> {
         Err(anyhow!("not used"))
     }
@@ -59,12 +58,9 @@ async fn setup_test_environment() -> (
         last_auth: Arc::clone(&last_auth),
     });
 
-    let skill_manager = SkillManager::new();
-    skill_manager.initialize().await.expect("init skills");
     let app_state = actix_web::web::Data::new(AppState {
         copilot_client,
         app_data_dir: temp_dir.path().to_path_buf(),
-        skill_manager,
     });
 
     let app =

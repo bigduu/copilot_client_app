@@ -1,12 +1,12 @@
 use actix_web::{get, web, HttpResponse};
+use agent_server::state::AppState as AgentAppState;
+use agent_skill::{SkillDefinition, SkillFilter};
+use agent_tools::BuiltinToolExecutor;
 use log::{debug, info};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use crate::error::AppError;
-use crate::server::AppState;
-use builtin_tools::BuiltinToolExecutor;
-use skill_manager::{SkillDefinition, SkillFilter};
 
 /// Configure skill routes
 pub fn config(cfg: &mut web::ServiceConfig) {
@@ -62,7 +62,7 @@ struct AvailableWorkflowsResponse {
 /// GET /v1/skills - List all skills
 #[get("/v1/skills")]
 pub async fn list_skills(
-    app_state: web::Data<AppState>,
+    agent_state: web::Data<AgentAppState>,
     query: web::Query<ListSkillsQuery>,
 ) -> Result<HttpResponse, AppError> {
     let mut filter = SkillFilter::new();
@@ -76,8 +76,9 @@ pub async fn list_skills(
         filter = filter.enabled_only();
     }
 
-    let skills = app_state
+    let skills = agent_state
         .skill_manager
+        .as_ref()
         .store()
         .list_skills(Some(filter))
         .await;
@@ -91,16 +92,17 @@ pub async fn list_skills(
 /// GET /v1/skills/{id} - Get skill detail
 #[get("/v1/skills/{id}")]
 pub async fn get_skill(
-    app_state: web::Data<AppState>,
+    agent_state: web::Data<AgentAppState>,
     path: web::Path<String>,
 ) -> Result<HttpResponse, AppError> {
     let id = path.into_inner();
-    let skill = app_state
+    let skill = agent_state
         .skill_manager
+        .as_ref()
         .store()
         .get_skill(&id)
         .await
-        .map_err(|_| AppError::NotFound(format!("Skill '{}' not found", id)))?;
+        .map_err(|_| AppError::NotFound(format!("Skill {} not found", id)))?;
 
     Ok(HttpResponse::Ok().json(skill))
 }
@@ -108,7 +110,7 @@ pub async fn get_skill(
 /// GET /v1/skills/available-tools - Get available built-in tools
 #[get("/v1/skills/available-tools")]
 pub async fn get_available_tools(
-    _app_state: web::Data<AppState>,
+    _agent_state: web::Data<AgentAppState>,
 ) -> Result<HttpResponse, AppError> {
     let tool_names: Vec<String> = BuiltinToolExecutor::tool_schemas()
         .into_iter()
@@ -126,12 +128,12 @@ struct FilteredToolsQuery {
 /// GET /v1/skills/filtered-tools - Get tools filtered by enabled skills
 #[get("/v1/skills/filtered-tools")]
 pub async fn get_filtered_tools(
-    app_state: web::Data<AppState>,
+    agent_state: web::Data<AgentAppState>,
     query: web::Query<FilteredToolsQuery>,
 ) -> Result<HttpResponse, AppError> {
-    // Get allowed tools from skill manager
-    let allowed_tools = app_state
+    let allowed_tools = agent_state
         .skill_manager
+        .as_ref()
         .get_allowed_tools(query.chat_id.as_deref())
         .await;
     debug!("Skill filtered tools allowed list: {:?}", allowed_tools);
@@ -181,9 +183,8 @@ pub async fn get_filtered_tools(
 /// GET /v1/skills/available-workflows - Get available workflows
 #[get("/v1/skills/available-workflows")]
 pub async fn get_available_workflows(
-    _app_state: web::Data<AppState>,
+    _agent_state: web::Data<AgentAppState>,
 ) -> Result<HttpResponse, AppError> {
-    // Get workflows from bodhi directory
     let workflows = crate::services::skill_service::list_workflows()
         .await
         .map_err(|e| AppError::InternalError(anyhow::anyhow!("Failed to list workflows: {}", e)))?;

@@ -3,20 +3,19 @@ use actix_web::{
     dev::{Service, ServiceResponse},
     test, App, Error,
 };
-use anyhow::Result;
-use async_trait::async_trait;
-use bytes::Bytes;
-use chat_core::ProxyAuth;
-use copilot_client::{
+use agent_llm::{
     api::models::{
         ChatCompletionRequest, ChatCompletionResponse, ChatCompletionStreamChunk, ChatMessage,
         Content, ResponseChoice, Role, StreamChoice, StreamDelta, Usage,
     },
     client_trait::CopilotClientTrait,
 };
+use anyhow::Result;
+use async_trait::async_trait;
+use bytes::Bytes;
+use chat_core::ProxyAuth;
 use reqwest::Response;
 use serde::{Deserialize, Serialize};
-use skill_manager::SkillManager;
 use std::sync::Arc;
 use tokio::sync::mpsc::Sender;
 use web_service::server::{app_config, AppState};
@@ -111,12 +110,9 @@ async fn setup_test_environment() -> (
         client: reqwest::Client::builder().no_proxy().build().unwrap(),
     });
 
-    let skill_manager = SkillManager::new();
-    skill_manager.initialize().await.expect("init skills");
     let app_state = actix_web::web::Data::new(AppState {
         copilot_client: copilot_client.clone(),
         app_data_dir: std::env::temp_dir(),
-        skill_manager,
     });
 
     let app =
