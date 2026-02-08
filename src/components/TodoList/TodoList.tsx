@@ -102,6 +102,9 @@ export const TodoList: React.FC<TodoListProps> = ({
     );
     eventSourceRef.current = eventSource;
 
+    // Track if stream ended normally (don't reconnect if conversation completed)
+    let isStreamCompleted = false;
+
     eventSource.onmessage = (event) => {
       try {
         const data = JSON.parse(event.data);
@@ -129,7 +132,8 @@ export const TodoList: React.FC<TodoListProps> = ({
             break;
 
           case 'complete':
-            // Conversation completed, cleanup can be done here
+            // Conversation completed, mark stream as done
+            isStreamCompleted = true;
             break;
 
           case 'error':
@@ -143,8 +147,13 @@ export const TodoList: React.FC<TodoListProps> = ({
     };
 
     eventSource.onerror = () => {
-      console.log('SSE connection error');
       eventSource.close();
+
+      // Don't reconnect if conversation completed normally
+      if (isStreamCompleted) {
+        console.log('SSE ended: conversation completed');
+        return;
+      }
 
       // Limit reconnection attempts to avoid infinite loops
       reconnectCountRef.current += 1;
