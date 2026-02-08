@@ -16,7 +16,7 @@ export default defineConfig(async () => ({
       },
       output: {
         manualChunks(id) {
-          // 将 node_modules 中的依赖分离到 vendor chunks
+          // Separate dependencies from node_modules into vendor chunks
           if (id.includes('node_modules')) {
             if (id.includes('react') || id.includes('react-dom')) {
               return 'vendor-react';

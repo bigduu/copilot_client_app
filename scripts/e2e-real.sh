@@ -64,11 +64,11 @@ echo ""
 echo "=========================================="
 echo "Test 1: Basic Chat"
 echo "=========================================="
-echo "[$(date '+%Y-%m-%d %H:%M:%S')] Sending: '你好，请简单介绍一下自己'"
+echo "[$(date '+%Y-%m-%d %H:%M:%S')] Sending: 'Hello, please briefly introduce yourself'"
 echo ""
 
 START_TIME=$(date +%s%3N)
-"$CLI" --server-url "$SERVER_URL" send "你好，请简单介绍一下自己" 2>&1 | tee -a "$LOG_FILE"
+"$CLI" --server-url "$SERVER_URL" send "Hello, please briefly introduce yourself" 2>&1 | tee -a "$LOG_FILE"
 SEND_RESULT=${PIPESTATUS[0]}
 END_TIME=$(date +%s%3N)
 ELAPSED=$((END_TIME - START_TIME))
@@ -89,11 +89,11 @@ echo ""
 echo "=========================================="
 echo "Test 2: Stream Output"
 echo "=========================================="
-echo "[$(date '+%Y-%m-%d %H:%M:%S')] Streaming: '讲一个短笑话'"
+echo "[$(date '+%Y-%m-%d %H:%M:%S')] Streaming: 'Tell a short joke'"
 echo ""
 
 START_TIME=$(date +%s%3N)
-timeout 30s "$CLI" --server-url "$SERVER_URL" stream "讲一个短笑话" 2>&1 | tee -a "$LOG_FILE" || true
+timeout 30s "$CLI" --server-url "$SERVER_URL" stream "Tell a short joke" 2>&1 | tee -a "$LOG_FILE" || true
 STREAM_RESULT=$?
 END_TIME=$(date +%s%3N)
 ELAPSED=$((END_TIME - START_TIME))

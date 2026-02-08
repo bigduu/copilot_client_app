@@ -2,17 +2,18 @@
 members = [
     "crates/claude_installer",
     "crates/chat_core",
-    "crates/copilot_client",
     "crates/workflow_system",
-    "crates/copilot-agent/crates/builtin_tools",
+    "crates/agent-core",
+    "crates/agent-loop",
+    "crates/agent-server",
+    "crates/agent-tools",
+    "crates/agent-skill",
+    "crates/agent-llm",
+    "crates/agent-cli",
     "crates/web_service",
-    "crates/skill_manager",
+    "crates/anthropic_adapter",
     "src-tauri",
     "crates/web_service_standalone",
-    "crates/copilot-agent/crates/copilot-agent-core",
-    "crates/copilot-agent/crates/copilot-agent-llm",
-    "crates/copilot-agent/crates/copilot-agent-server",
-    "crates/copilot-agent/crates/copilot-agent-cli",
 ]
 resolver = "2"
 default-members = ["src-tauri"]

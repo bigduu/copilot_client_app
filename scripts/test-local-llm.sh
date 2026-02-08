@@ -44,7 +44,7 @@ done
 
 echo ""
 echo "Testing CLI..."
-"$PROJECT_ROOT/target/release/copilot-agent-cli" --debug send "你好，请介绍一下自己"
+"$PROJECT_ROOT/target/release/copilot-agent-cli" --debug send "Hello, please introduce yourself"
 
 echo ""
 echo "Press Enter to stop server..."
