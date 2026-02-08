@@ -1,0 +1,25 @@
+[package]
+name = "agent-loop"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "agent_loop"
+path = "src/lib.rs"
+
+[dependencies]
+agent-core = { path = "../agent-core" }
+agent-llm = { path = "../agent-llm" }
+agent-tools = { path = "../agent-tools" }
+agent-skill = { path = "../agent-skill" }
+
+chrono = "0.4"
+tokio = { version = "1", features = ["full"] }
+tokio-util = { version = "0.7" }
+futures = "0.3"
+serde_json = "1"
+log = "0.4"
+uuid = { version = "1", features = ["v4"] }
+
+[dev-dependencies]
+agent-tools = { path = "../agent-tools" }
