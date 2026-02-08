@@ -180,7 +180,7 @@ export const useInputContainerFileReferences = ({
       if (!currentChat || !currentChatId) return;
       const trimmedPath = path.trim();
       if (!trimmedPath) {
-        messageApi.error("Workspace 路径不能为空");
+        messageApi.error("Workspace path cannot be empty");
         return;
       }
 
@@ -199,7 +199,7 @@ export const useInputContainerFileReferences = ({
         setWorkspaceError(null);
       } catch (error) {
         const errorMessage =
-          error instanceof Error ? error.message : "无法保存 workspace 路径";
+          error instanceof Error ? error.message : "Unable to save workspace path";
         messageApi.error(errorMessage);
       } finally {
         setIsSavingWorkspace(false);

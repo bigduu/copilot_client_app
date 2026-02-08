@@ -43,23 +43,23 @@ const WorkspacePathModal: React.FC<WorkspacePathModalProps> = ({
 
   const handleSubmit = async () => {
     if (!path.trim()) {
-      message.error("请输入工作区路径");
+      message.error("Please enter a workspace path");
       return;
     }
 
     // If path is not valid, show warning but still allow submission
     if (validationResult && !validationResult.is_valid) {
       Modal.confirm({
-        title: "工作区路径无效",
+        title: "Invalid Workspace Path",
         content: (
           <div>
-            <p>检测到工作区路径可能存在问题：</p>
-            <p>{validationResult.error_message || "路径无效"}</p>
-            <p>是否仍要保存此路径？</p>
+            <p>Potential issues detected with the workspace path:</p>
+            <p>{validationResult.error_message || "Invalid path"}</p>
+            <p>Do you still want to save this path?</p>
           </div>
         ),
-        okText: "仍然保存",
-        cancelText: "取消",
+        okText: "Save Anyway",
+        cancelText: "Cancel",
         onOk: () => performSubmit(),
       });
     } else {
@@ -80,7 +80,7 @@ const WorkspacePathModal: React.FC<WorkspacePathModalProps> = ({
       onSubmit(path.trim());
     } catch (error) {
       console.error("Failed to save workspace path:", error);
-      message.error("保存工作区路径失败");
+      message.error("Failed to save workspace path");
     } finally {
       setIsSubmitting(false);
     }
@@ -94,12 +94,12 @@ const WorkspacePathModal: React.FC<WorkspacePathModalProps> = ({
       title={
         <Space>
           <Title level={4} style={{ margin: 0 }}>
-            设置 Workspace 路径
+            Set Workspace Path
           </Title>
         </Space>
       }
-      okText="保存"
-      cancelText="取消"
+      okText="Save"
+      cancelText="Cancel"
       onOk={handleSubmit}
       onCancel={onCancel}
       okButtonProps={{
@@ -111,15 +111,15 @@ const WorkspacePathModal: React.FC<WorkspacePathModalProps> = ({
     >
       <Space direction="vertical" size="middle" style={{ width: "100%" }}>
         <Alert
-          message="工作区路径说明"
+          message="Workspace Path Description"
           description={
             <div>
               <p>
-                指定当前 Chat
-                关联的项目根目录。后端会基于该目录提供文件列表，以供 @
-                文件引用。
+                Specify the project root directory associated with the current Chat.
+                The backend will provide file listings based on this directory for @
+                file references.
               </p>
-              <p>建议选择包含项目源代码的根目录，如 Git 仓库的根目录。</p>
+              <p>It is recommended to select the root directory containing project source code, such as a Git repository root.</p>
             </div>
           }
           type="info"
@@ -130,7 +130,7 @@ const WorkspacePathModal: React.FC<WorkspacePathModalProps> = ({
           value={path}
           onChange={handlePathChange}
           onValidationChange={handleValidationChange}
-          placeholder="例如 /Users/alice/Workspace/MyProject"
+          placeholder="e.g. /Users/alice/Workspace/MyProject"
           disabled={isSubmitting}
           allowBrowse={true}
           showRecentWorkspaces={true}
@@ -139,10 +139,10 @@ const WorkspacePathModal: React.FC<WorkspacePathModalProps> = ({
 
         {validationResult && !validationResult.is_valid && (
           <Alert
-            message="工作区路径检测"
+            message="Workspace Path Check"
             description={
               validationResult.error_message ||
-              "路径可能无效，请检查目录是否存在且可访问"
+              "Path may be invalid, please check if the directory exists and is accessible"
             }
             type="warning"
             showIcon

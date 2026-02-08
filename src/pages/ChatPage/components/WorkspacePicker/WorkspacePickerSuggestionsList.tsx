@@ -41,7 +41,7 @@ const WorkspacePickerSuggestionsList: React.FC<
     <Flex vertical gap={token.marginXS} style={{ marginTop: token.marginMD }}>
       <Space style={{ paddingInline: token.paddingSM }}>
         <FolderOutlined />
-        <Text strong>建议的工作区</Text>
+        <Text strong>Suggested Workspaces</Text>
       </Space>
 
       {isLoading ? (
@@ -50,7 +50,7 @@ const WorkspacePickerSuggestionsList: React.FC<
         </Flex>
       ) : suggestions.length === 0 ? (
         <Empty
-          description="暂无建议"
+          description="No suggestions available"
           image={Empty.PRESENTED_IMAGE_SIMPLE}
           style={{ padding: token.paddingSM }}
         />

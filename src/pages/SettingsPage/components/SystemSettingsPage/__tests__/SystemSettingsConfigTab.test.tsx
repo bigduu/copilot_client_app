@@ -5,7 +5,7 @@ import SystemSettingsConfigTab from "../SystemSettingsConfigTab";
 
 type SystemSettingsConfigTabProps = Parameters<typeof SystemSettingsConfigTab>[0];
 
-vi.mock("../../../AgentPage/services/ServiceFactory", () => ({
+vi.mock("../../../../services/common/ServiceFactory", () => ({
   serviceFactory: {
     setProxyAuth: vi.fn(),
   },

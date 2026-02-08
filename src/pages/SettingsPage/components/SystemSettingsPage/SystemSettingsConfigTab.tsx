@@ -14,7 +14,7 @@ import {
   theme,
 } from "antd";
 import SystemSettingsModelSelection from "./SystemSettingsModelSelection";
-import { serviceFactory } from "../../../AgentPage/services/ServiceFactory";
+import { serviceFactory } from "../../../../services/common/ServiceFactory";
 import {
   clearStoredProxyAuth,
   readStoredProxyAuth,

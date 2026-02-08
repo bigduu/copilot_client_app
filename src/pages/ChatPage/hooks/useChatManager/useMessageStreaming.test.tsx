@@ -48,9 +48,9 @@ vi.mock("../../store", () => ({
     selector(mockStoreState),
 }));
 
-import { useChatStreaming } from "./useChatStreaming";
+import { useMessageStreaming } from "./useMessageStreaming";
 
-describe("useChatStreaming", () => {
+describe("useMessageStreaming", () => {
   beforeEach(() => {
     mockModalInfo.mockReset();
     mockMessageApi.warning.mockReset();
@@ -75,7 +75,7 @@ describe("useChatStreaming", () => {
       updateChat: vi.fn(),
     };
 
-    renderHook(() => useChatStreaming(deps));
+    renderHook(() => useMessageStreaming(deps));
 
     await waitFor(() => {
       expect(mockStoreState.startAgentHealthCheck).toHaveBeenCalledTimes(1);
@@ -99,7 +99,7 @@ describe("useChatStreaming", () => {
       updateChat: vi.fn(),
     };
 
-    const { result } = renderHook(() => useChatStreaming(deps));
+    const { result } = renderHook(() => useMessageStreaming(deps));
 
     await act(async () => {
       await result.current.sendMessage("hello");
@@ -130,7 +130,7 @@ describe("useChatStreaming", () => {
       updateChat: vi.fn(),
     };
 
-    const { result } = renderHook(() => useChatStreaming(deps));
+    const { result } = renderHook(() => useMessageStreaming(deps));
 
     await act(async () => {
       await result.current.sendMessage("hello");
@@ -166,7 +166,7 @@ describe("useChatStreaming", () => {
       updateChat: vi.fn(),
     };
 
-    const { result } = renderHook(() => useChatStreaming(deps));
+    const { result } = renderHook(() => useMessageStreaming(deps));
 
     await act(async () => {
       await result.current.sendMessage("hello");

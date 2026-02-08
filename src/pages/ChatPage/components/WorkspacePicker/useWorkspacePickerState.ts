@@ -140,7 +140,7 @@ export const useWorkspacePickerState = ({
   const handleFolderSelect = useCallback(
     (selectedPath: string) => {
       handlePathChange(selectedPath);
-      message.success("文件夹选择成功");
+      message.success("Folder selected successfully");
     },
     [handlePathChange],
   );

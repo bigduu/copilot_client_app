@@ -135,7 +135,7 @@ const FileReferenceSelector: React.FC<FileReferenceSelectorProps> = ({
         }}
         title={
           <Space align="center" size={token.marginXS}>
-            <Text strong>@ 文件引用</Text>
+            <Text strong>@ File Reference</Text>
             {loading && <Spin size="small" />}
           </Space>
         }
@@ -148,11 +148,11 @@ const FileReferenceSelector: React.FC<FileReferenceSelectorProps> = ({
                 icon={<ReloadOutlined />}
                 onClick={onChangeWorkspace}
               >
-                设置 Workspace
+                Set Workspace
               </Button>
             )}
             <Button type="text" size="small" onClick={onCancel}>
-              关闭
+              Close
             </Button>
           </Space>
         }
@@ -162,7 +162,7 @@ const FileReferenceSelector: React.FC<FileReferenceSelectorProps> = ({
         ) : filteredFiles.length === 0 && !loading ? (
           <Empty
             image={Empty.PRESENTED_IMAGE_SIMPLE}
-            description={searchText ? "未找到匹配文件" : "目录为空"}
+            description={searchText ? "No matching files found" : "Directory is empty"}
           />
         ) : (
           <div ref={listContainerRef}>
@@ -197,7 +197,7 @@ const FileReferenceSelector: React.FC<FileReferenceSelectorProps> = ({
                           type="secondary"
                           style={{ fontSize: token.fontSizeSM }}
                         >
-                          {file.is_directory ? "目录" : "文件"}
+                          {file.is_directory ? "Directory" : "File"}
                         </Text>
                       </div>
                     </div>

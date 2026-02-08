@@ -26,7 +26,7 @@ const WorkspacePickerRecentList: React.FC<WorkspacePickerRecentListProps> = ({
     <Flex vertical gap={token.marginXS} style={{ marginTop: token.marginMD }}>
       <Space style={{ paddingInline: token.paddingSM }}>
         <HistoryOutlined />
-        <Text strong>最近使用的工作区</Text>
+        <Text strong>Recent Workspaces</Text>
       </Space>
 
       {isLoading ? (
@@ -35,7 +35,7 @@ const WorkspacePickerRecentList: React.FC<WorkspacePickerRecentListProps> = ({
         </Flex>
       ) : recentWorkspaces.length === 0 ? (
         <Empty
-          description="暂无最近使用的工作区"
+          description="No recent workspaces"
           image={Empty.PRESENTED_IMAGE_SIMPLE}
           style={{ padding: token.paddingSM }}
         />
@@ -62,7 +62,7 @@ const WorkspacePickerRecentList: React.FC<WorkspacePickerRecentListProps> = ({
                     <Text strong>
                       {workspace.workspace_name ||
                         workspace.path.split("/").pop() ||
-                        "工作区"}
+                        "Workspace"}
                     </Text>
                   </Space>
                   <Text
