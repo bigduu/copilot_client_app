@@ -41,17 +41,18 @@ impl SkillManager {
         &self.store
     }
 
-    /// Build system prompt context from enabled skills.
-    pub async fn build_skill_context(&self, chat_id: Option<&str>) -> String {
-        log::debug!("Building skill context for chat_id: {:?}", chat_id);
-        let skills = self.store.get_enabled_skills(chat_id).await;
-        log::info!("Found {} enabled skill(s) for chat_id: {:?}", skills.len(), chat_id);
+    /// Build system prompt context from all skills.
+    pub async fn build_skill_context(&self, _chat_id: Option<&str>) -> String {
+        // Reload to get latest skills
+        let skills = self.store.list_skills(None, true).await;
+        log::info!("Building skill context with {} skill(s)", skills.len());
         context::build_skill_context(&skills)
     }
 
-    /// Get allowed tool refs based on enabled skills.
-    pub async fn get_allowed_tools(&self, chat_id: Option<&str>) -> Vec<String> {
-        let skills = self.store.get_enabled_skills(chat_id).await;
+    /// Get allowed tool refs from all skills.
+    pub async fn get_allowed_tools(&self, _chat_id: Option<&str>) -> Vec<String> {
+        // Reload to get latest skills
+        let skills = self.store.list_skills(None, true).await;
 
         let mut tools: Vec<String> = skills
             .into_iter()

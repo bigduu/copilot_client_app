@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo } from "react";
-import { Select, Space, Tag } from "antd";
+import { Select, Space } from "antd";
 import { useAppStore } from "../../pages/ChatPage/store";
 
 interface SkillSelectorProps {
@@ -30,7 +30,6 @@ export const SkillSelector: React.FC<SkillSelectorProps> = ({
           label: (
             <Space size="small">
               <span>{skill.name}</span>
-              {skill.enabled_by_default && <Tag color="green">Enabled</Tag>}
             </Space>
           ),
           searchText: [

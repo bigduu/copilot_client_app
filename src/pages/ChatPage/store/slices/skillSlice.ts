@@ -13,7 +13,7 @@ export interface SkillSlice {
   skillsError: string | null;
 
   // Actions
-  loadSkills: (filter?: SkillFilter) => Promise<void>;
+  loadSkills: (filter?: SkillFilter, refresh?: boolean) => Promise<void>;
   getSkill: (id: string) => Promise<void>;
   clearSkillsError: () => void;
 }
@@ -28,10 +28,10 @@ export const createSkillSlice: StateCreator<AppState, [], [], SkillSlice> = (
   skillsError: null,
 
   // Actions
-  loadSkills: async (filter?: SkillFilter) => {
+  loadSkills: async (filter?: SkillFilter, refresh?: boolean) => {
     set({ isLoadingSkills: true, skillsError: null });
     try {
-      const response = await skillService.listSkills(filter);
+      const response = await skillService.listSkills(filter, refresh);
       set({
         skills: response.skills,
         isLoadingSkills: false,
