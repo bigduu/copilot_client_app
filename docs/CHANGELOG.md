@@ -31,6 +31,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Async loop handling in agent engine
 - Windows command execution for Claude (`cmd /C`)
 - Environment variable propagation for local base URL
+- TodoList SSE reconnection loop causing "Stream started" log spam every 5 seconds
+- QuestionDialog aggressive polling reduced with adaptive intervals and auto-stop
 
 ## [0.2.0] - 2025-11-05
 
