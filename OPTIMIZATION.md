@@ -1,33 +1,33 @@
 
-## Chunk 优化建议
+## Chunk Optimization Recommendations
 
-### 1. 已配置的优化
-- 将警告阈值提高到 1000KB
-- 配置 manualChunks 将大型库分开打包：
-  - vendor-react: React 核心库
+### 1. Configured Optimizations
+- Increased warning threshold to 1000KB
+- Configured manualChunks to split large libraries:
+  - vendor-react: React core libraries
   - vendor-ui: Ant Design
-  - vendor-chart: 图表库 (recharts, mermaid, cytoscape)
-  - vendor-pdf: PDF 生成库 (jspdf, html2canvas)
-  - vendor-utils: 工具库 (lodash, moment, dayjs)
+  - vendor-chart: Chart libraries (recharts, mermaid, cytoscape)
+  - vendor-pdf: PDF generation libraries (jspdf, html2canvas)
+  - vendor-utils: Utility libraries (lodash, moment, dayjs)
 
-### 2. 动态导入大型组件
-将不常用的组件改为动态导入：
+### 2. Dynamic Import for Large Components
+Convert infrequently used components to dynamic imports:
 
 ```typescript
-// 修改 src/components/Skill/index.ts
+// Modify src/components/Skill/index.ts
 export { default as SkillCard } from './SkillCard';
 
-// 大型组件改为动态导出
+// Large components converted to dynamic exports
 export const SkillManager = lazy(() => import('./SkillManager'));
 export const SkillEditor = lazy(() => import('./SkillEditor'));
 ```
 
-### 3. 移除未使用的依赖
-检查并移除未使用的库：
-- 如果只用部分 lodash 功能，改用 lodash-es + tree shaking
-- 检查是否有重复的日期库 (moment/dayjs)
+### 3. Remove Unused Dependencies
+Check and remove unused libraries:
+- If only using partial lodash features, switch to lodash-es + tree shaking
+- Check for duplicate date libraries (moment/dayjs)
 
-### 4. Gzip/Brotli 压缩
-部署时启用服务器端压缩，可以大幅减少传输大小：
-- gzip 压缩率约 70%
-- Brotli 压缩率约 80%
+### 4. Gzip/Brotli Compression
+Enable server-side compression during deployment to significantly reduce transfer size:
+- gzip compression rate approximately 70%
+- Brotli compression rate approximately 80%

@@ -23,183 +23,126 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-This is a GitHub Copilot Chat Desktop application built with Tauri (Rust backend) and React/TypeScript (frontend). The application provides a native desktop interface for interacting with GitHub Copilot's chat API, featuring advanced conversation management, tool integration, and workflow capabilities.
+This is **Bodhi**, a GitHub Copilot Chat Desktop application built with Tauri (Rust backend) and React/TypeScript (frontend). The application provides a native desktop interface for interacting with GitHub Copilot's chat API, featuring conversation management, agent-driven tool execution, workflows, and Spotlight search.
 
 ## Architecture
 
 ### High-Level Structure
-- **Frontend**: React 18 + TypeScript + Ant Design UI components
+- **Frontend**: React 18 + TypeScript + Ant Design 5, built with Vite
 - **Backend**: Rust with Tauri framework, organized into modular crates
-- **State Management**: Zustand for frontend state, custom StateManager for chat state
-- **Build System**: Vite for frontend, Cargo for Rust backend
-- **Testing**: Vitest for frontend, Rust's built-in testing for backend
+- **State Management**: Zustand for global UI state, custom hooks for chat state
+- **Build System**: Vite (frontend), Cargo (Rust backend)
+- **Testing**: Vitest for frontend, `cargo test` for backend
 
 ### Rust Crates Architecture
-The workspace consists of specialized crates with a clear dependency hierarchy:
 
 **Core Infrastructure:**
-- `chat_core` - Foundational types and traits (MessageContent, TodoItem, AgentRole, ContextTree)
-- `storage_manager` - File-based storage abstraction layer
+- `chat_core` - Foundational types shared across crates (messages, config, encryption)
+- `copilot_client` - GitHub Copilot API client with authentication, streaming, retry logic
 
-**Client & API Layer:**
-- `copilot_client` - GitHub Copilot API client with authentication and streaming support
-- `web_service` - Actix-web HTTP server with API endpoints and SSE streaming
+**Server Layer:**
+- `web_service` - Actix-web HTTP server (port 8080) that forwards requests to Copilot API
 - `web_service_standalone` - Standalone web service variant
 
-- `workflow_system` - Complex workflow orchestration with parameterized workflows
+**Agent System:**
+- `copilot-agent/` - Workspace containing agent loop and tool execution
+  - `copilot-agent-core` - Agent loop orchestration
+  - `copilot-agent-server` - Server-side agent handling
+  - `builtin_tools` - Built-in tool implementations
 
 **Application Entry:**
-- `src-tauri` - Main Tauri application integrating all crates
+- `src-tauri/` - Main Tauri application integrating all crates, with commands for:
+  - Claude Code integration (checkpoints, sessions, projects)
+  - Spotlight global shortcut (Cmd+Shift+Space)
+  - Proxy authentication dialog
+  - File operations
 
 ### Frontend Architecture
-- `src/core/`: StateManager (transactional state), chatInteractionMachine.ts (XState), ErrorHandler, ApprovalManager
-- `src/store/`: Zustand stores with 5 slices (chat, models, prompts, favorites, settings)
-- `src/services/`: ServiceFactory pattern, TauriService (native commands), HttpServices (API), domain services (Tool, AgentApproval, Workflow, Session)
-- `src/components/`: 40+ reusable components (ChatView, MessageCard, ApprovalModal, ToolResultCard, FileReferenceSelector, SystemPromptManager, TodoListDisplay)
-- `src/contexts/`: BackendContextProvider, ChatControllerContext
-- `src/hooks/`: Custom React hooks (10+)
-- `src/types/`: TypeScript definitions (chat.ts, unified-chat.ts, toolConfig.ts, sse.ts)
+
+**Page Structure:**
+- `src/app/` - Root App component and MainLayout
+- `src/pages/ChatPage/` - Main chat interface with:
+  - `hooks/useChatManager/` - Chat state machine and operations
+  - `components/` - ChatView, MessageCard, InputContainer, etc.
+  - `services/` - API clients, storage, workflow management
+  - `store/slices/` - Zustand slices (appSettings, favorites, prompt)
+  - `types/` - TypeScript type definitions
+- `src/pages/SettingsPage/` - Application settings (includes Claude Installer)
+- `src/pages/SpotlightPage/` - Quick search/action interface
+- `src/shared/` - Cross-page utilities and components
+- `src/services/` - Shared services (common utilities, agent services)
+
+**Key Patterns:**
+- Chat state managed through `useChatManager` hook with state machine pattern
+- Services in `ChatPage/services/` handle API communication and business logic
+- Zustand store in `ChatPage/store/` for persistent UI state
 
 ## Development Commands
 
-### Frontend Development
+### Frontend
 ```bash
-# Install dependencies
-npm install
-
-# Start development server
-npm run dev
-
-# Build for production
-npm run build
-
-# Type checking
-tsc --noEmit
-
-# Testing
-npm run test              # Run tests
-npm run test:ui          # Run tests with UI
-npm run test:coverage    # Run tests with coverage
+npm install              # Install dependencies
+npm run dev              # Start Vite dev server (port 1420)
+npm run build            # Type-check and build for production
+npm run test             # Run Vitest in watch mode
 npm run test:run         # Run tests once
-
-# Code formatting
-npm run format           # Format code
-npm run format:check     # Check formatting
+npm run test:coverage    # Run tests with coverage
+npm run format           # Format with Prettier
+npm run format:check     # Check formatting without writing
 ```
 
-### Tauri Development
+### Tauri
 ```bash
-# Start Tauri development mode
-npm run tauri dev
-
-# Build desktop application
-npm run tauri build
-
-# Run specific Tauri commands
-npm run tauri [command]
+npm run tauri dev        # Start Tauri in development mode
+npm run tauri build      # Build desktop application
 ```
 
-### Rust Backend Development
+### Rust Backend
 ```bash
-# From project root (for workspace-level operations)
+# From project root
 cargo build              # Build all crates
-cargo test               # Run all tests
-cargo check              # Quick type checking
-cargo fmt               # Format Rust code
-cargo clippy            # Lint Rust code
+cargo test               # Run all Rust tests
+cargo check              # Quick type check
+cargo fmt                # Format Rust code
+cargo clippy             # Lint Rust code
 
-# For specific crates
-cd crates/copilot_client && cargo build
-cd crates/web_service && cargo test
+# Single crate
+cargo test -p copilot_client
+cargo test -p web_service
 ```
 
-## Key Technical Patterns
+## Key Technical Details
 
 ### State Management
-- **StateManager** (`src/core/StateManager.ts`): Centralized chat state with transaction support and automatic rollback
-- **Zustand Stores**: Domain-specific slices in `src/store/slices/` for chat, models, prompts, favorites, settings
-- **XState Machines**: Complex interaction flows using `@xstate/react` in `src/core/chatInteractionMachine.ts`
+- **Chat State**: `useChatManager` hook (`src/pages/ChatPage/hooks/useChatManager/`) manages chat lifecycle
+  - `useChatStateMachine.ts` - Simplified state machine (IDLE | THINKING | AWAITING_APPROVAL)
+  - `useChatOperations.ts` - Message sending, streaming, cancellation
+  - `openAiStreamingRunner.ts` - OpenAI-compatible streaming implementation
+- **Global UI State**: Zustand store in `src/pages/ChatPage/store/slices/`
 
-### Service Architecture
-- **Factory Pattern** (`src/services/ServiceFactory.ts`): Service instantiation and lifecycle management
-- **Backend Abstraction**: Services work with both local Rust backend (TauriService) and external HTTP backends (HttpServices)
-- **Composite Services**: UtilityService combines native Tauri functions with HTTP-based functions
-- **Dependency Injection**: React contexts provide services to components
+### Backend Communication
+- **HTTP API**: Frontend communicates with local web_service on port 8080
+- **Tauri Commands**: Native functionality via `invoke()` (file picker, clipboard, etc.)
+- **Streaming**: Server-sent events (SSE) for real-time chat responses
 
-### Component Patterns
-- **Compound Components**: Complex UI like InputContainer with multiple sub-components
-- **Approval Workflows**: Multi-step approval system for tool execution and agent actions (ApprovalModal, AgentApprovalModal)
-- **Specialized Message Types**: SystemMessageCard, ToolResultCard, QuestionMessageCard, PlanMessageCard
+### Build Configuration
+- **Vite**: Port 1420 with HMR, manual chunking for vendor libraries (React, Ant Design, Mermaid, PDF)
+- **Tauri**: macOS private API enabled, global shortcut plugin for Spotlight
 
-### Rust Patterns
-- **Trait-Based Abstractions**: CopilotClientTrait for extensibility
-- **Forwarding-Only Backend**: web_service forwards model requests and does not persist state
+### Testing
+- **Frontend**: Vitest with jsdom, tests in `src/**/__tests__/` directories
+- **Backend**: Standard Rust tests, wiremock for HTTP mocking in `copilot_client`
 
-### Error Handling
-- **Centralized Error Management**: ErrorHandler in `src/core/ErrorHandler.ts`
-- **Transaction Rollback**: StateManager supports automatic rollback on failed operations
-- **Graceful Degradation**: Fallback UI states when services are unavailable
+## Important Dependencies
 
-## Testing Strategy
+### Crate Relationships
+- `web_service` → depends on `copilot_client`, `copilot-agent-server`, `skill_manager`
+- `src-tauri` → integrates `copilot_client`, `web_service`, `copilot-agent-server`
+- `copilot_client` → uses `chat_core` for types
 
-### Frontend Testing
-- Unit tests in `src/utils/__tests__/`
-- Component testing with React Testing Library
-- Integration tests for service layer
-- Test setup and helpers in `src/test/`
-
-### Backend Testing
-- Unit tests for each Rust crate
-- Integration tests in `crates/web_service/tests/`
-- Mock servers using wiremock for API testing
-- Custom test harnesses for specific workflows
-
-## Configuration Files
-
-### Key Configuration
-- `src-tauri/tauri.conf.json`: Tauri application configuration
-- `vite.config.ts`: Vite build configuration with Tauri integration
-- `package.json`: Frontend dependencies and scripts
-- `src-tauri/Cargo.toml`: Rust workspace and dependencies
-
-### Environment Setup
-- Frontend runs on port 1420 (configured in vite.config.ts)
-- Development server requires fixed port for Tauri integration
-- HMR (Hot Module Replacement) configured for development
-
-## Development Notes
-
-### Code Organization
-- Follow the established crate structure for new Rust functionality
-- Use TypeScript strict mode and proper typing throughout
-- Components should be self-contained with clear props interfaces
-- Services should abstract backend communication details
-
-### Performance Considerations
-- Profiler is enabled in development mode to identify expensive renders
-- Virtual scrolling for long message lists using `@tanstack/react-virtual`
-- Lazy loading and code splitting for large components
-- Efficient state updates through proper memoization
-
-### Security Practices
-- API keys and sensitive data handled through Rust backend
-- Content Security Policy configured appropriately
-- Input sanitization for markdown rendering
-- Proper validation of user inputs in tool parameters
-
-## Important Crate Dependencies
-
-Understanding crate dependencies is crucial for modifications:
-- `web_service` depends on: copilot_client
-- `src-tauri` integrates: copilot_client, web_service
-- `workflow_system` is currently not used by the forwarding-only backend server
-
-## Migration and Legacy
-
-### Recent Refactoring
-- Transition to unified state management with StateManager
-- Backend refactor to forwarding-only responsibilities (no server-side sessions/contexts/tools)
-
-### Legacy Code
-- Some migration code is commented out but preserved for reference
-- Legacy LocalStorage cleanup utilities are available but disabled per user request
+### Key Frontend Libraries
+- `@tanstack/react-virtual` - Virtual scrolling for message lists
+- `@xstate/react` - State machines (legacy, being phased out)
+- `zustand` - Global state management
+- `html2canvas` + `jspdf` - PDF export functionality
+- `mermaid` - Diagram rendering in messages
