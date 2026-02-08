@@ -1,0 +1,37 @@
+id: code-review
+name: Intelligent Code Review
+description: Automatically analyze code and provide review suggestions
+version: "1.0.0"
+type: composition
+composition:
+  type: sequence
+  fail_fast: false
+  steps:
+    - type: call
+      tool: read_file
+      args:
+        path: "${file_path}"
+    - type: parallel
+      wait: all
+      branches:
+        - type: call
+          tool: execute_command
+          args:
+            command: "cargo"
+            args: ["check"]
+        - type: call
+          tool: execute_command
+          args:
+            command: "cargo"
+            args: ["clippy"]
+    - type: choice
+      condition:
+        type: contains
+        path: "$.result"
+        value: "error"
+      then_branch:
+        type: call
+        tool: generate_fix
+      else_branch:
+        type: call
+        tool: generate_report
