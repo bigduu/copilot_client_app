@@ -18,9 +18,9 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 tauri-build = { version = "2.4.1", features = [] }
 
 [dependencies]
-copilot_client = { path = "../crates/copilot_client" }
+agent-llm = { path = "../crates/agent-llm" }
 web_service = { path = "../crates/web_service" }
-copilot-agent-server = { path = "../crates/copilot-agent/crates/copilot-agent-server" }
+agent-server = { path = "../crates/agent-server" }
 claude_installer = { path = "../crates/claude_installer" }
 chat_core = { path = "../crates/chat_core" }
 # Tauri core and plugins
