@@ -19,16 +19,16 @@ futures-util = "0.3"
 bytes = "1"
 claude_installer = { path = "../claude_installer" }
 chat_core = { path = "../chat_core" }
-copilot_client = { path = "../copilot_client" }
-copilot-agent-server = { path = "../copilot-agent/crates/copilot-agent-server" }
-builtin_tools = { path = "../copilot-agent/crates/builtin_tools" }
-copilot-agent-core = { path = "../copilot-agent/crates/copilot-agent-core" }
-skill_manager = { path = "../skill_manager" }
+agent-llm = { path = "../agent-llm" }
+agent-server = { path = "../agent-server" }
+agent-tools = { path = "../agent-tools" }
+agent-core = { path = "../agent-core" }
+agent-skill = { path = "../agent-skill" }
 
 [dev-dependencies]
 actix-http = "3.0"
 tempfile = "3.10"
-copilot_client = { path = "../copilot_client" }
+agent-llm = { path = "../agent-llm" }
 reqwest = { version = "0.12", features = ["json", "stream", "rustls-tls"] }
 wiremock = "0.5"
 async-trait = "0.1.1"

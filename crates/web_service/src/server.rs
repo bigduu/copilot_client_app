@@ -2,23 +2,22 @@ use std::{path::PathBuf, sync::Arc};
 
 use actix_cors::Cors;
 use actix_web::{web, App, HttpServer};
+use agent_llm::{CopilotClient, CopilotClientTrait};
+use agent_server::handlers as agent_handlers;
+use agent_server::state::AppState as AgentAppState;
 use chat_core::Config;
-use copilot_agent_server::handlers as agent_handlers;
-use copilot_agent_server::state::AppState as AgentAppState;
-use copilot_client::{CopilotClient, CopilotClientTrait};
 use log::{error, info};
 use tokio::sync::oneshot;
 
+use crate::controllers::anthropic as anthropic_controller;
 use crate::controllers::{
-    agent_controller, anthropic_controller, bodhi_controller, claude_install_controller,
-    openai_controller, skill_controller, tools_controller, workspace_controller,
+    agent_controller, bodhi_controller, claude_install_controller, openai_controller,
+    skill_controller, tools_controller, workspace_controller,
 };
-use skill_manager::SkillManager;
 
 pub struct AppState {
     pub copilot_client: Arc<dyn CopilotClientTrait>,
     pub app_data_dir: PathBuf,
-    pub skill_manager: SkillManager,
 }
 
 const DEFAULT_WORKER_COUNT: usize = 10;
@@ -53,6 +52,22 @@ pub fn agent_api_config(cfg: &mut web::ServiceConfig) {
                 "/history/{session_id}",
                 web::get().to(agent_handlers::history::handler),
             )
+            .route(
+                "/todo/{session_id}",
+                web::get().to(agent_handlers::todo::get_todo_list),
+            )
+            .route(
+                "/todo/{session_id}/exists",
+                web::get().to(agent_handlers::todo::has_todo_list),
+            )
+            .route(
+                "/respond/{session_id}",
+                web::post().to(agent_handlers::respond::submit_response),
+            )
+            .route(
+                "/respond/{session_id}/pending",
+                web::get().to(agent_handlers::respond::get_pending_question),
+            )
             .route("/health", web::get().to(agent_handlers::health::handler)),
     );
 }
@@ -76,17 +91,11 @@ pub async fn run(app_data_dir: PathBuf, port: u16) -> Result<(), String> {
     let config = Config::new();
     let copilot_client: Arc<dyn CopilotClientTrait> =
         Arc::new(CopilotClient::new(config, app_data_dir.clone()));
-    let skill_manager = SkillManager::new();
-    skill_manager
-        .initialize()
-        .await
-        .map_err(|e| format!("Failed to initialize skill manager: {e}"))?;
     let agent_state = web::Data::new(build_agent_state(app_data_dir.clone(), port).await);
 
     let app_state = web::Data::new(AppState {
         copilot_client,
         app_data_dir,
-        skill_manager,
     });
 
     let server = HttpServer::new(move || {
@@ -138,17 +147,11 @@ impl WebService {
         let config = Config::new();
         let copilot_client: Arc<dyn CopilotClientTrait> =
             Arc::new(CopilotClient::new(config, self.app_data_dir.clone()));
-        let skill_manager = SkillManager::new();
-        skill_manager
-            .initialize()
-            .await
-            .map_err(|e| format!("Failed to initialize skill manager: {e}"))?;
         let agent_state = web::Data::new(build_agent_state(self.app_data_dir.clone(), port).await);
 
         let app_state = web::Data::new(AppState {
             copilot_client,
             app_data_dir: self.app_data_dir.clone(),
-            skill_manager,
         });
 
         let server = HttpServer::new(move || {

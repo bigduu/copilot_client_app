@@ -1,5 +1,6 @@
 pub mod agent_controller;
-pub mod anthropic_controller;
+pub mod anthropic;
+pub use anthropic::*;
 pub mod bodhi_controller;
 pub mod claude_install_controller;
 pub mod openai_controller;

@@ -7,8 +7,8 @@ use rand::Rng;
 
 const KEY_ENV_VAR: &str = "BODHI_CONFIG_ENCRYPTION_KEY";
 
-/// 获取或生成加密密钥
-/// 优先从环境变量获取，否则生成随机密钥（仅内存中有效）
+/// Get or generate encryption key
+/// Priority: environment variable, otherwise generate random key (valid only in memory)
 pub fn get_encryption_key() -> Vec<u8> {
     if let Ok(key_hex) = std::env::var(KEY_ENV_VAR) {
         if let Ok(key) = hex::decode(&key_hex) {
@@ -17,12 +17,12 @@ pub fn get_encryption_key() -> Vec<u8> {
             }
         }
     }
-    // 生成随机密钥（仅当前进程有效）
+    // Generate random key (valid only for current process)
     rand::thread_rng().gen::<[u8; 32]>().to_vec()
 }
 
-/// 加密数据
-/// 返回: nonce(12字节) + ciphertext
+/// Encrypt data
+/// Returns: nonce(12 bytes) + ciphertext
 pub fn encrypt(plaintext: &str) -> Result<String> {
     let key = get_encryption_key();
     let cipher =
@@ -35,12 +35,12 @@ pub fn encrypt(plaintext: &str) -> Result<String> {
         .encrypt(nonce, plaintext.as_bytes())
         .map_err(|e| anyhow!("Encryption failed: {e}"))?;
 
-    // 格式: hex(nonce) + ":" + hex(ciphertext)
+    // Format: hex(nonce) + ":" + hex(ciphertext)
     let result = format!("{}:{}", hex::encode(nonce_bytes), hex::encode(ciphertext));
     Ok(result)
 }
 
-/// 解密数据
+/// Decrypt data
 pub fn decrypt(encrypted: &str) -> Result<String> {
     let parts: Vec<&str> = encrypted.split(':').collect();
     if parts.len() != 2 {
