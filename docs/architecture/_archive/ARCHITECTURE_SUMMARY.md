@@ -1,148 +1,148 @@
-# 🎯 新架构总结：Hook → Store → Service
+# 🎯 New Architecture Summary: Hook → Store → Service
 
-## 📋 架构概览
+## 📋 Architecture Overview
 
-我们成功实现了一个**极致简化**的状态管理架构，遵循清晰的数据流向：
+We have successfully implemented an **extremely simplified** state management architecture, following a clear data flow:
 
 ```
 Component → Custom Hook → Zustand Store → Services → External APIs
 ```
 
-## 🏗️ 架构层级
+## 🏗️ Architecture Layers
 
-### 1. **组件层 (Components)**
-- **职责**: 纯 UI 渲染和用户交互
-- **特点**: 不直接访问 Store，通过 Hook 获取数据和方法
-- **示例**: `ChatSidebar`, `ChatView`, `ExampleNewArchitecture`
+### 1. **Component Layer (Components)**
+- **Responsibility**: Pure UI rendering and user interaction
+- **Characteristics**: Does not directly access Store, obtains data and methods through Hooks
+- **Examples**: `ChatSidebar`, `ChatView`, `ExampleNewArchitecture`
 
-### 2. **Hook 层 (Custom Hooks)**
-- **职责**: 连接组件和 Store，提供便捷的数据访问和操作方法
-- **特点**: 从 Store 选择所需数据，组合多个 Store 操作
-- **文件**: 
-  - `src/hooks/useChats.ts` - 聊天管理
-  - `src/hooks/useSimpleMessages.ts` - 消息管理
+### 2. **Hook Layer (Custom Hooks)**
+- **Responsibility**: Connect components and Store, provide convenient data access and operation methods
+- **Characteristics**: Select required data from Store, combine multiple Store operations
+- **Files**:
+  - `src/hooks/useChats.ts` - Chat management
+  - `src/hooks/useSimpleMessages.ts` - Message management
 
-### 3. **Store 层 (Zustand Store)**
-- **职责**: 全局状态管理，业务逻辑处理
-- **特点**: 单一数据源，调用 Service 处理副作用
-- **文件**: `src/store/chatStore.ts`
+### 3. **Store Layer (Zustand Store)**
+- **Responsibility**: Global state management, business logic processing
+- **Characteristics**: Single source of truth, calls Service to handle side effects
+- **File**: `src/store/chatStore.ts`
 
-### 4. **Service 层 (Services)**
-- **职责**: 处理副作用，与外部世界交互
-- **特点**: 无状态，纯函数，可测试
-- **文件**: 
-  - `src/services/tauriService.ts` - Tauri API 调用
-  - `src/services/storageService.ts` - 本地存储
+### 4. **Service Layer (Services)**
+- **Responsibility**: Handle side effects, interact with the external world
+- **Characteristics**: Stateless, pure functions, testable
+- **Files**:
+  - `src/services/tauriService.ts` - Tauri API calls
+  - `src/services/storageService.ts` - Local storage
 
-## 🔄 数据流示例
+## 🔄 Data Flow Example
 
-### 用户创建新聊天的完整流程：
+### Complete flow of user creating a new chat:
 
-1. **Component**: 用户点击"创建聊天"按钮
+1. **Component**: User clicks "Create Chat" button
    ```tsx
    const { createNewChat } = useChats();
    const handleCreate = () => createNewChat('New Chat');
    ```
 
-2. **Hook**: 调用 Store 的 addChat 方法
+2. **Hook**: Calls Store's addChat method
    ```tsx
    const createNewChat = (title: string) => {
      addChat({ title, messages: [], createdAt: Date.now() });
    };
    ```
 
-3. **Store**: 更新状态并调用 Service
+3. **Store**: Updates state and calls Service
    ```tsx
    addChat: (chatData) => {
      const newChat = { ...chatData, id: Date.now().toString() };
      set(state => ({ chats: [...state.chats, newChat] }));
-     get().saveChats(); // 调用 Service
+     get().saveChats(); // Call Service
    }
    ```
 
-4. **Service**: 执行副作用操作
+4. **Service**: Executes side effect operations
    ```tsx
    async saveChats(chats: ChatItem[]): Promise<void> {
      localStorage.setItem('copilot_chats', JSON.stringify(chats));
    }
    ```
 
-## 📁 文件结构
+## 📁 File Structure
 
 ```
 src/
-├── components/                 # UI 组件
-│   ├── ChatSidebar/           # 聊天侧边栏
-│   └── ExampleNewArchitecture.tsx # 架构示例
-├── hooks/                     # 自定义 Hooks
-│   ├── useChats.ts           # 聊天管理 Hook
-│   └── useSimpleMessages.ts  # 消息管理 Hook
+├── components/                 # UI Components
+│   ├── ChatSidebar/           # Chat sidebar
+│   └── ExampleNewArchitecture.tsx # Architecture example
+├── hooks/                     # Custom Hooks
+│   ├── useChats.ts           # Chat management Hook
+│   └── useSimpleMessages.ts  # Message management Hook
 ├── store/                     # Zustand Store
-│   └── chatStore.ts          # 聊天状态管理
-├── services/                  # 服务层
-│   ├── tauriService.ts       # Tauri API 服务
-│   └── storageService.ts     # 存储服务
-└── types/                     # 类型定义
-    └── chat.ts               # 聊天相关类型
+│   └── chatStore.ts          # Chat state management
+├── services/                  # Service layer
+│   ├── tauriService.ts       # Tauri API service
+│   └── storageService.ts     # Storage service
+└── types/                     # Type definitions
+    └── chat.ts               # Chat-related types
 ```
 
-## ✅ 架构优势
+## ✅ Architecture Advantages
 
-### 1. **极致简洁**
-- 从 4+ 个复杂文件简化为 1 个 Store 文件
-- 清晰的单向数据流
-- 每层职责明确
+### 1. **Extremely Simple**
+- Simplified from 4+ complex files to 1 Store file
+- Clear unidirectional data flow
+- Clear responsibilities at each layer
 
-### 2. **易于理解**
-- 新开发者 5 分钟内理解整个架构
-- 数据流向一目了然
-- 代码结构直观
+### 2. **Easy to Understand**
+- New developers can understand the entire architecture within 5 minutes
+- Data flow is clear at a glance
+- Code structure is intuitive
 
-### 3. **易于维护**
-- 所有状态逻辑集中在一个地方
-- 组件与状态管理解耦
-- 便于单元测试
+### 3. **Easy to Maintain**
+- All state logic concentrated in one place
+- Components decoupled from state management
+- Facilitates unit testing
 
-### 4. **性能优秀**
-- Zustand 的选择器机制避免不必要的重渲染
-- 按需订阅状态变化
-- 轻量级状态管理
+### 4. **Excellent Performance**
+- Zustand's selector mechanism avoids unnecessary re-renders
+- Subscribe to state changes on demand
+- Lightweight state management
 
-### 5. **社区支持**
-- 使用成熟的 Zustand 库
-- 完善的文档和社区支持
-- 持续维护和更新
+### 5. **Community Support**
+- Uses mature Zustand library
+- Comprehensive documentation and community support
+- Continuous maintenance and updates
 
-## 🚀 使用示例
+## 🚀 Usage Example
 
-### 在组件中使用聊天功能：
+### Using chat functionality in components:
 
 ```tsx
 import { useChats } from '../hooks/useChats';
 import { useSimpleMessages } from '../hooks/useSimpleMessages';
 
 const MyChatComponent = () => {
-  // 获取聊天数据和操作
+  // Get chat data and operations
   const { chats, currentChat, createNewChat, selectChat } = useChats();
-  
-  // 获取消息数据和操作
+
+  // Get message data and operations
   const { messages, sendMessage, isProcessing } = useSimpleMessages();
 
   return (
     <div>
-      {/* 聊天列表 */}
+      {/* Chat list */}
       {chats.map(chat => (
         <div key={chat.id} onClick={() => selectChat(chat.id)}>
           {chat.title}
         </div>
       ))}
-      
-      {/* 消息列表 */}
+
+      {/* Message list */}
       {messages.map(message => (
         <div key={message.id}>{message.content}</div>
       ))}
-      
-      {/* 发送消息 */}
+
+      {/* Send message */}
       <button onClick={() => sendMessage('Hello!')}>
         Send Message
       </button>
@@ -151,35 +151,35 @@ const MyChatComponent = () => {
 };
 ```
 
-## 🔧 安装和使用
+## 🔧 Installation and Usage
 
-1. **安装 Zustand**:
+1. **Install Zustand**:
    ```bash
    npm install zustand
    ```
 
-2. **在 App.tsx 中移除 ChatProvider**:
+2. **Remove ChatProvider in App.tsx**:
    ```tsx
-   // 不再需要 ChatProvider 包装
+   // No longer need ChatProvider wrapper
    <div>
      <MainLayout />
    </div>
    ```
 
-3. **在组件中使用新的 Hooks**:
+3. **Use new Hooks in components**:
    ```tsx
    import { useChats } from './hooks/useChats';
    import { useSimpleMessages } from './hooks/useSimpleMessages';
    ```
 
-## 🎉 总结
+## 🎉 Summary
 
-这个架构实现了您提出的核心要求：
+This architecture achieves the core requirements you proposed:
 
-- ✅ **简洁直观**: 清晰的 Hook → Store → Service 数据流
-- ✅ **易于理解**: 每层职责明确，代码结构清晰
-- ✅ **易于维护**: 集中式状态管理，组件解耦
-- ✅ **使用成熟框架**: 基于 Zustand 的稳定方案
-- ✅ **性能优秀**: 避免不必要的重渲染
+- ✅ **Simple and Intuitive**: Clear Hook → Store → Service data flow
+- ✅ **Easy to Understand**: Clear responsibilities at each layer, clean code structure
+- ✅ **Easy to Maintain**: Centralized state management, components decoupled
+- ✅ **Uses Mature Framework**: Stable solution based on Zustand
+- ✅ **Excellent Performance**: Avoids unnecessary re-renders
 
-这正是您想要的"如果架构在解释时就很简洁，那么在实践中也会很简洁"的理想状态！
+This is exactly the ideal state you wanted: "If the architecture is simple to explain, it will be simple in practice"!

@@ -1,39 +1,39 @@
-# 注册宏总结
+# Registration Macros Summary
 
-## 问题
+## Problem
 
-原始的 `auto_register_tool!` 和 `auto_register_category!` 宏只支持无参数的 `new()` 方法：
+The original `auto_register_tool!` and `auto_register_category!` macros only support parameterless `new()` methods:
 
 ```rust
-// ✅ 这样可以工作
+// ✅ This works
 impl SimpleTool {
     pub fn new() -> Self { Self }
 }
 auto_register_tool!(SimpleTool);
 
-// ❌ 这样不行
+// ❌ This doesn't work
 impl ConfigurableTool {
-    pub fn new(url: String, key: String) -> Self { 
-        Self { url, key } 
+    pub fn new(url: String, key: String) -> Self {
+        Self { url, key }
     }
 }
-auto_register_tool!(ConfigurableTool); // 编译错误！
+auto_register_tool!(ConfigurableTool); // Compilation error!
 ```
 
-## 解决方案
+## Solutions
 
-我们提供了多种宏来处理不同的注册需求：
+We provide multiple macros to handle different registration needs:
 
-### 1. 原始宏（无参数）
+### 1. Original Macros (No Parameters)
 
 ```rust
 auto_register_tool!(SimpleTool);
 auto_register_category!(SimpleCategory);
 ```
 
-**适用场景**: 工具/类别有无参数的 `new()` 方法
+**Applicable Scenarios**: Tools/categories with parameterless `new()` methods
 
-### 2. 带构造函数的宏
+### 2. Macros with Constructor
 
 ```rust
 auto_register_tool_with_constructor!(
@@ -50,15 +50,15 @@ auto_register_category_with_constructor!(
 );
 ```
 
-**适用场景**: 需要传递固定参数的工具/类别
+**Applicable Scenarios**: Tools/categories requiring fixed parameters
 
-### 3. 高级宏（推荐）
+### 3. Advanced Macros (Recommended)
 
 ```rust
-// 无参数（等同于原始宏）
+// No parameters (equivalent to original macro)
 auto_register_tool_advanced!(SimpleTool);
 
-// 带参数
+// With parameters
 auto_register_tool_advanced!(ConfigurableTool, || {
     Arc::new(ConfigurableTool::new(
         "https://api.example.com".to_string(),
@@ -66,42 +66,42 @@ auto_register_tool_advanced!(ConfigurableTool, || {
     ))
 });
 
-// 从环境变量读取
+// Read from environment variables
 auto_register_tool_advanced!(EnvironmentTool, || {
     let url = std::env::var("API_URL").unwrap_or_default();
     Arc::new(EnvironmentTool::new(url))
 });
 ```
 
-**适用场景**: 所有场景，最灵活的选择
+**Applicable Scenarios**: All scenarios, the most flexible choice
 
-## 使用模式
+## Usage Patterns
 
-### 模式 1: 默认构造函数 + 配置方法
+### Pattern 1: Default Constructor + Configuration Method
 
 ```rust
 impl ConfigurableTool {
-    // 提供默认构造函数
+    // Provide default constructor
     pub fn new() -> Self {
         Self::with_config("default".to_string())
     }
-    
-    // 提供配置构造函数
+
+    // Provide configuration constructor
     pub fn with_config(config: String) -> Self {
         Self { config }
     }
 }
 
-// 可以使用原始宏
+// Can use original macro
 auto_register_tool!(ConfigurableTool);
 
-// 或者使用高级宏进行自定义
+// Or use advanced macro for customization
 auto_register_tool_advanced!(ConfigurableTool, || {
     Arc::new(ConfigurableTool::with_config("custom".to_string()))
 });
 ```
 
-### 模式 2: 环境变量配置
+### Pattern 2: Environment Variable Configuration
 
 ```rust
 auto_register_tool_advanced!(DatabaseTool, || {
@@ -110,12 +110,12 @@ auto_register_tool_advanced!(DatabaseTool, || {
         .unwrap_or_else(|_| "5432".to_string())
         .parse()
         .unwrap_or(5432);
-    
+
     Arc::new(DatabaseTool::new(host, port))
 });
 ```
 
-### 模式 3: 配置文件读取
+### Pattern 3: Configuration File Reading
 
 ```rust
 auto_register_tool_advanced!(ApiTool, || {
@@ -124,71 +124,71 @@ auto_register_tool_advanced!(ApiTool, || {
 });
 ```
 
-### 模式 4: 条件注册
+### Pattern 4: Conditional Registration
 
 ```rust
-// 编译时条件
+// Compile-time condition
 #[cfg(feature = "advanced-tools")]
 auto_register_tool!(AdvancedTool);
 
-// 运行时条件（需要修改注册系统支持）
+// Runtime condition (requires registration system modification)
 // auto_register_tool_advanced!(ConditionalTool, || {
 //     if should_enable_tool() {
 //         Arc::new(ConditionalTool::new())
 //     } else {
-//         // 需要支持 Option<Arc<dyn Tool>> 返回类型
+//         // Need to support Option<Arc<dyn Tool>> return type
 //     }
 // });
 ```
 
-## 最佳实践
+## Best Practices
 
-1. **优先使用 `auto_register_tool_advanced!`**: 它支持所有场景，语法统一。
+1. **Prefer `auto_register_tool_advanced!`**: It supports all scenarios with unified syntax.
 
-2. **提供默认构造函数**: 如果可能，为工具提供无参数的 `new()` 方法。
+2. **Provide default constructor**: If possible, provide a parameterless `new()` method for tools.
 
-3. **使用环境变量**: 对于配置参数，优先使用环境变量而不是硬编码。
+3. **Use environment variables**: For configuration parameters, prefer environment variables over hardcoding.
 
-4. **错误处理**: 在构造函数中避免可能失败的操作，或提供合理的默认值。
+4. **Error handling**: Avoid operations that may fail in constructors, or provide reasonable default values.
 
-5. **文档化**: 清楚地文档化工具需要的配置参数。
+5. **Documentation**: Clearly document the configuration parameters required by tools.
 
-## 迁移指南
+## Migration Guide
 
-### 从原始宏迁移
+### Migrating from Original Macros
 
 ```rust
-// 旧代码
+// Old code
 auto_register_tool!(MyTool);
 
-// 新代码（完全兼容）
+// New code (fully compatible)
 auto_register_tool_advanced!(MyTool);
 ```
 
-### 添加参数支持
+### Adding Parameter Support
 
 ```rust
-// 旧代码
+// Old code
 impl MyTool {
     pub fn new() -> Self { Self }
 }
 auto_register_tool!(MyTool);
 
-// 新代码
+// New code
 impl MyTool {
     pub fn new() -> Self {
         Self::with_config("default".to_string())
     }
-    
+
     pub fn with_config(config: String) -> Self {
         Self { config }
     }
 }
 
-// 可以选择保持兼容
+// Can choose to maintain compatibility
 auto_register_tool!(MyTool);
 
-// 或者使用新功能
+// Or use new features
 auto_register_tool_advanced!(MyTool, || {
     Arc::new(MyTool::with_config(
         std::env::var("MY_TOOL_CONFIG").unwrap_or_default()
@@ -196,9 +196,9 @@ auto_register_tool_advanced!(MyTool, || {
 });
 ```
 
-## 注意事项
+## Notes
 
-- 构造函数闭包在应用启动时执行，确保所需的依赖已经可用
-- 避免在构造函数中进行耗时操作
-- 对于敏感配置，使用安全的配置管理方案
-- 考虑配置验证和错误处理
+- Constructor closures execute at application startup, ensure required dependencies are available
+- Avoid time-consuming operations in constructors
+- For sensitive configurations, use secure configuration management solutions
+- Consider configuration validation and error handling

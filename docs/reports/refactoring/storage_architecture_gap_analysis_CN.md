@@ -1,92 +1,92 @@
-# 存储架构差距分析报告
+# Storage Architecture Gap Analysis Report
 
-**日期**: 2025-11-08  
-**作者**: AI Assistant  
-**目的**: 对比现有设计、当前实现和用户新构想，找出需要调整的地方
-
----
-
-## 执行摘要
-
-经过彻底 review，发现：
-
-✅ **好消息**: 设计文档中**已经有**消息与 Context 分离存储的设计（Decision 3）  
-⚠️ **问题**: 当前代码**尚未实现**这个设计  
-🆕 **新增需求**: 用户提出的 **StreamingResponse** 消息类型和**流式重放 API** 在原设计中**缺失**
+**Date**: 2025-11-08
+**Author**: AI Assistant
+**Purpose**: Compare existing design, current implementation, and user new concepts to identify areas needing adjustment
 
 ---
 
-## 一、现状对比表
+## Executive Summary
 
-| 维度 | 设计文档 (design.md) | 当前实现 | 用户新构想 | 差距 |
-|------|---------------------|---------|-----------|------|
-| **Context 职责** | 管理元数据、引用、状态 | ❌ 包含完整消息内容 | 只保存引用和元数据 | **未实现** |
-| **消息存储** | 独立文件系统存储 | ❌ 在 message_pool 中 | 独立存储为 RichMessage | **未实现** |
-| **存储结构** | `metadata.json` + `messages/` 目录 | ❌ 单一 JSON | 同左 | **未实现** |
-| **按需加载** | 支持增量加载 | ❌ 加载全部消息 | 支持按需加载 | **未实现** |
-| **流式响应** | ⚠️ 未明确定义 | ❌ 无专门类型 | StreamingResponse 类型 | **缺失设计** |
-| **流式重放** | ⚠️ 未提及 | ❌ 不支持 | 支持 SSE 重放 API | **缺失设计** |
-| **API 设计** | ⚠️ 未详细定义 | 混合在一起 | Context API + Message API | **需完善** |
+After thorough review, findings are:
+
+✅ **Good News**: The design document **already contains** the design for separating message and Context storage (Decision 3)
+⚠️ **Issue**: The current code **has not yet implemented** this design
+🆕 **New Requirements**: The **StreamingResponse** message type and **streaming replay API** proposed by the user are **missing** from the original design
 
 ---
 
-## 二、详细差距分析
+## I. Current Status Comparison Table
 
-### 2.1 Decision 3: Storage Separation（已设计，未实现）
+| Dimension | Design Document (design.md) | Current Implementation | User New Concept | Gap |
+|-----------|----------------------------|------------------------|------------------|-----|
+| **Context Responsibility** | Manages metadata, references, state | ❌ Contains complete message content | Only saves references and metadata | **Not Implemented** |
+| **Message Storage** | Independent file system storage | ❌ In message_pool | Independent storage as RichMessage | **Not Implemented** |
+| **Storage Structure** | `metadata.json` + `messages/` directory | ❌ Single JSON | Same as left | **Not Implemented** |
+| **On-Demand Loading** | Supports incremental loading | ❌ Loads all messages | Supports on-demand loading | **Not Implemented** |
+| **Streaming Response** | ⚠️ Not clearly defined | ❌ No dedicated type | StreamingResponse type | **Missing Design** |
+| **Streaming Replay** | ⚠️ Not mentioned | ❌ Not supported | Supports SSE replay API | **Missing Design** |
+| **API Design** | ⚠️ Not detailed | Mixed together | Context API + Message API | **Needs Improvement** |
 
-**设计文档中的描述** (design.md:1071-1113):
+---
+
+## II. Detailed Gap Analysis
+
+### 2.1 Decision 3: Storage Separation (Designed but Not Implemented)
+
+**Description in Design Document** (design.md:1071-1113):
 
 ```rust
-// ❌ 当前（错误）
+// ❌ Current (incorrect)
 pub struct ChatContext {
-    pub message_pool: HashMap<Uuid, MessageNode>,  // 包含所有消息内容
+    pub message_pool: HashMap<Uuid, MessageNode>,  // Contains all message content
     // ...
 }
 
-// ✅ 设计目标（正确）
+// ✅ Design Goal (correct)
 pub struct ChatContext {
-    // 不再保存 message_pool
-    pub message_ids: Vec<Uuid>,  // 只保存引用
+    // No longer saves message_pool
+    pub message_ids: Vec<Uuid>,  // Only saves references
     pub metadata: ContextMetadata,
     // ...
 }
 
-// 独立的消息存储
+// Independent message storage
 storage/
 ├── contexts/
 │   └── {context_id}/
-│       ├── metadata.json      # Context 元数据
-│       ├── index.json          # 消息索引
+│       ├── metadata.json      # Context metadata
+│       ├── index.json          # Message index
 │       └── messages/
 │           ├── {msg_1}.json
 │           ├── {msg_2}.json
 │           └── ...
 ```
 
-**当前实现** (context.rs:12-42):
+**Current Implementation** (context.rs:12-42):
 
 ```rust
 pub struct ChatContext {
-    pub message_pool: HashMap<Uuid, MessageNode>,  // ❌ 仍然包含完整消息
+    pub message_pool: HashMap<Uuid, MessageNode>,  // ❌ Still contains complete messages
     pub branches: HashMap<String, Branch>,
     pub current_state: ContextState,
     // ...
 }
 ```
 
-**结论**: ❌ **未实现** - Phase 4 任务需要执行
+**Conclusion**: ❌ **Not Implemented** - Phase 4 tasks need to be executed
 
 ---
 
-### 2.2 StreamingResponse 消息类型（缺失）
+### 2.2 StreamingResponse Message Type (Missing)
 
-**设计文档**: ⚠️ **未提及**
+**Design Document**: ⚠️ **Not Mentioned**
 
-**用户需求**:
+**User Requirements**:
 ```rust
 RichMessageType::StreamingResponse(StreamingResponseMsg {
-    content: String,              // 完整内容
-    chunks: Vec<StreamChunk>,     // 流式块序列
+    content: String,              // Complete content
+    chunks: Vec<StreamChunk>,     // Streaming chunk sequence
     started_at: DateTime<Utc>,
     completed_at: DateTime<Utc>,
     total_duration_ms: u64,
@@ -96,131 +96,131 @@ RichMessageType::StreamingResponse(StreamingResponseMsg {
 })
 ```
 
-**用途**:
-1. 保存 LLM 流式响应的完整历史
-2. 支持前端重放流式效果（模拟打字机）
-3. 记录性能数据（token 使用、耗时）
+**Purpose**:
+1. Save complete history of LLM streaming responses
+2. Support frontend replay of streaming effects (simulating typewriter)
+3. Record performance data (token usage, duration)
 
-**结论**: 🆕 **需要新增** - 需要更新 design.md 和创建新的 spec delta
+**Conclusion**: 🆕 **Needs to be Added** - Requires updating design.md and creating new spec delta
 
 ---
 
-### 2.3 API 架构（需完善）
+### 2.3 API Architecture (Needs Improvement)
 
-**设计文档**: ⚠️ 仅提到 SSE 推送，未明确 REST API 设计
+**Design Document**: ⚠️ Only mentions SSE push, does not clearly define REST API design
 
-**用户需求**:
+**User Requirements**:
 
-#### Context API（轻量级，快速）
+#### Context API (Lightweight, Fast)
 ```typescript
 // GET /api/contexts/{context_id}
 {
   context_id: string;
   current_state: ContextState;
-  message_ids: string[];      // 只有引用
+  message_ids: string[];      // Only references
   metadata: ContextMetadata;
 }
 ```
 
-#### Message API（按需获取）
+#### Message API (On-Demand Fetch)
 ```typescript
 // GET /api/messages/{message_id}
 {
   message_id: string;
   role: "user" | "assistant";
   message_type: "streaming_response" | "text" | ...;
-  
-  // 根据类型返回不同内容
+
+  // Return different content based on type
   streaming_response?: { ... };
   text?: { ... };
 }
 
 // GET /api/messages/{message_id}/replay?speed=1.0
-// 返回 SSE 流，重放流式效果
+// Returns SSE stream, replaying streaming effect
 ```
 
-**结论**: 📝 **需要完善** - 需要在 design.md 中明确 API 契约
+**Conclusion**: 📝 **Needs Improvement** - Requires clarifying API contract in design.md
 
 ---
 
-## 三、任务优先级调整建议
+## III. Task Priority Adjustment Recommendations
 
-### 当前 Phase 顺序（原计划）
-1. ✅ Phase 0: Logic Migration (已完成 90%)
-2. ✅ Phase 1: Message Type System (已完成 100%)
+### Current Phase Order (Original Plan)
+1. ✅ Phase 0: Logic Migration (90% complete)
+2. ✅ Phase 1: Message Type System (100% complete)
 3. ⏭️ Phase 2: Message Processing Pipeline (0%)
 4. ⏭️ Phase 3: Context Manager Enhancement (0%)
-5. ⏭️ **Phase 4: Storage Separation (0%)** ⬅️ 关键
+5. ⏭️ **Phase 4: Storage Separation (0%)** ⬅️ Key
 6. ⏭️ Phase 5: Tool Auto-Loop (0%)
 
-### 建议调整（理由：存储架构是基础）
+### Recommended Adjustment (Reason: Storage architecture is foundational)
 
-#### 选项 A: 提前 Phase 4（激进）
+#### Option A: Advance Phase 4 (Aggressive)
 ```
-1. ✅ Phase 0 (已完成)
-2. ✅ Phase 1 (已完成)
-3. 🚧 Phase 4: Storage Separation ⬅️ 提前
-   └─ 加入 StreamingResponse 设计
+1. ✅ Phase 0 (Complete)
+2. ✅ Phase 1 (Complete)
+3. 🚧 Phase 4: Storage Separation ⬅️ Advanced
+   └─ Add StreamingResponse design
 4. Phase 2: Message Processing Pipeline
 5. Phase 3: Context Manager Enhancement
 6. Phase 5: Tool Auto-Loop
 ```
 
-**优点**: 
-- ✅ 架构基础先打好
-- ✅ 避免后续重构存储逻辑
-- ✅ 符合用户构想
+**Advantages**:
+- ✅ Architecture foundation laid first
+- ✅ Avoid subsequent storage logic refactoring
+- ✅ Aligns with user concept
 
-**缺点**:
-- ❌ Pipeline 延后可能影响消息处理
-- ❌ 存储层较复杂，风险高
+**Disadvantages**:
+- ❌ Pipeline delay may affect message processing
+- ❌ Storage layer is complex, high risk
 
-#### 选项 B: 渐进式（稳健，推荐）
+#### Option B: Progressive (Robust, Recommended)
 ```
-1. ✅ Phase 0 (已完成)
-2. ✅ Phase 1 (已完成)
-3. 🆕 Phase 1.5: StreamingResponse 增强 ⬅️ 插入新阶段
-   - 添加 StreamingResponse 消息类型
-   - 更新 Context 流式处理方法
-   - 定义 API 契约
-   - 编写测试
+1. ✅ Phase 0 (Complete)
+2. ✅ Phase 1 (Complete)
+3. 🆕 Phase 1.5: StreamingResponse Enhancement ⬅️ Insert new phase
+   - Add StreamingResponse message type
+   - Update Context streaming processing methods
+   - Define API contract
+   - Write tests
 4. Phase 2: Message Processing Pipeline
 5. Phase 3: Context Manager Enhancement
-6. Phase 4: Storage Separation（执行分离）
+6. Phase 4: Storage Separation (Execute separation)
 7. Phase 5: Tool Auto-Loop
 ```
 
-**优点**:
-- ✅ 先完善消息类型系统（建立在 Phase 1 基础上）
-- ✅ 延续当前工作流（顺畅过渡）
-- ✅ 存储分离时已有完整消息类型
-- ✅ 风险低，测试充分
+**Advantages**:
+- ✅ First improve message type system (built on Phase 1 foundation)
+- ✅ Continue current workflow (smooth transition)
+- ✅ Complete message types available during storage separation
+- ✅ Low risk, sufficient testing
 
-**缺点**:
-- ⚠️ 存储分离延后（但可以先用 message_pool 过渡）
+**Disadvantages**:
+- ⚠️ Storage separation delayed (but can use message_pool as transition first)
 
 ---
 
-## 四、需要新增/修改的内容
+## IV. Content to be Added/Modified
 
-### 4.1 更新 design.md
+### 4.1 Update design.md
 
-#### 添加 Decision 3.5: StreamingResponse Message Type
+#### Add Decision 3.5: StreamingResponse Message Type
 
 ```markdown
 ### Decision 3.5: StreamingResponse Message Type
 
-**What**: 新增 `StreamingResponse` 消息类型，专门记录 LLM 流式响应
+**What**: Add new `StreamingResponse` message type, specifically for recording LLM streaming responses
 
 **Why**:
-- 需要保存完整的流式历史，支持前端重放
-- 记录性能数据（token 使用、耗时、每块间隔）
-- 与普通 Text 消息区分，语义更清晰
+- Need to save complete streaming history, support frontend replay
+- Record performance data (token usage, duration, interval per chunk)
+- Distinguish from regular Text messages, clearer semantics
 
 **How**:
 ```rust
 pub enum RichMessageType {
-    // ... 现有类型
+    // ... existing types
     StreamingResponse(StreamingResponseMsg),  // NEW
 }
 
@@ -246,46 +246,45 @@ pub struct StreamChunk {
 ```
 
 **Benefits**:
-- 完整记录流式过程
-- 支持性能分析
-- 前端可重放打字效果
+- Complete recording of streaming process
+- Support performance analysis
+- Frontend can replay typewriter effect
 ```
 
-#### 添加 Decision 3.6: API Architecture
+#### Add Decision 3.6: API Architecture
 
 ```markdown
 ### Decision 3.6: Context vs Message API Separation
 
-**What**: 明确区分 Context API 和 Message API
+**What**: Clearly distinguish Context API and Message API
 
 **Why**:
-- Context API 应该轻量级（只返回元数据和引用）
-- Message API 按需获取（避免一次性加载所有消息）
-- 支持独立的消息操作（重放、导出等）
+- Context API should be lightweight (only returns metadata and references)
+- Message API fetches on-demand (avoid loading all messages at once)
+- Support independent message operations (replay, export, etc.)
 
 **How**:
 
 #### Context API
-- `GET /api/contexts/{id}` - 获取 Context 元数据
-- `POST /api/contexts/{id}/messages` - 发送消息（返回 message_id）
-- `GET /api/contexts/{id}/sse` - SSE 流（Delta 事件）
+- `GET /api/contexts/{id}` - Get Context metadata
+- `POST /api/contexts/{id}/messages` - Send message (returns message_id)
+- `GET /api/contexts/{id}/sse` - SSE stream (Delta events)
 
 #### Message API
-- `GET /api/messages/{id}` - 获取完整消息内容
-- `GET /api/messages/{id}/replay` - 重放流式效果（SSE）
-- `GET /api/messages/batch?ids=...` - 批量获取
+- `GET /api/messages/{id}` - Get complete message content
+- `GET /api/messages/{id}/replay` - Replay streaming effect (SSE)
+- `GET /api/messages/batch?ids=...` - Batch fetch
 
-#### 前端数据流
-1. 前端监听 SSE 流接收 `ContextUpdate` 事件
-2. 从 `message_update.message_id` 获取消息 ID
-3. 按需调用 `GET /api/messages/{id}` 获取内容
-4. 如果需要重放，调用 `/api/messages/{id}/replay`
+#### Frontend Data Flow
+1. Frontend listens to SSE stream to receive `ContextUpdate` events
+2. Get message ID from `message_update.message_id`
+3. Call `GET /api/messages/{id}` on-demand to get content
+4. If replay is needed, call `/api/messages/{id}/replay`
 ```
-```
 
-### 4.2 创建 spec delta
+### 4.2 Create spec delta
 
-**新文件**: `openspec/changes/refactor-context-session-architecture/specs/message-types/streaming-response-spec.md`
+**New File**: `openspec/changes/refactor-context-session-architecture/specs/message-types/streaming-response-spec.md`
 
 ```markdown
 ## ADDED Requirements
@@ -334,49 +333,49 @@ The system SHALL provide an API to replay streaming responses for frontend visua
 - **AND** no artificial delays SHALL be introduced
 ```
 
-### 4.3 更新 tasks.md
+### 4.3 Update tasks.md
 
-#### 在 Phase 1 和 Phase 2 之间插入新阶段
+#### Insert new phase between Phase 1 and Phase 2
 
 ```markdown
 ## 1.5 StreamingResponse Enhancement
 
-- [ ] 1.5.1 定义 StreamingResponse 相关结构
-  - [ ] 1.5.1.1 添加 StreamingResponseMsg 到 RichMessageType
-  - [ ] 1.5.1.2 定义 StreamChunk 结构
-  - [ ] 1.5.1.3 定义 TokenUsage 结构
-  - [ ] 1.5.1.4 实现序列化/反序列化
-  
-- [ ] 1.5.2 在 ChatContext 中集成
-  - [ ] 1.5.2.1 实现 begin_streaming_llm_response()
-  - [ ] 1.5.2.2 实现 append_streaming_chunk()
-  - [ ] 1.5.2.3 实现 finalize_streaming_response()
-  - [ ] 1.5.2.4 更新状态机（StreamingLLMResponse 状态）
-  
-- [ ] 1.5.3 实现 Message Helpers
-  - [ ] 1.5.3.1 InternalMessage::streaming_response() 构造函数
-  - [ ] 1.5.3.2 describe() 支持 StreamingResponse
-  - [ ] 1.5.3.3 向后兼容转换（StreamingResponse → Text）
-  
-- [ ] 1.5.4 实现流式重放 API
-  - [ ] 1.5.4.1 定义 /api/messages/{id}/replay endpoint
-  - [ ] 1.5.4.2 实现 SSE 流生成器
-  - [ ] 1.5.4.3 支持 speed 参数（0, 0.5, 1.0, 2.0 等）
-  - [ ] 1.5.4.4 实现 chunk 事件和 done 事件
-  
-- [ ] 1.5.5 编写测试
-  - [ ] 1.5.5.1 StreamingResponseMsg 创建和追加测试
-  - [ ] 1.5.5.2 finalize 和统计计算测试
-  - [ ] 1.5.5.3 Context 流式处理集成测试
-  - [ ] 1.5.5.4 重放 API 端到端测试
-  
-- [ ] 1.5.6 更新 OpenSpec 文档
-  - [ ] 1.5.6.1 创建 streaming-response-spec.md
-  - [ ] 1.5.6.2 更新 design.md (Decision 3.5, 3.6)
-  - [ ] 1.5.6.3 验证 OpenSpec
+- [ ] 1.5.1 Define StreamingResponse related structures
+  - [ ] 1.5.1.1 Add StreamingResponseMsg to RichMessageType
+  - [ ] 1.5.1.2 Define StreamChunk structure
+  - [ ] 1.5.1.3 Define TokenUsage structure
+  - [ ] 1.5.1.4 Implement serialization/deserialization
+
+- [ ] 1.5.2 Integrate in ChatContext
+  - [ ] 1.5.2.1 Implement begin_streaming_llm_response()
+  - [ ] 1.5.2.2 Implement append_streaming_chunk()
+  - [ ] 1.5.2.3 Implement finalize_streaming_response()
+  - [ ] 1.5.2.4 Update state machine (StreamingLLMResponse state)
+
+- [ ] 1.5.3 Implement Message Helpers
+  - [ ] 1.5.3.1 InternalMessage::streaming_response() constructor
+  - [ ] 1.5.3.2 describe() support for StreamingResponse
+  - [ ] 1.5.3.3 Backward compatible conversion (StreamingResponse → Text)
+
+- [ ] 1.5.4 Implement streaming replay API
+  - [ ] 1.5.4.1 Define /api/messages/{id}/replay endpoint
+  - [ ] 1.5.4.2 Implement SSE stream generator
+  - [ ] 1.5.4.3 Support speed parameter (0, 0.5, 1.0, 2.0, etc.)
+  - [ ] 1.5.4.4 Implement chunk events and done events
+
+- [ ] 1.5.5 Write tests
+  - [ ] 1.5.5.1 StreamingResponseMsg creation and append tests
+  - [ ] 1.5.5.2 finalize and statistics calculation tests
+  - [ ] 1.5.5.3 Context streaming processing integration tests
+  - [ ] 1.5.5.4 Replay API end-to-end tests
+
+- [ ] 1.5.6 Update OpenSpec documentation
+  - [ ] 1.5.6.1 Create streaming-response-spec.md
+  - [ ] 1.5.6.2 Update design.md (Decision 3.5, 3.6)
+  - [ ] 1.5.6.3 Validate OpenSpec
 ```
 
-#### 调整 Phase 4 优先级说明
+#### Adjust Phase 4 priority note
 
 ```markdown
 ## 4. Storage Separation
@@ -384,116 +383,116 @@ The system SHALL provide an API to replay streaming responses for frontend visua
 **Note**: This phase implements the storage architecture defined in Decision 3.
 It builds upon the completed message type system (Phase 1 + 1.5).
 
-**Priority**: Can be executed in parallel with Phase 2-3 if needed, 
+**Priority**: Can be executed in parallel with Phase 2-3 if needed,
 but recommended to complete Phases 2-3 first for stability.
 ```
 
 ---
 
-## 五、推荐行动计划
+## V. Recommended Action Plan
 
-### 立即行动（高优先级）
+### Immediate Actions (High Priority)
 
-1. **与用户确认方案选择**
-   - 选项 A（激进）vs 选项 B（稳健）
-   - 确认是否需要立即实现 Storage Separation
+1. **Confirm plan selection with user**
+   - Option A (Aggressive) vs Option B (Robust)
+   - Confirm whether Storage Separation needs to be implemented immediately
 
-2. **如果选择选项 B（推荐）**:
+2. **If Option B is selected (recommended)**:
    ```bash
-   # 步骤 1: 更新设计文档
-   - 添加 Decision 3.5 (StreamingResponse)
-   - 添加 Decision 3.6 (API Architecture)
-   
-   # 步骤 2: 创建 spec delta
-   - 创建 streaming-response-spec.md
-   
-   # 步骤 3: 更新 tasks.md
-   - 插入 Phase 1.5
-   
-   # 步骤 4: 验证 OpenSpec
+   # Step 1: Update design document
+   - Add Decision 3.5 (StreamingResponse)
+   - Add Decision 3.6 (API Architecture)
+
+   # Step 2: Create spec delta
+   - Create streaming-response-spec.md
+
+   # Step 3: Update tasks.md
+   - Insert Phase 1.5
+
+   # Step 4: Validate OpenSpec
    openspec validate refactor-context-session-architecture --strict
-   
-   # 步骤 5: 开始实现 Phase 1.5
+
+   # Step 5: Start implementing Phase 1.5
    ```
 
-3. **如果选择选项 A（激进）**:
+3. **If Option A is selected (aggressive)**:
    ```bash
-   # 步骤 1: 同上
-   # 步骤 2: 同上
-   # 步骤 3: 重新排序 tasks.md（Phase 4 提前）
-   # 步骤 4: 同时实现 StreamingResponse + Storage Separation
+   # Step 1: Same as above
+   # Step 2: Same as above
+   # Step 3: Reorder tasks.md (Phase 4 advanced)
+   # Step 4: Implement StreamingResponse + Storage Separation simultaneously
    ```
 
-### 中期规划（Phase 2-5）
+### Mid-Term Planning (Phase 2-5)
 
 - **Phase 2**: Message Processing Pipeline
-  - 利用完整的 RichMessageType 系统
-  - 处理器可以识别 StreamingResponse
-  
+  - Leverage complete RichMessageType system
+  - Processors can recognize StreamingResponse
+
 - **Phase 3**: Context Manager Enhancement
-  - 优化流式处理逻辑
-  - 集成 Pipeline
-  
+  - Optimize streaming processing logic
+  - Integrate Pipeline
+
 - **Phase 4**: Storage Separation
-  - 移除 message_pool
-  - 实现独立存储层
-  
+  - Remove message_pool
+  - Implement independent storage layer
+
 - **Phase 5**: Tool Auto-Loop
-  - 基于稳定的存储架构
+  - Based on stable storage architecture
 
 ---
 
-## 六、风险评估
+## VI. Risk Assessment
 
-### 风险 1: 存储架构变更影响现有代码
+### Risk 1: Storage Architecture Changes Affect Existing Code
 
-**严重程度**: 🔴 高
+**Severity**: 🔴 High
 
-**缓解措施**:
-- 保持向后兼容（旧格式自动迁移）
-- 分阶段迁移（先支持新格式，旧格式并存）
-- 充分测试（单元测试 + 集成测试）
+**Mitigation**:
+- Maintain backward compatibility (automatic migration from old format)
+- Phased migration (support new format first, old format coexists)
+- Sufficient testing (unit tests + integration tests)
 
-### 风险 2: StreamingResponse 增加复杂度
+### Risk 2: StreamingResponse Increases Complexity
 
-**严重程度**: 🟡 中
+**Severity**: 🟡 Medium
 
-**缓解措施**:
-- 清晰的类型定义
-- 完善的文档和示例
-- 向后兼容转换（StreamingResponse → Text）
+**Mitigation**:
+- Clear type definitions
+- Complete documentation and examples
+- Backward compatible conversion (StreamingResponse → Text)
 
-### 风险 3: API 变更影响前端
+### Risk 3: API Changes Affect Frontend
 
-**严重程度**: 🟡 中
+**Severity**: 🟡 Medium
 
-**缓解措施**:
-- 保持旧 API 可用（标记为 deprecated）
-- 提供迁移指南
-- 前后端同步更新
-
----
-
-## 七、总结
-
-### ✅ 设计已有但未实现
-- Context 只保存引用
-- 消息独立存储
-- 按需加载
-- Phase 4 任务清单完整
-
-### 🆕 需要新增的内容
-- StreamingResponse 消息类型
-- 流式重放 API
-- 明确的 API 架构文档
-
-### 📋 推荐下一步
-1. **与用户确认**：选项 A（激进）还是选项 B（稳健）
-2. **更新文档**：design.md + spec delta + tasks.md
-3. **开始实现**：Phase 1.5 StreamingResponse Enhancement
+**Mitigation**:
+- Keep old API available (mark as deprecated)
+- Provide migration guide
+- Synchronize frontend and backend updates
 
 ---
 
-**提交时间**: 2025-11-08  
-**状态**: 等待用户确认方案
+## VII. Summary
+
+### ✅ Already Designed but Not Implemented
+- Context only saves references
+- Messages stored independently
+- On-demand loading
+- Phase 4 task list is complete
+
+### 🆕 Content to be Added
+- StreamingResponse message type
+- Streaming replay API
+- Clear API architecture documentation
+
+### 📋 Recommended Next Steps
+1. **Confirm with user**: Option A (Aggressive) or Option B (Robust)
+2. **Update documentation**: design.md + spec delta + tasks.md
+3. **Start implementation**: Phase 1.5 StreamingResponse Enhancement
+
+---
+
+**Submission Time**: 2025-11-08
+**Status**: Awaiting user confirmation of plan
 

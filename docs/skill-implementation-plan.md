@@ -1,69 +1,69 @@
 # Skill System Implementation Plan
 
-## 1. Skill 与现有内置工具 / Workflow 的关系
+## 1. Relationship Between Skills and Existing Built-in Tools / Workflows
 
-- **Skill 是对能力的打包与编排层**，位于内置工具 (低层、可被 LLM 调用) 与 Workflow (高风险、用户显式触发) 之上
-- **内置工具** 负责提供原子工具能力，Skill 通过声明工具依赖与提示词片段，指导 LLM 组合与调用工具
-- **Workflow** 负责用户可控的复杂操作，Skill 可以关联推荐工作流或提供"技能入口"来触发 Workflow
+- **Skill is a packaging and orchestration layer for capabilities**, positioned above built-in tools (low-level, callable by LLM) and Workflows (high-risk, user-explicit triggers)
+- **Built-in tools** provide atomic tool capabilities; Skills guide LLMs to combine and invoke tools through declared tool dependencies and prompt fragments
+- **Workflows** handle user-controllable complex operations; Skills can associate recommended workflows or provide "skill entry points" to trigger Workflows
 
-**预期关系：**
-| 层级 | 角色 | 示例 |
+**Expected Relationship:**
+| Layer | Role | Example |
 |------|------|------|
-| 内置工具 | 原子能力 | read_file, write_file, execute_command |
-| Skill | 能力编排与策略 | "文件分析" Skill = read + search + 分析提示词 |
-| Workflow | 用户显式操作 | "创建项目" 多步骤表单流程 |
+| Built-in Tools | Atomic capabilities | read_file, write_file, execute_command |
+| Skill | Capability orchestration and strategy | "File Analysis" Skill = read + search + analysis prompt |
+| Workflow | User-explicit operations | "Create Project" multi-step form flow |
 
-## 2. 需要新增的模块
+## 2. New Modules Required
 
 ### Backend (Rust)
 ```
 crates/skill_manager/
 ├── Cargo.toml
 └── src/
-    ├── lib.rs              # 模块入口
-    ├── store.rs            # SkillStore 实现
-    ├── types.rs            # SkillDefinition 等类型
-    └── registry.rs         # 技能注册表
+    ├── lib.rs              # Module entry
+    ├── store.rs            # SkillStore implementation
+    ├── types.rs            # SkillDefinition and other types
+    └── registry.rs         # Skill registry
 
 crates/web_service/src/
 ├── controllers/
 │   └── skill_controller.rs  # GET/POST/PUT/DELETE /v1/skills
 └── services/
-    └── skill_service.rs     # 业务逻辑层
+    └── skill_service.rs     # Business logic layer
 ```
 
 ### Frontend (TypeScript)
 ```
 src/
 ├── services/
-│   └── SkillService.ts      # API 封装
+│   └── SkillService.ts      # API wrapper
 ├── store/slices/
 │   └── skillSlice.ts        # Zustand state
 ├── types/
-│   └── skill.ts             # Skill 类型定义
+│   └── skill.ts             # Skill type definitions
 └── components/Skill/
     ├── SkillManager.tsx
     ├── SkillEditor.tsx
     └── SkillSelector.tsx
 ```
 
-## 3. 数据结构设计
+## 3. Data Structure Design
 
 ### SkillDefinition
 ```typescript
 interface SkillDefinition {
-  id: string;                    // 唯一标识 (kebab-case)
-  name: string;                  // 显示名称
-  description: string;           // 技能描述
-  category: string;              // 分类
-  tags: string[];                // 标签
-  
-  // 核心内容
-  prompt: string;                // 技能提示词片段
-  tool_refs: string[];           // 内置工具引用 ["tool"]
-  workflow_refs: string[];       // 关联 Workflow 名称
-  
-  // 元数据
+  id: string;                    // Unique identifier (kebab-case)
+  name: string;                  // Display name
+  description: string;           // Skill description
+  category: string;              // Category
+  tags: string[];                // Tags
+
+  // Core content
+  prompt: string;                // Skill prompt fragment
+  tool_refs: string[];           // Built-in tool references ["tool"]
+  workflow_refs: string[];       // Associated Workflow names
+
+  // Metadata
   visibility: 'public' | 'private';
   enabled_by_default: boolean;
   version: string;
@@ -75,14 +75,14 @@ interface SkillDefinition {
 ### SkillStore
 ```typescript
 interface SkillStore {
-  // 技能定义存储
+  // Skill definition storage
   skills: Record<string, SkillDefinition>;
-  
-  // 启用状态
-  enabled_skill_ids: string[];   // 全局启用
-  chat_overrides: Record<string, string[]>;  // 对话级覆盖
-  
-  // 操作
+
+  // Enable status
+  enabled_skill_ids: string[];   // Global enable
+  chat_overrides: Record<string, string[]>;  // Chat-level override
+
+  // Operations
   listSkills(): SkillDefinition[];
   getSkill(id: string): SkillDefinition | null;
   createSkill(skill: Omit<SkillDefinition, 'id'>): Promise<void>;
@@ -93,62 +93,62 @@ interface SkillStore {
 }
 ```
 
-## 4. API 设计
+## 4. API Design
 
-### Skill 管理
-| 方法 | 路径 | 描述 |
+### Skill Management
+| Method | Path | Description |
 |------|------|------|
-| GET | `/v1/skills` | 列出所有技能 |
-| GET | `/v1/skills/{id}` | 获取技能详情 |
-| POST | `/v1/skills` | 创建技能 |
-| PUT | `/v1/skills/{id}` | 更新技能 |
-| DELETE | `/v1/skills/{id}` | 删除技能 |
+| GET | `/v1/skills` | List all skills |
+| GET | `/v1/skills/{id}` | Get skill details |
+| POST | `/v1/skills` | Create skill |
+| PUT | `/v1/skills/{id}` | Update skill |
+| DELETE | `/v1/skills/{id}` | Delete skill |
 
-### 启用控制
-| 方法 | 路径 | 描述 |
+### Enable Control
+| Method | Path | Description |
 |------|------|------|
-| POST | `/v1/skills/{id}/enable` | 启用技能 (支持 chat_id 参数) |
-| POST | `/v1/skills/{id}/disable` | 禁用技能 (支持 chat_id 参数) |
+| POST | `/v1/skills/{id}/enable` | Enable skill (supports chat_id parameter) |
+| POST | `/v1/skills/{id}/disable` | Disable skill (supports chat_id parameter) |
 
-### 依赖查询
-| 方法 | 路径 | 描述 |
+### Dependency Query
+| Method | Path | Description |
 |------|------|------|
-| GET | `/v1/skills/available-tools` | 列出可用的内置工具 |
-| GET | `/v1/skills/available-workflows` | 列出可用的 Workflows |
+| GET | `/v1/skills/available-tools` | List available built-in tools |
+| GET | `/v1/skills/available-workflows` | List available Workflows |
 
-## 5. 前端 UI 组件规划
+## 5. Frontend UI Component Planning
 
-### SkillManager 页面
-- 技能卡片网格/列表视图
-- 搜索与分类筛选
-- 启用/禁用开关
-- 新建技能按钮
+### SkillManager Page
+- Skill card grid/list view
+- Search and category filtering
+- Enable/disable toggle
+- New skill button
 
 ### SkillEditor
-- 基本信息表单 (名称、描述、分类)
-- 提示词编辑器 (Markdown 支持)
-- 工具选择器 (从内置工具列表多选)
-- Workflow 关联选择
-- 导入/导出 JSON
+- Basic info form (name, description, category)
+- Prompt editor (Markdown support)
+- Tool selector (multi-select from built-in tools list)
+- Workflow association selection
+- Import/export JSON
 
-### SkillSelector (嵌入 Chat)
-- 对话配置抽屉中的技能启用面板
-- 显示全局启用的技能
-- 支持对话级覆盖
+### SkillSelector (Embedded in Chat)
+- Skill enable panel in chat configuration drawer
+- Display globally enabled skills
+- Support chat-level override
 
 ### SkillBadge
-- 在聊天消息中标记使用了哪些技能
-- 在工具调用结果中显示来源技能
+- Mark which skills were used in chat messages
+- Display source skill in tool call results
 
-## 6. 与 System Prompt 的集成方式
+## 6. Integration with System Prompt
 
-### 后端增强器逻辑
+### Backend Enhancer Logic
 ```rust
-// 在构建发送到 LLM 的系统提示词时
+// When building system prompt to send to LLM
 fn build_system_prompt(enabled_skills: &[SkillDefinition]) -> String {
     let mut prompt = base_system_prompt();
-    
-    // 追加 Skill Context 段落
+
+    // Append Skill Context section
     if !enabled_skills.is_empty() {
         prompt.push_str("\n\n## Available Skills\n");
         for skill in enabled_skills {
@@ -156,47 +156,47 @@ fn build_system_prompt(enabled_skills: &[SkillDefinition]) -> String {
             prompt.push_str(&format!("  {}\n", skill.prompt));
         }
     }
-    
-    // 限制可用工具列表 (可选)
+
+    // Limit available tool list (optional)
     let allowed_tools: Vec<String> = enabled_skills
         .iter()
         .flat_map(|s| s.tool_refs.clone())
         .collect();
-    
+
     prompt
 }
 ```
 
-### 集成点
-1. **全局启用**：`SkillStore.enabled_skill_ids` 影响所有对话
-2. **对话覆盖**：chat config 中的技能列表覆盖全局设置
-3. **工具限制**：根据启用技能的 `tool_refs` 过滤可用内置工具
-4. **Workflow 推荐**：在对话中推荐关联的 Workflow 入口
+### Integration Points
+1. **Global Enable**: `SkillStore.enabled_skill_ids` affects all conversations
+2. **Chat Override**: Skill list in chat config overrides global settings
+3. **Tool Limiting**: Filter available built-in tools based on enabled skills' `tool_refs`
+4. **Workflow Recommendation**: Recommend associated Workflow entry points in conversations
 
-## 7. 实施步骤
+## 7. Implementation Steps
 
-### 阶段 1：基础能力与数据流 (2周)
-- [ ] 创建 `crates/skill_manager` 模块
-- [ ] 实现 SkillStore 内存存储
-- [ ] 实现 Skill CRUD API
-- [ ] 前端 `SkillService.ts` + `skillSlice`
-- [ ] System Prompt 增强器集成 (追加 Skill Context)
+### Phase 1: Basic Capabilities and Data Flow (2 weeks)
+- [ ] Create `crates/skill_manager` module
+- [ ] Implement SkillStore in-memory storage
+- [ ] Implement Skill CRUD API
+- [ ] Frontend `SkillService.ts` + `skillSlice`
+- [ ] System Prompt enhancer integration (append Skill Context)
 
-### 阶段 2：编辑器与依赖绑定 (2周)
-- [ ] SkillManager 列表页面
-- [ ] SkillEditor 创建/编辑功能
-- [ ] 内置工具选择器 (关联现有 `/v1/skills/available-tools` API)
-- [ ] Workflow 选择器 (关联现有 `/bodhi/workflows` API)
-- [ ] 对话级技能启用 (Chat config 集成)
+### Phase 2: Editor and Dependency Binding (2 weeks)
+- [ ] SkillManager list page
+- [ ] SkillEditor create/edit functionality
+- [ ] Built-in tool selector (link to existing `/v1/skills/available-tools` API)
+- [ ] Workflow selector (link to existing `/bodhi/workflows` API)
+- [ ] Chat-level skill enable (Chat config integration)
 
-### 阶段 3：能力深化与扩展 (2周)
-- [ ] 技能导入/导出 (JSON 格式)
-- [ ] 预置技能库 (内置常用技能)
-- [ ] 依赖校验 (验证 tool_refs/workflow_refs 有效性)
-- [ ] SkillBadge 在聊天中的展示
-- [ ] 使用统计与推荐排序
+### Phase 3: Capability Deepening and Extension (2 weeks)
+- [ ] Skill import/export (JSON format)
+- [ ] Preset skill library (built-in common skills)
+- [ ] Dependency validation (validate tool_refs/workflow_refs validity)
+- [ ] SkillBadge display in chat
+- [ ] Usage statistics and recommendation ranking
 
-## 8. 与现有系统的关系图
+## 8. Relationship Diagram with Existing System
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
@@ -226,25 +226,25 @@ fn build_system_prompt(enabled_skills: &[SkillDefinition]) -> String {
 │                         │                                   │
 │  ┌──────────────────────▼────────────────────────────────┐ │
 │  │  chat_core (System Prompt Enhancer)                    │ │
-│  │  - 注入 Skill Context 到系统提示词                     │ │
+│  │  - Inject Skill Context into system prompt             │ │
 │  └───────────────────────────────────────────────────────┘ │
 └─────────────────────────────────────────────────────────────┘
 ```
 
-## 9. 参考 Clawdbot Skill 设计
+## 9. Reference Clawdbot Skill Design
 
-借鉴 `/opt/homebrew/lib/node_modules/clawdbot/skills/` 的设计：
+Drawing inspiration from `/opt/homebrew/lib/node_modules/clawdbot/skills/` design:
 
 ```
 skills/
 ├── skill-name/
-│   ├── SKILL.md          # 技能描述与触发条件 (必需)
-│   ├── scripts/          # 可执行脚本 (可选)
-│   ├── references/       # 参考文档 (可选)
-│   └── assets/           # 模板资源 (可选)
+│   ├── SKILL.md          # Skill description and trigger conditions (required)
+│   ├── scripts/          # Executable scripts (optional)
+│   ├── references/       # Reference documents (optional)
+│   └── assets/           # Template resources (optional)
 ```
 
-**映射到本项目：**
+**Mapping to This Project:**
 - `SKILL.md` → `SkillDefinition.prompt` + metadata
-- `scripts/` → 可关联 Workflow 或直接存储脚本内容
-- `references/` → 可嵌入到 prompt 或作为独立资源
+- `scripts/` → Can associate Workflows or store script content directly
+- `references/` → Can embed into prompt or as standalone resources

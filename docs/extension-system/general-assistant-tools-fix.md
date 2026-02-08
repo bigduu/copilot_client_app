@@ -1,37 +1,37 @@
-# General Assistant 工具访问权限修复
+# General Assistant Tool Access Permission Fix
 
-## 🐛 问题描述
+## 🐛 Problem Description
 
-用户发现 General Assistant 类别显示 "No tools found matching" 错误，无法访问任何工具。
+Users found that the General Assistant category displays "No tools found matching" error and cannot access any tools.
 
-## 🔍 问题分析
+## 🔍 Problem Analysis
 
-### 根本原因
-General Assistant 的 `required_tools()` 方法返回空数组，导致该类别无法访问任何工具：
+### Root Cause
+The General Assistant's `required_tools()` method returns an empty array, causing the category to be unable to access any tools:
 
 ```rust
-// 问题代码
+// Problematic code
 fn required_tools(&self) -> &'static [&'static str] {
-    &[] // 空数组 - 没有工具可用！
+    &[] // Empty array - no tools available!
 }
 ```
 
-### 工具注册机制
-虽然工具通过 `auto_register_tool!` 宏正确注册到全局注册表：
+### Tool Registration Mechanism
+Although tools are correctly registered to the global registry via the `auto_register_tool!` macro:
 - `create_file` (CreateFileTool)
-- `read_file` (ReadFileTool) 
+- `read_file` (ReadFileTool)
 - `update_file` (UpdateFileTool)
 - `append_file` (AppendFileTool)
 - `delete_file` (DeleteFileTool)
 - `execute_command` (ExecuteCommandTool)
 - `search` (SimpleSearchTool)
 
-但是 Categories 需要在 `required_tools()` 中明确声明需要哪些工具才能使用它们。
+Categories need to explicitly declare which tools they need in `required_tools()` to use them.
 
-## ✅ 解决方案
+## ✅ Solution
 
-### 更新 General Assistant
-修改 `src-tauri/src/tool_system/categories/general_assistant.rs`：
+### Update General Assistant
+Modify `src-tauri/src/tool_system/categories/general_assistant.rs`:
 
 ```rust
 fn required_tools(&self) -> &'static [&'static str] {
@@ -39,87 +39,87 @@ fn required_tools(&self) -> &'static [&'static str] {
     &[
         // File operations
         "create_file",
-        "read_file", 
+        "read_file",
         "update_file",
         "append_file",
         "delete_file",
-        
+
         // Command execution
         "execute_command",
-        
+
         // Search functionality
         "search",
     ]
 }
 ```
 
-### 工具分类
+### Tool Classification
 
-#### 📁 文件操作工具
-- **create_file**: 创建新文件
-- **read_file**: 读取文件内容
-- **update_file**: 更新文件内容
-- **append_file**: 向文件追加内容
-- **delete_file**: 删除文件
+#### 📁 File Operation Tools
+- **create_file**: Create new file
+- **read_file**: Read file content
+- **update_file**: Update file content
+- **append_file**: Append content to file
+- **delete_file**: Delete file
 
-#### ⚡ 命令执行工具
-- **execute_command**: 执行shell命令
+#### ⚡ Command Execution Tools
+- **execute_command**: Execute shell command
 
-#### 🔍 搜索工具
-- **search**: 文件和内容搜索
+#### 🔍 Search Tools
+- **search**: File and content search
 
-## 🎯 修复效果
+## 🎯 Fix Results
 
-### 修复前
+### Before Fix
 ```
 No tools found matching ""
 ```
 
-### 修复后
-General Assistant 现在可以访问所有8个工具：
-- 文件操作：5个工具
-- 命令执行：1个工具  
-- 搜索功能：1个工具
+### After Fix
+General Assistant can now access all 8 tools:
+- File operations: 5 tools
+- Command execution: 1 tool
+- Search functionality: 1 tool
 
-## 🔧 技术细节
+## 🔧 Technical Details
 
-### Categories vs Tools 的关系
-1. **Tools**: 通过 `auto_register_tool!` 宏注册到全局注册表
-2. **Categories**: 通过 `required_tools()` 声明需要哪些工具
-3. **ToolsManager**: 根据 Category 的声明为其提供相应的工具
+### Categories vs Tools Relationship
+1. **Tools**: Registered to global registry via `auto_register_tool!` macro
+2. **Categories**: Declare required tools via `required_tools()`
+3. **ToolsManager**: Provides corresponding tools to categories based on their declarations
 
-### 为什么需要显式声明
-- **权限控制**: 不同类别可以访问不同的工具集
-- **功能隔离**: 避免类别访问不相关的工具
-- **安全考虑**: 某些敏感工具可能只对特定类别开放
+### Why Explicit Declaration is Needed
+- **Permission Control**: Different categories can access different tool sets
+- **Function Isolation**: Prevent categories from accessing unrelated tools
+- **Security Considerations**: Some sensitive tools may only be open to specific categories
 
-### 其他 Categories 的工具配置
-- **Translate**: `&[]` (无工具，纯AI对话)
-- **File Operations**: `&[]` (已关闭)
-- **Command Execution**: `&[]` (已关闭)
+### Tool Configurations for Other Categories
+- **Translate**: `&[]` (no tools, pure AI conversation)
+- **File Operations**: `&[]` (disabled)
+- **Command Execution**: `&[]` (disabled)
 
-## 📋 验证步骤
+## 📋 Verification Steps
 
-1. **编译检查**: `cargo check` 确保代码正确
-2. **运行应用**: 启动应用并选择 General Assistant
-3. **工具可用性**: 确认所有8个工具都可以使用
-4. **功能测试**: 测试文件操作、命令执行、搜索等功能
+1. **Compilation Check**: `cargo check` to ensure code correctness
+2. **Run Application**: Start the application and select General Assistant
+3. **Tool Availability**: Confirm all 8 tools are available
+4. **Functionality Test**: Test file operations, command execution, search, and other functions
 
-## 🚀 后续优化建议
+## 🚀 Future Optimization Suggestions
 
-### 动态工具发现
-考虑实现动态工具发现机制，让 General Assistant 自动获取所有可用工具：
+### Dynamic Tool Discovery
+Consider implementing a dynamic tool discovery mechanism to let General Assistant automatically get all available tools:
 
 ```rust
 fn required_tools(&self) -> &'static [&'static str] {
-    // 未来可以考虑动态获取所有注册的工具
+    // Future consideration: dynamically get all registered tools
     // GlobalRegistry::get_tool_names()
-    &[/* 当前的静态列表 */]
+    &[/* current static list */]
 }
 ```
 
-### 工具分组
-可以考虑按功能对工具进行分组，便于管理：
+### Tool Grouping
+Consider grouping tools by functionality for easier management:
 
 ```rust
 const FILE_TOOLS: &[&str] = &["create_file", "read_file", "update_file", "append_file", "delete_file"];
@@ -127,4 +127,4 @@ const SYSTEM_TOOLS: &[&str] = &["execute_command"];
 const SEARCH_TOOLS: &[&str] = &["search"];
 ```
 
-这样修复确保了 General Assistant 作为通用助手能够访问所有可用的工具，提供完整的功能支持。
+This fix ensures that General Assistant, as a general-purpose assistant, can access all available tools and provide complete functionality support.

@@ -1,30 +1,30 @@
-# SystemPromptSelector 组件
+# SystemPromptSelector Component
 
-## 概述
+## Overview
 
-`SystemPromptSelector` 是一个专门用于选择 System Prompt 预设的组件，支持按工具类别分组显示，显示能力描述而非完整 prompt 内容。
+`SystemPromptSelector` is a specialized component for selecting System Prompt presets, supporting grouping by tool category and displaying capability descriptions instead of full prompt content.
 
-## 功能特点
+## Features
 
-- ✅ 按工具类别分组显示预设
-- ✅ 显示能力描述而非完整 prompt 内容  
-- ✅ 支持工具专用模式的额外信息显示
-- ✅ 可折叠的类别面板
-- ✅ 响应式设计和主题适配
-- ✅ 类别图标和颜色标识
+- ✅ Group presets by tool category
+- ✅ Display capability descriptions instead of full prompt content
+- ✅ Support additional information display for tool-specific modes
+- ✅ Collapsible category panels
+- ✅ Responsive design and theme adaptation
+- ✅ Category icons and color indicators
 
-## 组件结构
+## Component Structure
 
 ```
 src/components/SystemPromptSelector/
-├── index.tsx              # 主要的 SystemPromptSelector 组件
-├── NewChatSelector.tsx    # 新建聊天专用的选择器
-└── README.md             # 使用文档
+├── index.tsx              # Main SystemPromptSelector component
+├── NewChatSelector.tsx    # Selector for creating new chats
+└── README.md             # Usage documentation
 ```
 
-## 使用方法
+## Usage
 
-### 1. 基础使用
+### 1. Basic Usage
 
 ```tsx
 import SystemPromptSelector from '../SystemPromptSelector';
@@ -35,16 +35,16 @@ const MyComponent = () => {
   const { systemPromptPresets } = useChat();
 
   const handlePresetSelect = (preset: SystemPromptPreset) => {
-    console.log('选择的预设:', preset);
-    // 处理预设选择逻辑
+    console.log('Selected preset:', preset);
+    // Handle preset selection logic
   };
 
   return (
     <>
       <Button onClick={() => setShowSelector(true)}>
-        选择 System Prompt
+        Select System Prompt
       </Button>
-      
+
       <SystemPromptSelector
         open={showSelector}
         onClose={() => setShowSelector(false)}
@@ -56,7 +56,7 @@ const MyComponent = () => {
 };
 ```
 
-### 2. 新建聊天时使用
+### 2. Usage When Creating New Chats
 
 ```tsx
 import NewChatSelector from '../SystemPromptSelector/NewChatSelector';
@@ -65,18 +65,18 @@ const ChatSidebar = () => {
   const [showNewChatSelector, setShowNewChatSelector] = useState(false);
 
   const handleChatCreated = (chatId: string) => {
-    console.log('新聊天已创建:', chatId);
+    console.log('New chat created:', chatId);
   };
 
   return (
     <>
-      <Button 
-        type="primary" 
+      <Button
+        type="primary"
         onClick={() => setShowNewChatSelector(true)}
       >
-        新建聊天
+        New Chat
       </Button>
-      
+
       <NewChatSelector
         visible={showNewChatSelector}
         onClose={() => setShowNewChatSelector(false)}
@@ -87,34 +87,34 @@ const ChatSidebar = () => {
 };
 ```
 
-### 3. 在 InputContainer 中集成
+### 3. Integration in InputContainer
 
 ```tsx
-// 在 InputContainer 组件中添加新建聊天功能
+// Add new chat functionality in InputContainer component
 const InputContainer = ({ isStreaming, isCenteredLayout }) => {
   const [showNewChatSelector, setShowNewChatSelector] = useState(false);
   const { currentMessages } = useChat();
 
-  // 当没有消息时显示新建聊天按钮
+  // Show new chat button when there are no messages
   const showNewChatButton = currentMessages.length === 0;
 
   return (
     <div>
       {showNewChatButton && (
         <div style={{ textAlign: 'center', marginBottom: 16 }}>
-          <Button 
-            type="primary" 
+          <Button
+            type="primary"
             size="large"
             onClick={() => setShowNewChatSelector(true)}
           >
-            选择 System Prompt 开始聊天
+            Select System Prompt to Start Chat
           </Button>
         </div>
       )}
-      
-      {/* 现有的输入组件 */}
+
+      {/* Existing input components */}
       <Space.Compact block>
-        {/* ... 现有代码 ... */}
+        {/* ... existing code ... */}
       </Space.Compact>
 
       <NewChatSelector
@@ -126,64 +126,64 @@ const InputContainer = ({ isStreaming, isCenteredLayout }) => {
 };
 ```
 
-## 属性说明
+## Props Reference
 
-### SystemPromptSelector 属性
+### SystemPromptSelector Props
 
-| 属性 | 类型 | 必需 | 默认值 | 说明 |
-|------|------|------|--------|------|
-| `open` | `boolean` | ✅ | - | 是否显示选择器 |
-| `onClose` | `() => void` | ✅ | - | 关闭回调 |
-| `onSelect` | `(preset: SystemPromptPreset) => void` | ✅ | - | 选择预设回调 |
-| `presets` | `SystemPromptPresetList` | ✅ | - | 预设列表 |
-| `title` | `string` | ❌ | "选择 System Prompt" | 模态框标题 |
-| `showCancelButton` | `boolean` | ❌ | `true` | 是否显示取消按钮 |
+| Prop | Type | Required | Default | Description |
+|------|------|----------|---------|-------------|
+| `open` | `boolean` | ✅ | - | Whether to show the selector |
+| `onClose` | `() => void` | ✅ | - | Close callback |
+| `onSelect` | `(preset: SystemPromptPreset) => void` | ✅ | - | Preset selection callback |
+| `presets` | `SystemPromptPresetList` | ✅ | - | List of presets |
+| `title` | `string` | ❌ | "Select System Prompt" | Modal title |
+| `showCancelButton` | `boolean` | ❌ | `true` | Whether to show cancel button |
 
-### NewChatSelector 属性
+### NewChatSelector Props
 
-| 属性 | 类型 | 必需 | 默认值 | 说明 |
-|------|------|------|--------|------|
-| `visible` | `boolean` | ✅ | - | 是否显示选择器 |
-| `onClose` | `() => void` | ✅ | - | 关闭回调 |
-| `onChatCreated` | `(chatId: string) => void` | ❌ | - | 聊天创建成功回调 |
+| Prop | Type | Required | Default | Description |
+|------|------|----------|---------|-------------|
+| `visible` | `boolean` | ✅ | - | Whether to show the selector |
+| `onClose` | `() => void` | ✅ | - | Close callback |
+| `onChatCreated` | `(chatId: string) => void` | ❌ | - | Callback when chat is created successfully |
 
-## 类别支持
+## Category Support
 
-组件支持以下工具类别：
+The component supports the following tool categories:
 
-- `GENERAL` - 通用助手 (蓝色)
-- `FILE_READER` - 文件读取 (绿色)  
-- `FILE_CREATOR` - 文件创建 (橙色)
-- `FILE_DELETER` - 文件删除 (红色)
-- `FILE_UPDATER` - 文件更新 (紫色)
-- `FILE_SEARCHER` - 文件搜索 (青色)
-- `COMMAND_EXECUTOR` - 命令执行 (品红色)
+- `GENERAL` - General Assistant (Blue)
+- `FILE_READER` - File Reader (Green)
+- `FILE_CREATOR` - File Creator (Orange)
+- `FILE_DELETER` - File Deleter (Red)
+- `FILE_UPDATER` - File Updater (Purple)
+- `FILE_SEARCHER` - File Searcher (Cyan)
+- `COMMAND_EXECUTOR` - Command Executor (Magenta)
 
-## 数据结构
+## Data Structure
 
-组件期望的 `SystemPromptPreset` 数据结构：
+The expected `SystemPromptPreset` data structure:
 
 ```typescript
 interface SystemPromptPreset {
-  id: string;                        // 唯一标识
-  name: string;                      // 预设名称
-  content: string;                   // Prompt 内容
-  description: string;               // 能力描述
-  category: string;                  // 工具类别
-  mode: 'general' | 'tool_specific'; // 模式类型
-  autoToolPrefix?: string;           // 自动工具前缀
-  allowedTools?: string[];           // 允许的工具列表
-  restrictConversation?: boolean;    // 是否限制普通对话
+  id: string;                        // Unique identifier
+  name: string;                      // Preset name
+  content: string;                   // Prompt content
+  description: string;               // Capability description
+  category: string;                  // Tool category
+  mode: 'general' | 'tool_specific'; // Mode type
+  autoToolPrefix?: string;           // Auto tool prefix
+  allowedTools?: string[];           // Allowed tools list
+  restrictConversation?: boolean;    // Whether to restrict normal conversation
 }
 ```
 
-## 样式定制
+## Styling Customization
 
-组件使用 Ant Design 的主题系统，会自动适配当前主题的颜色和尺寸。如需自定义样式，可以通过 CSS 覆盖相关类名。
+The component uses Ant Design's theme system and automatically adapts to the current theme's colors and dimensions. For custom styling, you can override relevant CSS classes.
 
-## 注意事项
+## Important Notes
 
-1. 确保在使用前已经正确配置了 `ChatContext` 和相关的服务
-2. 组件依赖 `SystemPromptService` 来获取和管理预设数据
-3. 新建聊天功能需要确保 `useChatManager` 中的 `addChat` 和 `updateChat` 方法可用
-4. 建议在应用启动时预加载 SystemPrompt 预设数据
+1. Ensure `ChatContext` and related services are properly configured before use
+2. The component depends on `SystemPromptService` to fetch and manage preset data
+3. The new chat feature requires `addChat` and `updateChat` methods in `useChatManager` to be available
+4. It is recommended to preload SystemPrompt preset data when the application starts

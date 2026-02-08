@@ -1,117 +1,117 @@
-# 组件样式组织规范
+# Component Styling Organization Guidelines
 
-## 概述
-本项目已经修正了之前重构中的过度设计问题，删除了不必要的空CSS文件，建立了更合理的样式组织方式。
+## Overview
+This project has corrected the over-engineering issues from previous refactoring, removed unnecessary empty CSS files, and established a more reasonable styling organization approach.
 
-## 当前样式文件状态
+## Current CSS File Status
 
-### 保留的CSS文件
-以下CSS文件因为有实际内容且被组件使用而保留：
+### Retained CSS Files
+The following CSS files are retained because they have actual content and are used by components:
 
 1. **`src/components/ChatView/styles.css`**
-   - 文件大小：208行
-   - 用途：ChatView组件的动画效果和特定样式
-   - 导入状态：✅ 被 `ChatView/index.tsx` 导入使用
+   - File size: 208 lines
+   - Purpose: Animation effects and specific styles for ChatView component
+   - Import status: ✅ Imported by `ChatView/index.tsx`
 
 2. **`src/layouts/styles.css`**
-   - 文件大小：适中
-   - 用途：主布局样式
-   - 导入状态：✅ 被布局组件导入使用
+   - File size: Moderate
+   - Purpose: Main layout styles
+   - Import status: ✅ Imported by layout components
 
-### 已删除的CSS文件
-以下CSS文件因为空白或只有占位符注释且未被使用而删除：
+### Deleted CSS Files
+The following CSS files were deleted because they were blank or only contained placeholder comments and were unused:
 
-- `src/components/MessageInput/styles.css` - 只有占位符注释
-- `src/components/ChatSidebar/styles.css` - 只有占位符注释
-- `src/components/MessageCard/styles.css` - 只有占位符注释
-- `src/components/SystemSettingsModal/styles.css` - 只有占位符注释
-- `src/components/FavoritesPanel/styles.css` - 只有占位符注释
-- `src/components/SystemPromptModal/styles.css` - 完全空白
-- `src/components/SystemPromptSelector/styles.css` - 完全空白
-- `src/components/InputContainer/styles.css` - 完全空白
-- `src/components/SystemMessage/styles.css` - 完全空白
-- `src/components/StreamingMessageItem/styles.css` - 完全空白
-- `src/components/ToolSelector/styles.css` - 完全空白
-- `src/components/ChatItem/styles.css` - 有注释但组件未导入
+- `src/components/MessageInput/styles.css` - Only placeholder comments
+- `src/components/ChatSidebar/styles.css` - Only placeholder comments
+- `src/components/MessageCard/styles.css` - Only placeholder comments
+- `src/components/SystemSettingsModal/styles.css` - Only placeholder comments
+- `src/components/FavoritesPanel/styles.css` - Only placeholder comments
+- `src/components/SystemPromptModal/styles.css` - Completely blank
+- `src/components/SystemPromptSelector/styles.css` - Completely blank
+- `src/components/InputContainer/styles.css` - Completely blank
+- `src/components/SystemMessage/styles.css` - Completely blank
+- `src/components/StreamingMessageItem/styles.css` - Completely blank
+- `src/components/ToolSelector/styles.css` - Completely blank
+- `src/components/ChatItem/styles.css` - Has comments but component doesn't import
 
-## 新的样式组织原则
+## New Styling Organization Principles
 
-### 1. 按需创建原则
-- **只有当组件确实需要独立样式时才创建CSS文件**
-- 不要预先创建空的CSS文件作为"占位符"
-- 避免为每个组件都强制创建样式文件
+### 1. On-Demand Creation Principle
+- **Only create CSS files when a component truly needs independent styles**
+- Don't pre-create empty CSS files as "placeholders"
+- Avoid mandating style files for every component
 
-### 2. 样式实现优先级
-按以下优先级选择样式实现方式：
+### 2. Style Implementation Priority
+Choose style implementation methods in the following priority order:
 
-1. **Ant Design 组件样式** - 优先使用框架提供的样式
-2. **主题系统** (`src/styles/theme.ts`) - 使用统一的主题配置
-3. **内联样式** - 对于简单的动态样式
-4. **独立CSS文件** - 仅用于复杂的样式逻辑或动画效果
+1. **Ant Design Component Styles** - Prioritize framework-provided styles
+2. **Theme System** (`src/styles/theme.ts`) - Use unified theme configuration
+3. **Inline Styles** - For simple dynamic styles
+4. **Standalone CSS Files** - Only for complex styling logic or animation effects
 
-### 3. 样式复用策略
-- 相似组件可以共享样式，不需要每个都有独立文件
-- 通用样式放在主题系统中统一管理
-- 避免重复的样式定义
+### 3. Style Reuse Strategy
+- Similar components can share styles; not every component needs its own file
+- Common styles should be managed in the theme system
+- Avoid duplicate style definitions
 
-### 4. 渐进式增长
-- 组件开始时可能不需要独立样式文件
-- 当样式需求变复杂时再创建CSS文件
-- 支持后续根据需要添加样式文件
+### 4. Progressive Growth
+- Components may not need independent style files initially
+- Create CSS files when styling needs become complex
+- Support adding style files as needed later
 
-## 样式文件创建标准
+## CSS File Creation Standards
 
-### 何时创建CSS文件
-满足以下条件之一时才创建独立CSS文件：
+### When to Create CSS Files
+Only create independent CSS files when one of the following conditions is met:
 
-- 组件需要复杂的CSS动画或过渡效果
-- 样式逻辑复杂，内联样式难以维护
-- 需要响应式设计的复杂布局
-- 有大量的样式规则需要组织
+- Component requires complex CSS animations or transition effects
+- Styling logic is complex and difficult to maintain with inline styles
+- Complex layouts requiring responsive design
+- Large number of style rules need organization
 
-### 何时不创建CSS文件
-以下情况不应创建独立CSS文件：
+### When NOT to Create CSS Files
+Do not create independent CSS files in the following situations:
 
-- 组件只使用Ant Design的默认样式
-- 只需要简单的颜色、边距等基础样式
-- 样式可以通过主题系统统一管理
-- 样式规则很少且简单
+- Component only uses Ant Design default styles
+- Only simple colors, margins, and other basic styles are needed
+- Styles can be managed through the theme system
+- Few and simple style rules
 
-## 维护指南
+## Maintenance Guide
 
-### 定期检查
-- 定期检查是否有新增的空CSS文件
-- 检查CSS文件是否真的被组件导入使用
-- 评估是否有CSS文件可以合并或删除
+### Regular Checks
+- Regularly check for newly added empty CSS files
+- Verify CSS files are actually imported and used by components
+- Evaluate whether CSS files can be merged or deleted
 
-### 重构时的注意事项
-- 删除CSS文件前确认没有其他地方引用
-- 更新组件时检查是否需要添加样式文件
-- 保持样式组织的一致性
+### Refactoring Considerations
+- Confirm no other references before deleting CSS files
+- Check if style files need to be added when updating components
+- Maintain consistency in style organization
 
-## 示例对比
+## Example Comparison
 
-### ❌ 错误做法（之前的过度设计）
+### ❌ Incorrect Approach (Previous Over-Engineering)
 ```
 src/components/
 ├── ComponentA/
 │   ├── index.tsx
-│   └── styles.css  // 空文件或只有注释
+│   └── styles.css  // Empty file or only comments
 ├── ComponentB/
 │   ├── index.tsx
-│   └── styles.css  // 空文件或只有注释
+│   └── styles.css  // Empty file or only comments
 ```
 
-### ✅ 正确做法（当前的合理组织）
+### ✅ Correct Approach (Current Reasonable Organization)
 ```
 src/components/
 ├── ComponentA/
-│   └── index.tsx   // 使用内联样式或主题系统
+│   └── index.tsx   // Use inline styles or theme system
 ├── ComponentB/
-│   └── index.tsx   // 使用内联样式或主题系统
+│   └── index.tsx   // Use inline styles or theme system
 ├── ComplexComponent/
 │   ├── index.tsx
-│   └── styles.css  // 仅在真正需要时创建
+│   └── styles.css  // Only create when truly needed
 ```
 
-这种组织方式避免了文件系统的冗余，提高了项目的可维护性。
+This organization avoids filesystem redundancy and improves project maintainability.

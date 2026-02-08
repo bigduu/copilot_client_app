@@ -1,57 +1,57 @@
-# 修复：Tool 消息渲染问题
+# Fix: Tool Message Rendering Issue
 
-## 🐛 问题诊断
+## 🐛 Problem Diagnosis
 
-用户报告即使日志显示更新成功，UI 仍然看不到工具执行结果：
+Users reported that tool execution results were not visible in the UI even though logs showed successful updates:
 
 ```
-index.tsx:678 ✅ [ChatView] Updated messages: 4 total  ← 状态已更新
+index.tsx:678 ✅ [ChatView] Updated messages: 4 total  ← state updated
 ```
 
-后端也确认返回了 4 条消息：
+The backend also confirmed returning 4 messages:
 ```
 1018| message_count=4  ✅
 ```
 
-但"还是没有结果在chat list里面"。
+But "still no results in the chat list".
 
-## 🔍 根本原因
+## 🔍 Root Cause
 
-### 问题 1: UI 优先使用 `backendMessages`
+### Issue 1: UI Prioritizes `backendMessages`
 
-`ChatView/index.tsx` line 457：
+`ChatView/index.tsx` line 457:
 ```typescript
 {(backendMessages.length > 0 ? backendMessages : currentMessages)
   ...
 ```
 
-虽然我们更新了 `currentMessages` (Zustand store)，但由于 `backendMessages.length > 0`，UI 实际使用的是 `backendMessages`（来自 `useBackendContext`）。
+Although we updated `currentMessages` (Zustand store), since `backendMessages.length > 0`, the UI actually uses `backendMessages` (from `useBackendContext`).
 
-### 问题 2: Filter 过滤掉了 tool 消息
+### Issue 2: Filter Removes Tool Messages
 
-`ChatView/index.tsx` line 458-463：
+`ChatView/index.tsx` line 458-463:
 ```typescript
 .filter(
   (message: Message | MessageDTO) =>
     message.role === "user" ||
     message.role === "assistant" ||
     message.role === "system"
-    // ❌ 没有 tool！
+    // ❌ no tool!
 )
 ```
 
-**即使 `backendMessages` 包含了 tool 消息，渲染时也会被 filter 过滤掉！**
+**Even if `backendMessages` contains tool messages, they will be filtered out during rendering!**
 
-### 问题 3: Map 中没有特殊处理 tool 消息
+### Issue 3: No Special Handling for Tool Messages in Map
 
-即使通过了 filter，tool 消息在 map 中会被当作普通 assistant 消息处理，**没有添加 `[Tool Result]` 前缀**。
+Even if they pass the filter, tool messages are treated as regular assistant messages in the map, **without adding the `[Tool Result]` prefix**.
 
-## ✅ 修复方案
+## ✅ Fix Solution
 
-### 1. 在 filter 中包含 tool 角色
+### 1. Include Tool Role in Filter
 
 ```typescript
-// 修复前
+// Before fix
 .filter(
   (message: Message | MessageDTO) =>
     message.role === "user" ||
@@ -59,20 +59,20 @@ index.tsx:678 ✅ [ChatView] Updated messages: 4 total  ← 状态已更新
     message.role === "system"
 )
 
-// 修复后
+// After fix
 .filter(
   (message: Message | MessageDTO) =>
     message.role === "user" ||
     message.role === "assistant" ||
     message.role === "system" ||
-    message.role === "tool"  // ✅ 包含 tool 消息
+    message.role === "tool"  // ✅ Include tool messages
 )
 ```
 
-### 2. 在 map 中特殊处理 tool 消息
+### 2. Special Handling for Tool Messages in Map
 
 ```typescript
-// 修复前
+// Before fix
 } else if (dto.role === "user") {
   convertedMessage = {...};
 } else {
@@ -80,11 +80,11 @@ index.tsx:678 ✅ [ChatView] Updated messages: 4 total  ← 状态已更新
   convertedMessage = {...};
 }
 
-// 修复后
+// After fix
 } else if (dto.role === "user") {
   convertedMessage = {...};
 } else if (dto.role === "tool") {
-  // ✅ Tool message - 显示为 assistant 并添加前缀
+  // ✅ Tool message - display as assistant with prefix
   convertedMessage = {
     id: dto.id,
     role: "assistant",
@@ -98,73 +98,73 @@ index.tsx:678 ✅ [ChatView] Updated messages: 4 total  ← 状态已更新
 }
 ```
 
-## 🔄 完整数据流
+## 🔄 Complete Data Flow
 
-### 修复后的流程
+### Fixed Flow
 
-1. 后端保存 4 条消息（user, assistant, **tool**, assistant）
-2. 前端批准后调用 `getMessages()`
-3. 更新 Zustand store (`currentMessages`) ✅
-4. 调用 `loadContext()` 更新 `backendMessages` ✅
-5. UI 使用 `backendMessages`（优先）
-6. **Filter 不再过滤 tool 消息** ✅
-7. **Map 将 tool 消息转换为带前缀的 assistant 消息** ✅
-8. UI 渲染所有 4 条消息 ✅
+1. Backend saves 4 messages (user, assistant, **tool**, assistant)
+2. Frontend calls `getMessages()` after approval
+3. Update Zustand store (`currentMessages`) ✅
+4. Call `loadContext()` to update `backendMessages` ✅
+5. UI uses `backendMessages` (priority)
+6. **Filter no longer filters tool messages** ✅
+7. **Map converts tool messages to assistant messages with prefix** ✅
+8. UI renders all 4 messages ✅
 
-## 📊 修改的文件
+## 📊 Modified Files
 
-**前端 (TypeScript)**:
+**Frontend (TypeScript)**:
 1. `src/components/ChatView/index.tsx`
-   - 在 filter 中添加 `message.role === "tool"`
-   - 在 map 的 MessageDTO 处理中添加 `else if (dto.role === "tool")` 分支
+   - Add `message.role === "tool"` in filter
+   - Add `else if (dto.role === "tool")` branch in MessageDTO processing
 
-## 🧪 测试步骤
+## 🧪 Testing Steps
 
-### 1. 前端会自动热重载
+### 1. Frontend Auto Hot Reload
 
-刷新浏览器（Cmd+Shift+R）
+Refresh browser (Cmd+Shift+R)
 
-### 2. 测试工具执行
+### 2. Test Tool Execution
 
-**输入**: `Execute command: ls ~`
+**Input**: `Execute command: ls ~`
 
-**期望 UI**:
-显示 **4 条消息**：
+**Expected UI**:
+Display **4 messages**:
 1. **User**: "Execute command: ls ~"
 2. **Assistant**: "{\"tool\": \"execute_command\", ...}"
 3. **Assistant**: "**[Tool Result]**\nApplications\nDesktop\nDocuments\n..." ⭐️ **NEW!**
 4. **Assistant**: "Tool 'execute_command' completed successfully."
 
-### 3. 验证消息内容
+### 3. Verify Message Content
 
-- ✅ 看到 `[Tool Result]` 标签
-- ✅ 看到命令执行的完整输出
-- ✅ 看到 4 条消息而不是 2 条
+- ✅ See `[Tool Result]` label
+- ✅ See complete command execution output
+- ✅ See 4 messages instead of 2
 
-## 🎯 为什么需要三处修复？
+## 🎯 Why Three Fixes Were Needed?
 
-### 修复 1: `useChatManager.ts` 的 `onDone` 回调
-- **作用**: 流式响应完成后更新 `currentMessages`
-- **场景**: 当 UI 使用 `currentMessages` 时生效
-- **问题**: 但 UI 优先使用 `backendMessages`
+### Fix 1: `onDone` Callback in `useChatManager.ts`
+- **Purpose**: Update `currentMessages` after streaming response completes
+- **Scenario**: Effective when UI uses `currentMessages`
+- **Problem**: But UI prioritizes `backendMessages`
 
-### 修复 2: `ChatView.tsx` 批准后更新 Zustand
-- **作用**: 批准后直接更新 `currentMessages`
-- **场景**: 确保 Zustand store 是最新的
-- **问题**: 但 UI 仍然优先使用 `backendMessages`
+### Fix 2: Update Zustand After Approval in `ChatView.tsx`
+- **Purpose**: Directly update `currentMessages` after approval
+- **Scenario**: Ensure Zustand store is up to date
+- **Problem**: But UI still prioritizes `backendMessages`
 
-### 修复 3: `ChatView.tsx` 的 filter 和 map
-- **作用**: 确保 `backendMessages` 中的 tool 消息能被渲染 ⭐️
-- **场景**: UI 实际使用 `backendMessages` 时生效 ⭐️
-- **结果**: **最终解决方案！**
+### Fix 3: Filter and Map in `ChatView.tsx`
+- **Purpose**: Ensure tool messages in `backendMessages` can be rendered ⭐️
+- **Scenario**: Effective when UI actually uses `backendMessages` ⭐️
+- **Result**: **Final solution!**
 
-## ✅ 状态
+## ✅ Status
 
-- [x] 识别 UI 使用 `backendMessages` 而不是 `currentMessages`
-- [x] 在 filter 中包含 tool 消息
-- [x] 在 map 中特殊处理 tool 消息
-- [x] 添加 `[Tool Result]` 前缀
-- [ ] 用户验证
+- [x] Identify UI uses `backendMessages` instead of `currentMessages`
+- [x] Include tool messages in filter
+- [x] Special handling for tool messages in map
+- [x] Add `[Tool Result]` prefix
+- [ ] User verification
 
-**现在前端会自动热重载，tool 消息应该能正常显示了！** 🚀
+**Now the frontend will auto hot reload, and tool messages should display correctly!** 🚀
 

@@ -1,57 +1,57 @@
-# 严格模式修复报告 - 彻底移除默认值实现"无配置即报错"
+# Strict Mode Fix Report - Completely Removing Default Values to Achieve "No Config Means Error"
 
-## 修复概述
+## Fix Overview
 
-按照用户要求，彻底移除了前端所有硬编码的类别配置，实现了严格的"无配置即报错"机制。
+As requested by the user, all hardcoded category configurations have been completely removed from the frontend, implementing a strict "no config means error" mechanism.
 
-## 核心原则执行情况
+## Core Principle Implementation Status
 
-✅ **前端不能有任何hardcode定义** - 已完全删除所有默认配置
-✅ **没有配置就必须报错，不能有默认回退** - 已实现严格报错机制  
-✅ **完全依赖后端提供所有配置信息** - 所有配置必须从后端加载
+✅ **No hardcode definitions in frontend** - All default configurations completely deleted
+✅ **No config means error, no default fallback allowed** - Strict error mechanism implemented
+✅ **Completely rely on backend for all configuration information** - All configurations must be loaded from backend
 
-## 主要修复内容
+## Main Fix Contents
 
-### 1. 完全重写 `src/utils/dynamicCategoryConfig.ts`
+### 1. Completely Rewrote `src/utils/dynamicCategoryConfig.ts`
 
-**修复前的问题：**
+**Issues Before Fix:**
 ```typescript
-// ❌ 包含大量硬编码默认值
+// ❌ Contains many hardcoded default values
 private defaultIcons: IconMapping = {
   'file_operations': '📁',
   'command_execution': '⚡',
   'general_assistant': '🤖',
-  // ... 更多硬编码配置
+  // ... more hardcoded configurations
 };
 
 getCategoryIcon(categoryType: string): string {
-  return this.defaultIcons[categoryType] || '🔧'; // 默认回退
+  return this.defaultIcons[categoryType] || '🔧'; // default fallback
 }
 ```
 
-**修复后的实现：**
+**Implementation After Fix:**
 ```typescript
-// ✅ 严格模式 - 无默认值，无配置就报错
-private configuredIcons: IconMapping = {}; // 空配置，必须从后端加载
+// ✅ Strict mode - no default values, error if no config
+private configuredIcons: IconMapping = {}; // empty config, must load from backend
 private isConfigLoaded = false;
 
 getCategoryIcon(categoryType: string): string {
-  this.ensureConfigLoaded(); // 检查配置是否已加载
-  
+  this.ensureConfigLoaded(); // check if config is loaded
+
   const icon = this.configuredIcons[categoryType];
   if (!icon) {
-    throw new Error(`未配置的类别类型图标: ${categoryType}`);
+    throw new Error(`Unconfigured category type icon: ${categoryType}`);
   }
   return icon;
 }
 ```
 
-### 2. 修复组件硬编码配置
+### 2. Fixed Component Hardcoded Configurations
 
-#### SystemPromptSelector 组件
-**修复前：**
+#### SystemPromptSelector Component
+**Before Fix:**
 ```typescript
-// ❌ 硬编码映射
+// ❌ Hardcoded mapping
 const defaultIconMap: Record<string, React.ReactNode> = {
   file_operations: <FileTextOutlined />,
   command_execution: <PlayCircleOutlined />,
@@ -59,78 +59,78 @@ const defaultIconMap: Record<string, React.ReactNode> = {
 };
 
 const getCategoryIcon = (category: string) => {
-  return defaultIconMap[category] || <ToolOutlined />; // 默认回退
+  return defaultIconMap[category] || <ToolOutlined />; // default fallback
 };
 ```
 
-**修复后：**
+**After Fix:**
 ```typescript
-// ✅ 严格模式 - 无配置就报错
+// ✅ Strict mode - error if no config
 const getCategoryIcon = (category: string, categoryData?: any): React.ReactNode => {
   if (categoryData?.icon) {
     return <span>{categoryData.icon}</span>;
   }
-  
-  throw new Error(`未配置的类别图标: ${category}。请确保后端已提供该类别的图标配置。`);
+
+  throw new Error(`Unconfigured category icon: ${category}. Please ensure the backend has provided icon configuration for this category.`);
 };
 ```
 
-#### SystemPromptModal 组件
-同样的严格模式修复应用到 SystemPromptModal 组件。
+#### SystemPromptModal Component
+The same strict mode fix was applied to the SystemPromptModal component.
 
-### 3. 添加完善的错误处理
+### 3. Added Comprehensive Error Handling
 
-在组件中使用这些函数时，添加了适当的错误处理：
+Appropriate error handling was added when using these functions in components:
 
 ```typescript
-// ✅ 带错误处理的调用
+// ✅ Calls with error handling
 icon={(() => {
   try {
     return getCategoryIcon(preset.category);
   } catch (error) {
-    console.warn('类别图标配置缺失:', (error as Error).message);
-    return <ToolOutlined />; // 仅在错误时作为UI回退
+    console.warn('Category icon configuration missing:', (error as Error).message);
+    return <ToolOutlined />; // UI fallback only on error
   }
 })()}
 ```
 
-## 实现的严格机制
+## Implemented Strict Mechanisms
 
-### 1. 配置加载检查
+### 1. Configuration Loading Check
 ```typescript
 private ensureConfigLoaded(): void {
   if (!this.isConfigLoaded) {
-    throw new Error('类别配置尚未从后端加载。前端不包含任何默认配置，必须先从后端获取配置信息。');
+    throw new Error('Category configuration has not been loaded from backend. Frontend does not contain any default configuration; configuration information must be obtained from backend first.');
   }
 }
 ```
 
-### 2. 配置完整性验证
+### 2. Configuration Completeness Validation
 ```typescript
 validateCategoryConfig(categoryType: string): {
   isValid: boolean;
   missingConfigs: string[];
   error?: string;
 } {
-  // 检查图标、颜色、显示名称是否都已配置
+  // Check if icon, color, and display name are all configured
   const missingConfigs: string[] = [];
-  
+
   if (!this.configuredIcons.hasOwnProperty(categoryType)) {
-    missingConfigs.push('图标');
+    missingConfigs.push('icon');
   }
-  // ... 其他验证
-  
+  // ... other validations
+
   return {
     isValid: missingConfigs.length === 0,
     missingConfigs,
-    error: missingConfigs.length > 0 ? 
-      `类别 ${categoryType} 缺少配置: ${missingConfigs.join(', ')}` : 
+    error: missingConfigs.length > 0 ?
+      `Category ${categoryType} missing configurations: ${missingConfigs.join(', ')}` :
       undefined
   };
 }
 ```
 
-### 3. 严格的后端依赖
+### 3. Strict Backend Dependency
 ```typescript
 loadConfigFromBackend(
   icons: IconMapping,
@@ -144,65 +144,65 @@ loadConfigFromBackend(
 }
 ```
 
-## 测试验证
+## Test Verification
 
-创建了 `src/utils/testStrictMode.ts` 进行严格模式验证：
+Created `src/utils/testStrictMode.ts` for strict mode verification:
 
-### 测试覆盖
-1. ✅ 未加载配置时所有操作都报错
-2. ✅ 配置加载后正常工作
-3. ✅ 未配置类别仍然报错
-4. ✅ 配置验证功能正常
-5. ✅ 配置完整性检查正常
+### Test Coverage
+1. ✅ All operations error when config not loaded
+2. ✅ Normal operation after config loaded
+3. ✅ Still errors for unconfigured categories
+4. ✅ Config validation function works normally
+5. ✅ Config completeness check works normally
 
-### 测试结果
+### Test Results
 ```
-=== 严格模式实现验证 ===
+=== Strict Mode Implementation Verification ===
 
-测试1: 验证未加载配置时的报错机制
-✅ 图标获取正确抛出异常: 类别配置尚未从后端加载
-✅ 颜色获取正确抛出异常: 类别配置尚未从后端加载
-✅ 显示名称获取正确抛出异常: 类别配置尚未从后端加载
+Test 1: Verify error mechanism when config not loaded
+✅ Icon retrieval correctly throws exception: Category configuration has not been loaded from backend
+✅ Color retrieval correctly throws exception: Category configuration has not been loaded from backend
+✅ Display name retrieval correctly throws exception: Category configuration has not been loaded from backend
 
-测试2: 验证配置加载后的正常工作
-✅ 后端配置已加载
-✅ 配置获取成功: { icon: '📁', color: 'green', displayName: '文件操作' }
+Test 2: Verify normal operation after config loaded
+✅ Backend config loaded
+✅ Config retrieval successful: { icon: '📁', color: 'green', displayName: 'File Operations' }
 
-测试3: 验证未配置类别仍然报错
-✅ 未配置类别正确抛出异常: 未配置的类别类型图标: database_operations
+Test 3: Verify unconfigured category still errors
+✅ Unconfigured category correctly throws exception: Unconfigured category type icon: database_operations
 ```
 
-## 文件清单
+## File List
 
-### 修改的文件
-- `src/utils/dynamicCategoryConfig.ts` - 完全重写为严格模式
-- `src/components/SystemPromptSelector/index.tsx` - 移除硬编码配置
-- `src/components/SystemPromptModal/index.tsx` - 移除硬编码配置
+### Modified Files
+- `src/utils/dynamicCategoryConfig.ts` - Completely rewritten for strict mode
+- `src/components/SystemPromptSelector/index.tsx` - Removed hardcoded configurations
+- `src/components/SystemPromptModal/index.tsx` - Removed hardcoded configurations
 
-### 新增的文件
-- `src/utils/testStrictMode.ts` - 严格模式测试验证
-- `STRICT_MODE_FIX_REPORT.md` - 本修复报告
+### New Files
+- `src/utils/testStrictMode.ts` - Strict mode test verification
+- `STRICT_MODE_FIX_REPORT.md` - This fix report
 
-## 验证清单
+## Verification Checklist
 
-- [x] 删除了所有 `defaultIcons` 映射
-- [x] 删除了所有 `defaultColors` 映射  
-- [x] 删除了所有 `defaultDisplayNames` 映射
-- [x] 删除了所有硬编码的默认值
-- [x] 实现了严格报错机制
-- [x] 所有配置信息必须从后端获取
-- [x] 前端遇到未知类别时正确报错
-- [x] 更新了现有组件的错误处理
-- [x] 提供了合适的错误提示
+- [x] Deleted all `defaultIcons` mappings
+- [x] Deleted all `defaultColors` mappings
+- [x] Deleted all `defaultDisplayNames` mappings
+- [x] Deleted all hardcoded default values
+- [x] Implemented strict error mechanism
+- [x] All configuration information must be obtained from backend
+- [x] Frontend correctly errors when encountering unknown categories
+- [x] Updated error handling for existing components
+- [x] Provided appropriate error messages
 
-## 影响和注意事项
+## Impact and Considerations
 
-### 对现有功能的影响
-1. **立即影响**：如果后端没有提供配置，相关UI组件会显示错误或回退图标
-2. **长期收益**：前端完全依赖后端配置，消除了配置不一致的问题
+### Impact on Existing Features
+1. **Immediate Impact**: If backend does not provide configuration, related UI components will display errors or fallback icons
+2. **Long-term Benefits**: Frontend fully relies on backend configuration, eliminating configuration inconsistency issues
 
-### 后端集成要求
-后端需要提供以下API接口：
+### Backend Integration Requirements
+Backend needs to provide the following API interface:
 ```typescript
 interface CategoryConfig {
   icons: { [categoryType: string]: string };
@@ -211,15 +211,15 @@ interface CategoryConfig {
 }
 ```
 
-### 错误处理策略
-- **开发环境**：显示详细错误信息，帮助发现配置问题
-- **生产环境**：使用UI回退方案，避免界面崩溃
+### Error Handling Strategy
+- **Development Environment**: Display detailed error information to help discover configuration issues
+- **Production Environment**: Use UI fallback solutions to avoid interface crashes
 
-## 结论
+## Conclusion
 
-✅ **成功实现了"无配置即报错"机制**
-✅ **前端不再包含任何硬编码的类别配置**  
-✅ **所有配置信息完全依赖后端提供**
-✅ **符合核心原则：前端不能有任何hardcode定义**
+✅ **Successfully implemented "no config means error" mechanism**
+✅ **Frontend no longer contains any hardcoded category configurations**
+✅ **All configuration information completely relies on backend provision**
+✅ **Complies with core principle: no hardcode definitions in frontend**
 
-这个修复确保了前端是纯展示层，不包含任何业务逻辑配置，后端完全控制所有类别相关的配置和信息。没有后端配置就无法工作，这正是我们期望的正确行为。
+This fix ensures the frontend is a pure presentation layer without any business logic configuration; the backend completely controls all category-related configurations and information. It cannot work without backend configuration, which is exactly the correct behavior we expect.

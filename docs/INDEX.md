@@ -1,133 +1,133 @@
-# 文档索引
+# Documentation Index
 
-本文档提供项目所有文档的快速索引和搜索功能。
+This document provides a quick index and search function for all project documentation.
 
-## 📚 按主题分类
+## 📚 By Topic
 
-### 🏗️ 架构与设计
-| 文档 | 描述 | 路径 |
+### 🏗️ Architecture & Design
+| Document | Description | Path |
 |------|------|------|
-| 架构总结 | 系统整体架构概览 | [`architecture/ARCHITECTURE_SUMMARY.md`](./architecture/ARCHITECTURE_SUMMARY.md) |
-| 前端架构 | 前端系统架构设计 | [`architecture/FRONTEND_ARCHITECTURE.md`](./architecture/FRONTEND_ARCHITECTURE.md) |
-| 工具系统架构 | 工具系统详细设计 | [`architecture/tools-system.md`](./architecture/tools-system.md) |
-| 统一聊天流程 | 聊天流程架构设计 | [`architecture/UNIFIED_CHAT_FLOW_ARCHITECTURE.md`](./architecture/UNIFIED_CHAT_FLOW_ARCHITECTURE.md) |
+| Architecture Summary | System overall architecture overview | [`architecture/ARCHITECTURE_SUMMARY.md`](./architecture/ARCHITECTURE_SUMMARY.md) |
+| Frontend Architecture | Frontend system architecture design | [`architecture/FRONTEND_ARCHITECTURE.md`](./architecture/FRONTEND_ARCHITECTURE.md) |
+| Tool System Architecture | Tool system detailed design | [`architecture/tools-system.md`](./architecture/tools-system.md) |
+| Unified Chat Flow | Chat flow architecture design | [`architecture/UNIFIED_CHAT_FLOW_ARCHITECTURE.md`](./architecture/UNIFIED_CHAT_FLOW_ARCHITECTURE.md) |
 
 
-### 🔧 工具系统 (Tool System)
-| 文档 | 描述 | 路径 |
+### 🔧 Tool System
+| Document | Description | Path |
 |------|------|------|
-| 注册宏总结 | 工具注册宏使用指南 | [`extension-system/registration-macros-summary.md`](./extension-system/registration-macros-summary.md) |
-| 参数化注册 | 参数化注册详细指南 | [`extension-system/parameterized-registration-guide.md`](./extension-system/parameterized-registration-guide.md) |
-| 翻译类别指南 | 翻译类别使用说明 | [`extension-system/translate-category-guide.md`](./extension-system/translate-category-guide.md) |
-| 工具访问权限修复 | General Assistant 工具修复 | [`extension-system/general-assistant-tools-fix.md`](./extension-system/general-assistant-tools-fix.md) |
+| Registration Macros Summary | Tool registration macro usage guide | [`extension-system/registration-macros-summary.md`](./extension-system/registration-macros-summary.md) |
+| Parameterized Registration | Parameterized registration detailed guide | [`extension-system/parameterized-registration-guide.md`](./extension-system/parameterized-registration-guide.md) |
+| Translate Category Guide | Translate category usage instructions | [`extension-system/translate-category-guide.md`](./extension-system/translate-category-guide.md) |
+| Tool Access Fix | General Assistant tool fix | [`extension-system/general-assistant-tools-fix.md`](./extension-system/general-assistant-tools-fix.md) |
 
-### ⚙️ 配置管理
-| 文档 | 描述 | 路径 |
+### ⚙️ Configuration Management
+| Document | Description | Path |
 |------|------|------|
-| 技术栈配置 | 完整技术栈配置总结 | [`configuration/final-tech-stack-update.md`](./configuration/final-tech-stack-update.md) |
-| 提示词审查 | 系统提示词配置审查 | [`configuration/updated-prompts-review.md`](./configuration/updated-prompts-review.md) |
-| OpenAI 配置 | 默认 OpenAI 模式配置 | [`configuration/DEFAULT_OPENAI_MODE.md`](./configuration/DEFAULT_OPENAI_MODE.md) |
-| 双服务配置 | 双服务架构配置说明 | [`configuration/DUAL_SERVICE_README.md`](./configuration/DUAL_SERVICE_README.md) |
+| Tech Stack Configuration | Complete tech stack configuration summary | [`configuration/final-tech-stack-update.md`](./configuration/final-tech-stack-update.md) |
+| Prompt Review | System prompt configuration review | [`configuration/updated-prompts-review.md`](./configuration/updated-prompts-review.md) |
+| OpenAI Configuration | Default OpenAI mode configuration | [`configuration/DEFAULT_OPENAI_MODE.md`](./configuration/DEFAULT_OPENAI_MODE.md) |
+| Dual Service Configuration | Dual service architecture configuration guide | [`configuration/DUAL_SERVICE_README.md`](./configuration/DUAL_SERVICE_README.md) |
 
-### 🛠️ 开发指南
-| 文档 | 描述 | 路径 |
+### 🛠️ Development Guide
+| Document | Description | Path |
 |------|------|------|
-| 样式指南 | 代码样式和格式规范 | [`development/STYLING_GUIDELINES.md`](./development/STYLING_GUIDELINES.md) |
-| 库集成计划 | 第三方库集成计划 | [`development/LIBRARY_INTEGRATION_PLAN.md`](./development/LIBRARY_INTEGRATION_PLAN.md) |
+| Styling Guidelines | Code style and formatting standards | [`development/STYLING_GUIDELINES.md`](./development/STYLING_GUIDELINES.md) |
+| Library Integration Plan | Third-party library integration plan | [`development/LIBRARY_INTEGRATION_PLAN.md`](./development/LIBRARY_INTEGRATION_PLAN.md) |
 
-### 🧪 测试文档
-| 文档 | 描述 | 路径 |
+### 🧪 Testing Documentation
+| Document | Description | Path |
 |------|------|------|
-| 测试指南 | 测试策略和最佳实践 | [`testing/README.md`](./testing/README.md) |
+| Testing Guide | Testing strategies and best practices | [`testing/README.md`](./testing/README.md) |
 
-### 🔧 工具文档
-| 文档 | 描述 | 路径 |
+### 🔧 Tools Documentation
+| Document | Description | Path |
 |------|------|------|
-| Mermaid 示例 | Mermaid 图表使用示例 | [`tools/MERMAID_EXAMPLES.md`](./tools/MERMAID_EXAMPLES.md) |
-| 工具使用指南 | 工具使用和最佳实践 | [`tools/README.md`](./tools/README.md) |
+| Mermaid Examples | Mermaid diagram usage examples | [`tools/MERMAID_EXAMPLES.md`](./tools/MERMAID_EXAMPLES.md) |
+| Tool Usage Guide | Tool usage and best practices | [`tools/README.md`](./tools/README.md) |
 
-### 📋 项目管理
-| 文档 | 描述 | 路径 |
+### 📋 Project Management
+| Document | Description | Path |
 |------|------|------|
-| Agent 指令 | AI助手工作指令 | [`project-management/AGENTS.md`](./project-management/AGENTS.md) |
-| Claude 指令 | Claude专用指南 | [`project-management/CLAUDE.md`](./project-management/CLAUDE.md) |
+| Agent Instructions | AI assistant work instructions | [`project-management/AGENTS.md`](./project-management/AGENTS.md) |
+| Claude Instructions | Claude-specific guide | [`project-management/CLAUDE.md`](./project-management/CLAUDE.md) |
 
-### 🔧 技术文档
-| 文档 | 描述 | 路径 |
+### 🔧 Technical Documentation
+| Document | Description | Path |
 |------|------|------|
-| 废弃清单 | 已废弃API和替代方案 | [`technical-docs/DEPRECATIONS.md`](./technical-docs/DEPRECATIONS.md) |
-| 流式API迁移 | 流式API升级指南 | [`technical-docs/STREAM_API_MIGRATION.md`](./technical-docs/STREAM_API_MIGRATION.md) |
+| Deprecations | Deprecated APIs and alternatives | [`technical-docs/DEPRECATIONS.md`](./technical-docs/DEPRECATIONS.md) |
+| Stream API Migration | Streaming API upgrade guide | [`technical-docs/STREAM_API_MIGRATION.md`](./technical-docs/STREAM_API_MIGRATION.md) |
 
-### 📊 实现报告
-| 文档 | 描述 | 路径 |
+### 📊 Implementation Reports
+| Document | Description | Path |
 |------|------|------|
-| 完整实现 | 增强上下文代理工具实现 | [`implementation-reports/IMPLEMENTATION_COMPLETE.md`](./implementation-reports/IMPLEMENTATION_COMPLETE.md) |
-| 文件引用代理模式 | 文件引用代理实现计划 | [`implementation-reports/IMPLEMENTATION_PLAN_FILE_REFERENCE_AGENT_MODE.md`](./implementation-reports/IMPLEMENTATION_PLAN_FILE_REFERENCE_AGENT_MODE.md) |
-| 自动标题实现 | 自动标题功能实现总结 | [`implementation-reports/IMPLEMENTATION_SUMMARY_AUTO_TITLE.md`](./implementation-reports/IMPLEMENTATION_SUMMARY_AUTO_TITLE.md) |
-| 文件引用实现 | 文件引用功能实现总结 | [`implementation-reports/IMPLEMENTATION_SUMMARY_FILE_REFERENCE.md`](./implementation-reports/IMPLEMENTATION_SUMMARY_FILE_REFERENCE.md) |
+| Implementation Complete | Enhanced context agent tool implementation | [`implementation-reports/IMPLEMENTATION_COMPLETE.md`](./implementation-reports/IMPLEMENTATION_COMPLETE.md) |
+| File Reference Agent Mode | File reference agent implementation plan | [`implementation-reports/IMPLEMENTATION_PLAN_FILE_REFERENCE_AGENT_MODE.md`](./implementation-reports/IMPLEMENTATION_PLAN_FILE_REFERENCE_AGENT_MODE.md) |
+| Auto Title Implementation | Auto title feature implementation summary | [`implementation-reports/IMPLEMENTATION_SUMMARY_AUTO_TITLE.md`](./implementation-reports/IMPLEMENTATION_SUMMARY_AUTO_TITLE.md) |
+| File Reference Implementation | File reference feature implementation summary | [`implementation-reports/IMPLEMENTATION_SUMMARY_FILE_REFERENCE.md`](./implementation-reports/IMPLEMENTATION_SUMMARY_FILE_REFERENCE.md) |
 
-### 🧪 测试报告
-| 文档 | 描述 | 路径 |
+### 🧪 Testing Reports
+| Document | Description | Path |
 |------|------|------|
-| 测试指南 | 测试策略和最佳实践 | [`testing/README.md`](./testing/README.md) |
-| 前端测试总结 | 前端测试覆盖和结果 | [`testing/FRONTEND_TESTS_SUMMARY.md`](./testing/FRONTEND_TESTS_SUMMARY.md) |
-| 文件引用后端测试 | 文件引用后端测试总结 | [`testing/FILE_REFERENCE_BACKEND_TESTS_SUMMARY.md`](./testing/FILE_REFERENCE_BACKEND_TESTS_SUMMARY.md) |
+| Testing Guide | Testing strategies and best practices | [`testing/README.md`](./testing/README.md) |
+| Frontend Tests Summary | Frontend test coverage and results | [`testing/FRONTEND_TESTS_SUMMARY.md`](./testing/FRONTEND_TESTS_SUMMARY.md) |
+| File Reference Backend Tests | File reference backend test summary | [`testing/FILE_REFERENCE_BACKEND_TESTS_SUMMARY.md`](./testing/FILE_REFERENCE_BACKEND_TESTS_SUMMARY.md) |
 
-### 📊 项目报告
-| 文档 | 描述 | 路径 |
+### 📊 Project Reports
+| Document | Description | Path |
 |------|------|------|
-| 组件重构报告 | 组件重构完成报告 | [`reports/COMPONENT_REFACTORING_REPORT.md`](./reports/COMPONENT_REFACTORING_REPORT.md) |
-| 前端迁移报告 | 前端迁移完成报告 | [`reports/FRONTEND_MIGRATION_COMPLETION_REPORT.md`](./reports/FRONTEND_MIGRATION_COMPLETION_REPORT.md) |
-| 前端审查报告 | 前端代码审查报告 | [`reports/FRONTEND_REVIEW_REPORT.md`](./reports/FRONTEND_REVIEW_REPORT.md) |
+| Component Refactoring Report | Component refactoring completion report | [`reports/COMPONENT_REFACTORING_REPORT.md`](./reports/COMPONENT_REFACTORING_REPORT.md) |
+| Frontend Migration Report | Frontend migration completion report | [`reports/FRONTEND_MIGRATION_COMPLETION_REPORT.md`](./reports/FRONTEND_MIGRATION_COMPLETION_REPORT.md) |
+| Frontend Review Report | Frontend code review report | [`reports/FRONTEND_REVIEW_REPORT.md`](./reports/FRONTEND_REVIEW_REPORT.md) |
 
-## 🔍 按关键词搜索
+## 🔍 Search by Keywords
 
-### 架构相关
-- **系统架构**: `architecture/ARCHITECTURE_SUMMARY.md`
-- **工具架构**: `architecture/tools-system.md`
-- **前端架构**: `architecture/FRONTEND_ARCHITECTURE.md`
+### Architecture Related
+- **System Architecture**: `architecture/ARCHITECTURE_SUMMARY.md`
+- **Tool Architecture**: `architecture/tools-system.md`
+- **Frontend Architecture**: `architecture/FRONTEND_ARCHITECTURE.md`
 
-### 开发相关
-- **注册机制**: `extension-system/registration-macros-summary.md`
-- **参数化构造**: `extension-system/parameterized-registration-guide.md`
-- **样式规范**: `development/STYLING_GUIDELINES.md`
+### Development Related
+- **Registration Mechanism**: `extension-system/registration-macros-summary.md`
+- **Parameterized Construction**: `extension-system/parameterized-registration-guide.md`
+- **Styling Standards**: `development/STYLING_GUIDELINES.md`
 
-### 配置相关
-- **技术栈**: `configuration/final-tech-stack-update.md`
-- **提示词**: `configuration/updated-prompts-review.md`
-- **服务配置**: `configuration/DUAL_SERVICE_README.md`
+### Configuration Related
+- **Tech Stack**: `configuration/final-tech-stack-update.md`
+- **Prompts**: `configuration/updated-prompts-review.md`
+- **Service Configuration**: `configuration/DUAL_SERVICE_README.md`
 
-### 测试相关
-- **工具测试**: `testing/TOOL_CALL_REFACTOR_TEST.md`
-- **测试结果**: `testing/TOOL_CALL_TEST_RESULTS.md`
+### Testing Related
+- **Tool Testing**: `testing/TOOL_CALL_REFACTOR_TEST.md`
+- **Test Results**: `testing/TOOL_CALL_TEST_RESULTS.md`
 
-## 📋 文档状态
+## 📋 Documentation Status
 
-### ✅ 最新文档
-- 工具系统相关文档
-- 配置管理文档
-- 架构设计文档
+### ✅ Latest Documentation
+- Tool system related documents
+- Configuration management documents
+- Architecture design documents
 
-### 🔄 定期更新
-- 开发指南文档
-- 测试文档
-- 工具使用文档
+### 🔄 Regular Updates
+- Development guide documents
+- Testing documents
+- Tool usage documents
 
-### 📈 持续完善
-- 项目报告文档
-- 最佳实践文档
+### 📈 Continuous Improvement
+- Project report documents
+- Best practices documents
 
-## 🎯 快速查找
+## 🎯 Quick Find
 
-### 我想了解...
-- **系统架构** → [`architecture/README.md`](./architecture/README.md)
-- **如何开发工具** → [`extension-system/README.md`](./extension-system/README.md)
-- **配置系统** → [`configuration/README.md`](./configuration/README.md)
-- **开发规范** → [`development/README.md`](./development/README.md)
-- **测试方法** → [`testing/README.md`](./testing/README.md)
+### I want to learn about...
+- **System Architecture** → [`architecture/README.md`](./architecture/README.md)
+- **How to develop tools** → [`extension-system/README.md`](./extension-system/README.md)
+- **Configuration system** → [`configuration/README.md`](./configuration/README.md)
+- **Development standards** → [`development/README.md`](./development/README.md)
+- **Testing methods** → [`testing/README.md`](./testing/README.md)
 
-### 我遇到了问题...
-- **工具注册问题** → [`extension-system/registration-macros-summary.md`](./extension-system/registration-macros-summary.md)
-- **参数传递问题** → [`extension-system/parameterized-registration-guide.md`](./extension-system/parameterized-registration-guide.md)
-- **配置问题** → [`configuration/README.md`](./configuration/README.md)
-- **样式问题** → [`development/STYLING_GUIDELINES.md`](./development/STYLING_GUIDELINES.md)
+### I'm having issues with...
+- **Tool registration issues** → [`extension-system/registration-macros-summary.md`](./extension-system/registration-macros-summary.md)
+- **Parameter passing issues** → [`extension-system/parameterized-registration-guide.md`](./extension-system/parameterized-registration-guide.md)
+- **Configuration issues** → [`configuration/README.md`](./configuration/README.md)
+- **Styling issues** → [`development/STYLING_GUIDELINES.md`](./development/STYLING_GUIDELINES.md)

@@ -1,53 +1,53 @@
-# ToolService 硬编码清理报告
+# ToolService Hardcode Cleanup Report
 
-## 清理概述
+## Cleanup Overview
 
-已成功清理 `src/services/ToolService.ts` 中的所有硬编码，完全实现"前端零硬编码"原则。
+Successfully cleaned up all hardcoded values in `src/services/ToolService.ts`, fully achieving the "Zero Hardcode in Frontend" principle.
 
-## 清理的硬编码类型
+## Types of Hardcodes Cleaned
 
-### 1. 工具名称硬编码清理
-**清理前：**
+### 1. Tool Name Hardcode Cleanup
+**Before Cleanup:**
 ```typescript
 switch (tool.name) {
   case "execute_command":
   case "create_file":
   case "read_file":
   case "delete_file":
-  // ... 硬编码工具名称
+  // ... hardcoded tool names
 }
 ```
-**清理后：**
-- 完全移除工具名称的硬编码 switch 语句
-- 所有工具处理逻辑改为基于后端配置的规则驱动
+**After Cleanup:**
+- Completely removed hardcoded switch statements for tool names
+- All tool processing logic changed to backend-configured rule-driven approach
 
-### 2. 参数解析规则硬编码清理
-**清理前：**
+### 2. Parameter Parsing Rule Hardcode Cleanup
+**Before Cleanup:**
 ```typescript
 case "create_file":
   if (trimmedResponse.includes("|||")) {
-    // 硬编码分隔符
+    // hardcoded separator
   } else {
-    // 硬编码回退值
+    // hardcoded fallback values
     parameters.push(
-      { name: "path", value: "test.txt" }, // 硬编码默认文件名
+      { name: "path", value: "test.txt" }, // hardcoded default filename
       { name: "content", value: userDescription }
     );
   }
 ```
-**清理后：**
+**After Cleanup:**
 ```typescript
-// 获取工具参数解析规则（从后端配置获取）
+// Get tool parameter parsing rules (from backend config)
 const config = await this.getToolConfig();
 const rule = config.parameterParsingRules[tool.name];
 
 if (!rule) {
-  throw new Error(`工具 "${tool.name}" 的参数解析规则必须从后端配置获取，前端不提供硬编码规则`);
+  throw new Error(`Parameter parsing rules for tool "${tool.name}" must be obtained from backend config; frontend does not provide hardcoded rules`);
 }
 ```
 
-### 3. 结果格式化硬编码清理
-**清理前：**
+### 3. Result Formatting Hardcode Cleanup
+**Before Cleanup:**
 ```typescript
 switch (toolName) {
   case "execute_command":
@@ -55,49 +55,49 @@ switch (toolName) {
     break;
   case "create_file":
   case "read_file":
-    // 硬编码文件扩展名映射
+    // hardcoded file extension mappings
     switch (ext) {
       case "js":
       case "jsx":
         codeLanguage = "javascript";
-        // ... 更多硬编码映射
+        // ... more hardcoded mappings
     }
 }
 ```
-**清理后：**
+**After Cleanup:**
 ```typescript
-// 获取工具结果格式化规则（从后端配置获取）
+// Get tool result formatting rules (from backend config)
 const config = await this.getToolConfig();
 const formatRule = config.resultFormattingRules[toolName];
 
 if (!formatRule) {
-  throw new Error(`工具 "${toolName}" 的结果格式化规则必须从后端配置获取，前端不提供硬编码格式化逻辑`);
+  throw new Error(`Result formatting rules for tool "${toolName}" must be obtained from backend config; frontend does not provide hardcoded formatting logic`);
 }
 ```
 
-### 4. 默认值和回退机制清理
-**清理前：**
+### 4. Default Values and Fallback Mechanism Cleanup
+**Before Cleanup:**
 ```typescript
-return tools.find((tool) => tool.name === toolName) || null; // 默认返回 null
-return true; // 默认允许所有工具
-return { isValid: true }; // 默认验证通过
+return tools.find((tool) => tool.name === toolName) || null; // default returns null
+return true; // default allows all tools
+return { isValid: true }; // default validation passes
 ```
-**清理后：**
+**After Cleanup:**
 ```typescript
 const tool = tools.find((tool) => tool.name === toolName);
 if (!tool) {
-  throw new Error(`工具 "${toolName}" 不存在，请检查工具是否已在后端正确注册`);
+  throw new Error(`Tool "${toolName}" does not exist; please check if the tool is properly registered in the backend`);
 }
 
-// 所有默认行为都改为抛出明确错误
+// All default behaviors changed to throw explicit errors
 if (!systemPromptId) {
-  throw new Error("系统提示词ID必须提供，不能使用默认权限配置");
+  throw new Error("System prompt ID must be provided; default permission configuration cannot be used");
 }
 ```
 
-## 新增的类型定义
+## New Type Definitions
 
-### ToolConfig 接口
+### ToolConfig Interface
 ```typescript
 export interface ToolConfig {
   parameterParsingRules: Record<string, ToolParameterRule>;
@@ -120,13 +120,13 @@ export interface ToolFormatRule {
 }
 ```
 
-## 需要后端添加的配置字段
+## Backend Configuration Fields Required
 
-### 1. get_tool_config 命令
-后端需要实现返回完整工具配置的命令：
+### 1. get_tool_config Command
+Backend needs to implement a command returning complete tool configuration:
 
 ```rust
-// 示例配置结构
+// Example configuration structure
 {
   "parameterParsingRules": {
     "execute_command": {
@@ -169,7 +169,7 @@ export interface ToolFormatRule {
   },
   "fileExtensionMappings": {
     "js": "javascript",
-    "jsx": "javascript",  
+    "jsx": "javascript",
     "ts": "typescript",
     "tsx": "typescript",
     "py": "python",
@@ -183,50 +183,50 @@ export interface ToolFormatRule {
 }
 ```
 
-### 2. get_general_mode_config 命令
+### 2. get_general_mode_config Command
 ```rust
 {
   "allowAllTools": true
 }
 ```
 
-## 修改的方法签名
+## Modified Method Signatures
 
-以下方法现在是异步的，需要调用方适配：
+The following methods are now asynchronous and require caller adaptation:
 
-1. `formatToolResult()` - 现在是 async
-2. `buildParameterParsingPrompt()` - 现在是 async  
-3. `parseAIParameterResponse()` - 现在是 async
+1. `formatToolResult()` - now async
+2. `buildParameterParsingPrompt()` - now async
+3. `parseAIParameterResponse()` - now async
 
-## 严格错误处理
+## Strict Error Handling
 
-所有硬编码场景现在都会抛出明确的错误：
+All hardcoded scenarios now throw explicit errors:
 
-- 配置缺失时不提供任何默认值
-- 工具不存在时明确报错
-- 权限检查失败时详细说明原因
-- 参数解析规则缺失时要求后端配置
+- No default values provided when configuration is missing
+- Explicit errors when tools do not exist
+- Detailed explanations when permission checks fail
+- Backend configuration required when parameter parsing rules are missing
 
-## 验证结果
+## Verification Results
 
-✅ **工具名称硬编码**: 已完全清理  
-✅ **参数解析硬编码**: 已完全清理  
-✅ **结果格式化硬编码**: 已完全清理  
-✅ **文件扩展名映射硬编码**: 已完全清理  
-✅ **默认值和回退机制**: 已完全清理  
-✅ **权限检查默认行为**: 已完全清理  
+✅ **Tool Name Hardcodes**: Fully cleaned
+✅ **Parameter Parsing Hardcodes**: Fully cleaned
+✅ **Result Formatting Hardcodes**: Fully cleaned
+✅ **File Extension Mapping Hardcodes**: Fully cleaned
+✅ **Default Values and Fallback Mechanisms**: Fully cleaned
+✅ **Permission Check Default Behaviors**: Fully cleaned
 
-## 下一步工作
+## Next Steps
 
-1. 后端实现 `get_tool_config` 命令
-2. 后端实现 `get_general_mode_config` 命令
-3. 后端配置所有工具的参数解析规则
-4. 后端配置所有工具的结果格式化规则
-5. 测试前端严格模式的错误处理
+1. Backend implements `get_tool_config` command
+2. Backend implements `get_general_mode_config` command
+3. Backend configures parameter parsing rules for all tools
+4. Backend configures result formatting rules for all tools
+5. Test frontend strict mode error handling
 
-## 影响的文件
+## Affected Files
 
-- `src/services/ToolService.ts` - 主要清理文件
-- `src/services/ToolCallProcessor.ts` - 适配异步方法调用
+- `src/services/ToolService.ts` - Main cleanup file
+- `src/services/ToolCallProcessor.ts` - Adapted for async method calls
 
-通过这次清理，ToolService 现在完全符合"前端零硬编码"原则，所有配置都依赖后端提供，确保了配置的集中管理和动态更新能力。
+Through this cleanup, ToolService now fully complies with the "Zero Hardcode in Frontend" principle, with all configuration relying on the backend, ensuring centralized management and dynamic update capabilities.

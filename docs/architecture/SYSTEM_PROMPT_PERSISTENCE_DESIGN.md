@@ -1,84 +1,84 @@
 # System Prompt Persistence Design
 
-## 目标
+## Goals
 
-为每个 context 保存最后使用的增强 system prompt 到 `system_prompt.json`，方便调试和追踪。
+Save the last used enhanced system prompt for each context to `system_prompt.json` for debugging and tracing purposes.
 
-## 动机
+## Motivation
 
-1. **可追踪性** - 开发者可以看到 AI 实际接收到的完整 system prompt
-2. **调试友好** - 快速定位 prompt 相关问题
-3. **版本对比** - 可以比较不同版本的 prompt 变化
-4. **透明度** - 了解工具定义、角色权限等如何注入到 prompt 中
+1. **Traceability** - Developers can see the complete system prompt actually received by the AI
+2. **Debugging Friendly** - Quickly locate prompt-related issues
+3. **Version Comparison** - Compare changes between different prompt versions
+4. **Transparency** - Understand how tool definitions, role permissions, etc. are injected into the prompt
 
-## 设计方案
+## Design
 
-### 文件结构
+### File Structure
 
 ```
 data/contexts/{context_id}/
-├── context.json           # 现有：上下文元数据和配置
-├── system_prompt.json     # 新增：最后使用的 system prompt 快照
-└── messages/              # 现有：消息池
+├── context.json           # Existing: context metadata and configuration
+├── system_prompt.json     # New: snapshot of last used system prompt
+└── messages/              # Existing: message pool
     ├── {message_id}.json
     └── ...
 ```
 
-### 数据结构
+### Data Structure
 
 ```rust
-/// System Prompt Snapshot - 保存到 system_prompt.json
+/// System Prompt Snapshot - saved to system_prompt.json
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct SystemPromptSnapshot {
-    /// 快照版本（每次更新递增）
+    /// Snapshot version (increments on each update)
     pub version: u64,
-    
-    /// 生成时间
+
+    /// Generation timestamp
     pub generated_at: DateTime<Utc>,
-    
+
     /// Context ID
     pub context_id: Uuid,
-    
-    /// 当前代理角色
+
+    /// Current agent role
     pub agent_role: AgentRole,
-    
-    /// 基础 prompt 来源
+
+    /// Base prompt source
     pub base_prompt_source: PromptSource,
-    
-    /// 最终增强后的 system prompt（发送给 LLM 的完整内容）
+
+    /// Final enhanced system prompt (complete content sent to LLM)
     pub enhanced_prompt: String,
-    
-    /// Prompt 片段详情（可选，用于调试）
+
+    /// Prompt fragment details (optional, for debugging)
     pub fragments: Option<Vec<PromptFragmentInfo>>,
-    
-    /// 可用工具列表（工具名称）
+
+    /// Available tools list (tool names)
     pub available_tools: Vec<String>,
-    
-    /// 统计信息
+
+    /// Statistics
     pub stats: PromptStats,
 }
 
-/// Prompt 来源
+/// Prompt source
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub enum PromptSource {
-    /// 从 SystemPromptService 加载
+    /// Loaded from SystemPromptService
     Service { prompt_id: String },
-    /// 分支自定义 prompt
+    /// Branch custom prompt
     Branch { branch_name: String },
-    /// 默认 prompt
+    /// Default prompt
     Default,
 }
 
-/// Prompt 片段信息（调试用）
+/// Prompt fragment information (for debugging)
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct PromptFragmentInfo {
-    pub source: String,      // 例如 "tool_enhancement", "role_context"
+    pub source: String,      // e.g., "tool_enhancement", "role_context"
     pub priority: u8,
     pub length: usize,
-    pub preview: String,     // 前 100 个字符预览
+    pub preview: String,     // First 100 characters preview
 }
 
-/// 统计信息
+/// Statistics
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct PromptStats {
     pub total_length: usize,
@@ -88,11 +88,11 @@ pub struct PromptStats {
 }
 ```
 
-### 实现步骤
+### Implementation Steps
 
-#### 步骤 1: 创建数据结构 (context_manager)
+#### Step 1: Create Data Structure (context_manager)
 
-**文件**: `crates/context_manager/src/structs/system_prompt_snapshot.rs`
+**File**: `crates/context_manager/src/structs/system_prompt_snapshot.rs`
 
 ```rust
 use chrono::{DateTime, Utc};
@@ -100,33 +100,33 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 use crate::structs::context_agent::AgentRole;
 
-// ... 上面定义的结构体
+// ... structures defined above
 ```
 
-**文件**: `crates/context_manager/src/structs/mod.rs`
+**File**: `crates/context_manager/src/structs/mod.rs`
 
 ```rust
 pub mod system_prompt_snapshot;
 pub use system_prompt_snapshot::*;
 ```
 
-#### 步骤 2: 扩展存储接口
+#### Step 2: Extend Storage Interface
 
-**文件**: `crates/web_service/src/storage/provider.rs`
+**File**: `crates/web_service/src/storage/provider.rs`
 
 ```rust
 #[async_trait]
 pub trait StorageProvider: Send + Sync {
-    // ... 现有方法
-    
-    /// 保存 system prompt 快照
+    // ... existing methods
+
+    /// Save system prompt snapshot
     async fn save_system_prompt_snapshot(
         &self,
         context_id: Uuid,
         snapshot: &SystemPromptSnapshot,
     ) -> Result<(), String>;
-    
-    /// 加载最新的 system prompt 快照
+
+    /// Load latest system prompt snapshot
     async fn load_system_prompt_snapshot(
         &self,
         context_id: Uuid,
@@ -134,14 +134,14 @@ pub trait StorageProvider: Send + Sync {
 }
 ```
 
-#### 步骤 3: 实现存储逻辑
+#### Step 3: Implement Storage Logic
 
-**文件**: `crates/web_service/src/storage/message_pool_provider.rs`
+**File**: `crates/web_service/src/storage/message_pool_provider.rs`
 
 ```rust
 impl StorageProvider for MessagePoolStorageProvider {
-    // ... 现有方法
-    
+    // ... existing methods
+
     async fn save_system_prompt_snapshot(
         &self,
         context_id: Uuid,
@@ -149,49 +149,49 @@ impl StorageProvider for MessagePoolStorageProvider {
     ) -> Result<(), String> {
         let context_dir = self.get_context_dir(context_id);
         let snapshot_path = context_dir.join("system_prompt.json");
-        
+
         let json = serde_json::to_string_pretty(snapshot)
             .map_err(|e| format!("Failed to serialize snapshot: {}", e))?;
-        
+
         tokio::fs::write(&snapshot_path, json)
             .await
             .map_err(|e| format!("Failed to write snapshot: {}", e))?;
-        
+
         debug!(
             context_id = %context_id,
             version = snapshot.version,
             "Saved system prompt snapshot"
         );
-        
+
         Ok(())
     }
-    
+
     async fn load_system_prompt_snapshot(
         &self,
         context_id: Uuid,
     ) -> Result<Option<SystemPromptSnapshot>, String> {
         let context_dir = self.get_context_dir(context_id);
         let snapshot_path = context_dir.join("system_prompt.json");
-        
+
         if !snapshot_path.exists() {
             return Ok(None);
         }
-        
+
         let json = tokio::fs::read_to_string(&snapshot_path)
             .await
             .map_err(|e| format!("Failed to read snapshot: {}", e))?;
-        
+
         let snapshot: SystemPromptSnapshot = serde_json::from_str(&json)
             .map_err(|e| format!("Failed to deserialize snapshot: {}", e))?;
-        
+
         Ok(Some(snapshot))
     }
 }
 ```
 
-#### 步骤 4: 在 LlmRequestBuilder 中生成和保存快照
+#### Step 4: Generate and Save Snapshot in LlmRequestBuilder
 
-**文件**: `crates/web_service/src/services/llm_request_builder.rs`
+**File**: `crates/web_service/src/services/llm_request_builder.rs`
 
 ```rust
 use context_manager::{SystemPromptSnapshot, PromptSource, PromptStats};
@@ -201,19 +201,19 @@ impl LlmRequestBuilder {
     pub async fn build(
         &self,
         context: &Arc<RwLock<ChatContext>>,
-        storage: &Arc<dyn StorageProvider>, // 新增参数
+        storage: &Arc<dyn StorageProvider>, // New parameter
     ) -> Result<BuiltLlmRequest, AppError> {
-        // ... 现有代码
-        
-        // 生成 system prompt 快照
+        // ... existing code
+
+        // Generate system prompt snapshot
         if let Some(ref enhanced) = prepared.enhanced_system_prompt {
             let snapshot = self.create_prompt_snapshot(
                 &context.read().await,
                 &prepared,
                 enhanced,
             ).await;
-            
-            // 保存快照
+
+            // Save snapshot
             if let Err(e) = storage
                 .save_system_prompt_snapshot(prepared.context_id, &snapshot)
                 .await
@@ -222,23 +222,23 @@ impl LlmRequestBuilder {
                     "Failed to save system prompt snapshot: {}",
                     e
                 );
-                // 不阻塞主流程
+                // Don't block main flow
             }
         }
-        
-        // ... 现有代码
+
+        // ... existing code
     }
-    
+
     async fn create_prompt_snapshot(
         &self,
         context: &ChatContext,
         prepared: &PreparedLlmRequest,
         enhanced_prompt: &str,
     ) -> SystemPromptSnapshot {
-        // 获取或递增版本号
+        // Get or increment version number
         let version = self.get_next_version(context.id).await;
-        
-        // 确定 prompt 来源
+
+        // Determine prompt source
         let base_prompt_source = if prepared.branch_system_prompt.is_some() {
             PromptSource::Branch {
                 branch_name: prepared.branch_name.clone(),
@@ -250,14 +250,14 @@ impl LlmRequestBuilder {
         } else {
             PromptSource::Default
         };
-        
-        // 收集工具列表
+
+        // Collect tools list
         let available_tools: Vec<String> = prepared
             .available_tools
             .iter()
             .map(|t| t.name.clone())
             .collect();
-        
+
         SystemPromptSnapshot {
             version,
             generated_at: Utc::now(),
@@ -265,44 +265,44 @@ impl LlmRequestBuilder {
             agent_role: context.config.agent_role.clone(),
             base_prompt_source,
             enhanced_prompt: enhanced_prompt.to_string(),
-            fragments: None, // 可以后续添加详细片段信息
+            fragments: None, // Can add detailed fragment info later
             available_tools,
             stats: PromptStats {
                 total_length: enhanced_prompt.len(),
-                fragment_count: 0, // 需要从 Pipeline 获取
+                fragment_count: 0, // Needs to be obtained from Pipeline
                 tool_count: prepared.available_tools.len(),
-                enhancement_time_ms: 0, // 可以添加计时
+                enhancement_time_ms: 0, // Can add timing
             },
         }
     }
-    
-    // 版本号管理（可以使用内存缓存或从文件读取）
+
+    // Version management (can use in-memory cache or read from file)
     async fn get_next_version(&self, context_id: Uuid) -> u64 {
-        // 简单实现：从现有快照读取版本号 + 1
-        // 或使用 AtomicU64 在内存中维护
-        1 // 临时返回
+        // Simple implementation: read version from existing snapshot + 1
+        // Or use AtomicU64 for in-memory maintenance
+        1 // Temporary return
     }
 }
 ```
 
-#### 步骤 5: 更新 ChatService 调用
+#### Step 5: Update ChatService Call
 
-**文件**: `crates/web_service/src/services/chat_service.rs`
+**File**: `crates/web_service/src/services/chat_service.rs`
 
 ```rust
 impl<T: StorageProvider + 'static> ChatService<T> {
     async fn send_to_llm(&mut self, context: &Arc<RwLock<ChatContext>>) -> Result<...> {
-        // 构建请求时传入 storage
+        // Pass storage when building request
         let built_request = self.llm_request_builder
             .build(context, &self.session_manager.storage)
             .await?;
-        
-        // ... 其余代码
+
+        // ... remaining code
     }
 }
 ```
 
-### 快照示例
+### Snapshot Example
 
 ```json
 {
@@ -338,40 +338,40 @@ impl<T: StorageProvider + 'static> ChatService<T> {
 }
 ```
 
-## 配置选项
+## Configuration Options
 
-可以添加配置控制是否保存快照：
+Can add configuration to control whether to save snapshots:
 
 ```rust
 pub struct DebugConfig {
-    /// 是否保存 system prompt 快照
+    /// Whether to save system prompt snapshots
     pub save_system_prompt_snapshots: bool,
-    
-    /// 是否包含详细的片段信息
+
+    /// Whether to include detailed fragment information
     pub include_fragment_details: bool,
-    
-    /// 保留的历史版本数量（0 = 只保留最新）
+
+    /// Number of historical versions to keep (0 = keep only latest)
     pub max_snapshot_versions: usize,
 }
 ```
 
-## 优化方向
+## Optimization Directions
 
-### 1. 历史版本管理
+### 1. Historical Version Management
 
 ```
 data/contexts/{context_id}/
 ├── context.json
-├── system_prompt.json              # 最新版本
-└── system_prompts/                 # 历史版本（可选）
+├── system_prompt.json              # Latest version
+└── system_prompts/                 # Historical versions (optional)
     ├── version_001.json
     ├── version_002.json
     └── version_042.json
 ```
 
-### 2. 差异对比
+### 2. Diff Comparison
 
-保存时计算与上一版本的 diff：
+Calculate diff with previous version when saving:
 
 ```rust
 pub struct PromptDiff {
@@ -387,93 +387,93 @@ pub enum Change {
 }
 ```
 
-### 3. 性能优化
+### 3. Performance Optimization
 
-- 使用异步 I/O 避免阻塞主流程
-- 仅在 prompt 实际变化时保存
-- 使用 LRU 缓存避免重复读取
+- Use async I/O to avoid blocking main flow
+- Save only when prompt actually changes
+- Use LRU cache to avoid repeated reads
 
-## API 端点（可选）
+## API Endpoints (Optional)
 
-为前端提供查询接口：
+Provide query interface for frontend:
 
 ```rust
 // GET /api/contexts/{context_id}/system-prompt
 async fn get_system_prompt_snapshot(
     context_id: web::Path<Uuid>,
 ) -> Result<HttpResponse, AppError> {
-    // 返回最新的 system_prompt.json
+    // Return latest system_prompt.json
 }
 
 // GET /api/contexts/{context_id}/system-prompt/versions
 async fn list_prompt_versions(
     context_id: web::Path<Uuid>,
 ) -> Result<HttpResponse, AppError> {
-    // 返回所有历史版本
+    // Return all historical versions
 }
 ```
 
-## 测试计划
+## Test Plan
 
-1. **单元测试**
-   - 测试快照序列化/反序列化
-   - 测试版本号递增
-   - 测试文件读写
+1. **Unit Tests**
+   - Test snapshot serialization/deserialization
+   - Test version number increment
+   - Test file read/write
 
-2. **集成测试**
-   - 创建 context → 发送消息 → 验证 system_prompt.json 存在
-   - 修改角色 → 发送消息 → 验证版本号递增
-   - 添加工具 → 验证工具列表更新
+2. **Integration Tests**
+   - Create context → send message → verify system_prompt.json exists
+   - Modify role → send message → verify version number increments
+   - Add tools → verify tools list updates
 
-3. **手动验证**
-   - 检查生成的 JSON 格式
-   - 对比实际发送给 LLM 的内容
-   - 验证不同角色的 prompt 差异
+3. **Manual Verification**
+   - Check generated JSON format
+   - Compare with actual content sent to LLM
+   - Verify prompt differences for different roles
 
-## 实施优先级
+## Implementation Priority
 
 **Phase 1 (MVP)**:
-- ✅ 基础数据结构
-- ✅ 保存最新 system_prompt.json
-- ✅ 包含完整的增强 prompt
-- ✅ 基础统计信息
+- ✅ Basic data structure
+- ✅ Save latest system_prompt.json
+- ✅ Include complete enhanced prompt
+- ✅ Basic statistics
 
-**Phase 2 (增强)**:
-- ⏳ 添加片段详情
-- ⏳ 版本历史管理
-- ⏳ API 查询接口
+**Phase 2 (Enhancement)**:
+- ⏳ Add fragment details
+- ⏳ Version history management
+- ⏳ API query interface
 
-**Phase 3 (优化)**:
-- ⏳ 差异对比
-- ⏳ 性能优化
-- ⏳ 前端可视化
+**Phase 3 (Optimization)**:
+- ⏳ Diff comparison
+- ⏳ Performance optimization
+- ⏳ Frontend visualization
 
-## 时间估算
+## Time Estimate
 
-- **Phase 1**: 2-3 小时
-  - 数据结构定义: 30 分钟
-  - 存储实现: 1 小时
-  - LlmRequestBuilder 集成: 1 小时
-  - 测试: 30 分钟
+- **Phase 1**: 2-3 hours
+  - Data structure definition: 30 minutes
+  - Storage implementation: 1 hour
+  - LlmRequestBuilder integration: 1 hour
+  - Testing: 30 minutes
 
-- **Phase 2**: 3-4 小时
-- **Phase 3**: 4-6 小时
+- **Phase 2**: 3-4 hours
+- **Phase 3**: 4-6 hours
 
-## 风险和注意事项
+## Risks and Considerations
 
-1. **磁盘空间** - 每次消息都保存可能占用较多空间
-   - 缓解：定期清理旧版本
-   
-2. **并发写入** - 多个请求同时更新可能冲突
-   - 缓解：使用版本号乐观锁
-   
-3. **敏感信息** - Prompt 可能包含用户数据
-   - 缓解：在生产环境可禁用此功能
+1. **Disk Space** - Saving on every message may consume significant space
+   - Mitigation: Regularly clean up old versions
 
-## 下一步行动
+2. **Concurrent Writes** - Multiple requests updating simultaneously may conflict
+   - Mitigation: Use version number optimistic locking
 
-1. 审查此设计文档
-2. 确认是否需要调整
-3. 开始实施 Phase 1
-4. 测试验证
-5. 根据反馈迭代
+3. **Sensitive Information** - Prompt may contain user data
+   - Mitigation: Can disable this feature in production
+
+## Next Actions
+
+1. Review this design document
+2. Confirm if adjustments are needed
+3. Start implementing Phase 1
+4. Test and verify
+5. Iterate based on feedback

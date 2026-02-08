@@ -1,32 +1,32 @@
-# Signal-Pull 架构实施计划
+# Signal-Pull Architecture Implementation Plan
 
-**日期**: 2025-11-08  
-**状态**: 设计锁定，开始实施  
-**架构**: 上下文本地消息池 + 信令-拉取同步模型
+**Date**: 2025-11-08
+**Status**: Design Locked, Implementation Started
+**Architecture**: Context-Local Message Pool + Signal-Pull Synchronization Model
 
 ---
 
-## ✅ 已完成任务
+## ✅ Completed Tasks
 
-### 1. Design 文档更新 ✅
+### 1. Design Document Updates ✅
 
-已添加两个关键决策到 `design.md`:
+Two key decisions have been added to `design.md`:
 
 #### Decision 3.1: Context-Local Message Pool
-- **存储结构**: `contexts/{ctx_id}/messages_pool/`
-- **关键特性**: 
-  - 每个 Context 完全自包含
-  - 分支操作零文件 I/O
-  - 无需垃圾回收
-- **文件位置**: design.md:1086-1181
+- **Storage Structure**: `contexts/{ctx_id}/messages_pool/`
+- **Key Features**:
+  - Each Context is fully self-contained
+  - Branch operations with zero file I/O
+  - No garbage collection required
+- **File Location**: design.md:1086-1181
 
 #### Decision 4.5.1: Signal-Pull Synchronization Model
-- **SSE 信令**: 只推送轻量级通知（< 1KB）
-- **REST 拉取**: 前端主动获取数据
-- **自愈机制**: 通过序列号自动修复丢失的信令
-- **文件位置**: design.md:1296-1506
+- **SSE Signaling**: Only push lightweight notifications (< 1KB)
+- **REST Pull**: Frontend actively fetches data
+- **Self-Healing**: Automatic recovery from lost signals via sequence numbers
+- **File Location**: design.md:1296-1506
 
-### 2. OpenSpec 验证 ✅
+### 2. OpenSpec Validation ✅
 
 ```bash
 $ openspec validate refactor-context-session-architecture --strict
@@ -35,50 +35,50 @@ $ openspec validate refactor-context-session-architecture --strict
 
 ---
 
-## 🚧 待实施任务
+## 🚧 Pending Implementation Tasks
 
-根据用户确认的设计，以下是详细的实施计划：
+Based on the user-confirmed design, here is the detailed implementation plan:
 
 ### Phase 1.5: StreamingResponse & Signal-Pull Infrastructure
 
-#### Task 1.5.1: 扩展 MessageMetadata ⏳
+#### Task 1.5.1: Extend MessageMetadata ⏳
 
-**目标**: 添加消息来源和流式元数据字段
+**Goal**: Add message source and streaming metadata fields
 
-**文件**: `crates/context_manager/src/structs/metadata.rs`
+**File**: `crates/context_manager/src/structs/metadata.rs`
 
-**新增结构**:
+**New Structures**:
 
 ```rust
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub struct MessageMetadata {
-    // 现有字段
+    // Existing fields
     pub created_at: Option<DateTime<Utc>>,
     pub duration_ms: Option<u64>,
     pub tokens: Option<TokenUsage>,
-    
-    // ✨ 新增字段
-    /// 消息来源（用户输入 vs AI生成 vs 工具结果）
+
+    // ✨ New fields
+    /// Message source (user input vs AI generated vs tool result)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub source: Option<MessageSource>,
-    
-    /// 前端展示提示
+
+    /// Frontend display hint
     #[serde(skip_serializing_if = "Option::is_none")]
     pub display_hint: Option<DisplayHint>,
-    
-    /// 流式响应元数据（如果是 StreamingResponse）
+
+    /// Streaming response metadata (if StreamingResponse)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub streaming: Option<StreamingMetadata>,
-    
-    /// 前端原始输入（用于回显）
+
+    /// Frontend original input (for echo)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub original_input: Option<String>,
-    
-    /// 追踪 ID（前后端关联）
+
+    /// Trace ID (frontend-backend correlation)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub trace_id: Option<String>,
-    
-    // 保留扩展字段
+
+    // Reserved extension field
     pub extra: Option<HashMap<String, Value>>,
 }
 
@@ -96,11 +96,11 @@ pub enum MessageSource {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub struct DisplayHint {
-    /// 前端展示的缩略文本
+    /// Summary text for frontend display
     pub summary: Option<String>,
-    /// 是否折叠显示
+    /// Whether to collapse display
     pub collapsed: bool,
-    /// 图标提示
+    /// Icon hint
     pub icon: Option<String>,
 }
 
@@ -114,75 +114,75 @@ pub struct StreamingMetadata {
 }
 ```
 
-**测试**:
+**Tests**:
 - `test_message_source_serialization`
 - `test_display_hint_defaults`
 - `test_streaming_metadata_calculation`
 
 ---
 
-#### Task 1.5.2: 实现 StreamingResponse 消息类型 ⏳
+#### Task 1.5.2: Implement StreamingResponse Message Type ⏳
 
-**目标**: 添加专门的流式响应消息类型
+**Goal**: Add dedicated streaming response message type
 
-**文件**: `crates/context_manager/src/structs/message_types.rs`
+**File**: `crates/context_manager/src/structs/message_types.rs`
 
-**新增内容**:
+**New Content**:
 
 ```rust
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum RichMessageType {
-    // ... 现有类型
-    
-    /// 流式响应消息（LLM 流式生成的完整记录）
+    // ... existing types
+
+    /// Streaming response message (complete record of LLM streaming generation)
     StreamingResponse(StreamingResponseMsg),
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct StreamingResponseMsg {
-    /// 完整的最终内容
+    /// Complete final content
     pub content: String,
-    
-    /// 流式块序列（按时间顺序）
+
+    /// Streaming chunk sequence (in chronological order)
     pub chunks: Vec<StreamChunk>,
-    
-    /// 流式开始时间
+
+    /// Streaming start time
     pub started_at: DateTime<Utc>,
-    
-    /// 流式完成时间
+
+    /// Streaming completion time
     pub completed_at: DateTime<Utc>,
-    
-    /// 总耗时（毫秒）
+
+    /// Total duration (milliseconds)
     pub total_duration_ms: u64,
-    
-    /// LLM 模型名称
+
+    /// LLM model name
     #[serde(skip_serializing_if = "Option::is_none")]
     pub model: Option<String>,
-    
-    /// Token 使用情况
+
+    /// Token usage
     #[serde(skip_serializing_if = "Option::is_none")]
     pub usage: Option<TokenUsage>,
-    
-    /// 完成原因（stop, length, tool_calls 等）
+
+    /// Finish reason (stop, length, tool_calls, etc.)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub finish_reason: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct StreamChunk {
-    /// 块序列号（从 0 开始）
+    /// Chunk sequence number (starting from 0)
     pub sequence: u64,
-    
-    /// 增量内容（delta）
+
+    /// Incremental content (delta)
     pub delta: String,
-    
-    /// 块接收时间
+
+    /// Chunk receive time
     pub timestamp: DateTime<Utc>,
-    
-    /// 到此块为止的累积字符数
+
+    /// Accumulated character count up to this chunk
     pub accumulated_chars: usize,
-    
-    /// 与上一块的时间间隔（毫秒）
+
+    /// Time interval from previous chunk (milliseconds)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub interval_ms: Option<u64>,
 }
@@ -201,19 +201,19 @@ impl StreamingResponseMsg {
             finish_reason: None,
         }
     }
-    
+
     pub fn append_chunk(&mut self, delta: String) {
         let sequence = self.chunks.len() as u64;
         let timestamp = Utc::now();
-        
+
         let interval_ms = if let Some(last_chunk) = self.chunks.last() {
             Some((timestamp - last_chunk.timestamp).num_milliseconds() as u64)
         } else {
             None
         };
-        
+
         self.content.push_str(&delta);
-        
+
         self.chunks.push(StreamChunk {
             sequence,
             delta,
@@ -222,7 +222,7 @@ impl StreamingResponseMsg {
             interval_ms,
         });
     }
-    
+
     pub fn finalize(&mut self, finish_reason: Option<String>, usage: Option<TokenUsage>) {
         self.completed_at = Utc::now();
         self.total_duration_ms = (self.completed_at - self.started_at)
@@ -233,7 +233,7 @@ impl StreamingResponseMsg {
 }
 ```
 
-**测试**:
+**Tests**:
 - `test_streaming_response_creation`
 - `test_append_chunk_sequence`
 - `test_finalize_calculates_duration`
@@ -241,86 +241,86 @@ impl StreamingResponseMsg {
 
 ---
 
-#### Task 1.5.3: Context 集成流式处理 ⏳
+#### Task 1.5.3: Context Integration with Streaming ⏳
 
-**目标**: 在 ChatContext 中添加流式处理方法
+**Goal**: Add streaming processing methods to ChatContext
 
-**文件**: `crates/context_manager/src/structs/context_lifecycle.rs`
+**File**: `crates/context_manager/src/structs/context_lifecycle.rs`
 
-**新增方法**:
+**New Methods**:
 
 ```rust
 impl ChatContext {
-    /// 开始流式响应（创建消息引用）
+    /// Start streaming response (create message reference)
     pub fn begin_streaming_llm_response(&mut self, model: Option<String>) -> Result<Uuid> {
-        // 创建消息 ID
+        // Create message ID
         let message_id = Uuid::new_v4();
-        
-        // 创建 StreamingResponse
+
+        // Create StreamingResponse
         let streaming_msg = StreamingResponseMsg::new(model);
         let internal_msg = InternalMessage::from_rich(
             Role::Assistant,
             RichMessageType::StreamingResponse(streaming_msg)
         );
-        
-        // 添加到 message_pool
+
+        // Add to message_pool
         let msg_node = MessageNode {
             id: message_id,
             message: internal_msg,
             parent_id: self.get_active_branch().message_ids.last().copied(),
         };
-        
+
         self.message_pool.insert(message_id, msg_node);
         self.get_active_branch_mut().message_ids.push(message_id);
-        
-        // 状态转换
-        self.current_state = ContextState::StreamingLLMResponse { 
+
+        // State transition
+        self.current_state = ContextState::StreamingLLMResponse {
             chunks_received: 0,
-            chars_accumulated: 0 
+            chars_accumulated: 0
         };
-        
+
         self.mark_dirty();
         Ok(message_id)
     }
-    
-    /// 追加流式块
+
+    /// Append streaming chunk
     pub fn append_streaming_chunk(&mut self, message_id: Uuid, delta: String) -> Result<u64> {
         let msg_node = self.message_pool.get_mut(&message_id)
             .ok_or_else(|| anyhow!("Message not found: {}", message_id))?;
-        
-        // 更新 StreamingResponse
+
+        // Update StreamingResponse
         if let Some(RichMessageType::StreamingResponse(streaming)) = &mut msg_node.message.rich_type {
             streaming.append_chunk(delta);
-            
-            // 更新状态
+
+            // Update state
             self.current_state = ContextState::StreamingLLMResponse {
                 chunks_received: streaming.chunks.len(),
                 chars_accumulated: streaming.content.len(),
             };
-            
+
             self.mark_dirty();
-            
-            // 返回当前序列号
+
+            // Return current sequence number
             Ok(streaming.chunks.len() as u64)
         } else {
             Err(anyhow!("Message is not a StreamingResponse"))
         }
     }
-    
-    /// 完成流式响应
+
+    /// Complete streaming response
     pub fn finalize_streaming_response(
-        &mut self, 
+        &mut self,
         message_id: Uuid,
         finish_reason: Option<String>,
         usage: Option<TokenUsage>,
     ) -> Result<()> {
         let msg_node = self.message_pool.get_mut(&message_id)
             .ok_or_else(|| anyhow!("Message not found: {}", message_id))?;
-        
+
         if let Some(RichMessageType::StreamingResponse(streaming)) = &mut msg_node.message.rich_type {
             streaming.finalize(finish_reason, usage);
-            
-            // 更新 metadata
+
+            // Update metadata
             if let Some(metadata) = &mut msg_node.message.metadata {
                 metadata.streaming = Some(StreamingMetadata {
                     chunks_count: streaming.chunks.len(),
@@ -335,17 +335,17 @@ impl ChatContext {
                 });
             }
         }
-        
-        // 状态转换
+
+        // State transition
         self.current_state = ContextState::ProcessingLLMResponse;
         self.mark_dirty();
-        
+
         Ok(())
     }
 }
 ```
 
-**测试**:
+**Tests**:
 - `test_begin_streaming_creates_message`
 - `test_append_chunk_updates_state`
 - `test_finalize_updates_metadata`
@@ -353,13 +353,13 @@ impl ChatContext {
 
 ---
 
-#### Task 1.5.4: 实现 REST API 端点 ⏳
+#### Task 1.5.4: Implement REST API Endpoints ⏳
 
-**目标**: 实现 Signal-Pull 模型的 REST API
+**Goal**: Implement REST API for Signal-Pull model
 
-**文件**: `crates/web_service/src/routes/context_routes.rs`, `message_routes.rs`
+**Files**: `crates/web_service/src/routes/context_routes.rs`, `message_routes.rs`
 
-**新增端点**:
+**New Endpoints**:
 
 ##### 1. GET /contexts/{id}
 
@@ -379,7 +379,7 @@ async fn get_context_metadata(
     context_manager: Data<Arc<ContextManager>>,
 ) -> Result<Json<ContextMetadataResponse>> {
     let context = context_manager.load_context(*context_id).await?;
-    
+
     Ok(Json(ContextMetadataResponse {
         context_id: context.id,
         current_state: context.current_state,
@@ -401,7 +401,7 @@ async fn get_context_metadata(
 ```rust
 #[derive(Deserialize)]
 struct BatchMessageQuery {
-    ids: String,  // 逗号分隔的 UUID
+    ids: String,  // Comma-separated UUIDs
 }
 
 #[get("/contexts/{context_id}/messages")]
@@ -414,9 +414,9 @@ async fn get_messages_batch(
         .split(',')
         .filter_map(|id| Uuid::parse_str(id.trim()).ok())
         .collect();
-    
+
     let messages = storage.get_messages_batch(*context_id, &message_ids).await?;
-    
+
     Ok(Json(messages))
 }
 ```
@@ -443,10 +443,10 @@ async fn get_message_content_incremental(
 ) -> Result<Json<Vec<ContentChunk>>> {
     let (context_id, message_id) = path.into_inner();
     let from_sequence = query.from_sequence.unwrap_or(0);
-    
+
     let message = storage.get_message(context_id, message_id).await?;
-    
-    // 如果是 StreamingResponse，返回增量块
+
+    // If StreamingResponse, return incremental chunks
     if let Some(RichMessageType::StreamingResponse(streaming)) = message.rich_type {
         let chunks: Vec<ContentChunk> = streaming.chunks
             .into_iter()
@@ -456,15 +456,15 @@ async fn get_message_content_incremental(
                 delta: chunk.delta,
             })
             .collect();
-        
+
         Ok(Json(chunks))
     } else {
-        // 非流式消息，返回完整内容
+        // Non-streaming message, return complete content
         let content = message.content.iter()
             .filter_map(|part| part.text_content())
             .collect::<Vec<_>>()
             .join("\n");
-        
+
         Ok(Json(vec![ContentChunk {
             sequence: 1,
             delta: content,
@@ -473,7 +473,7 @@ async fn get_message_content_incremental(
 }
 ```
 
-**测试**:
+**Tests**:
 - `test_get_context_metadata`
 - `test_batch_get_messages`
 - `test_incremental_content_pull`
@@ -481,13 +481,13 @@ async fn get_message_content_incremental(
 
 ---
 
-#### Task 1.5.5: 实现 SSE 信令推送 ⏳
+#### Task 1.5.5: Implement SSE Signaling Push ⏳
 
-**目标**: 实现轻量级的 SSE 信令通道
+**Goal**: Implement lightweight SSE signaling channel
 
-**文件**: `crates/web_service/src/routes/sse_routes.rs`
+**File**: `crates/web_service/src/routes/sse_routes.rs`
 
-**实现**:
+**Implementation**:
 
 ```rust
 use actix_web::{get, web::{Data, Path}, HttpResponse};
@@ -525,30 +525,30 @@ async fn context_sse_stream(
 ) -> Sse<impl futures_util::Stream<Item = Result<sse::Event, std::io::Error>>> {
     let context_id = *context_id;
     let mut rx = broadcast_tx.subscribe();
-    
+
     let stream = stream::unfold(rx, move |mut rx| async move {
         loop {
             match rx.recv().await {
                 Ok((ctx_id, signal)) if ctx_id == context_id => {
-                    // 只推送属于这个 Context 的信令
+                    // Only push signals belonging to this Context
                     let json = serde_json::to_string(&signal).ok()?;
                     let event = sse::Event::Data(sse::Data::new(json));
                     return Some((Ok(event), rx));
                 }
-                Ok(_) => continue,  // 忽略其他 Context 的信令
+                Ok(_) => continue,  // Ignore signals from other Contexts
                 Err(broadcast::error::RecvError::Lagged(_)) => {
-                    // 客户端太慢，跳过一些信令（没关系，会自动修复）
+                    // Client is too slow, skip some signals (OK, will auto-heal)
                     continue;
                 }
                 Err(_) => return None,
             }
         }
     });
-    
+
     Sse::from_stream(stream)
 }
 
-// 在 Context 中发送信令
+// Send signal in Context
 impl ChatContext {
     pub fn send_signal(&self, signal: SSESignal, broadcast_tx: &broadcast::Sender<(Uuid, SSESignal)>) {
         let _ = broadcast_tx.send((self.id, signal));
@@ -556,20 +556,20 @@ impl ChatContext {
 }
 ```
 
-**测试**:
+**Tests**:
 - `test_sse_connection`
 - `test_signal_filtering`
 - `test_lagged_client_handling`
 
 ---
 
-#### Task 1.5.6: 存储层实现 ⏳
+#### Task 1.5.6: Storage Layer Implementation ⏳
 
-**目标**: 实现 Context-Local Message Pool 存储
+**Goal**: Implement Context-Local Message Pool storage
 
-**文件**: `crates/context_manager/src/storage/message_storage.rs`
+**File**: `crates/context_manager/src/storage/message_storage.rs`
 
-**实现**:
+**Implementation**:
 
 ```rust
 use std::path::{Path, PathBuf};
@@ -584,43 +584,43 @@ impl FileSystemMessageStorage {
     pub fn new(base_path: PathBuf) -> Self {
         Self { base_path }
     }
-    
+
     fn context_dir(&self, context_id: Uuid) -> PathBuf {
         self.base_path.join("contexts").join(context_id.to_string())
     }
-    
+
     fn messages_pool_dir(&self, context_id: Uuid) -> PathBuf {
         self.context_dir(context_id).join("messages_pool")
     }
-    
+
     fn message_path(&self, context_id: Uuid, message_id: Uuid) -> PathBuf {
         self.messages_pool_dir(context_id).join(format!("{}.json", message_id))
     }
-    
+
     fn metadata_path(&self, context_id: Uuid) -> PathBuf {
         self.context_dir(context_id).join("metadata.json")
     }
-    
-    // 保存消息
+
+    // Save message
     pub async fn save_message(
-        &self, 
-        context_id: Uuid, 
-        message_id: Uuid, 
+        &self,
+        context_id: Uuid,
+        message_id: Uuid,
         message: &InternalMessage
     ) -> Result<()> {
         let path = self.message_path(context_id, message_id);
         fs::create_dir_all(path.parent().unwrap()).await?;
-        
+
         let json = serde_json::to_string_pretty(message)?;
         fs::write(path, json).await?;
-        
+
         Ok(())
     }
-    
-    // 获取消息
+
+    // Get message
     pub async fn get_message(
-        &self, 
-        context_id: Uuid, 
+        &self,
+        context_id: Uuid,
         message_id: Uuid
     ) -> Result<InternalMessage> {
         let path = self.message_path(context_id, message_id);
@@ -628,11 +628,11 @@ impl FileSystemMessageStorage {
         let message = serde_json::from_str(&json)?;
         Ok(message)
     }
-    
-    // 批量获取
+
+    // Batch get
     pub async fn get_messages_batch(
-        &self, 
-        context_id: Uuid, 
+        &self,
+        context_id: Uuid,
         message_ids: &[Uuid]
     ) -> Result<Vec<InternalMessage>> {
         let mut messages = Vec::new();
@@ -643,23 +643,23 @@ impl FileSystemMessageStorage {
         }
         Ok(messages)
     }
-    
-    // 保存 metadata
+
+    // Save metadata
     pub async fn save_metadata(
-        &self, 
-        context_id: Uuid, 
+        &self,
+        context_id: Uuid,
         metadata: &ContextMetadata
     ) -> Result<()> {
         let path = self.metadata_path(context_id);
         fs::create_dir_all(path.parent().unwrap()).await?;
-        
+
         let json = serde_json::to_string_pretty(metadata)?;
         fs::write(path, json).await?;
-        
+
         Ok(())
     }
-    
-    // 删除 Context（一步完成，无需 GC）
+
+    // Delete Context (one step, no GC needed)
     pub async fn delete_context(&self, context_id: Uuid) -> Result<()> {
         let dir = self.context_dir(context_id);
         if dir.exists() {
@@ -670,7 +670,7 @@ impl FileSystemMessageStorage {
 }
 ```
 
-**测试**:
+**Tests**:
 - `test_save_and_get_message`
 - `test_batch_get_messages`
 - `test_delete_context_removes_all`
@@ -678,9 +678,9 @@ impl FileSystemMessageStorage {
 
 ---
 
-#### Task 1.5.7: 创建 spec delta ⏳
+#### Task 1.5.7: Create spec delta ⏳
 
-**文件**: `openspec/changes/refactor-context-session-architecture/specs/sync/spec.md`
+**File**: `openspec/changes/refactor-context-session-architecture/specs/sync/spec.md`
 
 ```markdown
 ## ADDED Requirements
@@ -736,92 +736,92 @@ The system SHALL store all messages for a context within the context's own direc
 
 ---
 
-#### Task 1.5.8: 更新 tasks.md ⏳
+#### Task 1.5.8: Update tasks.md ⏳
 
-在 Phase 1 和 Phase 2 之间插入 Phase 1.5。
-
----
-
-## 📊 工作量估算
-
-| 任务 | 文件数 | 预计代码行数 | 测试用例 | 预计时间 |
-|------|--------|-------------|---------|---------|
-| MessageMetadata 扩展 | 1 | ~150 | 5 | 2 小时 |
-| StreamingResponse 类型 | 1 | ~200 | 6 | 3 小时 |
-| Context 集成 | 1 | ~150 | 4 | 2 小时 |
-| REST API 端点 | 2 | ~300 | 8 | 4 小时 |
-| SSE 信令推送 | 1 | ~150 | 3 | 3 小时 |
-| 存储层实现 | 1 | ~250 | 5 | 3 小时 |
-| Spec delta 和文档 | 2 | ~200 (markdown) | - | 2 小时 |
-| 集成测试 | 1 | ~200 | 3 | 2 小时 |
-| **总计** | **10** | **~1,600** | **34** | **~21 小时** |
-
-**预计完成时间**: 2-3 天（包含测试和文档）
+Insert Phase 1.5 between Phase 1 and Phase 2.
 
 ---
 
-## ⚠️ 风险和缓解措施
+## 📊 Effort Estimation
 
-### 风险 1: SSE 连接稳定性
+| Task | File Count | Estimated LOC | Test Cases | Estimated Time |
+|------|------------|---------------|------------|----------------|
+| MessageMetadata Extension | 1 | ~150 | 5 | 2 hours |
+| StreamingResponse Type | 1 | ~200 | 6 | 3 hours |
+| Context Integration | 1 | ~150 | 4 | 2 hours |
+| REST API Endpoints | 2 | ~300 | 8 | 4 hours |
+| SSE Signaling Push | 1 | ~150 | 3 | 3 hours |
+| Storage Layer Implementation | 1 | ~250 | 5 | 3 hours |
+| Spec delta and Documentation | 2 | ~200 (markdown) | - | 2 hours |
+| Integration Tests | 1 | ~200 | 3 | 2 hours |
+| **Total** | **10** | **~1,600** | **34** | **~21 hours** |
 
-**问题**: SSE 长连接可能被代理、防火墙中断
-
-**缓解**:
-- 实现心跳机制（每 30 秒发送 ping）
-- 前端自动重连（指数退避）
-- 状态自动恢复（通过序列号）
-
-### 风险 2: 存储层性能
-
-**问题**: 大量小文件可能影响性能
-
-**缓解**:
-- 现代文件系统（ext4, APFS）处理小文件很高效
-- 消息按 Context 隔离，避免单目录文件过多
-- 未来可优化为批量写入或 SQLite（保持接口不变）
-
-### 风险 3: 序列号不一致
-
-**问题**: 并发情况下序列号可能错乱
-
-**缓解**:
-- 使用原子操作（AtomicU64）管理序列号
-- 在 StreamingResponse 内部维护序列
-- 单线程流式写入（避免竞态）
+**Estimated Completion Time**: 2-3 days (including testing and documentation)
 
 ---
 
-## 🎯 验收标准
+## ⚠️ Risks and Mitigations
 
-### 功能验收
-- [ ] Context 可以独立备份/恢复（单文件夹操作）
-- [ ] 分支创建/合并不涉及文件 I/O
-- [ ] SSE 信令 payload < 1KB
-- [ ] 前端可以从任意序列号拉取内容
-- [ ] 信令丢失时前端自动修复状态
+### Risk 1: SSE Connection Stability
 
-### 性能验收
-- [ ] 分支创建 < 10ms
-- [ ] 删除 Context < 100ms（100 条消息）
-- [ ] SSE 信令延迟 < 50ms
-- [ ] 增量内容拉取 < 100ms
+**Issue**: SSE long connections may be interrupted by proxies or firewalls
 
-### 测试验收
-- [ ] 单元测试覆盖率 > 90%
-- [ ] 集成测试覆盖主要场景
-- [ ] 负载测试（模拟 10 个并发流式响应）
-- [ ] 网络异常测试（模拟信令丢失）
+**Mitigation**:
+- Implement heartbeat mechanism (send ping every 30 seconds)
+- Frontend automatic reconnection (exponential backoff)
+- Automatic state recovery (via sequence numbers)
+
+### Risk 2: Storage Layer Performance
+
+**Issue**: Large number of small files may affect performance
+
+**Mitigation**:
+- Modern file systems (ext4, APFS) handle small files efficiently
+- Messages are isolated by Context, avoiding too many files in a single directory
+- Future optimization to batch writes or SQLite (keeping interface unchanged)
+
+### Risk 3: Sequence Number Inconsistency
+
+**Issue**: Sequence numbers may become inconsistent under concurrent conditions
+
+**Mitigation**:
+- Use atomic operations (AtomicU64) to manage sequence numbers
+- Maintain sequence within StreamingResponse
+- Single-threaded streaming writes (avoid race conditions)
 
 ---
 
-## 📝 下一步行动
+## 🎯 Acceptance Criteria
 
-1. **立即开始**: Task 1.5.1 - 扩展 MessageMetadata
-2. **并行开发**: 可以同时进行 StreamingResponse 和 Storage 层开发
-3. **集成测试**: 完成核心功能后立即进行端到端测试
-4. **文档完善**: 边开发边更新 API 文档和使用示例
+### Functional Acceptance
+- [ ] Context can be independently backed up/restored (single folder operation)
+- [ ] Branch creation/merge involves no file I/O
+- [ ] SSE signal payload < 1KB
+- [ ] Frontend can pull content from any sequence number
+- [ ] Frontend automatically repairs state when signals are lost
+
+### Performance Acceptance
+- [ ] Branch creation < 10ms
+- [ ] Delete Context < 100ms (100 messages)
+- [ ] SSE signal latency < 50ms
+- [ ] Incremental content pull < 100ms
+
+### Testing Acceptance
+- [ ] Unit test coverage > 90%
+- [ ] Integration tests cover main scenarios
+- [ ] Load testing (simulate 10 concurrent streaming responses)
+- [ ] Network anomaly testing (simulate signal loss)
 
 ---
 
-**状态**: 准备就绪，等待实施指令 🚀
+## 📝 Next Actions
+
+1. **Start Immediately**: Task 1.5.1 - Extend MessageMetadata
+2. **Parallel Development**: StreamingResponse and Storage layer can be developed in parallel
+3. **Integration Testing**: Conduct end-to-end testing immediately after core functionality is complete
+4. **Documentation**: Update API documentation and usage examples during development
+
+---
+
+**Status**: Ready, awaiting implementation command 🚀
 

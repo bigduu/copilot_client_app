@@ -1,44 +1,44 @@
 # Plan/Act Mode System Prompt Enhancement - Implementation Status
 
-## 当前状态
+## Current Status
 
-### ✅ 已实现的部分
+### ✅ Implemented Parts
 
-1. **SystemPromptEnhancer 服务** (`crates/web_service/src/services/system_prompt_enhancer.rs`)
-   - ✅ `build_role_section()` 方法已实现
-   - ✅ Planner 角色提示包含：
-     - 只读权限说明
-     - 计划 JSON 格式要求
-     - 工具限制说明
-   - ✅ Actor 角色提示包含：
-     - 完整权限说明
-     - 问题 JSON 格式要求
-     - 自主决策指南
+1. **SystemPromptEnhancer Service** (`crates/web_service/src/services/system_prompt_enhancer.rs`)
+   - ✅ `build_role_section()` method implemented
+   - ✅ Planner role prompts include:
+     - Read-only permission description
+     - Plan JSON format requirements
+     - Tool restriction description
+   - ✅ Actor role prompts include:
+     - Full permission description
+     - Question JSON format requirements
+     - Autonomous decision guidelines
 
-2. **角色检测和工具过滤**
-   - ✅ `build_tools_section()` 根据角色权限过滤工具
-   - ✅ Planner 角色只能看到 ReadFiles 权限的工具
-   - ✅ Actor 角色可以看到所有工具
+2. **Role Detection and Tool Filtering**
+   - ✅ `build_tools_section()` filters tools based on role permissions
+   - ✅ Planner role can only see tools with ReadFiles permission
+   - ✅ Actor role can see all tools
 
-### ❌ 缺失的部分
+### ❌ Missing Parts
 
-**问题：`chat_service.rs` 没有使用 SystemPromptEnhancer**
+**Issue: `chat_service.rs` is not using SystemPromptEnhancer**
 
-当前 `chat_service.rs` 在构建 messages 时：
-1. 从 context 获取 messages（第198-208行）
-2. 直接转换 messages 为 ChatMessage（第226-227行）
-3. **没有获取 system prompt**
-4. **没有使用 SystemPromptEnhancer 增强 system prompt**
+Currently `chat_service.rs` when building messages:
+1. Gets messages from context (lines 198-208)
+2. Directly converts messages to ChatMessage (lines 226-227)
+3. **Does not get system prompt**
+4. **Does not use SystemPromptEnhancer to enhance system prompt**
 
-## 需要修改的地方
+## Changes Needed
 
-### 在 `chat_service.rs` 中集成 SystemPromptEnhancer
+### Integrate SystemPromptEnhancer in `chat_service.rs`
 
-**位置 1：`process_message()` 方法（第146行开始）**
+**Location 1: `process_message()` method (starting at line 146)**
 
-需要修改：
+Needs modification:
 ```rust
-// 当前代码（第197-227行）
+// Current code (lines 197-227)
 let messages: Vec<InternalMessage> = context_lock
     .get_active_branch()
     .map(|branch| {
@@ -53,18 +53,18 @@ let chat_messages: Vec<ChatMessage> =
     messages.iter().map(convert_to_chat_message).collect();
 ```
 
-**应该改为：**
+**Should be changed to:**
 ```rust
-// 1. 获取 system prompt（如果有）
+// 1. Get system prompt (if exists)
 let system_prompt_content = context_lock
     .get_active_branch()
     .and_then(|branch| branch.system_prompt.as_ref())
     .map(|sp| sp.content.clone());
 
-// 2. 获取 agent_role
+// 2. Get agent_role
 let agent_role = &context_lock.config.agent_role;
 
-// 3. 使用 enhancer 增强 system prompt
+// 3. Use enhancer to enhance system prompt
 let enhanced_system_prompt = if let Some(base_prompt) = system_prompt_content {
     self.system_prompt_enhancer
         .enhance_prompt(&base_prompt, agent_role)
@@ -74,13 +74,13 @@ let enhanced_system_prompt = if let Some(base_prompt) = system_prompt_content {
             base_prompt
         })
 } else {
-    // 如果没有 base prompt，只添加角色指令
+    // If no base prompt, only add role instructions
     self.system_prompt_enhancer
         .build_role_section(agent_role)
         .clone()
 };
 
-// 4. 构建 messages，将增强后的 system prompt 放在开头
+// 4. Build messages, put enhanced system prompt at the beginning
 let mut chat_messages = Vec::new();
 if !enhanced_system_prompt.is_empty() {
     chat_messages.push(ChatMessage {
@@ -91,7 +91,7 @@ if !enhanced_system_prompt.is_empty() {
     });
 }
 
-// 5. 添加其他 messages
+// 5. Add other messages
 let messages: Vec<InternalMessage> = context_lock
     .get_active_branch()
     .map(|branch| {
@@ -108,7 +108,7 @@ for msg in messages.iter() {
 }
 ```
 
-**位置 2：`ChatService` struct 需要添加 `system_prompt_enhancer` 字段**
+**Location 2: `ChatService` struct needs to add `system_prompt_enhancer` field**
 
 ```rust
 pub struct ChatService<T: StorageProvider> {
@@ -116,11 +116,11 @@ pub struct ChatService<T: StorageProvider> {
     conversation_id: Uuid,
     copilot_client: Arc<dyn CopilotClientTrait>,
     tool_executor: Arc<ToolExecutor>,
-    system_prompt_enhancer: Arc<SystemPromptEnhancer>, // 新增
+    system_prompt_enhancer: Arc<SystemPromptEnhancer>, // NEW
 }
 ```
 
-**位置 3：`ChatService::new()` 方法需要接收 enhancer**
+**Location 3: `ChatService::new()` method needs to accept enhancer**
 
 ```rust
 pub fn new(
@@ -128,64 +128,64 @@ pub fn new(
     conversation_id: Uuid,
     copilot_client: Arc<dyn CopilotClientTrait>,
     tool_executor: Arc<ToolExecutor>,
-    system_prompt_enhancer: Arc<SystemPromptEnhancer>, // 新增
+    system_prompt_enhancer: Arc<SystemPromptEnhancer>, // NEW
 ) -> Self {
     Self {
         session_manager,
         conversation_id,
         copilot_client,
         tool_executor,
-        system_prompt_enhancer, // 新增
+        system_prompt_enhancer, // NEW
     }
 }
 ```
 
-**位置 4：创建 ChatService 的地方需要传入 enhancer**
+**Location 4: Where ChatService is created needs to pass enhancer**
 
-在 `context_controller.rs` 中（第580行附近）：
+In `context_controller.rs` (around line 580):
 ```rust
 let mut chat_service = crate::services::chat_service::ChatService::new(
     app_state.session_manager.clone(),
     context_id,
     app_state.copilot_client.clone(),
     app_state.tool_executor.clone(),
-    app_state.system_prompt_enhancer.clone(), // 新增
+    app_state.system_prompt_enhancer.clone(), // NEW
 );
 ```
 
-## 如何查看增强后的 Prompt
+## How to View Enhanced Prompt
 
-### 后端日志
+### Backend Logs
 
-增强后的 prompt 会通过日志输出，可以在后端日志中查看：
+The enhanced prompt will be output through logs, which can be viewed in backend logs:
 ```bash
-# 查看后端日志
+# View backend logs
 tail -f logs/web_service.log
-# 或查看控制台输出
+# Or view console output
 ```
 
-### 前端显示（当前不可用）
+### Frontend Display (Currently Unavailable)
 
-目前前端没有显示增强后的 prompt 的 UI。可以考虑：
+Currently the frontend does not have UI to display the enhanced prompt. Options to consider:
 
-1. **在 SystemMessageCard 中显示增强后的 prompt**
-   - 显示完整的增强后的 system prompt
-   - 包含角色特定的指令部分
+1. **Display enhanced prompt in SystemMessageCard**
+   - Show the complete enhanced system prompt
+   - Include role-specific instruction sections
 
-2. **添加一个 "View Enhanced Prompt" 按钮**
-   - 点击后显示完整的增强后的 prompt
-   - 可以展开/折叠查看各个部分
+2. **Add a "View Enhanced Prompt" button**
+   - Click to show the complete enhanced prompt
+   - Can expand/collapse to view different sections
 
-3. **在聊天设置中显示**
-   - 在系统设置中显示当前使用的增强后的 prompt
-   - 允许用户查看完整的 prompt 内容
+3. **Display in chat settings**
+   - Show the currently used enhanced prompt in system settings
+   - Allow users to view the complete prompt content
 
-## 总结
+## Summary
 
-- ✅ SystemPromptEnhancer **已经实现**了角色特定的指令
-- ❌ ChatService **还没有使用** SystemPromptEnhancer
-- ❌ 增强后的 prompt **不会**自动添加到 messages 中
-- ❌ 前端**没有**显示增强后的 prompt 的地方
+- ✅ SystemPromptEnhancer **already implements** role-specific instructions
+- ❌ ChatService **is not yet using** SystemPromptEnhancer
+- ❌ Enhanced prompt **will not** be automatically added to messages
+- ❌ Frontend **does not have** a place to display the enhanced prompt
 
-需要完成上述修改，才能让 Plan/Act mode 的 system prompt 增强生效。
+The above modifications need to be completed for Plan/Act mode system prompt enhancement to take effect.
 

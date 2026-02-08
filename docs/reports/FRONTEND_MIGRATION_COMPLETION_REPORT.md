@@ -53,7 +53,7 @@ This report documents the successful completion of the frontend architecture mig
   - Removed `mapFrontendIconToEmoji()` method with hardcoded icon mappings
   - Removed `getCategoryColor()` method with hardcoded color mappings
   - Updated `getCategoryDisplayInfo()` to use backend-provided icon and color values directly
-  - Achieved "前端零硬编码" (zero frontend hardcoding) principle
+  - Achieved "zero frontend hardcoding" principle
   - All display information now comes from backend configuration
 
 ### **Phase 3: Documentation Cleanup (COMPLETED)**
@@ -141,7 +141,7 @@ The frontend migration has been **successfully completed**. All critical issues 
 - ✅ Hardcoded mappings eliminated
 - ✅ Documentation updated
 
-The codebase now follows modern React patterns with proper separation of concerns and achieves the core principle of "前端零硬编码" (zero frontend hardcoding).
+The codebase now follows modern React patterns with proper separation of concerns and achieves the core principle of "zero frontend hardcoding".
 
 ---
 

@@ -1,70 +1,70 @@
-# 统一聊天流程控制架构设计方案
+# Unified Chat Flow Control Architecture Design
 
-## 📋 项目概述
+## 📋 Project Overview
 
-基于前端代码分析结果，设计统一的聊天流程控制架构，解决当前架构中状态更新逻辑重复、聊天流程控制分散、多层状态管理复杂等问题。
+Based on frontend code analysis, design a unified chat flow control architecture to solve current issues including duplicate state update logic, scattered chat flow control, and complex multi-layer state management.
 
-## 🎯 设计目标
+## 🎯 Design Goals
 
-1. **消除60%的状态更新逻辑重复** - 统一状态更新入口
-2. **集中化聊天流程控制** - 统一ChatManager管理所有聊天操作
-3. **简化多层状态管理架构** - 从4层减少到2层
-4. **建立统一的原子操作接口** - 提供addChat、updateChat、addMessage等基础操作
-5. **建立一致的错误处理机制** - 统一错误处理和重试策略
-6. **支持前端控制架构转变** - 开发者可轻松使用原子功能控制流程
+1. **Eliminate 60% state update logic duplication** - Unified state update entry point
+2. **Centralize chat flow control** - Unified ChatManager manages all chat operations
+3. **Simplify multi-layer state management architecture** - Reduce from 4 layers to 2 layers
+4. **Establish unified atomic operation interfaces** - Provide basic operations like addChat, updateChat, addMessage
+5. **Establish consistent error handling mechanism** - Unified error handling and retry strategies
+6. **Support frontend control architecture transformation** - Developers can easily control chat flow using atomic functions
 
-## 📊 现有架构问题分析
+## 📊 Current Architecture Problem Analysis
 
-### 当前分散式架构
+### Current Decentralized Architecture
 
 ```mermaid
 graph TB
-    subgraph "当前分散式架构"
-        A[组件层] --> B[useChat Context]
+    subgraph "Current Decentralized Architecture"
+        A[Component Layer] --> B[useChat Context]
         B --> C[useChatManager]
         C --> D[useChats + useMessages]
         D --> E[ChatService]
-        D --> F[多个重复状态逻辑]
+        D --> F[Multiple Duplicate State Logics]
     end
-    
-    subgraph "问题点"
-        G[状态更新重复60%]
-        H[流程控制分散]
-        I[4层状态同步]
-        J[缺乏原子操作]
-        K[错误处理不一致]
+
+    subgraph "Problem Points"
+        G[60% State Update Duplication]
+        H[Scattered Flow Control]
+        I[4-Layer State Sync]
+        J[Lack of Atomic Operations]
+        K[Inconsistent Error Handling]
     end
 ```
 
-### 主要问题
+### Main Problems
 
-1. **状态更新逻辑重复率达60%** - 在useMessages.ts、ChatService.ts等多处重复相同的状态更新模式
-2. **聊天流程控制分散** - 消息处理逻辑散布在sendMessage、handleToolCall、initiateAIResponse等多个函数中
-3. **多层状态管理架构复杂** - 服务层→Hooks层→上下文层→组件层，状态同步链路过长
-4. **缺乏原子操作** - 没有统一的addChat、updateChat、addMessage、updateMessage等基础操作
-5. **错误处理不一致** - 相似的错误处理模式遍布各个hooks
+1. **60% state update logic duplication** - Same state update patterns repeated in useMessages.ts, ChatService.ts, etc.
+2. **Scattered chat flow control** - Message processing logic spread across sendMessage, handleToolCall, initiateAIResponse, etc.
+3. **Complex multi-layer state management** - Service layer → Hooks layer → Context layer → Component layer, long state sync chain
+4. **Lack of atomic operations** - No unified basic operations like addChat, updateChat, addMessage, updateMessage
+5. **Inconsistent error handling** - Similar error handling patterns scattered across various hooks
 
-## 🏗️ 新架构设计方案
+## 🏗️ New Architecture Design
 
-### 整体架构图
+### Overall Architecture Diagram
 
 ```mermaid
 graph TB
-    subgraph "统一ChatManager架构"
-        A[组件层] --> B[ChatManager API]
-        B --> C[AtomicOperations 原子操作层]
-        C --> D[StateManager 状态管理层]
-        D --> E[PersistenceLayer 持久化层]
-        
-        subgraph "核心管理器"
-            F[ChatFlowController 流程控制器]
-            G[MessageProcessor 消息处理器]
-            H[ErrorHandler 错误处理器]
-            I[TransactionManager 事务管理器]
-            J[AttachmentProcessor 附件处理器]
-            K[ApprovalManager 审批管理器]
+    subgraph "Unified ChatManager Architecture"
+        A[Component Layer] --> B[ChatManager API]
+        B --> C[AtomicOperations Layer]
+        C --> D[StateManager Layer]
+        D --> E[PersistenceLayer]
+
+        subgraph "Core Managers"
+            F[ChatFlowController]
+            G[MessageProcessor]
+            H[ErrorHandler]
+            I[TransactionManager]
+            J[AttachmentProcessor]
+            K[ApprovalManager]
         end
-        
+
         B --> F
         F --> G
         F --> H
@@ -74,33 +74,33 @@ graph TB
     end
 ```
 
-## 🔧 核心架构组件
+## 🔧 Core Architecture Components
 
-### 1. ChatManager 统一管理器
+### 1. ChatManager Unified Manager
 
 ```typescript
 interface ChatManager {
-  // 原子操作接口
+  // Atomic operation interfaces
   atomicOps: AtomicOperations;
-  
-  // 流程控制
+
+  // Flow control
   flowController: ChatFlowController;
-  
-  // 状态管理
+
+  // State management
   stateManager: StateManager;
-  
-  // 错误处理
+
+  // Error handling
   errorHandler: ErrorHandler;
-  
-  // 附件处理
+
+  // Attachment processing
   attachmentProcessor: AttachmentProcessor;
-  
-  // 审批管理
+
+  // Approval management
   approvalManager: ApprovalManager;
 }
 ```
 
-### 2. 原子操作接口设计
+### 2. Atomic Operation Interface Design
 
 ```mermaid
 classDiagram
@@ -109,19 +109,19 @@ classDiagram
         +updateChat(chatId: string, updates: ChatUpdates): Promise~ChatResult~
         +deleteChat(chatId: string): Promise~DeleteResult~
         +pinChat(chatId: string, pinned: boolean): Promise~ChatResult~
-        
+
         +addMessage(chatId: string, message: Message): Promise~MessageResult~
         +updateMessage(chatId: string, messageId: string, updates: MessageUpdates): Promise~MessageResult~
         +deleteMessage(chatId: string, messageId: string): Promise~DeleteResult~
         +streamMessage(chatId: string, content: string): Promise~StreamResult~
-        
+
         +processAttachment(chatId: string, attachment: Attachment): Promise~AttachmentResult~
         +requestApproval(chatId: string, action: ApprovalAction): Promise~ApprovalResult~
-        
+
         +batchOperation(operations: Operation[]): Promise~BatchResult~
         +transaction(operations: TransactionOperation[]): Promise~TransactionResult~
     }
-    
+
     class ChatFlowController {
         +initiateChat(options: ChatOptions): Promise~ChatFlow~
         +sendMessage(chatId: string, content: string): Promise~MessageFlow~
@@ -130,7 +130,7 @@ classDiagram
         +processAIResponse(chatId: string, messages: Message[]): Promise~AIFlow~
         +handleApprovalFlow(chatId: string, action: ApprovalAction): Promise~ApprovalFlow~
     }
-    
+
     class StateManager {
         +getState(): ChatState
         +updateState(updates: StateUpdates): void
@@ -142,12 +142,12 @@ classDiagram
     }
 ```
 
-## 📝 详细接口定义
+## 📝 Detailed Interface Definitions
 
-### 核心类型定义
+### Core Type Definitions
 
 ```typescript
-// 统一的结果类型
+// Unified result type
 interface OperationResult<T> {
   success: boolean;
   data?: T;
@@ -155,7 +155,7 @@ interface OperationResult<T> {
   errorCode?: string;
 }
 
-// 聊天操作选项
+// Chat operation options
 interface CreateChatOptions {
   title?: string;
   systemPrompt?: string;
@@ -163,23 +163,23 @@ interface CreateChatOptions {
   toolCategory?: string;
   model?: string;
   initialMessage?: string;
-  autoApproval?: boolean; // 新增：自动审批设置
+  autoApproval?: boolean; // New: Auto-approval setting
 }
 
-// 消息类型扩展
+// Message type extension
 interface Message {
   role: "system" | "user" | "assistant";
   content: string;
   id?: string;
   processorUpdates?: string[];
-  isHidden?: boolean; // 新增：控制消息是否在GUI中显示
-  messageType?: 'normal' | 'attachment_processing' | 'approval_request' | 'approval_response'; // 新增：消息类型
-  attachmentSummary?: string; // 新增：附件处理结果
-  parentMessageId?: string; // 新增：关联关系
-  metadata?: MessageMetadata; // 新增：元数据
+  isHidden?: boolean; // New: Control whether message displays in GUI
+  messageType?: 'normal' | 'attachment_processing' | 'approval_request' | 'approval_response'; // New: Message type
+  attachmentSummary?: string; // New: Attachment processing result
+  parentMessageId?: string; // New: Relationship reference
+  metadata?: MessageMetadata; // New: Metadata
 }
 
-// 消息元数据
+// Message metadata
 interface MessageMetadata {
   attachments?: Attachment[];
   approvalRequired?: boolean;
@@ -187,7 +187,7 @@ interface MessageMetadata {
   processingSteps?: ProcessingStep[];
 }
 
-// 附件类型
+// Attachment type
 interface Attachment {
   id: string;
   type: 'image' | 'file' | 'screenshot';
@@ -197,7 +197,7 @@ interface Attachment {
   mimeType: string;
 }
 
-// 审批动作类型
+// Approval action type
 interface ApprovalAction {
   id: string;
   type: 'tool_execution' | 'file_operation' | 'system_change';
@@ -207,63 +207,63 @@ interface ApprovalAction {
 }
 ```
 
-### 附件处理流程
+### Attachment Processing Flow
 
 ```mermaid
 sequenceDiagram
-    participant User as 用户
-    participant UI as 界面组件
+    participant User as User
+    participant UI as UI Component
     participant CM as ChatManager
     participant AP as AttachmentProcessor
     participant FC as FlowController
     participant SM as StateManager
 
-    User->>UI: 发送带附件的消息
+    User->>UI: Send message with attachments
     UI->>CM: sendMessageWithAttachments(content, attachments)
     CM->>AP: processAttachments(attachments)
-    
-    loop 处理每个附件
-        AP->>AP: 生成预处理提示词
-        AP->>Backend: 请求AI分析附件
-        Backend-->>AP: 返回附件总结
+
+    loop Process each attachment
+        AP->>AP: Generate preprocessing prompt
+        AP->>Backend: Request AI analysis of attachment
+        Backend-->>AP: Return attachment summary
     end
-    
-    AP->>SM: addMessage(chatId, hiddenMessage) // 存储但不显示
-    AP-->>CM: 返回附件总结
-    
+
+    AP->>SM: addMessage(chatId, hiddenMessage) // Store but don't display
+    AP-->>CM: Return attachment summary
+
     CM->>FC: sendMessage(content + attachmentSummary)
-    FC->>SM: addMessage(chatId, visibleMessage) // 显示给用户
-    SM-->>UI: 更新界面
+    FC->>SM: addMessage(chatId, visibleMessage) // Display to user
+    SM-->>UI: Update UI
 ```
 
-### 审批管理流程
+### Approval Management Flow
 
 ```mermaid
 sequenceDiagram
-    participant AI as AI助手
+    participant AI as AI Assistant
     participant CM as ChatManager
     participant AM as ApprovalManager
-    participant User as 用户界面
+    participant User as User Interface
     participant SM as StateManager
 
-    AI->>CM: 请求执行操作
+    AI->>CM: Request to execute operation
     CM->>AM: requestApproval(action)
-    
-    alt 自动审批模式
-        AM->>AM: 检查自动审批设置
+
+    alt Auto-approval mode
+        AM->>AM: Check auto-approval settings
         AM->>SM: addMessage(approvalMessage, hidden=true)
-        AM->>CM: 自动批准
-        CM->>AI: 继续执行
-    else 手动审批模式
+        AM->>CM: Auto-approve
+        CM->>AI: Continue execution
+    else Manual approval mode
         AM->>SM: addMessage(approvalRequest, visible=true)
-        SM-->>User: 显示审批请求
-        User->>AM: 用户决策（批准/拒绝）
+        SM-->>User: Display approval request
+        User->>AM: User decision (approve/reject)
         AM->>SM: addMessage(approvalResponse)
-        AM->>CM: 返回审批结果
+        AM->>CM: Return approval result
     end
 ```
 
-### 原子操作接口实现
+### Atomic Operation Interface Implementation
 
 ```typescript
 class UnifiedChatManager implements ChatManager {
@@ -273,7 +273,7 @@ class UnifiedChatManager implements ChatManager {
   private approvalManager: ApprovalManager;
   private errorHandler: ErrorHandler;
 
-  // 聊天原子操作
+  // Chat atomic operations
   async addChat(options: CreateChatOptions): Promise<OperationResult<ChatItem>> {
     return this.transaction(async () => {
       const chat = this.createChatEntity(options);
@@ -287,7 +287,7 @@ class UnifiedChatManager implements ChatManager {
     return this.transaction(async () => {
       const chat = await this.stateManager.getChat(chatId);
       if (!chat) throw new Error(`Chat ${chatId} not found`);
-      
+
       const updatedChat = { ...chat, ...updates };
       await this.stateManager.updateChat(chatId, updatedChat);
       await this.persistenceLayer.saveChat(updatedChat);
@@ -295,32 +295,32 @@ class UnifiedChatManager implements ChatManager {
     });
   }
 
-  // 消息原子操作
+  // Message atomic operations
   async addMessage(chatId: string, message: Message): Promise<OperationResult<Message>> {
     return this.transaction(async () => {
-      const fullMessage = { 
-        ...message, 
+      const fullMessage = {
+        ...message,
         id: message.id || generateId(),
         messageType: message.messageType || 'normal'
       };
-      
+
       await this.stateManager.addMessage(chatId, fullMessage);
       await this.persistenceLayer.saveMessage(chatId, fullMessage);
       return { success: true, data: fullMessage };
     });
   }
 
-  // 带附件的消息发送
+  // Send message with attachments
   async sendMessageWithAttachments(
-    chatId: string, 
-    content: string, 
+    chatId: string,
+    content: string,
     attachments: Attachment[]
   ): Promise<OperationResult<MessageFlow>> {
     return this.transaction(async () => {
-      // 1. 处理附件
+      // 1. Process attachments
       const attachmentResults = await this.attachmentProcessor.processAttachments(attachments);
-      
-      // 2. 存储隐藏的附件处理消息
+
+      // 2. Store hidden attachment processing messages
       for (const result of attachmentResults) {
         await this.addMessage(chatId, {
           role: 'user',
@@ -331,54 +331,54 @@ class UnifiedChatManager implements ChatManager {
           metadata: { attachments: [result.attachment] }
         });
       }
-      
-      // 3. 合并附件总结到主消息
+
+      // 3. Merge attachment summaries into main message
       const enrichedContent = this.attachmentProcessor.mergeAttachmentSummaries(
-        content, 
+        content,
         attachmentResults
       );
-      
-      // 4. 发送主消息
+
+      // 4. Send main message
       return this.flowController.sendMessage(chatId, enrichedContent);
     });
   }
 
-  // 审批流程处理
+  // Approval flow processing
   async handleApprovalFlow(
-    chatId: string, 
+    chatId: string,
     action: ApprovalAction
   ): Promise<OperationResult<ApprovalFlow>> {
     const chat = await this.stateManager.getChat(chatId);
-    
+
     if (chat?.autoApproval) {
-      // 自动审批模式
+      // Auto-approval mode
       await this.addMessage(chatId, {
         role: 'system',
-        content: `自动批准操作: ${action.description}`,
+        content: `Auto-approved operation: ${action.description}`,
         isHidden: true,
         messageType: 'approval_response',
         metadata: { autoApproved: true }
       });
-      
-      return { 
-        success: true, 
-        data: { approved: true, automatic: true } 
+
+      return {
+        success: true,
+        data: { approved: true, automatic: true }
       };
     } else {
-      // 手动审批模式
+      // Manual approval mode
       await this.addMessage(chatId, {
         role: 'system',
-        content: `请求批准操作: ${action.description}`,
+        content: `Request approval for operation: ${action.description}`,
         isHidden: false,
         messageType: 'approval_request',
         metadata: { approvalRequired: true }
       });
-      
+
       return this.approvalManager.waitForUserApproval(chatId, action);
     }
   }
 
-  // 事务管理
+  // Transaction management
   private async transaction<T>(operation: () => Promise<T>): Promise<T> {
     const transactionId = generateId();
     try {
@@ -394,13 +394,13 @@ class UnifiedChatManager implements ChatManager {
 }
 ```
 
-## 🔄 流程控制器设计
+## 🔄 Flow Controller Design
 
-### 核心流程图
+### Core Flow Diagram
 
 ```mermaid
 sequenceDiagram
-    participant UI as 用户界面
+    participant UI as User Interface
     participant CM as ChatManager
     participant FC as FlowController
     participant AP as AttachmentProcessor
@@ -409,23 +409,23 @@ sequenceDiagram
     participant PL as PersistenceLayer
 
     UI->>CM: sendMessage(chatId, content, attachments?)
-    
-    alt 包含附件
+
+    alt Contains attachments
         CM->>AP: processAttachments(attachments)
         AP->>SM: addMessage(chatId, hiddenMessage)
         AP-->>CM: attachmentSummary
     end
-    
+
     CM->>FC: processMessage(chatId, enrichedContent)
     FC->>SM: addMessage(chatId, userMessage)
     FC->>SM: updateChatState(chatId, 'processing')
-    
-    alt 需要审批
+
+    alt Approval required
         FC->>AM: requestApproval(action)
         AM->>SM: addMessage(chatId, approvalMessage)
         AM-->>FC: approvalResult
     end
-    
+
     FC->>FC: initiateAIResponse()
     FC->>SM: addMessage(chatId, aiMessage)
     SM->>PL: persistState()
@@ -433,9 +433,9 @@ sequenceDiagram
     CM-->>UI: OperationResult
 ```
 
-## 🎛️ 状态管理策略
+## 🎛️ State Management Strategy
 
-### 统一状态管理器
+### Unified State Manager
 
 ```typescript
 class UnifiedStateManager {
@@ -447,32 +447,32 @@ class UnifiedStateManager {
     transactions: new Map()
   };
 
-  // 统一状态更新入口
+  // Unified state update entry
   updateState(updates: StateUpdates): void {
     const newState = { ...this.state, ...updates };
     this.state = newState;
     this.notifyListeners(newState);
   }
 
-  // 响应式状态订阅
+  // Reactive state subscription
   subscribe(listener: StateListener): Unsubscribe {
     this.listeners.add(listener);
     return () => this.listeners.delete(listener);
   }
 
-  // 获取可见消息（过滤隐藏消息）
+  // Get visible messages (filter hidden messages)
   getVisibleMessages(chatId: string): Message[] {
     const chat = this.getChat(chatId);
     return chat?.messages.filter(msg => !msg.isHidden) || [];
   }
 
-  // 获取隐藏消息（用于调试或管理）
+  // Get hidden messages (for debugging or management)
   getHiddenMessages(chatId: string): Message[] {
     const chat = this.getChat(chatId);
     return chat?.messages.filter(msg => msg.isHidden) || [];
   }
 
-  // 原子化状态操作
+  // Atomic state operations
   atomicUpdate<T>(operation: () => T): T {
     try {
       const result = operation();
@@ -484,7 +484,7 @@ class UnifiedStateManager {
     }
   }
 
-  // 事务管理
+  // Transaction management
   async beginTransaction(transactionId: string): Promise<void> {
     this.transactions.set(transactionId, {
       id: transactionId,
@@ -507,99 +507,99 @@ class UnifiedStateManager {
 }
 ```
 
-## 🛠️ 迁移策略
+## 🛠️ Migration Strategy
 
-### 渐进式迁移计划
+### Gradual Migration Plan
 
 ```mermaid
 graph TD
-    A[阶段1: 创建新架构接口] --> B[阶段2: 实现原子操作]
-    B --> C[阶段3: 迁移核心流程]
-    C --> D[阶段4: 替换Hook层]
-    D --> E[阶段5: 清理旧代码]
-    
-    subgraph "迁移步骤"
-        F[保持现有API兼容]
-        G[渐进式替换组件]
-        H[删除重复逻辑]
-        I[统一错误处理]
-        J[集成附件处理]
-        K[实现审批管理]
+    A[Phase 1: Create New Architecture Interface] --> B[Phase 2: Implement Atomic Operations]
+    B --> C[Phase 3: Migrate Core Flows]
+    C --> D[Phase 4: Replace Hook Layer]
+    D --> E[Phase 5: Clean Up Old Code]
+
+    subgraph "Migration Steps"
+        F[Maintain Existing API Compatibility]
+        G[Gradually Replace Components]
+        H[Remove Duplicate Logic]
+        I[Unify Error Handling]
+        J[Integrate Attachment Processing]
+        K[Implement Approval Management]
     end
 ```
 
-### 详细迁移步骤
+### Detailed Migration Steps
 
-#### 第一阶段：核心架构实现（1-2周）
-1. 创建 `UnifiedChatManager` 类
-2. 实现原子操作接口
-3. 设计状态管理器
-4. 建立事务管理机制
+#### Phase 1: Core Architecture Implementation (1-2 weeks)
+1. Create `UnifiedChatManager` class
+2. Implement atomic operation interfaces
+3. Design state manager
+4. Establish transaction management mechanism
 
-#### 第二阶段：扩展功能实现（1-2周）
-1. 实现 `AttachmentProcessor` 附件处理器
-2. 实现 `ApprovalManager` 审批管理器
-3. 集成消息类型系统
-4. 建立隐藏消息机制
+#### Phase 2: Extended Functionality Implementation (1-2 weeks)
+1. Implement `AttachmentProcessor` attachment processor
+2. Implement `ApprovalManager` approval manager
+3. Integrate message type system
+4. Establish hidden message mechanism
 
-#### 第三阶段：流程控制器（1周）
-1. 实现 `ChatFlowController`
-2. 集成消息处理逻辑
-3. 统一错误处理机制
-4. 添加重试策略
+#### Phase 3: Flow Controller (1 week)
+1. Implement `ChatFlowController`
+2. Integrate message processing logic
+3. Unified error handling mechanism
+4. Add retry strategies
 
-#### 第四阶段：集成和测试（1周）
-1. 替换现有Hook实现
-2. 更新组件集成
-3. 性能优化测试
-4. 错误场景测试
+#### Phase 4: Integration and Testing (1 week)
+1. Replace existing Hook implementations
+2. Update component integration
+3. Performance optimization testing
+4. Error scenario testing
 
-#### 第五阶段：清理和优化（1周）
-1. 删除重复代码
-2. 优化性能
-3. 完善文档
-4. 代码审查
+#### Phase 5: Cleanup and Optimization (1 week)
+1. Remove duplicate code
+2. Optimize performance
+3. Complete documentation
+4. Code review
 
-## 📋 使用示例和最佳实践
+## 📋 Usage Examples and Best Practices
 
-### 基本使用示例
+### Basic Usage Example
 
 ```typescript
-// 1. 创建新聊天
+// 1. Create new chat
 const chatResult = await chatManager.addChat({
-  title: "技术讨论",
+  title: "Technical Discussion",
   systemPromptId: "tech-assistant",
   toolCategory: "development",
   autoApproval: false
 });
 
-// 2. 发送普通消息
+// 2. Send regular message
 const messageResult = await chatManager.sendMessage(
   chatResult.data.id,
-  "请帮我分析这个代码问题"
+  "Please help me analyze this code issue"
 );
 
-// 3. 发送带附件的消息
+// 3. Send message with attachments
 const attachmentResult = await chatManager.sendMessageWithAttachments(
   chatResult.data.id,
-  "请分析这个截图中的错误",
+  "Please analyze the error in this screenshot",
   [{ type: 'screenshot', url: 'data:image/png;base64,...' }]
 );
 
-// 4. 处理审批流程
+// 4. Handle approval flow
 const approvalResult = await chatManager.handleApprovalFlow(
   chatResult.data.id,
   {
     type: 'file_operation',
-    description: '修改配置文件',
+    description: 'Modify configuration file',
     riskLevel: 'medium'
   }
 );
 ```
 
-### 最佳实践指南
+### Best Practices Guide
 
-1. **使用事务处理复杂操作**
+1. **Use transactions for complex operations**
 ```typescript
 await chatManager.transaction(async () => {
   await chatManager.addMessage(chatId, userMessage);
@@ -608,75 +608,75 @@ await chatManager.transaction(async () => {
 });
 ```
 
-2. **正确处理隐藏消息**
+2. **Correctly handle hidden messages**
 ```typescript
-// 添加附件处理消息（不在UI显示）
+// Add attachment processing message (not displayed in UI)
 await chatManager.addMessage(chatId, {
-  content: "附件分析结果",
+  content: "Attachment analysis result",
   isHidden: true,
   messageType: 'attachment_processing'
 });
 ```
 
-3. **合理配置审批策略**
+3. **Reasonably configure approval strategies**
 ```typescript
-// 高风险操作禁用自动审批
+// Disable auto-approval for high-risk operations
 const chat = await chatManager.addChat({
-  autoApproval: false, // 禁用自动审批
+  autoApproval: false, // Disable auto-approval
   toolCategory: "system_admin"
 });
 ```
 
-## 🎯 预期收益
+## 🎯 Expected Benefits
 
-### 架构改进
+### Architecture Improvements
 
-1. **减少60%重复代码** - 统一状态更新逻辑
-2. **简化架构层次** - 从4层减少到2层
-3. **提高开发效率** - 统一的原子操作接口
-4. **增强错误处理** - 一致的错误恢复机制
-5. **支持前端控制** - 开发者可轻松控制聊天流程
+1. **Reduce 60% duplicate code** - Unified state update logic
+2. **Simplify architecture layers** - Reduce from 4 layers to 2 layers
+3. **Improve development efficiency** - Unified atomic operation interfaces
+4. **Enhanced error handling** - Consistent error recovery mechanism
+5. **Support frontend control** - Developers can easily control chat flow
 
-### 功能增强
+### Feature Enhancements
 
-1. **智能附件处理** - 自动分析附件并生成总结
-2. **灵活审批机制** - 支持自动和手动审批模式
-3. **隐藏消息管理** - 支持后台处理消息
-4. **事务一致性** - 保证操作的原子性和一致性
-5. **可扩展架构** - 易于添加新功能和集成
+1. **Smart attachment processing** - Automatically analyze attachments and generate summaries
+2. **Flexible approval mechanism** - Support auto and manual approval modes
+3. **Hidden message management** - Support background processing messages
+4. **Transaction consistency** - Ensure atomicity and consistency of operations
+5. **Extensible architecture** - Easy to add new features and integrations
 
-### 性能优化
+### Performance Optimization
 
-1. **减少状态同步开销** - 简化状态传递链路
-2. **优化消息存储** - 智能消息显示策略
-3. **批量操作支持** - 提高大量操作的性能
-4. **内存使用优化** - 更高效的状态管理
+1. **Reduce state sync overhead** - Simplify state passing chain
+2. **Optimize message storage** - Smart message display strategy
+3. **Batch operation support** - Improve performance of large-scale operations
+4. **Memory usage optimization** - More efficient state management
 
-## 🔧 技术实现要点
+## 🔧 Technical Implementation Points
 
-### 错误处理策略
+### Error Handling Strategy
 
 ```typescript
 class ErrorHandler {
   async processError(error: Error): Promise<never> {
-    // 网络错误重试
+    // Network error retry
     if (error instanceof NetworkError) {
       return this.retryWithBackoff(error);
     }
-    
-    // 存储错误回滚
+
+    // Storage error rollback
     if (error instanceof StorageError) {
       return this.rollbackAndNotify(error);
     }
-    
-    // 其他错误直接抛出
+
+    // Other errors throw directly
     throw this.enrichError(error);
   }
-  
+
   private async retryWithBackoff(error: NetworkError): Promise<never> {
     const maxRetries = 3;
     const baseDelay = 1000;
-    
+
     for (let i = 0; i < maxRetries; i++) {
       await this.delay(baseDelay * Math.pow(2, i));
       try {
@@ -689,21 +689,21 @@ class ErrorHandler {
 }
 ```
 
-### 性能监控
+### Performance Monitoring
 
 ```typescript
 class PerformanceMonitor {
   trackOperation(operationName: string, duration: number): void {
     console.log(`[Performance] ${operationName}: ${duration}ms`);
-    
-    // 发送到监控系统
+
+    // Send to monitoring system
     this.sendMetrics({
       operation: operationName,
       duration,
       timestamp: Date.now()
     });
   }
-  
+
   async withTracking<T>(operationName: string, operation: () => Promise<T>): Promise<T> {
     const start = performance.now();
     try {
@@ -718,14 +718,14 @@ class PerformanceMonitor {
 }
 ```
 
-## 📚 总结
+## 📚 Summary
 
-这个统一聊天流程控制架构设计解决了现有架构的核心问题，提供了：
+This unified chat flow control architecture design solves the core problems of the existing architecture, providing:
 
-1. **清晰的架构层次** - 明确的职责分离和接口定义
-2. **完整的原子操作** - 涵盖所有聊天相关的基础操作
-3. **智能流程处理** - 支持附件处理和审批管理
-4. **强大的错误处理** - 事务管理和错误恢复机制
-5. **可扩展的设计** - 易于添加新功能和优化
+1. **Clear architecture layers** - Clear separation of responsibilities and interface definitions
+2. **Complete atomic operations** - Cover all chat-related basic operations
+3. **Smart flow processing** - Support attachment processing and approval management
+4. **Powerful error handling** - Transaction management and error recovery mechanism
+5. **Extensible design** - Easy to add new features and optimizations
 
-通过这个新架构，开发团队将获得更高的开发效率、更好的代码质量和更强的系统可维护性。
+Through this new architecture, the development team will achieve higher development efficiency, better code quality, and stronger system maintainability.

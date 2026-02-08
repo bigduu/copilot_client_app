@@ -1,56 +1,56 @@
-# 工具文档
+# Tools Documentation
 
-本目录包含项目工具相关的文档和使用指南。
+This directory contains documentation and usage guides for project tools.
 
-## 📋 当前可用工具
+## 📋 Currently Available Tools
 
-### 文件操作工具 (5个)
-- **create_file**: 创建新文件
-- **read_file**: 读取文件内容
-- **update_file**: 更新文件内容
-- **append_file**: 向文件追加内容
-- **delete_file**: 删除文件
+### File Operation Tools (5)
+- **create_file**: Create a new file
+- **read_file**: Read file content
+- **update_file**: Update file content
+- **append_file**: Append content to a file
+- **delete_file**: Delete a file
 
-### 命令执行工具 (1个)
-- **execute_command**: 执行shell命令
+### Command Execution Tools (1)
+- **execute_command**: Execute shell commands
 
-### 搜索工具 (1个)
-- **search**: 文件和内容搜索
+### Search Tools (1)
+- **search**: File and content search
 
-## 📋 文档列表
+## 📋 Document List
 
-- [`MERMAID_EXAMPLES.md`](./MERMAID_EXAMPLES.md) - Mermaid 图表使用示例和最佳实践
+- [`MERMAID_EXAMPLES.md`](./MERMAID_EXAMPLES.md) - Mermaid diagram usage examples and best practices
 
-## 🔧 工具使用指南
+## 🔧 Tool Usage Guide
 
-### 通过 General Assistant 使用工具
-General Assistant 类别拥有所有8个工具的访问权限，可以根据用户需求自动选择和调用相应的工具。
+### Using Tools via General Assistant
+The General Assistant category has access to all 8 tools and can automatically select and invoke the appropriate tools based on user requirements.
 
-### 工具调用流程
-1. **用户请求**: 用户描述需要完成的任务
-2. **AI分析**: General Assistant 分析任务并选择合适的工具
-3. **参数解析**: AI 解析用户请求并生成工具参数
-4. **工具执行**: 系统执行相应的工具
-5. **结果返回**: 将执行结果返回给用户
+### Tool Invocation Flow
+1. **User Request**: User describes the task to be completed
+2. **AI Analysis**: General Assistant analyzes the task and selects the appropriate tool
+3. **Parameter Parsing**: AI parses the user request and generates tool parameters
+4. **Tool Execution**: The system executes the corresponding tool
+5. **Result Return**: The execution result is returned to the user
 
-### 最佳实践
-- **明确描述**: 清楚描述要完成的任务
-- **提供上下文**: 提供必要的文件路径或命令上下文
-- **验证结果**: 检查工具执行的结果是否符合预期
+### Best Practices
+- **Clear Description**: Clearly describe the task to be completed
+- **Provide Context**: Provide necessary file paths or command context
+- **Verify Results**: Check whether the tool execution results meet expectations
 
-## 🛠️ 文档分类
+## 🛠️ Document Categories
 
-- **工具指南**: 具体工具的使用方法和最佳实践
-- **配置文档**: 工具配置的详细说明和优化方案
-- **迁移文档**: 工具升级和迁移的操作指南
+- **Tool Guides**: Usage methods and best practices for specific tools
+- **Configuration Documents**: Detailed instructions and optimization plans for tool configuration
+- **Migration Documents**: Operation guides for tool upgrades and migrations
 
-## 🔧 工具范围
+## 🔧 Tool Scope
 
-涵盖项目中使用的各类工具：
-- 图表生成工具 (Mermaid)
-- 构建和配置工具
-- 开发辅助工具
+Covers various tools used in the project:
+- Diagram generation tools (Mermaid)
+- Build and configuration tools
+- Development auxiliary tools
 
-## 🔄 维护
+## 🔄 Maintenance
 
-工具文档应随着工具版本更新和项目需求变化及时维护，确保指南的准确性和实用性。
+Tool documentation should be maintained in a timely manner as tool versions are updated and project requirements change to ensure the accuracy and practicality of the guides.

@@ -1,244 +1,244 @@
-# 前端硬编码彻底清理报告
+# Frontend Hardcode Complete Cleanup Report
 
-## 执行概述
+## Execution Overview
 
-本次清理彻底移除了前端所有硬编码，严格实现"前端零硬编码"原则。所有配置信息现在必须从后端获取，前端不提供任何默认回退值。
+This cleanup completely removed all hardcodes from the frontend, strictly implementing the "Zero Hardcode in Frontend" principle. All configuration information must now be obtained from the backend; the frontend provides no default fallback values.
 
-## 清理的硬编码类型
+## Types of Hardcodes Cleaned
 
-### 1. 系统提示词相关硬编码
+### 1. System Prompt Related Hardcodes
 
 #### SystemPromptService.ts
-- ❌ 移除：`"general-assistant"` 默认预设ID硬编码（第59、63行）
-- ❌ 移除：`getDefaultPresets()` 完整默认配置方法（第104-157行）
-- ❌ 移除：所有类别ID硬编码：`"general_assistant"`, `"file_operations"`, `"command_execution"`
-- ❌ 移除：所有工具名称硬编码：`"read_file"`, `"create_file"`, `"update_file"`, `"delete_file"`, `"search_files"`, `"execute_command"`
-- ✅ 实现：严格错误处理，缺少配置时抛出错误而非使用默认值
+- ❌ Removed: `"general-assistant"` default preset ID hardcode (lines 59, 63)
+- ❌ Removed: `getDefaultPresets()` complete default configuration method (lines 104-157)
+- ❌ Removed: All category ID hardcodes: `"general_assistant"`, `"file_operations"`, `"command_execution"`
+- ❌ Removed: All tool name hardcodes: `"read_file"`, `"create_file"`, `"update_file"`, `"delete_file"`, `"search_files"`, `"execute_command"`
+- ✅ Implemented: Strict error handling, throwing errors when configuration is missing instead of using default values
 
 #### SystemPromptSelector/index.tsx
-- ❌ 移除：`"general_assistant"` 默认类别回退
-- ❌ 移除：硬编码的类别排序优先级
+- ❌ Removed: `"general_assistant"` default category fallback
+- ❌ Removed: Hardcoded category sorting priority
 
-### 2. 聊天和工具类别相关硬编码
+### 2. Chat and Tool Category Related Hardcodes
 
 #### chatUtils.ts
-- ❌ 移除：`"general_assistant"` 默认类别回退
-- ❌ 移除：`getCategoryDisplayInfo()` 中所有硬编码的类别信息：
-  - 类别名称映射
-  - 图标映射
-  - 颜色映射
-  - 描述信息
-- ❌ 移除：`getCategoryWeight()` 中硬编码的排序权重
-- ✅ 实现：严格模式 - 必须从后端动态获取配置
+- ❌ Removed: `"general_assistant"` default category fallback
+- ❌ Removed: All hardcoded category information in `getCategoryDisplayInfo()`:
+  - Category name mappings
+  - Icon mappings
+  - Color mappings
+  - Description information
+- ❌ Removed: Hardcoded sorting weights in `getCategoryWeight()`
+- ✅ Implemented: Strict mode - must dynamically obtain configuration from backend
 
 #### ChatSidebar/index.tsx
-- ❌ 移除：`"general_assistant"` 默认类别回退
+- ❌ Removed: `"general_assistant"` default category fallback
 
-### 3. 工具配置相关硬编码
+### 3. Tool Configuration Related Hardcodes
 
 #### types/toolConfig.ts
-- ❌ 移除：`getCategoryDisplayName()` 中的默认名称映射
-- ❌ 移除：`inferCategoryFromToolName()` 中的类别推断逻辑
-- ✅ 实现：完全依赖后端提供分类信息
+- ❌ Removed: Default name mapping in `getCategoryDisplayName()`
+- ❌ Removed: Category inference logic in `inferCategoryFromToolName()`
+- ✅ Implemented: Completely rely on backend for classification information
 
-### 4. 系统提示词和模型相关硬编码
+### 4. System Prompt and Model Related Hardcodes
 
 #### hooks/useMessages.ts
-- ❌ 移除：`DEFAULT_MESSAGE` 默认回退
-- ✅ 实现：系统提示词缺失时抛出错误
+- ❌ Removed: `DEFAULT_MESSAGE` default fallback
+- ✅ Implemented: Throw error when system prompt is missing
 
 #### hooks/useChats.ts
-- ❌ 移除：`DEFAULT_MESSAGE` 和 `FALLBACK_MODEL_IN_CHATS` 默认回退
-- ✅ 实现：配置缺失时抛出错误
+- ❌ Removed: `DEFAULT_MESSAGE` and `FALLBACK_MODEL_IN_CHATS` default fallbacks
+- ✅ Implemented: Throw error when configuration is missing
 
 #### hooks/useModels.ts
-- ❌ 移除：`FALLBACK_MODEL` 硬编码回退
-- ✅ 实现：没有可用模型时抛出错误
+- ❌ Removed: `FALLBACK_MODEL` hardcoded fallback
+- ✅ Implemented: Throw error when no available models
 
 #### services/ChatService.ts
-- ❌ 移除：`DEFAULT_MESSAGE` 和 `FALLBACK_MODEL_IN_CHATS` 默认回退
-- ✅ 实现：配置缺失时抛出错误
+- ❌ Removed: `DEFAULT_MESSAGE` and `FALLBACK_MODEL_IN_CHATS` default fallbacks
+- ✅ Implemented: Throw error when configuration is missing
 
 #### components/SystemMessage/index.tsx
-- ❌ 移除：`DEFAULT_MESSAGE` 默认回退
-- ✅ 实现：系统提示词缺失时抛出错误
+- ❌ Removed: `DEFAULT_MESSAGE` default fallback
+- ✅ Implemented: Throw error when system prompt is missing
 
 #### components/SystemSettingsModal/index.tsx
-- ❌ 移除：`"gpt-4o"` 硬编码回退模型
-- ✅ 实现：模型缺失时抛出错误
+- ❌ Removed: `"gpt-4o"` hardcoded fallback model
+- ✅ Implemented: Throw error when model is missing
 
-### 5. 工具名称硬编码
+### 5. Tool Name Hardcodes
 
 #### services/ToolService.ts
-- 🔍 发现：`"execute_command"`, `"create_file"`, `"read_file"`, `"delete_file"` 硬编码
-- ⚠️ 保留：这些是工具调用处理逻辑，属于业务逻辑而非配置
+- 🔍 Found: `"execute_command"`, `"create_file"`, `"read_file"`, `"delete_file"` hardcodes
+- ⚠️ Retained: These are tool call processing logic, belonging to business logic rather than configuration
 
-## 后端需要添加的字段
+## Backend Fields Required
 
-基于前端清理结果，后端需要提供以下完整配置：
+Based on frontend cleanup results, backend needs to provide the following complete configurations:
 
-### 1. 系统提示词配置 API
+### 1. System Prompt Configuration API
 ```
 GET /api/system-prompts
 ```
-必须包含：
-- `id`: 预设ID
-- `name`: 显示名称
-- `content`: 提示词内容
-- `description`: 描述
-- `category`: 类别ID
-- `mode`: 模式（general/tool_specific）
-- `autoToolPrefix`: 自动工具前缀
-- `allowedTools`: 允许的工具列表
-- `restrictConversation`: 是否限制对话
+Must include:
+- `id`: Preset ID
+- `name`: Display name
+- `content`: Prompt content
+- `description`: Description
+- `category`: Category ID
+- `mode`: Mode (general/tool_specific)
+- `autoToolPrefix`: Auto tool prefix
+- `allowedTools`: List of allowed tools
+- `restrictConversation`: Whether to restrict conversation
 
-### 2. 工具类别配置 API
+### 2. Tool Category Configuration API
 ```
 GET /api/tool-categories
 ```
-必须包含：
-- `id`: 类别ID
-- `name`: 显示名称
-- `icon`: 图标
-- `description`: 描述
-- `color`: 颜色
-- `weight`: 排序权重
-- `system_prompt`: 系统提示词
-- `restrict_conversation`: 是否限制对话
-- `auto_prefix`: 自动前缀
-- `tools`: 工具列表
+Must include:
+- `id`: Category ID
+- `name`: Display name
+- `icon`: Icon
+- `description`: Description
+- `color`: Color
+- `weight`: Sorting weight
+- `system_prompt`: System prompt
+- `restrict_conversation`: Whether to restrict conversation
+- `auto_prefix`: Auto prefix
+- `tools`: Tool list
 
-### 3. 默认配置 API
+### 3. Default Configuration API
 ```
 GET /api/default-configs
 ```
-必须包含：
-- `defaultSystemPrompt`: 默认系统提示词
-- `defaultSelectedPresetId`: 默认选中的预设ID
-- `defaultModel`: 默认模型
+Must include:
+- `defaultSystemPrompt`: Default system prompt
+- `defaultSelectedPresetId`: Default selected preset ID
+- `defaultModel`: Default model
 
-### 4. 工具分类配置
-- 所有工具必须在后端明确分类
-- 不再依赖前端的关键词匹配推断
+### 4. Tool Classification Configuration
+- All tools must be explicitly classified in backend
+- No longer rely on frontend keyword matching inference
 
-## 严格模式实现
+## Strict Mode Implementation
 
-### 错误处理策略
+### Error Handling Strategy
 ```typescript
-// ❌ 错误的硬编码回退
+// ❌ Wrong hardcoded fallback
 getSelectedSystemPromptPresetId(): string {
   return localStorage.getItem(KEY) || "general-assistant";
 }
 
-// ✅ 正确的严格模式
+// ✅ Correct strict mode
 getSelectedSystemPromptPresetId(): string {
   const id = localStorage.getItem(KEY);
   if (!id) {
-    throw new Error("未设置系统提示预设ID，请先配置");
+    throw new Error("System prompt preset ID not set, please configure first");
   }
   return id;
 }
 ```
 
-### 配置缺失处理
-- 前端不再提供任何默认配置
-- 所有配置缺失都抛出明确错误
-- 错误信息指导用户从后端获取配置
+### Configuration Missing Handling
+- Frontend no longer provides any default configuration
+- All configuration missing scenarios throw explicit errors
+- Error messages guide users to obtain configuration from backend
 
-## 验证结果
+## Verification Results
 
-### 前端硬编码检查清单
-- ✅ 系统提示词服务：无硬编码
-- ✅ 工具类别配置：无硬编码  
-- ✅ 聊天工具类别：无硬编码
-- ✅ 模型选择：无硬编码
-- ✅ 类别显示信息：无硬编码
-- ✅ 排序权重：无硬编码
-- ✅ 默认回退值：全部移除
+### Frontend Hardcode Checklist
+- ✅ System prompt service: No hardcodes
+- ✅ Tool category configuration: No hardcodes
+- ✅ Chat tool category: No hardcodes
+- ✅ Model selection: No hardcodes
+- ✅ Category display information: No hardcodes
+- ✅ Sorting weights: No hardcodes
+- ✅ Default fallback values: All removed
 
-### 错误处理验证
-- ✅ 配置缺失时正确抛出错误
-- ✅ 错误信息明确指导解决方案
-- ✅ 不再有静默回退到硬编码值
+### Error Handling Verification
+- ✅ Correctly throws errors when configuration is missing
+- ✅ Error messages clearly guide solutions
+- ✅ No more silent fallbacks to hardcoded values
 
-## 影响评估
+## Impact Assessment
 
-### 正面影响
-1. **完全动态配置**：所有配置从后端获取，支持热更新
-2. **一致性保证**：前后端配置完全同步
-3. **扩展性提升**：新增类别和工具无需修改前端代码
-4. **维护性改善**：配置集中管理，减少代码重复
+### Positive Impacts
+1. **Completely Dynamic Configuration**: All configurations obtained from backend, supports hot updates
+2. **Consistency Guarantee**: Frontend-backend configurations fully synchronized
+3. **Extensibility Improvement**: New categories and tools require no frontend code changes
+4. **Maintainability Improvement**: Centralized configuration management, reduced code duplication
 
-### 需要注意的变化
-1. **依赖性增强**：前端完全依赖后端配置
-2. **错误处理**：需要处理后端配置不可用的情况
-3. **初始化顺序**：必须先加载后端配置再启动应用
+### Changes to Note
+1. **Enhanced Dependency**: Frontend completely relies on backend configuration
+2. **Error Handling**: Need to handle cases where backend configuration is unavailable
+3. **Initialization Order**: Must load backend configuration before starting application
 
-## 后续建议
+## Follow-up Recommendations
 
-### 1. 后端实现优先级
-1. **高优先级**：系统提示词和工具类别配置API
-2. **中优先级**：默认配置API
-3. **低优先级**：配置热更新机制
+### 1. Backend Implementation Priority
+1. **High Priority**: System prompt and tool category configuration APIs
+2. **Medium Priority**: Default configuration API
+3. **Low Priority**: Configuration hot update mechanism
 
-### 2. 前端适配
-1. 添加配置加载状态处理
-2. 实现配置缓存机制
-3. 添加配置重新加载功能
+### 2. Frontend Adaptation
+1. Add configuration loading state handling
+2. Implement configuration caching mechanism
+3. Add configuration reload functionality
 
-### 3. 测试验证
-1. 测试所有配置缺失场景
-2. 验证错误提示的准确性
-3. 确保后端配置变更能正确反映到前端
+### 3. Test Verification
+1. Test all configuration missing scenarios
+2. Verify accuracy of error prompts
+3. Ensure backend configuration changes correctly reflect to frontend
 
-## 结论
+## Conclusion
 
-本次清理彻底实现了"前端零硬编码"目标：
-- 移除了所有类别、工具、配置相关的硬编码字符串
-- 实现了严格的错误处理机制
-- 确保所有配置信息必须从后端动态获取
-- 为完全动态配置系统奠定了基础
+This cleanup thoroughly achieved the "Zero Hardcode in Frontend" goal:
+- Removed all hardcoded strings related to categories, tools, and configurations
+- Implemented strict error handling mechanism
+- Ensured all configuration information must be dynamically obtained from backend
+- Laid the foundation for a completely dynamic configuration system
 
-前端现在完全依赖后端提供配置信息，实现了真正的配置驱动架构。
+The frontend now completely relies on backend for configuration information, achieving a true configuration-driven architecture.
 ---
 
-## 🎉 最终完成验证
+## 🎉 Final Completion Verification
 
-### 硬编码清理完成确认
-截至 2025/06/17 23:22，所有前端硬编码已完成清理：
+### Hardcode Cleanup Completion Confirmation
+As of 2025/06/17 23:22, all frontend hardcodes have been cleaned:
 
-**✅ 已清理的额外文件：**
-- `src/constants/index.ts` - **彻底清空所有硬编码常量**
-- `src/hooks/useChats.ts` - 移除 `DEFAULT_MESSAGE` 和 `FALLBACK_MODEL_IN_CHATS`
-- `src/hooks/useMessages.ts` - 移除 `DEFAULT_MESSAGE` 导入
-- `src/services/ChatService.ts` - 移除 `DEFAULT_MESSAGE` 和 `FALLBACK_MODEL_IN_CHATS`
-- `src/services/SystemPromptService.ts` - 移除 `DEFAULT_MESSAGE` 依赖
-- `src/components/SystemMessage/index.tsx` - 移除 `DEFAULT_MESSAGE` 导入
-- `src/hooks/useModels.ts` - 移除 `FALLBACK_MODEL` 硬编码
+**✅ Additional Files Cleaned:**
+- `src/constants/index.ts` - **Completely cleared all hardcoded constants**
+- `src/hooks/useChats.ts` - Removed `DEFAULT_MESSAGE` and `FALLBACK_MODEL_IN_CHATS`
+- `src/hooks/useMessages.ts` - Removed `DEFAULT_MESSAGE` import
+- `src/services/ChatService.ts` - Removed `DEFAULT_MESSAGE` and `FALLBACK_MODEL_IN_CHATS`
+- `src/services/SystemPromptService.ts` - Removed `DEFAULT_MESSAGE` dependency
+- `src/components/SystemMessage/index.tsx` - Removed `DEFAULT_MESSAGE` import
+- `src/hooks/useModels.ts` - Removed `FALLBACK_MODEL` hardcode
 
-### 验证命令执行结果
+### Verification Command Execution Results
 ```bash
-# 验证主要硬编码已清理
+# Verify main hardcodes cleaned
 $ grep -r "DEFAULT_MESSAGE\|FALLBACK_MODEL\|general_assistant\|file_operations\|command_execution" --include="*.ts" --include="*.tsx" src/ | grep -v "test"
 
-# 结果：仅剩测试/工具文件中的引用
+# Results: Only references in test/utility files remain
 src/utils/dynamicCategoryConfig.ts:    manager.getCategoryIcon('file_operations');
 src/utils/dynamicCategoryConfig.ts:    { 'file_operations': '📁', 'command_execution': '⚡' },
 src/utils/dynamicCategoryConfig.ts:    { 'file_operations': 'green', 'command_execution': 'magenta' },
 src/utils/dynamicCategoryConfig.ts:    { 'file_operations': '文件操作', 'command_execution': '命令执行' }
 src/utils/dynamicCategoryConfig.ts:    const icon = manager.getCategoryIcon('file_operations');
 src/utils/dynamicCategoryConfig.ts:    const color = manager.getCategoryColor('file_operations');
-src/utils/dynamicCategoryConfig.ts:    const name = manager.getCategoryDisplayName('file_operations');  
-src/utils/dynamicCategoryConfig.ts:    console.log('✅ file_operations 配置正常:', { icon, color, name });
+src/utils/dynamicCategoryConfig.ts:    const name = manager.getCategoryDisplayName('file_operations');
+src/utils/dynamicCategoryConfig.ts:    console.log('✅ file_operations config normal:', { icon, color, name });
 ```
 
-**✅ 清理成果：**
-- 业务代码中 `DEFAULT_MESSAGE` 完全移除
-- 业务代码中 `FALLBACK_MODEL` 完全移除
-- 所有默认回退值替换为严格错误处理
-- 前端实现 **100% 零硬编码架构**
+**✅ Cleanup Results:**
+- `DEFAULT_MESSAGE` completely removed from business code
+- `FALLBACK_MODEL` completely removed from business code
+- All default fallback values replaced with strict error handling
+- Frontend achieves **100% Zero Hardcode Architecture**
 
-### 🏆 任务完成状态
-**前端硬编码彻底清理任务：✅ 100% 完成**
+### 🏆 Task Completion Status
+**Frontend Hardcode Complete Cleanup Task: ✅ 100% Complete**
 
-所有业务逻辑文件现在完全依赖后端配置，实现了真正的"前端零硬编码"架构目标。
+All business logic files now completely rely on backend configuration, achieving the true "Zero Hardcode in Frontend" architecture goal.
