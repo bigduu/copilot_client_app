@@ -20,7 +20,6 @@ struct SkillFrontmatter {
     #[serde(default)]
     workflow_refs: Vec<String>,
     visibility: SkillVisibility,
-    enabled_by_default: bool,
     version: String,
     created_at: String,
     updated_at: String,
@@ -30,14 +29,16 @@ pub fn parse_markdown_skill(path: &Path, content: &str) -> SkillResult<SkillDefi
     let (frontmatter_raw, body) = split_frontmatter(content)?;
     let frontmatter: SkillFrontmatter = serde_yaml::from_str(&frontmatter_raw)?;
 
-    let file_stem = path
-        .file_stem()
+    // Validate that parent directory name matches skill ID
+    let dir_name = path
+        .parent()
+        .and_then(|parent| parent.file_name())
         .and_then(|segment| segment.to_str())
         .unwrap_or_default();
-    if file_stem != frontmatter.id {
+    if dir_name != frontmatter.id {
         return Err(SkillError::Validation(format!(
-            "Skill id {} does not match filename {}",
-            frontmatter.id, file_stem
+            "Skill id {} does not match directory name {}",
+            frontmatter.id, dir_name
         )));
     }
 
@@ -74,7 +75,6 @@ pub fn parse_markdown_skill(path: &Path, content: &str) -> SkillResult<SkillDefi
         tool_refs,
         workflow_refs: frontmatter.workflow_refs,
         visibility: frontmatter.visibility,
-        enabled_by_default: frontmatter.enabled_by_default,
         version: frontmatter.version,
         created_at,
         updated_at,
@@ -121,7 +121,6 @@ pub fn render_skill_markdown(skill: &SkillDefinition) -> SkillResult<String> {
         tool_refs: skill.tool_refs.clone(),
         workflow_refs: skill.workflow_refs.clone(),
         visibility: skill.visibility.clone(),
-        enabled_by_default: skill.enabled_by_default,
         version: skill.version.clone(),
         created_at: skill.created_at.to_rfc3339(),
         updated_at: skill.updated_at.to_rfc3339(),

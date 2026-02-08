@@ -10,7 +10,7 @@ use std::path::PathBuf;
 use log::info;
 use tokio::sync::RwLock;
 
-use crate::store::builtin::create_builtin_skills;
+use crate::store::builtin::{create_builtin_skills, get_builtin_scripts};
 use crate::store::parser::render_skill_markdown;
 use crate::store::storage::{
     ensure_skills_dir, load_skills_from_dir, skill_path, write_skill_file,
@@ -69,13 +69,45 @@ impl SkillStore {
                 continue;
             }
             write_skill_file(&self.config.skills_dir, &skill).await?;
+
+            // Write embedded scripts for builtin skills (e.g., skill-creator)
+            let scripts = get_builtin_scripts(&skill.id);
+            for (script_path, content) in scripts {
+                let full_path = self.config.skills_dir.join(&skill.id).join(script_path);
+                if let Some(parent) = full_path.parent() {
+                    tokio::fs::create_dir_all(parent).await?;
+                }
+                tokio::fs::write(&full_path, content).await?;
+                // Make scripts executable on Unix
+                #[cfg(unix)]
+                {
+                    use std::os::unix::fs::PermissionsExt;
+                    let mut perms = tokio::fs::metadata(&full_path).await?.permissions();
+                    perms.set_mode(0o755);
+                    tokio::fs::set_permissions(&full_path, perms).await?;
+                }
+            }
         }
 
         Ok(())
     }
 
+    /// Reload skills from disk.
+    pub async fn reload(&self) -> SkillResult<usize> {
+        info!("Reloading skills from disk...");
+        self.load().await
+    }
+
     /// List all skills with optional filtering.
-    pub async fn list_skills(&self, filter: Option<SkillFilter>) -> Vec<SkillDefinition> {
+    /// Optionally reload from disk before listing.
+    pub async fn list_skills(&self, filter: Option<SkillFilter>, refresh: bool) -> Vec<SkillDefinition> {
+        // Optionally reload from disk to pick up new/updated skills
+        if refresh {
+            if let Err(e) = self.reload().await {
+                log::warn!("Failed to reload skills: {}", e);
+            }
+        }
+
         let skills = self.skills.read().await;
 
         let mut result: Vec<SkillDefinition> = skills
@@ -153,27 +185,17 @@ impl SkillStore {
         ))
     }
 
-    /// Check if a skill is enabled.
-    pub async fn is_enabled(&self, skill_id: &str, _chat_id: Option<&str>) -> bool {
-        self.skills
-            .read()
-            .await
-            .get(skill_id)
-            .is_some_and(|skill| skill.enabled_by_default)
-    }
-
-    /// Get all enabled skills.
-    pub async fn get_enabled_skills(&self, _chat_id: Option<&str>) -> Vec<SkillDefinition> {
-        let mut enabled: Vec<SkillDefinition> = self
+    /// Get all skills.
+    pub async fn get_all_skills(&self) -> Vec<SkillDefinition> {
+        let mut skills: Vec<SkillDefinition> = self
             .skills
             .read()
             .await
             .values()
-            .filter(|skill| skill.enabled_by_default)
             .cloned()
             .collect();
-        enabled.sort_by(|left, right| left.name.cmp(&right.name));
-        enabled
+        skills.sort_by(|left, right| left.name.cmp(&right.name));
+        skills
     }
 
     pub fn skills_dir(&self) -> &PathBuf {
@@ -245,7 +267,6 @@ pub struct SkillUpdate {
     pub tool_refs: Option<Vec<String>>,
     pub workflow_refs: Option<Vec<String>>,
     pub visibility: Option<SkillVisibility>,
-    pub enabled_by_default: Option<bool>,
     pub version: Option<String>,
 }
 
@@ -294,11 +315,6 @@ impl SkillUpdate {
         self
     }
 
-    pub fn with_enabled_by_default(mut self, enabled: bool) -> Self {
-        self.enabled_by_default = Some(enabled);
-        self
-    }
-
     pub fn with_version(mut self, version: impl Into<String>) -> Self {
         self.version = Some(version.into());
         self
@@ -329,7 +345,6 @@ tool_refs:
   - read_file
 workflow_refs: []
 visibility: public
-enabled_by_default: true
 version: 1.0.0
 created_at: "2026-02-01T00:00:00Z"
 updated_at: "2026-02-01T00:00:00Z"
@@ -337,17 +352,18 @@ updated_at: "2026-02-01T00:00:00Z"
 Use this skill for testing.
 "#;
 
-        let path = skills_dir.join("test-skill.md");
-        fs::write(&path, content).await.expect("write");
+        let skill_dir = skills_dir.join("test-skill");
+        fs::create_dir_all(&skill_dir).await.expect("create skill dir");
+        let skill_file = skill_dir.join("SKILL.md");
+        fs::write(&skill_file, content).await.expect("write");
 
         let config = SkillStoreConfig { skills_dir };
         let store = SkillStore::new(config);
         store.initialize().await.expect("initialize");
 
-        let skills = store.list_skills(None).await;
+        let skills = store.list_skills(None, false).await;
         assert_eq!(skills.len(), 1);
         assert_eq!(skills[0].id, "test-skill");
-        assert!(skills[0].enabled_by_default);
     }
 
     #[tokio::test]
@@ -359,7 +375,7 @@ Use this skill for testing.
         let store = SkillStore::new(config);
         store.initialize().await.expect("initialize");
 
-        let skills = store.list_skills(None).await;
+        let skills = store.list_skills(None, false).await;
         assert!(!skills.is_empty());
     }
 }

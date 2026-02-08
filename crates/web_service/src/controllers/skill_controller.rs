@@ -27,7 +27,7 @@ struct SkillListResponse {
 struct ListSkillsQuery {
     category: Option<String>,
     search: Option<String>,
-    enabled_only: Option<bool>,
+    refresh: Option<bool>,
 }
 
 #[derive(Serialize)]
@@ -59,8 +59,8 @@ struct AvailableWorkflowsResponse {
     workflows: Vec<String>,
 }
 
-/// GET /v1/skills - List all skills
-#[get("/v1/skills")]
+/// GET /skills - List all skills
+#[get("/skills")]
 pub async fn list_skills(
     agent_state: web::Data<AgentAppState>,
     query: web::Query<ListSkillsQuery>,
@@ -72,15 +72,13 @@ pub async fn list_skills(
     if let Some(search) = query.search.clone() {
         filter = filter.with_search(search);
     }
-    if query.enabled_only.unwrap_or(false) {
-        filter = filter.enabled_only();
-    }
 
+    let refresh = query.refresh.unwrap_or(false);
     let skills = agent_state
         .skill_manager
         .as_ref()
         .store()
-        .list_skills(Some(filter))
+        .list_skills(Some(filter), refresh)
         .await;
 
     Ok(HttpResponse::Ok().json(SkillListResponse {
@@ -89,8 +87,8 @@ pub async fn list_skills(
     }))
 }
 
-/// GET /v1/skills/{id} - Get skill detail
-#[get("/v1/skills/{id}")]
+/// GET /skills/{id} - Get skill detail
+#[get("/skills/{id}")]
 pub async fn get_skill(
     agent_state: web::Data<AgentAppState>,
     path: web::Path<String>,
@@ -107,8 +105,8 @@ pub async fn get_skill(
     Ok(HttpResponse::Ok().json(skill))
 }
 
-/// GET /v1/skills/available-tools - Get available built-in tools
-#[get("/v1/skills/available-tools")]
+/// GET /skills/available-tools - Get available built-in tools
+#[get("/skills/available-tools")]
 pub async fn get_available_tools(
     _agent_state: web::Data<AgentAppState>,
 ) -> Result<HttpResponse, AppError> {
@@ -125,8 +123,8 @@ struct FilteredToolsQuery {
     chat_id: Option<String>,
 }
 
-/// GET /v1/skills/filtered-tools - Get tools filtered by enabled skills
-#[get("/v1/skills/filtered-tools")]
+/// GET /skills/filtered-tools - Get tools filtered by enabled skills
+#[get("/skills/filtered-tools")]
 pub async fn get_filtered_tools(
     agent_state: web::Data<AgentAppState>,
     query: web::Query<FilteredToolsQuery>,
@@ -180,8 +178,8 @@ pub async fn get_filtered_tools(
     Ok(HttpResponse::Ok().json(FilteredToolsResponse { tools }))
 }
 
-/// GET /v1/skills/available-workflows - Get available workflows
-#[get("/v1/skills/available-workflows")]
+/// GET /skills/available-workflows - Get available workflows
+#[get("/skills/available-workflows")]
 pub async fn get_available_workflows(
     _agent_state: web::Data<AgentAppState>,
 ) -> Result<HttpResponse, AppError> {

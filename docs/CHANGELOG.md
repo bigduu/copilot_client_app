@@ -11,12 +11,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - New agent system with autonomous tool execution and approval gates
 - Spotlight search functionality (Cmd+Shift+Space) for quick actions
 - Comprehensive documentation reorganization and cleanup
+- **Skill System v2: Folder-based skill storage with embedded resources**
+  - Skills now stored as folders (`~/.bodhi/skills/<skill-name>/SKILL.md`) instead of single files
+  - Support for skill resources: scripts, references, and assets within skill folders
+  - Recursive skill discovery - skills can be organized in subdirectories
+  - Built-in `skill-creator` skill with embedded Python scripts for skill initialization and validation
+  - Cross-platform `execute_command` tool (uses `sh -c` on Unix, `cmd /c` on Windows)
+  - `read_file` tool now supports `~` expansion for home directory paths
+  - Smart skill loading: metadata in system prompt, detailed content loaded on-demand via AI tool calls
+  - Auto-refresh skill list in System Settings UI (every 30s + on focus)
 
 ### Changed
 - Migrated from legacy copilot_client to new agent-based architecture
 - Refactored web_service and src-tauri to use new agent system
 - Unified configuration directory paths using `chat_core::paths`
 - Translated all documentation from Chinese to English
+- **Skill metadata now included in system prompt instead of full content** - reduces token usage and allows AI to intelligently select relevant skills
+- Removed `enabled_by_default` field from skills - all skills are now available by default
 
 ### Removed
 - Deprecated `copilot_client` crate (replaced by agent system)
@@ -26,6 +37,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - OpenSpec system and related files
 - Checkpoint module and Claude Code integration
 - 40+ temporary implementation and bug-fix reports (moved to CHANGELOG)
+- Skill enable/disable functionality (skills are now always available, selected contextually by AI)
 
 ### Fixed
 - Async loop handling in agent engine
@@ -35,6 +47,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - QuestionDialog aggressive polling reduced with adaptive intervals and auto-stop
 - Deleting chat/session now properly removes backend session files (`~/.bodhi/*.json` and `*.jsonl`)
 - Proxy configuration no longer auto-populates from `HTTP_PROXY`/`HTTPS_PROXY` environment variables; settings now persist correctly when cleared
+- **Skill file validation now correctly matches directory name with skill ID**
 
 ## [0.2.0] - 2025-11-05
 

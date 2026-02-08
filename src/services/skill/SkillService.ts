@@ -17,12 +17,14 @@ import type {
 export class SkillService {
   /**
    * List all skills with optional filtering
+   * @param filter - Optional filter criteria
+   * @param refresh - If true, reload skills from disk before returning
    */
-  async listSkills(filter?: SkillFilter): Promise<SkillListResponse> {
+  async listSkills(filter?: SkillFilter, refresh?: boolean): Promise<SkillListResponse> {
     const params = new URLSearchParams();
     if (filter?.category) params.append("category", filter.category);
     if (filter?.search) params.append("search", filter.search);
-    if (filter?.enabled_only) params.append("enabled_only", "true");
+    if (refresh) params.append("refresh", "true");
 
     const queryString = params.toString();
     const path = queryString ? `skills?${queryString}` : "skills";
@@ -37,26 +39,12 @@ export class SkillService {
   }
 
   /**
-   * Get tools filtered by enabled skills
+   * Get tools filtered by skills
    */
   async getFilteredTools(chatId?: string): Promise<unknown[]> {
     const params = chatId ? `?chat_id=${encodeURIComponent(chatId)}` : "";
     const data = await apiClient.get<{ tools?: unknown[] }>(`skills/filtered-tools${params}`);
     return data.tools ?? [];
-  }
-
-  /**
-   * Enable a skill
-   */
-  async enableSkill(id: string): Promise<void> {
-    await apiClient.post(`skills/${id}/enable`);
-  }
-
-  /**
-   * Disable a skill
-   */
-  async disableSkill(id: string): Promise<void> {
-    await apiClient.post(`skills/${id}/disable`);
   }
 }
 

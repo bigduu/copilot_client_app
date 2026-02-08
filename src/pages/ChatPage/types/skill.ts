@@ -14,7 +14,6 @@ export interface SkillDefinition {
   tool_refs: string[];
   workflow_refs: string[];
   visibility: SkillVisibility;
-  enabled_by_default: boolean;
   version: string;
   created_at: string;
   updated_at: string;
@@ -25,7 +24,6 @@ export interface SkillFilter {
   tags?: string[];
   search?: string;
   visibility?: SkillVisibility;
-  enabled_only?: boolean;
 }
 
 export interface SkillListResponse {

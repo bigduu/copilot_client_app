@@ -56,10 +56,6 @@ pub struct SkillDefinition {
     #[serde(default)]
     pub visibility: SkillVisibility,
 
-    /// Whether enabled by default
-    #[serde(default)]
-    pub enabled_by_default: bool,
-
     /// Semantic version
     #[serde(default = "default_version")]
     pub version: String,
@@ -95,7 +91,6 @@ impl SkillDefinition {
             tool_refs: Vec::new(),
             workflow_refs: Vec::new(),
             visibility: SkillVisibility::default(),
-            enabled_by_default: false,
             version: default_version(),
             created_at: now,
             updated_at: now,
@@ -123,12 +118,6 @@ impl SkillDefinition {
     /// Set visibility
     pub fn with_visibility(mut self, visibility: SkillVisibility) -> Self {
         self.visibility = visibility;
-        self
-    }
-
-    /// Set enabled by default
-    pub fn with_enabled_by_default(mut self, enabled: bool) -> Self {
-        self.enabled_by_default = enabled;
         self
     }
 
@@ -172,9 +161,6 @@ pub struct SkillFilter {
 
     /// Filter by visibility
     pub visibility: Option<SkillVisibility>,
-
-    /// Only enabled skills
-    pub enabled_only: bool,
 }
 
 impl SkillFilter {
@@ -198,12 +184,6 @@ impl SkillFilter {
     /// Set search query
     pub fn with_search(mut self, search: impl Into<String>) -> Self {
         self.search = Some(search.into());
-        self
-    }
-
-    /// Only enabled skills
-    pub fn enabled_only(mut self) -> Self {
-        self.enabled_only = true;
         self
     }
 
@@ -235,10 +215,6 @@ impl SkillFilter {
             if skill.visibility != *visibility {
                 return false;
             }
-        }
-
-        if self.enabled_only && !skill.enabled_by_default {
-            return false;
         }
 
         true

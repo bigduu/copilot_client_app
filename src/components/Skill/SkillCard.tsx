@@ -17,7 +17,6 @@ export const SkillCard: React.FC<SkillCardProps> = ({ skill }) => {
         <Space size={token.marginXS} wrap>
           <span>{skill.name}</span>
           {skill.category && <Tag color="blue">{skill.category}</Tag>}
-          {skill.enabled_by_default && <Tag color="green">Enabled</Tag>}
         </Space>
       }
       styles={{ body: { padding: token.paddingMD } }}

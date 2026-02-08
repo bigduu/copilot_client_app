@@ -1,21 +1,24 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
   Card,
   Input,
   List,
   Select,
-  Switch,
   message,
   Spin,
   Empty,
   Row,
   Col,
+  Button,
 } from "antd";
-import { SearchOutlined } from "@ant-design/icons";
+import { SearchOutlined, ReloadOutlined } from "@ant-design/icons";
 import { useAppStore } from "../../pages/ChatPage/store";
 import { SkillCard } from "./SkillCard";
 
 const { Option } = Select;
+
+// Refresh interval in milliseconds (30 seconds)
+const REFRESH_INTERVAL = 30000;
 
 export const SkillManager = () => {
   // State from store
@@ -32,11 +35,37 @@ export const SkillManager = () => {
   const [selectedCategory, setSelectedCategory] = useState<string | undefined>(
     undefined
   );
-  const [showEnabledOnly, setShowEnabledOnly] = useState(false);
+  const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
 
-  // Load skills on mount
+  // Load skills on mount and periodically (with refresh from disk)
   useEffect(() => {
-    loadSkills();
+    loadSkills(undefined, true);
+
+    // Set up periodic refresh
+    const intervalId = setInterval(() => {
+      loadSkills(undefined, true);
+      setLastRefresh(new Date());
+    }, REFRESH_INTERVAL);
+
+    return () => clearInterval(intervalId);
+  }, [loadSkills]);
+
+  // Refresh when window regains focus
+  useEffect(() => {
+    const handleFocus = () => {
+      loadSkills(undefined, true);
+      setLastRefresh(new Date());
+    };
+
+    window.addEventListener("focus", handleFocus);
+    return () => window.removeEventListener("focus", handleFocus);
+  }, [loadSkills]);
+
+  // Manual refresh handler
+  const handleRefresh = useCallback(async () => {
+    await loadSkills(undefined, true);
+    setLastRefresh(new Date());
+    message.success("Skills refreshed");
   }, [loadSkills]);
 
   // Show error message
@@ -68,19 +97,44 @@ export const SkillManager = () => {
       return false;
     }
 
-    // Enabled only filter
-    if (showEnabledOnly && !skill.enabled_by_default) {
-      return false;
-    }
-
     return true;
   });
 
+  // Format last refresh time
+  const formatLastRefresh = () => {
+    const now = new Date();
+    const diff = now.getTime() - lastRefresh.getTime();
+    const seconds = Math.floor(diff / 1000);
+
+    if (seconds < 5) return "just now";
+    if (seconds < 60) return `${seconds}s ago`;
+    const minutes = Math.floor(seconds / 60);
+    if (minutes < 60) return `${minutes}m ago`;
+    return lastRefresh.toLocaleTimeString();
+  };
+
   return (
     <div style={{ padding: "24px" }}>
-      <Card title="Skill Manager">
+      <Card
+        title={
+          <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+            <span>Skill Manager</span>
+            <Button
+              icon={<ReloadOutlined spin={isLoadingSkills} />}
+              onClick={handleRefresh}
+              loading={isLoadingSkills}
+              size="small"
+            >
+              Refresh
+            </Button>
+            <span style={{ fontSize: "12px", color: "#8c8c8c", marginLeft: "auto" }}>
+              Last updated: {formatLastRefresh()}
+            </span>
+          </div>
+        }
+      >
         <div style={{ marginBottom: "16px", color: "#8c8c8c" }}>
-          Skills are read-only. Edit `~/.bodhi/skills/*.md` and reload to apply changes.
+          Skills are read-only. Edit `~/.bodhi/skills/&lt;skill-name&gt;/SKILL.md` and refresh to apply changes. Auto-refresh every 30s.
         </div>
         {/* Filters */}
         <Row gutter={[16, 16]} style={{ marginBottom: "24px" }}>
@@ -108,14 +162,6 @@ export const SkillManager = () => {
               ))}
             </Select>
           </Col>
-          <Col xs={24} sm={24} md={6}>
-            <Switch
-              checked={showEnabledOnly}
-              onChange={setShowEnabledOnly}
-              checkedChildren="Enabled only"
-              unCheckedChildren="Show all"
-            />
-          </Col>
         </Row>
 
         {/* Skills Grid */}
@@ -123,9 +169,9 @@ export const SkillManager = () => {
           {filteredSkills.length === 0 ? (
             <Empty
               description={
-                searchQuery || selectedCategory || showEnabledOnly
+                searchQuery || selectedCategory
                   ? "No skills match your filters"
-                  : "No skills found. Add Markdown skills in ~/.bodhi/skills"
+                  : "No skills found. Add skill folders in ~/.bodhi/skills"
               }
             />
           ) : (
