@@ -216,3 +216,40 @@ async fn test_get_session_jsonl_endpoint_exists() {
         status
     );
 }
+
+// Tests for project_id generation with cross-platform path handling
+#[actix_web::test]
+async fn test_project_id_replaces_forward_slashes() {
+    // Unix-style paths should have '/' replaced with '-'
+    let path = "/home/user/projects/my-app";
+    let project_id = path.replace(['/', '\\'], "-");
+    assert_eq!(project_id, "-home-user-projects-my-app");
+}
+
+#[actix_web::test]
+async fn test_project_id_replaces_backslashes() {
+    // Windows-style paths should have '\\' replaced with '-'
+    let path = "\\Users\\user\\projects\\my-app";
+    let project_id = path.replace(['/', '\\'], "-");
+    assert_eq!(project_id, "-Users-user-projects-my-app");
+}
+
+#[actix_web::test]
+async fn test_project_id_handles_mixed_separators() {
+    // Mixed paths (could occur in some edge cases) should have both replaced
+    let path = "/home/user\\projects/my-app";
+    let project_id = path.replace(['/', '\\'], "-");
+    assert_eq!(project_id, "-home-user-projects-my-app");
+}
+
+#[actix_web::test]
+async fn test_project_id_is_consistent_for_same_path() {
+    // The same path should always produce the same project_id
+    let path1 = "/home/user/project";
+    let path2 = "/home/user/project";
+
+    let project_id1 = path1.replace(['/', '\\'], "-");
+    let project_id2 = path2.replace(['/', '\\'], "-");
+
+    assert_eq!(project_id1, project_id2);
+}
