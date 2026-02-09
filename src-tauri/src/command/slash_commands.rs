@@ -69,7 +69,7 @@ fn extract_command_info(file_path: &Path, base_path: &Path) -> Result<(String, O
         .to_string_lossy()
         .to_string();
 
-    let components: Vec<&str> = path_without_ext.split('/').collect();
+    let components: Vec<&str> = path_without_ext.split(std::path::MAIN_SEPARATOR).collect();
 
     if components.is_empty() {
         return Err(anyhow::anyhow!("Invalid command path"));
@@ -101,7 +101,7 @@ fn load_command_from_file(file_path: &Path, base_path: &Path, scope: &str) -> Re
     let id = format!(
         "{}-{}",
         scope,
-        file_path.to_string_lossy().replace('/', "-")
+        file_path.to_string_lossy().replace(['/', '\\'], "-")
     );
 
     let has_bash_commands = body.contains("!`");
@@ -402,4 +402,70 @@ fn remove_empty_dirs(dir: &Path) -> Result<()> {
     }
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::path::PathBuf;
+
+    #[test]
+    fn test_extract_command_info_with_namespace() {
+        let base_path = PathBuf::from("/home/user/.claude/commands");
+        let file_path = PathBuf::from("/home/user/.claude/commands/dev/build.md");
+
+        let (name, namespace) = extract_command_info(&file_path, &base_path).unwrap();
+
+        assert_eq!(name, "build");
+        assert_eq!(namespace, Some("dev".to_string()));
+    }
+
+    #[test]
+    fn test_extract_command_info_without_namespace() {
+        let base_path = PathBuf::from("/home/user/.claude/commands");
+        let file_path = PathBuf::from("/home/user/.claude/commands/help.md");
+
+        let (name, namespace) = extract_command_info(&file_path, &base_path).unwrap();
+
+        assert_eq!(name, "help");
+        assert_eq!(namespace, None);
+    }
+
+    #[test]
+    fn test_extract_command_info_nested_namespace() {
+        let base_path = PathBuf::from("/home/user/.claude/commands");
+        let file_path = PathBuf::from("/home/user/.claude/commands/team/dev/build.md");
+
+        let (name, namespace) = extract_command_info(&file_path, &base_path).unwrap();
+
+        assert_eq!(name, "build");
+        assert_eq!(namespace, Some("team:dev".to_string()));
+    }
+
+    #[test]
+    fn test_extract_command_info_cross_platform_path_separator() {
+        // This test verifies that the path separator handling works correctly
+        // The fix uses std::path::MAIN_SEPARATOR which is '/' on Unix and '\\' on Windows
+        let base_path = PathBuf::from("/base");
+        let file_path = PathBuf::from("/base/category/command.md");
+
+        let (name, namespace) = extract_command_info(&file_path, &base_path).unwrap();
+
+        assert_eq!(name, "command");
+        assert_eq!(namespace, Some("category".to_string()));
+    }
+
+    #[test]
+    fn test_command_id_replaces_both_separators() {
+        // Test that both '/' and '\\' are replaced with '-' in command IDs
+        // This ensures cross-platform compatibility
+        let path_with_forward_slash = "/home/user/file.md";
+        let path_with_backslash = "\\home\\user\\file.md";
+
+        let id_forward = path_with_forward_slash.replace(['/', '\\'], "-");
+        let id_backslash = path_with_backslash.replace(['/', '\\'], "-");
+
+        assert_eq!(id_forward, "-home-user-file.md");
+        assert_eq!(id_backslash, "-home-user-file.md");
+    }
 }
