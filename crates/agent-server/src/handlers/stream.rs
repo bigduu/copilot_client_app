@@ -72,7 +72,9 @@ pub async fn handler(
                     agent_core::AgentEvent::Complete { usage } => {
                         log::info!(
                             "[{}] Stream completed: {} events, {} tokens",
-                            session_id, event_count, usage.total_tokens
+                            session_id,
+                            event_count,
+                            usage.total_tokens
                         );
                     }
                     agent_core::AgentEvent::Error { message } => {
@@ -148,7 +150,8 @@ pub async fn handler(
 
             // Run Agent Loop
             // Note: Initial user message was already added in chat.rs handler, skip here
-            let storage: Arc<dyn agent_core::storage::Storage> = Arc::new(state_clone.storage.clone());
+            let storage: Arc<dyn agent_core::storage::Storage> =
+                Arc::new(state_clone.storage.clone());
             let result = run_agent_loop_with_config(
                 &mut session,
                 initial_message,
@@ -163,6 +166,8 @@ pub async fn handler(
                     skill_manager: Some(state_clone.skill_manager.clone()),
                     skip_initial_user_message: true, // Message already in session
                     storage: Some(storage),
+                    metrics_collector: Some(state_clone.metrics_service.collector()),
+                    model_name: Some(state_clone.model_name.clone()),
                     ..Default::default()
                 },
             )
@@ -220,6 +225,8 @@ impl Clone for AppState {
             cancel_tokens: self.cancel_tokens.clone(),
             skill_manager: self.skill_manager.clone(),
             mcp_manager: self.mcp_manager.clone(),
+            metrics_service: self.metrics_service.clone(),
+            model_name: self.model_name.clone(),
         }
     }
 }
