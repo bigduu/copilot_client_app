@@ -11,6 +11,7 @@ path = "src/lib.rs"
 agent-core = { path = "../agent-core" }
 agent-llm = { path = "../agent-llm" }
 agent-tools = { path = "../agent-tools" }
+agent-metrics = { path = "../agent-metrics" }
 agent-skill = { path = "../agent-skill" }
 
 chrono = "0.4"
@@ -23,3 +24,4 @@ uuid = { version = "1", features = ["v4"] }
 
 [dev-dependencies]
 agent-tools = { path = "../agent-tools" }
+agent-metrics = { path = "../agent-metrics" }
