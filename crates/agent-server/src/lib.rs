@@ -1,5 +1,6 @@
 pub mod handlers;
 pub mod logging;
+pub mod metrics_service;
 pub mod server;
 pub mod state;
 pub mod workflow;
@@ -10,3 +11,5 @@ pub use server::{
 };
 
 pub use workflow::{WorkflowDefinition, WorkflowLoadError, WorkflowLoader};
+
+pub use metrics_service::MetricsService;

@@ -94,6 +94,23 @@ pub async fn run_server_with_config_and_mode(
                         "/sessions/{session_id}",
                         web::delete().to(handlers::delete::handler),
                     )
+                    .route(
+                        "/metrics/summary",
+                        web::get().to(handlers::metrics::summary),
+                    )
+                    .route(
+                        "/metrics/by-model",
+                        web::get().to(handlers::metrics::by_model),
+                    )
+                    .route(
+                        "/metrics/sessions",
+                        web::get().to(handlers::metrics::sessions),
+                    )
+                    .route(
+                        "/metrics/sessions/{session_id}",
+                        web::get().to(handlers::metrics::session_detail),
+                    )
+                    .route("/metrics/daily", web::get().to(handlers::metrics::daily))
                     .route("/health", web::get().to(handlers::health::handler))
                     // MCP routes
                     .service(
@@ -102,11 +119,26 @@ pub async fn run_server_with_config_and_mode(
                             .route("/servers", web::post().to(handlers::mcp::add_server))
                             .route("/servers/{id}", web::get().to(handlers::mcp::get_server))
                             .route("/servers/{id}", web::put().to(handlers::mcp::update_server))
-                            .route("/servers/{id}", web::delete().to(handlers::mcp::delete_server))
-                            .route("/servers/{id}/connect", web::post().to(handlers::mcp::connect_server))
-                            .route("/servers/{id}/disconnect", web::post().to(handlers::mcp::disconnect_server))
-                            .route("/servers/{id}/refresh", web::post().to(handlers::mcp::refresh_tools))
-                            .route("/servers/{id}/tools", web::get().to(handlers::mcp::get_server_tools))
+                            .route(
+                                "/servers/{id}",
+                                web::delete().to(handlers::mcp::delete_server),
+                            )
+                            .route(
+                                "/servers/{id}/connect",
+                                web::post().to(handlers::mcp::connect_server),
+                            )
+                            .route(
+                                "/servers/{id}/disconnect",
+                                web::post().to(handlers::mcp::disconnect_server),
+                            )
+                            .route(
+                                "/servers/{id}/refresh",
+                                web::post().to(handlers::mcp::refresh_tools),
+                            )
+                            .route(
+                                "/servers/{id}/tools",
+                                web::get().to(handlers::mcp::get_server_tools),
+                            )
                             .route("/tools", web::get().to(handlers::mcp::list_tools)),
                     ),
             )
