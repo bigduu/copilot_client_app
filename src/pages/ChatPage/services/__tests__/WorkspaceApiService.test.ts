@@ -55,7 +55,6 @@ describe("WorkspaceApiService", () => {
             "Content-Type": "application/json",
           },
           body: JSON.stringify({ path: "/valid/workspace" }),
-          signal: expect.any(AbortSignal),
         },
       );
 
@@ -66,12 +65,16 @@ describe("WorkspaceApiService", () => {
       (fetch as any).mockResolvedValueOnce({
         ok: false,
         status: 400,
+        statusText: "Bad Request",
         text: async () => "Invalid path",
       });
 
       await expect(
         workspaceApiService.validateWorkspacePath("/invalid/path"),
-      ).rejects.toThrow("HTTP 400: Invalid path");
+      ).rejects.toMatchObject({
+        message: "API request failed: Bad Request",
+        status: 400,
+      });
     });
   });
 
@@ -128,7 +131,6 @@ describe("WorkspaceApiService", () => {
             path: "/new/workspace",
             metadata: { workspace_name: "new-workspace" },
           }),
-          signal: expect.any(AbortSignal),
         },
       );
     });
@@ -162,7 +164,6 @@ describe("WorkspaceApiService", () => {
           headers: {
             "Content-Type": "application/json",
           },
-          signal: expect.any(AbortSignal),
         },
       );
 
@@ -171,46 +172,27 @@ describe("WorkspaceApiService", () => {
   });
 
   describe("listWorkspaceFiles", () => {
-    it("should list workspace files", async () => {
-      const mockFiles = [
-        {
-          name: "src/index.ts",
-          path: "/workspace/src/index.ts",
-          is_directory: false,
-        },
-      ];
-
-      (fetch as any).mockResolvedValueOnce({
-        ok: true,
-        json: async () => mockFiles,
-        headers: new Headers({ "content-type": "application/json" }),
-      });
-
-      const result = await workspaceApiService.listWorkspaceFiles("/workspace");
-
-      expect(fetch).toHaveBeenCalledWith(
-        "http://127.0.0.1:8080/v1/workspace/files",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ path: "/workspace" }),
-          signal: expect.any(AbortSignal),
-        },
-      );
-
-      expect(result).toEqual(mockFiles);
+    it("should throw error as it is deprecated in unified service", async () => {
+      await expect(
+        workspaceApiService.listWorkspaceFiles("/workspace")
+      ).rejects.toThrow("listWorkspaceFiles is not implemented in unified WorkspaceService");
     });
   });
 
   describe("getHealthStatus", () => {
     it("should return available status when API is working", async () => {
-      (fetch as any).mockResolvedValueOnce({
-        ok: true,
-        json: async () => [],
-        headers: new Headers({ "content-type": "application/json" }),
-      });
+      // Health check calls apiClient.get twice (once for health check, once in getRecent)
+      (fetch as any)
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => [],
+          headers: new Headers({ "content-type": "application/json" }),
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => [],
+          headers: new Headers({ "content-type": "application/json" }),
+        });
 
       const status = await workspaceApiService.getHealthStatus();
 
@@ -231,10 +213,8 @@ describe("WorkspaceApiService", () => {
   });
 
   describe("custom configuration", () => {
-    it("should use custom base URL", async () => {
-      const service = useWorkspaceApiService({
-        baseUrl: "http://localhost:8080/custom/api/workspace",
-      });
+    it("should use unified apiClient with default base URL", async () => {
+      const service = useWorkspaceApiService();
 
       (fetch as any).mockResolvedValueOnce({
         ok: true,
@@ -244,19 +224,15 @@ describe("WorkspaceApiService", () => {
 
       await service.getRecentWorkspaces();
 
+      // Unified apiClient uses the global base URL with /v1 prefix
       expect(fetch).toHaveBeenCalledWith(
-        "http://localhost:8080/custom/api/workspace/recent",
+        "http://127.0.0.1:8080/v1/workspace/recent",
         expect.any(Object),
       );
     });
 
-    it("should use custom headers", async () => {
-      const service = useWorkspaceApiService({
-        headers: {
-          Authorization: "Bearer token",
-          "X-Custom-Header": "custom-value",
-        },
-      });
+    it("should use default base URL when no custom URL provided", async () => {
+      const service = useWorkspaceApiService();
 
       (fetch as any).mockResolvedValueOnce({
         ok: true,
@@ -268,15 +244,7 @@ describe("WorkspaceApiService", () => {
 
       expect(fetch).toHaveBeenCalledWith(
         "http://127.0.0.1:8080/v1/workspace/recent",
-        {
-          method: "GET",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: "Bearer token",
-            "X-Custom-Header": "custom-value",
-          },
-          signal: expect.any(AbortSignal),
-        },
+        expect.any(Object),
       );
     });
   });
