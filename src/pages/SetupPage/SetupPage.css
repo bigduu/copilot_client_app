@@ -1,0 +1,15 @@
+.setup-page {
+  min-height: 100vh;
+  background: #f0f2f5;
+  padding: 20px;
+}
+
+.setup-page__actions {
+  display: flex;
+  gap: 8px;
+}
+
+.setup-complete {
+  text-align: center;
+  padding: 100px;
+}

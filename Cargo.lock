@@ -1139,6 +1139,7 @@ dependencies = [
  "regex",
  "serde",
  "serde_json",
+ "sha2",
  "toml 0.8.23",
  "uuid",
 ]
@@ -1336,7 +1337,6 @@ dependencies = [
  "tauri-build",
  "tauri-plugin-dialog",
  "tauri-plugin-fs",
- "tauri-plugin-global-shortcut",
  "tauri-plugin-log",
  "tempfile",
  "thiserror 2.0.17",
@@ -2536,24 +2536,6 @@ name = "glob"
 version = "0.3.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0cc23270f6e1808e30a928bdc84dea0b9b4136a8bc82338574f23baf47bbd280"
-
-[[package]]
-name = "global-hotkey"
-version = "0.7.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b9247516746aa8e53411a0db9b62b0e24efbcf6a76e0ba73e5a91b512ddabed7"
-dependencies = [
- "crossbeam-channel",
- "keyboard-types",
- "objc2 0.6.3",
- "objc2-app-kit",
- "once_cell",
- "serde",
- "thiserror 2.0.17",
- "windows-sys 0.59.0",
- "x11rb",
- "xkeysym",
-]
 
 [[package]]
 name = "gobject-sys"
@@ -6213,21 +6195,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "tauri-plugin-global-shortcut"
-version = "2.3.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6df9f0f7bf2fe768b85fee4951c2505a35b72c44df1f6403e74e110bc13c5f58"
-dependencies = [
- "global-hotkey",
- "log",
- "serde",
- "serde_json",
- "tauri",
- "tauri-plugin",
- "thiserror 2.0.17",
-]
-
-[[package]]
 name = "tauri-plugin-log"
 version = "2.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -8168,12 +8135,6 @@ name = "x11rb-protocol"
 version = "0.13.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ea6fc2961e4ef194dcbfe56bb845534d0dc8098940c7e5c012a258bfec6701bd"
-
-[[package]]
-name = "xkeysym"
-version = "0.2.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b9cc00251562a284751c9973bace760d86c0276c471b4be569fe6b068ee97a56"
 
 [[package]]
 name = "yoke"

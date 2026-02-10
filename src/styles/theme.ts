@@ -26,7 +26,6 @@ export const colors = {
   bg: "var(--ant-color-bg-base)",
   bgElevated: "var(--ant-color-bg-elevated)",
   bgContainer: "var(--ant-color-bg-container)",
-  bgSpotlight: "var(--ant-color-bg-spotlight)",
 
   // Border colors
   border: "var(--ant-color-border)",

@@ -1,34 +1,39 @@
 import { Profiler, useCallback, useEffect, useState } from "react";
 import type { ProfilerOnRenderCallback } from "react";
 import { App as AntApp, ConfigProvider, theme } from "antd";
+import { invoke } from "@tauri-apps/api/core";
 import "./App.css";
 import { MainLayout } from "./MainLayout";
-import SpotlightPage from "../pages/SpotlightPage";
+import { SetupPage } from "../pages/SetupPage";
 import { useAppStore } from "../pages/ChatPage/store";
 
 const DARK_MODE_KEY = "copilot_dark_mode";
+interface SetupStatus {
+  is_complete: boolean;
+  has_proxy_config: boolean;
+  has_proxy_env: boolean;
+  message: string;
+}
 
 function App() {
   const [themeMode, setThemeMode] = useState<"light" | "dark">(() => {
     return (localStorage.getItem(DARK_MODE_KEY) as "light" | "dark") || "light";
   });
-  const [isSpotlight, setIsSpotlight] = useState(false);
+  const [isSetupComplete, setIsSetupComplete] = useState<boolean | null>(null);
   const loadSystemPrompts = useAppStore((state) => state.loadSystemPrompts);
 
-  // Detect if we're in spotlight window
   useEffect(() => {
-    const checkWindow = async () => {
+    const checkSetupStatus = async () => {
       try {
-        const { getCurrentWebviewWindow } = await import("@tauri-apps/api/webviewWindow");
-        const window = getCurrentWebviewWindow();
-        const label = await window.label;
-        setIsSpotlight(label === "spotlight");
-      } catch {
-        // Not in Tauri environment
-        setIsSpotlight(false);
+        const status = await invoke<SetupStatus>("get_setup_status");
+        setIsSetupComplete(status.is_complete);
+      } catch (error) {
+        console.error("Failed to check setup status:", error);
+        setIsSetupComplete(false);
       }
     };
-    checkWindow();
+
+    void checkSetupStatus();
   }, []);
 
   // Dev-only instrumentation to surface expensive renders during the ongoing
@@ -59,10 +64,27 @@ function App() {
     document.body.setAttribute("data-theme", themeMode);
   }, [themeMode]);
 
-  // Load prompts from backend via store on startup
   useEffect(() => {
-    loadSystemPrompts();
-  }, [loadSystemPrompts]);
+    if (isSetupComplete) {
+      loadSystemPrompts();
+    }
+  }, [isSetupComplete, loadSystemPrompts]);
+
+  if (isSetupComplete === null) {
+    return <div style={{ padding: 40, textAlign: "center" }}>Loading...</div>;
+  }
+
+  const appContent = isSetupComplete ? (
+    import.meta.env.DEV ? (
+      <Profiler id="MainLayout" onRender={handleProfilerRender}>
+        <MainLayout themeMode={themeMode} onThemeModeChange={setThemeMode} />
+      </Profiler>
+    ) : (
+      <MainLayout themeMode={themeMode} onThemeModeChange={setThemeMode} />
+    )
+  ) : (
+    <SetupPage />
+  );
 
   return (
     <ConfigProvider
@@ -76,23 +98,7 @@ function App() {
       }}
     >
       <AntApp>
-        <div style={{ position: "relative" }}>
-          {isSpotlight ? (
-            <SpotlightPage />
-          ) : import.meta.env.DEV ? (
-            <Profiler id="MainLayout" onRender={handleProfilerRender}>
-              <MainLayout
-                themeMode={themeMode}
-                onThemeModeChange={setThemeMode}
-              />
-            </Profiler>
-          ) : (
-            <MainLayout
-              themeMode={themeMode}
-              onThemeModeChange={setThemeMode}
-            />
-          )}
-        </div>
+        <div style={{ position: "relative" }}>{appContent}</div>
       </AntApp>
     </ConfigProvider>
   );

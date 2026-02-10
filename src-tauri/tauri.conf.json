@@ -23,23 +23,13 @@
         "alwaysOnTop": false,
         "skipTaskbar": false,
         "label": "main"
-      },
-      {
-        "title": "Bodhi Spotlight",
-        "width": 600,
-        "height": 80,
-        "decorations": false,
-        "transparent": false,
-        "center": true,
-        "visible": false,
-        "alwaysOnTop": true,
-        "skipTaskbar": true,
-        "label": "spotlight"
       }
     ],
     "security": {
       "csp": null,
-      "capabilities": ["default"]
+      "capabilities": [
+        "default"
+      ]
     }
   },
   "bundle": {
