@@ -1,4 +1,4 @@
-import { buildBackendUrl } from "../../../shared/utils/backendBaseUrl";
+import { apiClient, isApiError } from "../../../services/api";
 
 export interface WorkflowMetadata {
   name: string;
@@ -32,20 +32,14 @@ export class WorkflowManagerService {
   async listWorkflows(): Promise<WorkflowMetadata[]> {
     try {
       console.log("[WorkflowManagerService] Listing workflows");
-      const response = await fetch(buildBackendUrl("/bodhi/workflows"));
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      const data = await response.json();
+      const data = await apiClient.get<unknown[]>("bodhi/workflows");
       const workflows = Array.isArray(data) ? data : [];
       console.log("[WorkflowManagerService] Listed workflows:", workflows);
 
       return workflows.map((workflow: any) => ({
         name: String(workflow.name || ""),
         filename: String(
-          workflow.filename || `${workflow.name || "workflow"}.md`,
+          workflow.filename || ((workflow.name || "workflow") + ".md"),
         ),
         size: Number(workflow.size || 0),
         modified_at: workflow.modified_at,
@@ -62,28 +56,24 @@ export class WorkflowManagerService {
 
   async getWorkflow(name: string): Promise<WorkflowContent> {
     try {
-      console.log(`[WorkflowManagerService] Getting workflow: ${name}`);
-      const response = await fetch(
-        buildBackendUrl(`/bodhi/workflows/${encodeURIComponent(name)}`),
-      );
+      console.log("[WorkflowManagerService] Getting workflow: " + name);
+      const data = await apiClient.get<{
+        name?: string;
+        filename?: string;
+        size?: number;
+        modified_at?: string;
+        content?: string;
+      }>("bodhi/workflows/" + encodeURIComponent(name));
 
-      if (!response.ok) {
-        if (response.status === 404) {
-          throw new Error(`Workflow '${name}' not found`);
-        }
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      const data = await response.json();
       const resolvedName = data?.name ? String(data.name) : name;
       const metadata: WorkflowMetadata = {
         name: resolvedName,
-        filename: String(data?.filename || `${resolvedName}.md`),
+        filename: String(data?.filename || (resolvedName + ".md")),
         size: Number(data?.size || 0),
         modified_at: data?.modified_at,
         source: "global",
       };
-      console.log(`[WorkflowManagerService] Got workflow:`, data);
+      console.log("[WorkflowManagerService] Got workflow:", data);
       return {
         name: resolvedName,
         content: String(data?.content || ""),
@@ -91,9 +81,19 @@ export class WorkflowManagerService {
       };
     } catch (error) {
       console.error(
-        `[WorkflowManagerService] Failed to get workflow '${name}':`,
+        "[WorkflowManagerService] Failed to get workflow " + name + ":",
         error,
       );
+
+      // Preserve prior behavior for missing workflows after apiClient unification.
+      if (isApiError(error) && error.status === 404) {
+        throw new Error("Workflow '" + name + "' not found");
+      }
+
+      if (error instanceof Error && error.message.includes("404")) {
+        throw new Error("Workflow '" + name + "' not found");
+      }
+
       throw error;
     }
   }

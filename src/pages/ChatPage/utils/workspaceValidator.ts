@@ -3,7 +3,7 @@
  * Provides real-time validation, debouncing, and caching for workspace paths
  */
 
-import { buildBackendUrl } from "../../../shared/utils/backendBaseUrl";
+import { apiClient } from "../../../services/api";
 
 export interface WorkspaceValidationResult {
   path: string;
@@ -164,20 +164,10 @@ class WorkspaceValidator {
     retryCount = 0,
   ): Promise<WorkspaceValidationResult> {
     try {
-      const response = await fetch(buildBackendUrl("/workspace/validate"), {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ path }),
-      });
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      const result = await response.json();
-      return result as WorkspaceValidationResult;
+      return await apiClient.post<WorkspaceValidationResult>(
+        "workspace/validate",
+        { path },
+      );
     } catch (error) {
       // Retry logic
       if (
