@@ -1,4 +1,4 @@
-import { buildBackendUrl } from "../../shared/utils/backendBaseUrl";
+import { apiClient } from "../api";
 
 export type InstallScope = "global" | "project";
 export type InstallTarget = "claude_code" | "claude_router";
@@ -30,33 +30,17 @@ export type InstallEvent =
 
 export class ClaudeInstallerService {
   async getSettings(): Promise<InstallerSettings> {
-    const response = await fetch(buildBackendUrl("/claude/install/settings"));
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-    return await response.json();
+    return apiClient.get<InstallerSettings>("claude/install/settings");
   }
 
   async updateSettings(
     settings: InstallerSettings,
   ): Promise<InstallerSettings> {
-    const response = await fetch(buildBackendUrl("/claude/install/settings"), {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(settings),
-    });
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-    return await response.json();
+    return apiClient.post<InstallerSettings>("claude/install/settings", settings);
   }
 
   async detectNpm(): Promise<NpmDetectResponse> {
-    const response = await fetch(buildBackendUrl("/claude/install/npm/detect"));
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-    return await response.json();
+    return apiClient.get<NpmDetectResponse>("claude/install/npm/detect");
   }
 
   async install(
@@ -68,24 +52,15 @@ export class ClaudeInstallerService {
     },
     onEvent?: (event: InstallEvent) => void,
   ): Promise<void> {
-    const response = await fetch(
-      buildBackendUrl("/claude/install/npm/install"),
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          target,
-          scope: options.scope,
-          package: options.package,
-          project_path: options.projectPath,
-        }),
-      },
-    );
-
-    if (!response.ok) {
-      const text = await response.text();
-      throw new Error(text || `HTTP error! status: ${response.status}`);
-    }
+    const response = await apiClient.fetchRaw("claude/install/npm/install", {
+      method: "POST",
+      body: JSON.stringify({
+        target,
+        scope: options.scope,
+        package: options.package,
+        project_path: options.projectPath,
+      }),
+    });
 
     if (!response.body) {
       throw new Error("No response body");

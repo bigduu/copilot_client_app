@@ -4,7 +4,7 @@
  * HTTP client for communicating with local copilot-agent endpoints
  * Handles SSE streaming and AgentEvent processing
  */
-import { getBackendBaseUrl } from "../../shared/utils/backendBaseUrl";
+import { agentApiClient } from "../api";
 
 // Agent Event Types (matching Rust backend)
 export type AgentEventType =
@@ -86,21 +86,11 @@ export interface AgentEventHandlers {
  * Agent Client - HTTP client for copilot-agent-server
  */
 export class AgentClient {
-  private baseUrl: string;
   private static instance: AgentClient;
 
-  constructor(baseUrl = AgentClient.resolveBaseUrl()) {
-    this.baseUrl = baseUrl;
-  }
-
-  private static resolveBaseUrl(): string {
-    const normalized = getBackendBaseUrl().trim().replace(/\/+$/, "");
-    return normalized.endsWith("/v1") ? normalized.slice(0, -3) : normalized;
-  }
-
-  static getInstance(baseUrl?: string): AgentClient {
+  static getInstance(): AgentClient {
     if (!AgentClient.instance) {
-      AgentClient.instance = new AgentClient(baseUrl);
+      AgentClient.instance = new AgentClient();
     }
     return AgentClient.instance;
   }
@@ -109,17 +99,7 @@ export class AgentClient {
    * Send a chat message and get session ID
    */
   async sendMessage(request: ChatRequest): Promise<ChatResponse> {
-    const response = await fetch(`${this.baseUrl}/api/v1/chat`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(request),
-    });
-
-    if (!response.ok) {
-      throw new Error(`Failed to send message: ${response.statusText}`);
-    }
-
-    return response.json();
+    return agentApiClient.post<ChatResponse>("chat", request);
   }
 
   /**
@@ -131,7 +111,7 @@ export class AgentClient {
     abortController?: AbortController,
   ): Promise<void> {
     const signal = abortController?.signal;
-    const response = await fetch(`${this.baseUrl}/api/v1/stream/${sessionId}`, {
+    const response = await agentApiClient.fetchRaw(`stream/${sessionId}`, {
       signal,
     });
 
@@ -223,13 +203,7 @@ export class AgentClient {
    * Stop generation for a session
    */
   async stopGeneration(sessionId: string): Promise<void> {
-    const response = await fetch(`${this.baseUrl}/api/v1/stop/${sessionId}`, {
-      method: "POST",
-    });
-
-    if (!response.ok) {
-      throw new Error(`Failed to stop generation: ${response.statusText}`);
-    }
+    await agentApiClient.post(`stop/${sessionId}`);
   }
 
   /**
@@ -237,29 +211,14 @@ export class AgentClient {
    */
   async deleteSession(sessionId: string): Promise<void> {
     const encodedSessionId = encodeURIComponent(sessionId);
-    const response = await fetch(
-      `${this.baseUrl}/api/v1/sessions/${encodedSessionId}`,
-      {
-        method: "DELETE",
-      },
-    );
-
-    if (!response.ok) {
-      throw new Error(`Failed to delete session: ${response.statusText}`);
-    }
+    await agentApiClient.delete(`sessions/${encodedSessionId}`);
   }
 
   /**
    * Get chat history
    */
   async getHistory(sessionId: string): Promise<HistoryResponse> {
-    const response = await fetch(`${this.baseUrl}/api/v1/history/${sessionId}`);
-
-    if (!response.ok) {
-      throw new Error(`Failed to get history: ${response.statusText}`);
-    }
-
-    return response.json();
+    return agentApiClient.get<HistoryResponse>(`history/${sessionId}`);
   }
 
   /**
@@ -267,8 +226,8 @@ export class AgentClient {
    */
   async healthCheck(): Promise<boolean> {
     try {
-      const response = await fetch(`${this.baseUrl}/api/v1/health`);
-      return response.ok;
+      await agentApiClient.get("health");
+      return true;
     } catch {
       return false;
     }

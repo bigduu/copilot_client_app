@@ -1,5 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
-import { buildBackendUrl } from "../../shared/utils/backendBaseUrl";
+import { apiClient } from "../api";
 
 export interface UtilityService {
   /**
@@ -31,11 +31,7 @@ export interface UtilityService {
 class HttpUtilityService implements Partial<UtilityService> {
   async getBodhiConfig(): Promise<any> {
     try {
-      const response = await fetch(buildBackendUrl("/bodhi/config"));
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-      return await response.json();
+      return await apiClient.get("bodhi/config");
     } catch (error) {
       console.error("Failed to fetch Bodhi config:", error);
       return {};
@@ -43,41 +39,11 @@ class HttpUtilityService implements Partial<UtilityService> {
   }
 
   async setBodhiConfig(config: any): Promise<any> {
-    try {
-      const response = await fetch(buildBackendUrl("/bodhi/config"), {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(config),
-      });
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-      return await response.json();
-    } catch (error) {
-      console.error("Failed to set Bodhi config:", error);
-      throw error;
-    }
+    return apiClient.post("bodhi/config", config);
   }
 
   async setProxyAuth(auth: { username: string; password: string }): Promise<any> {
-    try {
-      const response = await fetch(buildBackendUrl("/bodhi/proxy-auth"), {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(auth),
-      });
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-      return await response.json();
-    } catch (error) {
-      console.error("Failed to set proxy auth:", error);
-      throw error;
-    }
+    return apiClient.post("bodhi/proxy-auth", auth);
   }
 }
 
