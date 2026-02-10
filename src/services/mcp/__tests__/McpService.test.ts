@@ -46,7 +46,7 @@ describe("mcpService", () => {
     const servers = await mcpService.getServers();
 
     expect(global.fetch).toHaveBeenCalledWith(
-      "http://127.0.0.1:8080/v1/mcp/servers",
+      "http://127.0.0.1:8080/api/v1/mcp/servers",
       expect.objectContaining({ method: "GET" }),
     );
     expect(servers).toHaveLength(1);
@@ -78,7 +78,7 @@ describe("mcpService", () => {
 
     expect(global.fetch).toHaveBeenNthCalledWith(
       1,
-      "http://127.0.0.1:8080/v1/mcp/servers",
+      "http://127.0.0.1:8080/api/v1/mcp/servers",
       expect.objectContaining({
         method: "POST",
         body: JSON.stringify(SAMPLE_CONFIG),
@@ -87,7 +87,7 @@ describe("mcpService", () => {
 
     expect(global.fetch).toHaveBeenNthCalledWith(
       2,
-      "http://127.0.0.1:8080/v1/mcp/servers/filesystem",
+      "http://127.0.0.1:8080/api/v1/mcp/servers/filesystem",
       expect.objectContaining({ method: "PUT" }),
     );
   });
@@ -121,12 +121,12 @@ describe("mcpService", () => {
 
     expect(global.fetch).toHaveBeenNthCalledWith(
       1,
-      "http://127.0.0.1:8080/v1/mcp/servers/filesystem/tools",
+      "http://127.0.0.1:8080/api/v1/mcp/servers/filesystem/tools",
       expect.objectContaining({ method: "GET" }),
     );
     expect(global.fetch).toHaveBeenNthCalledWith(
       2,
-      "http://127.0.0.1:8080/v1/mcp/tools",
+      "http://127.0.0.1:8080/api/v1/mcp/tools",
       expect.objectContaining({ method: "GET" }),
     );
   });

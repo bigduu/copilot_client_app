@@ -92,3 +92,24 @@ export type {
   WorkspaceValidationResult,
   WorkspaceInfo,
 } from "./workspace";
+
+
+// Metrics Service
+export { MetricsService, metricsService } from "./metrics";
+export type {
+  DailyMetrics,
+  MetricsDailyQuery,
+  MetricsDateRange,
+  MetricsGranularity,
+  MetricsSessionQuery,
+  MetricsSummary,
+  ModelMetrics,
+  PeriodMetrics,
+  RoundMetrics,
+  RoundStatus,
+  SessionDetail,
+  SessionMetrics,
+  SessionStatus,
+  TokenUsage,
+  ToolCallMetrics,
+} from "./metrics";

@@ -3,6 +3,10 @@
  *
  * Provides a consistent interface for making HTTP requests to the backend API.
  * Eliminates duplicate fetch logic across services.
+ *
+ * Backend has two route prefixes:
+ * - /v1/*       - Standard web_service routes (models, bodhi/*, workspace/*, mcp/*, claude/*)
+ * - /api/v1/*   - Agent server routes (chat, stream, todo, respond, sessions, metrics)
  */
 import { getBackendBaseUrl } from "../../shared/utils/backendBaseUrl";
 
@@ -16,11 +20,15 @@ export class ApiError extends Error {
     message: string,
     public status: number,
     public statusText: string,
-    public body?: string
+    public body?: string,
   ) {
     super(message);
     this.name = "ApiError";
   }
+}
+
+export function isApiError(error: unknown): error is ApiError {
+  return error instanceof ApiError;
 }
 
 export class ApiClient {
@@ -35,8 +43,14 @@ export class ApiClient {
   }
 
   private resolveBaseUrl(): string {
-    const normalized = getBackendBaseUrl().trim().replace(/\/+$/, "");
-    return normalized.endsWith("/v1") ? normalized : `${normalized}/v1`;
+    let normalized = getBackendBaseUrl().trim().replace(/\/+$/, "");
+
+    // Default to /v1 (standard web_service routes)
+    if (normalized.endsWith("/v1")) {
+      return normalized;
+    }
+
+    return `${normalized}/v1`;
   }
 
   private buildUrl(path: string): string {
@@ -51,7 +65,7 @@ export class ApiClient {
         `API request failed: ${response.statusText}`,
         response.status,
         response.statusText,
-        body
+        body,
       );
     }
 
@@ -60,6 +74,18 @@ export class ApiClient {
       return undefined as T;
     }
 
+    // Check content type to determine how to parse response
+    const contentType = response.headers?.get?.("content-type") || "";
+    if (contentType.includes("application/json")) {
+      return response.json();
+    }
+
+    // For non-JSON responses (like health check returning "OK")
+    // Use text() if available, otherwise fall back to json() for test mocks
+    if (typeof response.text === "function") {
+      const text = await response.text();
+      return text as T;
+    }
     return response.json();
   }
 
@@ -82,7 +108,11 @@ export class ApiClient {
   /**
    * Make a POST request
    */
-  async post<T>(path: string, data?: unknown, options?: RequestInit): Promise<T> {
+  async post<T>(
+    path: string,
+    data?: unknown,
+    options?: RequestInit,
+  ): Promise<T> {
     const url = this.buildUrl(path);
     const response = await fetch(url, {
       ...options,
@@ -99,7 +129,11 @@ export class ApiClient {
   /**
    * Make a PUT request
    */
-  async put<T>(path: string, data?: unknown, options?: RequestInit): Promise<T> {
+  async put<T>(
+    path: string,
+    data?: unknown,
+    options?: RequestInit,
+  ): Promise<T> {
     const url = this.buildUrl(path);
     const response = await fetch(url, {
       ...options,
@@ -132,7 +166,11 @@ export class ApiClient {
   /**
    * Make a request with custom method
    */
-  async request<T>(method: string, path: string, options?: RequestInit): Promise<T> {
+  async request<T>(
+    method: string,
+    path: string,
+    options?: RequestInit,
+  ): Promise<T> {
     const url = this.buildUrl(path);
     const response = await fetch(url, {
       ...options,
@@ -162,7 +200,7 @@ export class ApiClient {
       throw new ApiError(
         `API request failed: ${response.statusText}`,
         response.status,
-        response.statusText
+        response.statusText,
       );
     }
 
@@ -170,5 +208,24 @@ export class ApiClient {
   }
 }
 
-// Export singleton instance
+// Export singleton instance for standard API (/v1)
 export const apiClient = new ApiClient();
+
+/**
+ * Agent API Client for /api/v1 routes
+ *
+ * Used for agent-specific endpoints:
+ * - chat, stream, stop, history
+ * - todo, respond, sessions
+ * - metrics, health
+ */
+export const agentApiClient = new ApiClient({
+  baseUrl: (() => {
+    let normalized = getBackendBaseUrl().trim().replace(/\/+$/, "");
+    // Remove /v1 suffix if present, then add /api/v1
+    if (normalized.endsWith("/v1")) {
+      normalized = normalized.slice(0, -3);
+    }
+    return `${normalized}/api/v1`;
+  })(),
+});

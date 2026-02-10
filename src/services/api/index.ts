@@ -4,7 +4,7 @@
  * Centralized HTTP client for all backend API communication.
  */
 
-export { ApiClient, apiClient } from "./client";
+export { ApiClient, apiClient, agentApiClient } from "./client";
 export type { ApiClientConfig } from "./client";
 
 export { ApiError, isApiError, getErrorMessage, withFallback } from "./errors";
