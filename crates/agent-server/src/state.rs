@@ -1,3 +1,4 @@
+use crate::metrics_service::MetricsService;
 use agent_core::tools::ToolExecutor;
 use agent_core::{storage::JsonlStorage, AgentEvent, Session};
 use agent_llm::OpenAIProvider;
@@ -22,6 +23,8 @@ pub struct AppState {
     pub cancel_tokens: Arc<RwLock<HashMap<String, tokio_util::sync::CancellationToken>>>,
     pub skill_manager: Arc<SkillManager>,
     pub mcp_manager: Arc<McpServerManager>,
+    pub metrics_service: Arc<MetricsService>,
+    pub model_name: String,
 }
 
 impl AppState {
@@ -112,7 +115,7 @@ impl AppState {
                 Arc::new(
                     OpenAIProvider::new(api_key)
                         .with_base_url(llm_base_url)
-                        .with_model(model),
+                        .with_model(model.clone()),
                 )
             }
         };
@@ -142,6 +145,15 @@ impl AppState {
             log::warn!("Failed to initialize skill manager: {}", error);
         }
 
+        let metrics_service = Arc::new(
+            MetricsService::new(data_dir.join("metrics.db"))
+                .await
+                .unwrap_or_else(|error| {
+                    log::error!("Failed to initialize metrics storage: {}", error);
+                    panic!("Failed to init metrics storage: {}", error);
+                }),
+        );
+
         Self {
             sessions: Arc::new(RwLock::new(HashMap::new())),
             storage,
@@ -150,6 +162,8 @@ impl AppState {
             cancel_tokens: Arc::new(RwLock::new(HashMap::new())),
             skill_manager,
             mcp_manager,
+            metrics_service,
+            model_name: model,
         }
     }
 
@@ -218,23 +232,24 @@ async fn load_mcp_config(app_data_root: &PathBuf) -> agent_mcp::McpConfig {
     let config_path = app_data_root.join("mcp.json");
 
     if !config_path.exists() {
-        log::info!("No MCP config file found at {:?}, using default", config_path);
+        log::info!(
+            "No MCP config file found at {:?}, using default",
+            config_path
+        );
         return agent_mcp::McpConfig::default();
     }
 
     match tokio::fs::read_to_string(&config_path).await {
-        Ok(content) => {
-            match serde_json::from_str::<agent_mcp::McpConfig>(&content) {
-                Ok(config) => {
-                    log::info!("Loaded MCP config with {} servers", config.servers.len());
-                    config
-                }
-                Err(e) => {
-                    log::error!("Failed to parse MCP config: {}", e);
-                    agent_mcp::McpConfig::default()
-                }
+        Ok(content) => match serde_json::from_str::<agent_mcp::McpConfig>(&content) {
+            Ok(config) => {
+                log::info!("Loaded MCP config with {} servers", config.servers.len());
+                config
             }
-        }
+            Err(e) => {
+                log::error!("Failed to parse MCP config: {}", e);
+                agent_mcp::McpConfig::default()
+            }
+        },
         Err(e) => {
             log::error!("Failed to read MCP config: {}", e);
             agent_mcp::McpConfig::default()
