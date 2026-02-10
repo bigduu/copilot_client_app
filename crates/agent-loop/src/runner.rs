@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use chrono::Utc;
 use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
 
@@ -10,6 +11,10 @@ use agent_core::tools::{
 };
 use agent_core::{AgentError, AgentEvent, Message, Session};
 use agent_llm::LLMProvider;
+use agent_metrics::{
+    MetricsCollector, RoundStatus as MetricsRoundStatus, SessionStatus as MetricsSessionStatus,
+    TokenUsage as MetricsTokenUsage,
+};
 use agent_tools::guide::{context::GuideBuildContext, EnhancedPromptBuilder};
 
 use crate::config::AgentLoopConfig;
@@ -28,6 +33,20 @@ pub async fn run_agent_loop_with_config(
 ) -> Result<()> {
     let debug_logger = DebugLogger::new(log::log_enabled!(log::Level::Debug));
     let session_id = session.id.clone();
+    let metrics_collector = config.metrics_collector.clone();
+    let model_name = config
+        .model_name
+        .clone()
+        .unwrap_or_else(|| "unknown".to_string());
+
+    if let Some(metrics) = metrics_collector.as_ref() {
+        metrics.session_started(session_id.clone(), model_name.clone(), session.created_at);
+        metrics.session_message_count(
+            session_id.clone(),
+            session.messages.len() as u32,
+            Utc::now(),
+        );
+    }
 
     log::debug!(
         "[{}] Starting agent loop with message: {}",
@@ -49,7 +68,11 @@ pub async fn run_agent_loop_with_config(
             .build_skill_context(Some(session.id.as_str()))
             .await;
         if !context.is_empty() {
-            log::info!("[{}] Skill context loaded, length: {} chars", session_id, context.len());
+            log::info!(
+                "[{}] Skill context loaded, length: {} chars",
+                session_id,
+                context.len()
+            );
             log::debug!("[{}] Skill context content:\n{}", session_id, context);
         } else {
             log::info!("[{}] No skill context loaded (empty)", session_id);
@@ -79,7 +102,11 @@ pub async fn run_agent_loop_with_config(
         &tool_schemas,
         &guide_context,
     );
-    log::info!("[{}] Tool guide context built, length: {} chars", session_id, tool_guide_context.len());
+    log::info!(
+        "[{}] Tool guide context built, length: {} chars",
+        session_id,
+        tool_guide_context.len()
+    );
 
     if let Some(system_message) = session
         .messages
@@ -103,6 +130,13 @@ pub async fn run_agent_loop_with_config(
 
     if !config.skip_initial_user_message {
         session.add_message(Message::user(initial_message.clone()));
+        if let Some(metrics) = metrics_collector.as_ref() {
+            metrics.session_message_count(
+                session_id.clone(),
+                session.messages.len() as u32,
+                Utc::now(),
+            );
+        }
     }
 
     let mut sent_complete = false;
@@ -110,6 +144,10 @@ pub async fn run_agent_loop_with_config(
     for round in 0..config.max_rounds {
         // Inject todo list into system message at the start of each round
         inject_todo_list_into_system_message(session);
+
+        let round_id = format!("{}-round-{}", session_id, round + 1);
+        let mut round_status = MetricsRoundStatus::Success;
+        let mut round_error: Option<String> = None;
 
         debug_logger.log_event(
             &session_id,
@@ -122,19 +160,101 @@ pub async fn run_agent_loop_with_config(
         );
 
         if cancel_token.is_cancelled() {
+            if let Some(metrics) = metrics_collector.as_ref() {
+                metrics.session_message_count(
+                    session_id.clone(),
+                    session.messages.len() as u32,
+                    Utc::now(),
+                );
+                metrics.session_completed(
+                    session_id.clone(),
+                    MetricsSessionStatus::Cancelled,
+                    Utc::now(),
+                );
+            }
             return Err(AgentError::Cancelled);
+        }
+
+        if let Some(metrics) = metrics_collector.as_ref() {
+            metrics.round_started(
+                round_id.clone(),
+                session_id.clone(),
+                model_name.clone(),
+                Utc::now(),
+            );
         }
 
         let tool_schemas = resolve_available_tool_schemas(&config, tools.as_ref());
 
         let timer = Timer::new("llm_request");
-        let stream = llm
-            .chat_stream(&session.messages, &tool_schemas)
-            .await
-            .map_err(|error| AgentError::LLM(error.to_string()))?;
+        let stream = match llm.chat_stream(&session.messages, &tool_schemas).await {
+            Ok(stream) => stream,
+            Err(error) => {
+                let agent_error = AgentError::LLM(error.to_string());
+                round_status = MetricsRoundStatus::Error;
+                round_error = Some(agent_error.to_string());
+                if let Some(metrics) = metrics_collector.as_ref() {
+                    metrics.round_completed(
+                        round_id.clone(),
+                        Utc::now(),
+                        round_status,
+                        MetricsTokenUsage::default(),
+                        round_error.clone(),
+                    );
+                    metrics.session_message_count(
+                        session_id.clone(),
+                        session.messages.len() as u32,
+                        Utc::now(),
+                    );
+                    metrics.session_completed(
+                        session_id.clone(),
+                        MetricsSessionStatus::Error,
+                        Utc::now(),
+                    );
+                }
+                return Err(agent_error);
+            }
+        };
 
         let stream_output =
-            consume_llm_stream(stream, &event_tx, &cancel_token, &session_id).await?;
+            match consume_llm_stream(stream, &event_tx, &cancel_token, &session_id).await {
+                Ok(output) => output,
+                Err(error) => {
+                    round_status = if matches!(error, AgentError::Cancelled) {
+                        MetricsRoundStatus::Cancelled
+                    } else {
+                        MetricsRoundStatus::Error
+                    };
+                    round_error = Some(error.to_string());
+                    if let Some(metrics) = metrics_collector.as_ref() {
+                        metrics.round_completed(
+                            round_id.clone(),
+                            Utc::now(),
+                            round_status,
+                            MetricsTokenUsage::default(),
+                            round_error.clone(),
+                        );
+                        let session_status = if matches!(error, AgentError::Cancelled) {
+                            MetricsSessionStatus::Cancelled
+                        } else {
+                            MetricsSessionStatus::Error
+                        };
+                        metrics.session_message_count(
+                            session_id.clone(),
+                            session.messages.len() as u32,
+                            Utc::now(),
+                        );
+                        metrics.session_completed(session_id.clone(), session_status, Utc::now());
+                    }
+                    return Err(error);
+                }
+            };
+
+        let round_usage = MetricsTokenUsage {
+            prompt_tokens: 0,
+            completion_tokens: stream_output.token_count as u64,
+            total_tokens: stream_output.token_count as u64,
+        };
 
         let llm_duration = timer.elapsed_ms();
         timer.debug(&session_id);
@@ -157,6 +277,22 @@ pub async fn run_agent_loop_with_config(
                     },
                 })
                 .await;
+
+            if let Some(metrics) = metrics_collector.as_ref() {
+                metrics.round_completed(
+                    round_id.clone(),
+                    Utc::now(),
+                    MetricsRoundStatus::Success,
+                    round_usage,
+                    None,
+                );
+                metrics.session_message_count(
+                    session_id.clone(),
+                    session.messages.len() as u32,
+                    Utc::now(),
+                );
+            }
+
             sent_complete = true;
             break;
         }
@@ -172,13 +308,18 @@ pub async fn run_agent_loop_with_config(
             let args = parse_tool_args(&tool_call.function.arguments)
                 .unwrap_or_else(|_| serde_json::json!({}));
 
-            let _ = event_tx
-                .send(AgentEvent::ToolStart {
+            send_event_with_metrics(
+                &event_tx,
+                metrics_collector.as_ref(),
+                &session_id,
+                &round_id,
+                AgentEvent::ToolStart {
                     tool_call_id: tool_call.id.clone(),
                     tool_name: tool_call.function.name.clone(),
                     arguments: args,
-                })
-                .await;
+                },
+            )
+            .await;
 
             let tool_timer = Timer::new(format!("tool_{}", tool_call.function.name));
 
@@ -192,11 +333,12 @@ pub async fn run_agent_loop_with_config(
                 Ok(result) => {
                     // Handle todo list tools specially
                     if tool_call.function.name == "create_todo_list" && result.success {
-                        if let Ok(args) = serde_json::from_str::<serde_json::Value>(&tool_call.function.arguments) {
-                            if let (Some(title), Some(items)) = (
-                                args["title"].as_str(),
-                                args["items"].as_array(),
-                            ) {
+                        if let Ok(args) =
+                            serde_json::from_str::<serde_json::Value>(&tool_call.function.arguments)
+                        {
+                            if let (Some(title), Some(items)) =
+                                (args["title"].as_str(), args["items"].as_array())
+                            {
                                 let todo_items: Vec<agent_core::TodoItem> = items
                                     .iter()
                                     .filter_map(|item| {
@@ -204,7 +346,11 @@ pub async fn run_agent_loop_with_config(
                                         let description = item["description"].as_str()?.to_string();
                                         let depends_on: Vec<String> = item["depends_on"]
                                             .as_array()
-                                            .map(|arr| arr.iter().filter_map(|v| v.as_str().map(String::from)).collect())
+                                            .map(|arr| {
+                                                arr.iter()
+                                                    .filter_map(|v| v.as_str().map(String::from))
+                                                    .collect()
+                                            })
                                             .unwrap_or_default();
                                         Some(agent_core::TodoItem {
                                             id,
@@ -224,27 +370,38 @@ pub async fn run_agent_loop_with_config(
                                     updated_at: chrono::Utc::now(),
                                 };
                                 session.set_todo_list(todo_list.clone());
-                                log::info!("[{}] Todo list '{}' created with {} items", session_id, title, items.len());
+                                log::info!(
+                                    "[{}] Todo list '{}' created with {} items",
+                                    session_id,
+                                    title,
+                                    items.len()
+                                );
 
                                 // Save session to persist todo list
                                 if let Some(ref storage) = config.storage {
                                     if let Err(e) = storage.save_session(session).await {
                                         log::warn!("[{}] Failed to save session after todo list creation: {}", session_id, e);
                                     } else {
-                                        log::debug!("[{}] Session saved after todo list creation", session_id);
+                                        log::debug!(
+                                            "[{}] Session saved after todo list creation",
+                                            session_id
+                                        );
                                     }
                                 }
 
                                 // Emit event for frontend
-                                let _ = event_tx.send(AgentEvent::TodoListUpdated { todo_list }).await;
+                                let _ = event_tx
+                                    .send(AgentEvent::TodoListUpdated { todo_list })
+                                    .await;
                             }
                         }
                     } else if tool_call.function.name == "update_todo_item" && result.success {
-                        if let Ok(args) = serde_json::from_str::<serde_json::Value>(&tool_call.function.arguments) {
-                            if let (Some(item_id), Some(status)) = (
-                                args["item_id"].as_str(),
-                                args["status"].as_str(),
-                            ) {
+                        if let Ok(args) =
+                            serde_json::from_str::<serde_json::Value>(&tool_call.function.arguments)
+                        {
+                            if let (Some(item_id), Some(status)) =
+                                (args["item_id"].as_str(), args["status"].as_str())
+                            {
                                 let status_enum = match status {
                                     "pending" => Some(agent_core::TodoItemStatus::Pending),
                                     "in_progress" => Some(agent_core::TodoItemStatus::InProgress),
@@ -255,24 +412,38 @@ pub async fn run_agent_loop_with_config(
                                 if let Some(s) = status_enum {
                                     let notes = args["notes"].as_str();
                                     if let Err(e) = session.update_todo_item(item_id, s, notes) {
-                                        log::warn!("[{}] Failed to update todo item: {}", session_id, e);
+                                        log::warn!(
+                                            "[{}] Failed to update todo item: {}",
+                                            session_id,
+                                            e
+                                        );
                                     } else {
-                                        log::info!("[{}] Updated todo item '{}' to '{}'", session_id, item_id, status);
+                                        log::info!(
+                                            "[{}] Updated todo item '{}' to '{}'",
+                                            session_id,
+                                            item_id,
+                                            status
+                                        );
 
                                         // Save session to persist todo list changes
                                         if let Some(ref storage) = config.storage {
                                             if let Err(e) = storage.save_session(session).await {
                                                 log::warn!("[{}] Failed to save session after todo item update: {}", session_id, e);
                                             } else {
-                                                log::debug!("[{}] Session saved after todo item update", session_id);
+                                                log::debug!(
+                                                    "[{}] Session saved after todo item update",
+                                                    session_id
+                                                );
                                             }
                                         }
 
                                         // Emit event for frontend
                                         if let Some(ref todo_list) = session.todo_list {
-                                            let _ = event_tx.send(AgentEvent::TodoListUpdated {
-                                                todo_list: todo_list.clone()
-                                            }).await;
+                                            let _ = event_tx
+                                                .send(AgentEvent::TodoListUpdated {
+                                                    todo_list: todo_list.clone(),
+                                                })
+                                                .await;
                                         }
                                     }
                                 }
@@ -282,15 +453,27 @@ pub async fn run_agent_loop_with_config(
 
                     // Handle ask_user tool specially - emit NeedClarification event
                     if tool_call.function.name == "ask_user" && result.success {
-                        if let Ok(payload) = serde_json::from_str::<serde_json::Value>(&result.result) {
-                            let question = payload["question"].as_str().unwrap_or("Please select:").to_string();
+                        if let Ok(payload) =
+                            serde_json::from_str::<serde_json::Value>(&result.result)
+                        {
+                            let question = payload["question"]
+                                .as_str()
+                                .unwrap_or("Please select:")
+                                .to_string();
                             let options: Vec<String> = payload["options"]
                                 .as_array()
-                                .map(|arr| arr.iter().filter_map(|v| v.as_str().map(String::from)).collect())
+                                .map(|arr| {
+                                    arr.iter()
+                                        .filter_map(|v| v.as_str().map(String::from))
+                                        .collect()
+                                })
                                 .unwrap_or_default();
                             let allow_custom = payload["allow_custom"].as_bool().unwrap_or(true);
 
-                            log::info!("[{}] ask_user tool called, awaiting user response", session_id);
+                            log::info!(
+                                "[{}] ask_user tool called, awaiting user response",
+                                session_id
+                            );
 
                             // Add tool result message (required by OpenAI API)
                             // This is a placeholder indicating we're waiting for user
@@ -306,7 +489,11 @@ pub async fn run_agent_loop_with_config(
                             let _ = event_tx
                                 .send(AgentEvent::NeedClarification {
                                     question: question.clone(),
-                                    options: if options.is_empty() { None } else { Some(options.clone()) },
+                                    options: if options.is_empty() {
+                                        None
+                                    } else {
+                                        Some(options.clone())
+                                    },
                                 })
                                 .await;
 
@@ -321,7 +508,11 @@ pub async fn run_agent_loop_with_config(
                             // Save session to persist the pending question
                             if let Some(ref storage) = config.storage {
                                 if let Err(e) = storage.save_session(session).await {
-                                    log::warn!("[{}] Failed to save session after ask_user: {}", session_id, e);
+                                    log::warn!(
+                                        "[{}] Failed to save session after ask_user: {}",
+                                        session_id,
+                                        e
+                                    );
                                 }
                             }
 
@@ -330,12 +521,25 @@ pub async fn run_agent_loop_with_config(
                         }
                     }
 
-                    let _ = event_tx
-                        .send(AgentEvent::ToolComplete {
+                    send_event_with_metrics(
+                        &event_tx,
+                        metrics_collector.as_ref(),
+                        &session_id,
+                        &round_id,
+                        AgentEvent::ToolComplete {
                             tool_call_id: tool_call.id.clone(),
                             result: result.clone(),
-                        })
-                        .await;
+                        },
+                    )
+                    .await;
+
+                    if !result.success && round_error.is_none() {
+                        round_status = MetricsRoundStatus::Error;
+                        round_error = Some(format!(
+                            "Tool \"{}\" returned an unsuccessful result",
+                            tool_call.function.name
+                        ));
+                    }
 
                     debug_logger.log_event(
                         &session_id,
@@ -365,13 +569,20 @@ pub async fn run_agent_loop_with_config(
                 }
                 Err(error) => {
                     let error_message = error.to_string();
+                    round_status = MetricsRoundStatus::Error;
+                    round_error = Some(error_message.clone());
 
-                    let _ = event_tx
-                        .send(AgentEvent::ToolError {
+                    send_event_with_metrics(
+                        &event_tx,
+                        metrics_collector.as_ref(),
+                        &session_id,
+                        &round_id,
+                        AgentEvent::ToolError {
                             tool_call_id: tool_call.id.clone(),
                             error: error_message.clone(),
-                        })
-                        .await;
+                        },
+                    )
+                    .await;
 
                     session.add_message(Message::tool_result(
                         tool_call.id.clone(),
@@ -382,6 +593,20 @@ pub async fn run_agent_loop_with_config(
         }
 
         if awaiting_clarification {
+            if let Some(metrics) = metrics_collector.as_ref() {
+                metrics.round_completed(
+                    round_id.clone(),
+                    Utc::now(),
+                    round_status,
+                    round_usage,
+                    round_error.clone(),
+                );
+                metrics.session_message_count(
+                    session_id.clone(),
+                    session.messages.len() as u32,
+                    Utc::now(),
+                );
+            }
             break;
         }
 
@@ -393,6 +618,21 @@ pub async fn run_agent_loop_with_config(
                 "message_count": session.messages.len(),
             }),
         );
+
+        if let Some(metrics) = metrics_collector.as_ref() {
+            metrics.round_completed(
+                round_id.clone(),
+                Utc::now(),
+                round_status,
+                round_usage,
+                round_error.clone(),
+            );
+            metrics.session_message_count(
+                session_id.clone(),
+                session.messages.len() as u32,
+                Utc::now(),
+            );
+        }
     }
 
     if !sent_complete {
@@ -407,7 +647,32 @@ pub async fn run_agent_loop_with_config(
             .await;
     }
 
+    if let Some(metrics) = metrics_collector.as_ref() {
+        metrics.session_message_count(
+            session_id.clone(),
+            session.messages.len() as u32,
+            Utc::now(),
+        );
+        if !session.has_pending_question() {
+            metrics.session_completed(session_id, MetricsSessionStatus::Completed, Utc::now());
+        }
+    }
+
     Ok(())
+}
+
+async fn send_event_with_metrics(
+    event_tx: &mpsc::Sender<AgentEvent>,
+    metrics_collector: Option<&MetricsCollector>,
+    session_id: &str,
+    round_id: &str,
+    event: AgentEvent,
+) {
+    if let Some(metrics) = metrics_collector {
+        metrics.record_agent_event(session_id, round_id, &event);
+    }
+
+    let _ = event_tx.send(event).await;
 }
 
 fn resolve_available_tool_schemas(
@@ -488,14 +753,22 @@ fn inject_todo_list_into_system_message(session: &mut Session) {
 
         if !todo_context.is_empty() {
             system_message.content = format!("{}\n{}", base_prompt, todo_context);
-            log::info!("Injected todo list into system message ({} chars)", todo_context.len());
+            log::info!(
+                "Injected todo list into system message ({} chars)",
+                todo_context.len()
+            );
         } else {
             system_message.content = base_prompt;
         }
     } else if !todo_context.is_empty() {
         // No system message exists but we have todo context
-        session.messages.insert(0, Message::system(todo_context.clone()));
-        log::info!("Created system message with todo list ({} chars)", todo_context.len());
+        session
+            .messages
+            .insert(0, Message::system(todo_context.clone()));
+        log::info!(
+            "Created system message with todo list ({} chars)",
+            todo_context.len()
+        );
     }
 }
 

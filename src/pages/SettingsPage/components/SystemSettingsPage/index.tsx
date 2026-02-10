@@ -23,6 +23,7 @@ import SystemSettingsAppTab from "./SystemSettingsAppTab";
 import SystemSettingsKeywordMaskingTab from "./SystemSettingsKeywordMaskingTab";
 import SystemSettingsWorkflowsTab from "./SystemSettingsWorkflowsTab";
 import SystemSettingsMcpTab from "./SystemSettingsMcpTab";
+import SystemSettingsMetricsTab from "./SystemSettingsMetricsTab";
 import { useSystemSettingsBodhiConfig } from "./useSystemSettingsBodhiConfig";
 import { useSystemSettingsBackend } from "./useSystemSettingsBackend";
 import { SkillManager } from "../../../../components/Skill";
@@ -234,6 +235,11 @@ const SystemSettingsPage = ({
               key: "mcp",
               label: "MCP",
               children: <SystemSettingsMcpTab />,
+            },
+            {
+              key: "metrics",
+              label: "Metrics",
+              children: <SystemSettingsMetricsTab />,
             },
             {
               key: "app",

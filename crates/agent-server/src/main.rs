@@ -3,6 +3,7 @@ use std::io;
 
 mod handlers;
 mod logging;
+mod metrics_service;
 mod server;
 mod state;
 

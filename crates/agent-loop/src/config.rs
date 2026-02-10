@@ -3,6 +3,7 @@ use std::sync::Arc;
 use agent_core::composition::CompositionExecutor;
 use agent_core::storage::Storage;
 use agent_core::tools::ToolSchema;
+use agent_metrics::MetricsCollector;
 use agent_skill::SkillManager;
 use agent_tools::ToolRegistry;
 
@@ -18,6 +19,10 @@ pub struct AgentLoopConfig {
     pub skip_initial_user_message: bool,
     /// Optional storage for persisting session changes
     pub storage: Option<Arc<dyn Storage>>,
+    /// Optional asynchronous metrics collector
+    pub metrics_collector: Option<MetricsCollector>,
+    /// Model name used for metrics attribution
+    pub model_name: Option<String>,
 }
 
 impl Default for AgentLoopConfig {
@@ -31,6 +36,8 @@ impl Default for AgentLoopConfig {
             skill_manager: None,
             skip_initial_user_message: false,
             storage: None,
+            metrics_collector: None,
+            model_name: None,
         }
     }
 }

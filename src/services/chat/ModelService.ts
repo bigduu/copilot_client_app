@@ -1,4 +1,4 @@
-import { buildBackendUrl } from "../../shared/utils/backendBaseUrl";
+import { apiClient, ApiError } from "../api";
 
 export class ProxyAuthRequiredError extends Error {
   readonly code = "proxy_auth_required";
@@ -23,36 +23,28 @@ export class ModelService {
 
   async getModels(): Promise<string[]> {
     try {
-      const response = await fetch(buildBackendUrl("/models"));
-      if (!response.ok) {
-        let errorCode: string | null = null;
-        let errorMessage = `HTTP error! status: ${response.status}`;
-
-        try {
-          const payload = await response.json();
-          const payloadError = payload?.error;
-          if (payloadError && typeof payloadError === "object") {
-            if (typeof payloadError.code === "string") {
-              errorCode = payloadError.code;
-            }
-            if (typeof payloadError.message === "string") {
-              errorMessage = payloadError.message;
-            }
-          }
-        } catch {
-          // Ignore JSON parse errors and use the fallback status-based message.
-        }
-
-        if (errorCode === "proxy_auth_required" || response.status === 428) {
-          throw new ProxyAuthRequiredError(errorMessage);
-        }
-
-        throw new Error(errorMessage);
-      }
-      const data = await response.json();
-      return data.data.map((model: any) => model.id);
+      const data = await apiClient.get<{ data: Array<{ id: string }> }>("models");
+      return data.data.map((model) => model.id);
     } catch (error) {
       console.error("Failed to fetch models from HTTP API:", error);
+
+      // Handle proxy auth error
+      if (error instanceof ApiError) {
+        if (error.status === 428) {
+          throw new ProxyAuthRequiredError(error.message);
+        }
+
+        // Try to parse error code from body
+        try {
+          const body = JSON.parse(error.body || "{}");
+          if (body.error?.code === "proxy_auth_required") {
+            throw new ProxyAuthRequiredError(body.error.message || error.message);
+          }
+        } catch {
+          // Ignore parse errors
+        }
+      }
+
       throw error;
     }
   }
