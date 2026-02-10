@@ -108,8 +108,7 @@ mod tests {
 
         // Use the same pattern as in the actual code
         let new_path = std::env::join_paths(
-            std::iter::once(new_dir.clone())
-                .chain(std::env::split_paths(existing_path)),
+            std::iter::once(new_dir.clone()).chain(std::env::split_paths(existing_path)),
         );
 
         assert!(new_path.is_ok());
@@ -141,6 +140,9 @@ mod tests {
         assert!(joined_str.contains(':'), "Unix uses ':' as PATH separator");
 
         #[cfg(windows)]
-        assert!(joined_str.contains(';'), "Windows uses ';' as PATH separator");
+        assert!(
+            joined_str.contains(';'),
+            "Windows uses ';' as PATH separator"
+        );
     }
 }
