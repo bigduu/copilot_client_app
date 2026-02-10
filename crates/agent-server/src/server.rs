@@ -94,7 +94,21 @@ pub async fn run_server_with_config_and_mode(
                         "/sessions/{session_id}",
                         web::delete().to(handlers::delete::handler),
                     )
-                    .route("/health", web::get().to(handlers::health::handler)),
+                    .route("/health", web::get().to(handlers::health::handler))
+                    // MCP routes
+                    .service(
+                        web::scope("/mcp")
+                            .route("/servers", web::get().to(handlers::mcp::list_servers))
+                            .route("/servers", web::post().to(handlers::mcp::add_server))
+                            .route("/servers/{id}", web::get().to(handlers::mcp::get_server))
+                            .route("/servers/{id}", web::put().to(handlers::mcp::update_server))
+                            .route("/servers/{id}", web::delete().to(handlers::mcp::delete_server))
+                            .route("/servers/{id}/connect", web::post().to(handlers::mcp::connect_server))
+                            .route("/servers/{id}/disconnect", web::post().to(handlers::mcp::disconnect_server))
+                            .route("/servers/{id}/refresh", web::post().to(handlers::mcp::refresh_tools))
+                            .route("/servers/{id}/tools", web::get().to(handlers::mcp::get_server_tools))
+                            .route("/tools", web::get().to(handlers::mcp::list_tools)),
+                    ),
             )
     })
     .bind(format!("0.0.0.0:{}", port))?

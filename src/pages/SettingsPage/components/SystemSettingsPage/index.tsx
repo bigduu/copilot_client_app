@@ -22,6 +22,7 @@ import SystemSettingsPromptsTab from "./SystemSettingsPromptsTab";
 import SystemSettingsAppTab from "./SystemSettingsAppTab";
 import SystemSettingsKeywordMaskingTab from "./SystemSettingsKeywordMaskingTab";
 import SystemSettingsWorkflowsTab from "./SystemSettingsWorkflowsTab";
+import SystemSettingsMcpTab from "./SystemSettingsMcpTab";
 import { useSystemSettingsBodhiConfig } from "./useSystemSettingsBodhiConfig";
 import { useSystemSettingsBackend } from "./useSystemSettingsBackend";
 import { SkillManager } from "../../../../components/Skill";
@@ -228,6 +229,11 @@ const SystemSettingsPage = ({
               key: "workflows",
               label: "Workflows",
               children: <SystemSettingsWorkflowsTab />,
+            },
+            {
+              key: "mcp",
+              label: "MCP",
+              children: <SystemSettingsMcpTab />,
             },
             {
               key: "app",

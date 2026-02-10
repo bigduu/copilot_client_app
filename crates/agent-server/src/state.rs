@@ -1,6 +1,7 @@
 use agent_core::tools::ToolExecutor;
 use agent_core::{storage::JsonlStorage, AgentEvent, Session};
 use agent_llm::OpenAIProvider;
+use agent_mcp::{CompositeToolExecutor, McpServerManager};
 use agent_skill::{SkillManager, SkillStoreConfig};
 use agent_tools::BuiltinToolExecutor;
 use std::collections::HashMap;
@@ -20,6 +21,7 @@ pub struct AppState {
     pub tools: Arc<dyn ToolExecutor>,
     pub cancel_tokens: Arc<RwLock<HashMap<String, tokio_util::sync::CancellationToken>>>,
     pub skill_manager: Arc<SkillManager>,
+    pub mcp_manager: Arc<McpServerManager>,
 }
 
 impl AppState {
@@ -115,7 +117,23 @@ impl AppState {
             }
         };
 
-        let tools: Arc<dyn ToolExecutor> = Arc::new(BuiltinToolExecutor::new());
+        // Initialize built-in tools
+        let builtin_tools: Arc<dyn ToolExecutor> = Arc::new(BuiltinToolExecutor::new());
+
+        // Initialize MCP manager
+        let mcp_manager = Arc::new(McpServerManager::new());
+
+        // Try to load MCP config and initialize servers
+        let mcp_config = load_mcp_config(&app_data_root).await;
+        mcp_manager.initialize_from_config(&mcp_config).await;
+
+        // Create composite tool executor (builtin + MCP)
+        let mcp_tools = Arc::new(agent_mcp::McpToolExecutor::new(
+            mcp_manager.clone(),
+            mcp_manager.tool_index(),
+        ));
+        let tools: Arc<dyn ToolExecutor> =
+            Arc::new(CompositeToolExecutor::new(builtin_tools, mcp_tools));
 
         let skill_manager = Arc::new(SkillManager::with_config(SkillStoreConfig {
             skills_dir: app_data_root.join("skills"),
@@ -131,7 +149,15 @@ impl AppState {
             tools,
             cancel_tokens: Arc::new(RwLock::new(HashMap::new())),
             skill_manager,
+            mcp_manager,
         }
+    }
+
+    /// Shutdown all MCP servers gracefully
+    pub async fn shutdown(&self) {
+        log::info!("Shutting down MCP servers...");
+        self.mcp_manager.shutdown_all().await;
+        log::info!("MCP servers shut down complete");
     }
 
     #[allow(dead_code)]
@@ -185,6 +211,35 @@ fn bodhi_dir() -> PathBuf {
         .map(PathBuf::from)
         .unwrap_or_else(|| std::env::temp_dir())
         .join(".bodhi")
+}
+
+/// Load MCP configuration from file
+async fn load_mcp_config(app_data_root: &PathBuf) -> agent_mcp::McpConfig {
+    let config_path = app_data_root.join("mcp.json");
+
+    if !config_path.exists() {
+        log::info!("No MCP config file found at {:?}, using default", config_path);
+        return agent_mcp::McpConfig::default();
+    }
+
+    match tokio::fs::read_to_string(&config_path).await {
+        Ok(content) => {
+            match serde_json::from_str::<agent_mcp::McpConfig>(&content) {
+                Ok(config) => {
+                    log::info!("Loaded MCP config with {} servers", config.servers.len());
+                    config
+                }
+                Err(e) => {
+                    log::error!("Failed to parse MCP config: {}", e);
+                    agent_mcp::McpConfig::default()
+                }
+            }
+        }
+        Err(e) => {
+            log::error!("Failed to read MCP config: {}", e);
+            agent_mcp::McpConfig::default()
+        }
+    }
 }
 
 /// Start SSE stream sender
