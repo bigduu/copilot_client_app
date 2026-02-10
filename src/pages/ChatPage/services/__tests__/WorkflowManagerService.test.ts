@@ -41,6 +41,7 @@ describe("WorkflowManagerService", () => {
     ]);
     expect(mockFetch).toHaveBeenCalledWith(
       "http://127.0.0.1:8080/v1/bodhi/workflows",
+      expect.any(Object),
     );
   });
 

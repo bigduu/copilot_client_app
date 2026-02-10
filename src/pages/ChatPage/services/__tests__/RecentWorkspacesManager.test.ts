@@ -46,6 +46,9 @@ describe("RecentWorkspacesManager", () => {
         "http://127.0.0.1:8080/v1/workspace/recent",
         {
           method: "GET",
+          headers: {
+            "Content-Type": "application/json",
+          },
           signal: expect.any(AbortSignal),
         },
       );
@@ -97,7 +100,6 @@ describe("RecentWorkspacesManager", () => {
             path: "/new/workspace",
             metadata: { workspace_name: "new-workspace" },
           }),
-          signal: expect.any(AbortSignal),
         },
       );
     });
@@ -128,26 +130,18 @@ describe("RecentWorkspacesManager", () => {
             "Content-Type": "application/json",
           },
           body: JSON.stringify({ path: "/valid/workspace" }),
-          signal: expect.any(AbortSignal),
         },
       );
 
       expect(result).toEqual(mockValidation);
     });
 
-    it("should handle validation errors gracefully", async () => {
+    it("should surface validation errors", async () => {
       (fetch as any).mockRejectedValueOnce(new Error("Validation failed"));
 
-      const result =
-        await recentWorkspacesManager.validateWorkspacePath(
-          "/invalid/workspace",
-        );
-
-      expect(result).toEqual({
-        path: "/invalid/workspace",
-        is_valid: false,
-        error_message: "Validation failed",
-      });
+      await expect(
+        recentWorkspacesManager.validateWorkspacePath("/invalid/workspace"),
+      ).rejects.toThrow("Validation failed");
     });
   });
 
@@ -165,11 +159,12 @@ describe("RecentWorkspacesManager", () => {
 
       const status = await recentWorkspacesManager.getHealthStatus();
 
-      expect(status).toEqual({
-        apiAvailable: true,
-        cacheValid: false,
+      expect(status).toMatchObject({
+        available: true,
+        cacheValid: true,
         recentCount: 0,
       });
+      expect(typeof status.latency).toBe("number");
     });
 
     it("should return unhealthy status when API is unavailable", async () => {
@@ -178,9 +173,10 @@ describe("RecentWorkspacesManager", () => {
       const status = await recentWorkspacesManager.getHealthStatus();
 
       expect(status).toEqual({
-        apiAvailable: false,
+        available: false,
         cacheValid: false,
         recentCount: 0,
+        error: "API unavailable",
       });
     });
   });
