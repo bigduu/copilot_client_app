@@ -72,7 +72,56 @@ pub fn agent_api_config(cfg: &mut web::ServiceConfig) {
                 "/sessions/{session_id}",
                 web::delete().to(agent_handlers::delete::handler),
             )
-            .route("/health", web::get().to(agent_handlers::health::handler)),
+            .route(
+                "/metrics/summary",
+                web::get().to(agent_handlers::metrics::summary),
+            )
+            .route(
+                "/metrics/by-model",
+                web::get().to(agent_handlers::metrics::by_model),
+            )
+            .route(
+                "/metrics/sessions",
+                web::get().to(agent_handlers::metrics::sessions),
+            )
+            .route(
+                "/metrics/sessions/{session_id}",
+                web::get().to(agent_handlers::metrics::session_detail),
+            )
+            .route(
+                "/metrics/daily",
+                web::get().to(agent_handlers::metrics::daily),
+            )
+            .route("/health", web::get().to(agent_handlers::health::handler))
+            // MCP routes
+            .service(
+                web::scope("/mcp")
+                    .route("/servers", web::get().to(agent_handlers::mcp::list_servers))
+                    .route("/servers", web::post().to(agent_handlers::mcp::add_server))
+                    .route("/servers/{id}", web::get().to(agent_handlers::mcp::get_server))
+                    .route("/servers/{id}", web::put().to(agent_handlers::mcp::update_server))
+                    .route(
+                        "/servers/{id}",
+                        web::delete().to(agent_handlers::mcp::delete_server),
+                    )
+                    .route(
+                        "/servers/{id}/connect",
+                        web::post().to(agent_handlers::mcp::connect_server),
+                    )
+                    .route(
+                        "/servers/{id}/disconnect",
+                        web::post().to(agent_handlers::mcp::disconnect_server),
+                    )
+                    .route(
+                        "/servers/{id}/refresh",
+                        web::post().to(agent_handlers::mcp::refresh_tools),
+                    )
+                    .route(
+                        "/servers/{id}/tools",
+                        web::get().to(agent_handlers::mcp::get_server_tools),
+                    )
+                    .route("/tools", web::get().to(agent_handlers::mcp::list_tools)),
+            ),
     );
 }
 
