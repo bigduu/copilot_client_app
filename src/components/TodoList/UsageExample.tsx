@@ -10,13 +10,12 @@ import TodoList from './TodoList';
 // Example 1: Basic Usage
 export const BasicExample: React.FC = () => {
   const sessionId = 'your-session-uuid';
-  const apiBaseUrl = 'http://localhost:8080';
 
   return (
     <div>
       <h2>Conversation</h2>
       {/* Default collapsed */}
-      <TodoList sessionId={sessionId} apiBaseUrl={apiBaseUrl} />
+      <TodoList sessionId={sessionId} />
       {/* Chat content... */}
     </div>
   );
@@ -25,13 +24,11 @@ export const BasicExample: React.FC = () => {
 // Example 2: Initially Expanded
 export const ExpandedExample: React.FC = () => {
   const sessionId = 'your-session-uuid';
-  const apiBaseUrl = 'http://localhost:8080';
 
   return (
     <div>
       <TodoList
         sessionId={sessionId}
-        apiBaseUrl={apiBaseUrl}
         initialCollapsed={false} // Initially expanded
       />
     </div>
@@ -49,7 +46,6 @@ export const ChatPageIntegration: React.FC = () => {
       {currentSessionId && (
         <TodoList
           sessionId={currentSessionId}
-          apiBaseUrl={process.env.REACT_APP_API_URL || 'http://localhost:8080'}
           initialCollapsed={true}
         />
       )}
@@ -72,7 +68,6 @@ export const ChatPageIntegration: React.FC = () => {
 // Example 4: Sidebar Mode (Fixed Display)
 export const SidebarModeExample: React.FC = () => {
   const sessionId = 'your-session-uuid';
-  const apiBaseUrl = 'http://localhost:8080';
 
   return (
     <div style={{ display: 'flex', height: '100vh' }}>
@@ -81,7 +76,6 @@ export const SidebarModeExample: React.FC = () => {
         <h3>Task Progress</h3>
         <TodoList
           sessionId={sessionId}
-          apiBaseUrl={apiBaseUrl}
           initialCollapsed={false}
         />
       </div>
@@ -95,7 +89,6 @@ export const SidebarModeExample: React.FC = () => {
 // Example 5: Custom Styled Wrapper
 export const CustomStyledExample: React.FC = () => {
   const sessionId = 'your-session-uuid';
-  const apiBaseUrl = 'http://localhost:8080';
 
   return (
     <div
@@ -114,7 +107,7 @@ export const CustomStyledExample: React.FC = () => {
         }}
       >
         <h3 style={{ marginTop: 0 }}>Current Tasks</h3>
-        <TodoList sessionId={sessionId} apiBaseUrl={apiBaseUrl} />
+        <TodoList sessionId={sessionId} />
       </div>
     </div>
   );

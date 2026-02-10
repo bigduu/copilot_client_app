@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { Button, Card, Input, Radio, Space, Typography, message } from 'antd';
+import { agentApiClient } from '../../services/api';
 import styles from './QuestionDialog.module.css';
 
 const { Text, Title } = Typography;
@@ -14,13 +15,11 @@ export interface PendingQuestion {
 
 interface QuestionDialogProps {
   sessionId: string;
-  apiBaseUrl: string;
   onResponseSubmitted?: () => void;
 }
 
 export const QuestionDialog: React.FC<QuestionDialogProps> = ({
   sessionId,
-  apiBaseUrl,
   onResponseSubmitted,
 }) => {
   const [pendingQuestion, setPendingQuestion] = useState<PendingQuestion | null>(null);
@@ -35,16 +34,7 @@ export const QuestionDialog: React.FC<QuestionDialogProps> = ({
   // Fetch pending question
   const fetchPendingQuestion = useCallback(async () => {
     try {
-      const response = await fetch(`${apiBaseUrl}/api/v1/respond/${sessionId}/pending`);
-      if (!response.ok) {
-        if (response.status === 404) {
-          setPendingQuestion(null);
-          emptyCountRef.current += 1;
-          return;
-        }
-        throw new Error(`HTTP ${response.status}`);
-      }
-      const data: PendingQuestion = await response.json();
+      const data = await agentApiClient.get<PendingQuestion>(`respond/${sessionId}/pending`);
       if (data.has_pending_question) {
         setPendingQuestion(data);
         emptyCountRef.current = 0; // Reset counter when we have a question
@@ -53,11 +43,17 @@ export const QuestionDialog: React.FC<QuestionDialogProps> = ({
         emptyCountRef.current += 1;
       }
     } catch (err) {
+      // Handle 404 - no pending question for this session
+      if (err instanceof Error && err.message.includes('404')) {
+        setPendingQuestion(null);
+        emptyCountRef.current += 1;
+        return;
+      }
       console.error('Failed to fetch pending question:', err);
     } finally {
       setIsLoading(false);
     }
-  }, [sessionId, apiBaseUrl]);
+  }, [sessionId]);
 
   // Poll for pending question periodically
   // Stop polling when conversation is done (no pending questions for a while)
@@ -98,18 +94,7 @@ export const QuestionDialog: React.FC<QuestionDialogProps> = ({
     setIsSubmitting(true);
 
     try {
-      const res = await fetch(`${apiBaseUrl}/api/v1/respond/${sessionId}`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ response }),
-      });
-
-      if (!res.ok) {
-        const errorData = await res.json().catch(() => ({ error: 'Unknown error' }));
-        throw new Error(errorData.message || errorData.error || `HTTP ${res.status}`);
-      }
+      await agentApiClient.post(`respond/${sessionId}`, { response });
 
       message.success('Response submitted, AI will continue processing');
       setPendingQuestion(null);

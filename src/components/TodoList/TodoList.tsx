@@ -1,4 +1,6 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
+import { agentApiClient } from '../../services/api';
+import { getBackendBaseUrl } from '../../shared/utils/backendBaseUrl';
 import styles from './TodoList.module.css';
 
 // Type definitions
@@ -23,7 +25,6 @@ export interface TodoListData {
 
 interface TodoListProps {
   sessionId: string;
-  apiBaseUrl: string;
   initialCollapsed?: boolean;
 }
 
@@ -53,7 +54,6 @@ const statusTexts: Record<TodoItem['status'], string> = {
 
 export const TodoList: React.FC<TodoListProps> = ({
   sessionId,
-  apiBaseUrl,
   initialCollapsed = true,
 }) => {
   const [todoList, setTodoList] = useState<TodoListData | null>(null);
@@ -69,27 +69,24 @@ export const TodoList: React.FC<TodoListProps> = ({
   // Fetch Todo List via HTTP
   const fetchTodoList = useCallback(async () => {
     try {
-      const response = await fetch(`${apiBaseUrl}/api/v1/todo/${sessionId}`);
-      if (!response.ok) {
-        if (response.status === 404) {
-          setTodoList(null);
-          return;
-        }
-        throw new Error(`HTTP ${response.status}`);
-      }
-      const data = await response.json();
+      const data = await agentApiClient.get<TodoListData>(`todo/${sessionId}`);
       if (data.items?.length > 0) {
         setTodoList(data);
       } else {
         setTodoList(null);
       }
     } catch (err) {
+      // Handle 404 - no todo list for this session yet
+      if (err instanceof Error && err.message.includes('404')) {
+        setTodoList(null);
+        return;
+      }
       console.error('Failed to fetch todo list:', err);
       setError(err instanceof Error ? err.message : 'Unknown error');
     } finally {
       setIsLoading(false);
     }
-  }, [sessionId, apiBaseUrl]);
+  }, [sessionId]);
 
   // Connect to SSE for real-time updates
   const connectSSE = useCallback(() => {
@@ -97,9 +94,11 @@ export const TodoList: React.FC<TodoListProps> = ({
       eventSourceRef.current.close();
     }
 
-    const eventSource = new EventSource(
-      `${apiBaseUrl}/api/v1/stream/${sessionId}`
-    );
+    // Build SSE URL using backend base URL
+    // Stream endpoint is under /api/v1, not /v1
+    const baseUrl = getBackendBaseUrl().replace(/\/$/, '').replace(/\/v1$/, '');
+    const sseUrl = `${baseUrl}/api/v1/stream/${sessionId}`;
+    const eventSource = new EventSource(sseUrl);
     eventSourceRef.current = eventSource;
 
     // Track if stream ended normally (don't reconnect if conversation completed)
@@ -174,7 +173,7 @@ export const TodoList: React.FC<TodoListProps> = ({
       // Reset reconnection counter on successful connection
       reconnectCountRef.current = 0;
     };
-  }, [sessionId, apiBaseUrl]);
+  }, [sessionId]);
 
   // Reset reconnection counter when sessionId changes
   useEffect(() => {

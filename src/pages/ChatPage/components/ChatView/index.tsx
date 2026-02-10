@@ -15,7 +15,6 @@ import { ChatInputArea } from "./ChatInputArea";
 import { ChatMessagesList } from "./ChatMessagesList";
 import { TodoList } from "../../../../components/TodoList";
 import { QuestionDialog } from "../../../../components/QuestionDialog";
-import { getBackendBaseUrl } from "../../../../shared/utils/backendBaseUrl";
 import "./styles.css";
 import { useChatViewScroll } from "./useChatViewScroll";
 import type { WorkflowDraft } from "../InputContainer";
@@ -161,13 +160,6 @@ export const ChatView: React.FC = () => {
     return screens.xs ? 16 : 32;
   };
 
-  // Get API base URL for TodoList
-  const apiBaseUrl = useMemo(() => {
-    const baseUrl = getBackendBaseUrl();
-    // Remove /v1 suffix if present since todo API is at /api/v1
-    return baseUrl.replace(/\/v1$/, '');
-  }, []);
-
   return (
     <Layout
       style={{
@@ -200,7 +192,6 @@ export const ChatView: React.FC = () => {
           >
             <TodoList
               sessionId={agentSessionId}
-              apiBaseUrl={apiBaseUrl}
               initialCollapsed={true}
             />
           </div>
@@ -219,7 +210,6 @@ export const ChatView: React.FC = () => {
           >
             <QuestionDialog
               sessionId={agentSessionId}
-              apiBaseUrl={apiBaseUrl}
             />
           </div>
         )}
