@@ -6,6 +6,7 @@
  * - agent/    - Agent-related services
  * - chat/     - Chat-related services
  * - skill/    - Skill management
+ * - mcp/      - MCP server and tool management
  * - tool/     - Tool execution
  * - workspace/- Workspace management
  */
@@ -35,6 +36,34 @@ export type {
   SkillListResponse,
   SkillVisibility,
 } from "./skill/types";
+
+// MCP Service
+export { McpService, mcpService } from "./mcp";
+export type {
+  HeaderConfig,
+  McpActionResponse,
+  McpServer,
+  McpServerApiRecord,
+  McpServerConfig,
+  McpTool,
+  McpToolInfo,
+  ReconnectConfig,
+  RuntimeInfo,
+  ServerListResponse,
+  ToolListResponse,
+  TransportConfig,
+  SseTransportConfig,
+  StdioTransportConfig,
+} from "./mcp";
+export {
+  createDefaultMcpServerConfig,
+  createDefaultRuntimeInfo,
+  DEFAULT_HEALTHCHECK_INTERVAL_MS,
+  DEFAULT_REQUEST_TIMEOUT_MS,
+  DEFAULT_SSE_CONNECT_TIMEOUT_MS,
+  DEFAULT_STDIO_STARTUP_TIMEOUT_MS,
+  ServerStatus,
+} from "./mcp";
 
 // Tool Service
 export { ToolService, toolService } from "./tool/ToolService";

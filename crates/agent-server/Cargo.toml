@@ -17,6 +17,7 @@ agent-loop = { path = "../agent-loop" }
 agent-llm = { path = "../agent-llm" }
 agent-tools = { path = "../agent-tools" }
 agent-skill = { path = "../agent-skill" }
+agent-mcp = { path = "../agent-mcp" }
 
 actix-web = "4"
 actix-cors = "0.7"

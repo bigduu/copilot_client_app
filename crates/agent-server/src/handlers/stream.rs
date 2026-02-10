@@ -219,6 +219,7 @@ impl Clone for AppState {
             tools: self.tools.clone(),
             cancel_tokens: self.cancel_tokens.clone(),
             skill_manager: self.skill_manager.clone(),
+            mcp_manager: self.mcp_manager.clone(),
         }
     }
 }

@@ -10,6 +10,7 @@ members = [
     "crates/agent-skill",
     "crates/agent-llm",
     "crates/agent-cli",
+    "crates/agent-mcp",
     "crates/web_service",
     "crates/anthropic_adapter",
     "src-tauri",
