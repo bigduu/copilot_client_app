@@ -4,14 +4,10 @@ import { Flex, Layout } from "antd";
 import SystemMessageCard from "../SystemMessageCard";
 import MessageCard from "../MessageCard";
 import StreamingMessageCard from "../StreamingMessageCard";
-import type { Message } from "../../types/chat";
+import ToolSessionCard from "../ToolSessionCard";
+import type { RenderableEntry, ConvertedEntry } from "./useChatViewMessages";
 
 const { Content } = Layout;
-
-type RenderableEntry = {
-  message: Message;
-  messageType?: "text" | "plan" | "question" | "tool_call" | "tool_result";
-};
 
 type InteractionState = {
   matches: (stateName: "IDLE" | "THINKING" | "AWAITING_APPROVAL") => boolean;
@@ -19,11 +15,7 @@ type InteractionState = {
 
 type ChatMessagesListProps = {
   currentChatId: string | null;
-  convertRenderableEntry: (entry: RenderableEntry) => {
-    message: Message;
-    align: "flex-start" | "flex-end";
-    messageType?: "text" | "plan" | "question" | "tool_call" | "tool_result";
-  };
+  convertRenderableEntry: (entry: RenderableEntry) => ConvertedEntry;
   handleDeleteMessage: (messageId: string) => void;
   handleMessagesScroll: () => void;
   hasSystemPrompt: boolean;
@@ -90,13 +82,11 @@ export const ChatMessagesList: React.FC<ChatMessagesListProps> = ({
                 return null;
               }
 
-              const {
-                message: convertedMessage,
-                align,
-                messageType,
-              } = convertRenderableEntry(entry);
-
-              const key = convertedMessage.id;
+              const convertedEntry = convertRenderableEntry(entry);
+              const key =
+                convertedEntry.type === "tool_session"
+                  ? convertedEntry.id
+                  : convertedEntry.message.id;
               const isLast = virtualRow.index === renderableMessages.length - 1;
 
               return (
@@ -113,25 +103,45 @@ export const ChatMessagesList: React.FC<ChatMessagesListProps> = ({
                     paddingBottom: isLast ? 0 : rowGap,
                   }}
                 >
-                  {convertedMessage.role === "system" ? (
-                    <SystemMessageCard message={convertedMessage} />
+                  {convertedEntry.type === "tool_session" ? (
+                    <Flex
+                      justify="flex-start"
+                      style={{ width: "100%", maxWidth: "100%" }}
+                    >
+                      <div
+                        style={{
+                          width: "100%",
+                          maxWidth: screens.xs ? "100%" : "90%",
+                        }}
+                      >
+                        <ToolSessionCard
+                          tools={convertedEntry.tools}
+                          sessionId={convertedEntry.sessionId}
+                          createdAt={convertedEntry.createdAt}
+                        />
+                      </div>
+                    </Flex>
+                  ) : convertedEntry.message.role === "system" ? (
+                    <SystemMessageCard message={convertedEntry.message} />
                   ) : (
                     <Flex
-                      justify={align}
+                      justify={convertedEntry.align}
                       style={{ width: "100%", maxWidth: "100%" }}
                     >
                       <div
                         style={{
                           width:
-                            convertedMessage.role === "user" ? "85%" : "100%",
+                            convertedEntry.message.role === "user"
+                              ? "85%"
+                              : "100%",
                           maxWidth: screens.xs ? "100%" : "90%",
                         }}
                       >
                         <MessageCard
-                          message={convertedMessage}
-                          messageType={messageType}
+                          message={convertedEntry.message}
+                          messageType={convertedEntry.messageType}
                           onDelete={
-                            convertedMessage.id === workflowDraftId
+                            convertedEntry.message.id === workflowDraftId
                               ? undefined
                               : handleDeleteMessage
                           }

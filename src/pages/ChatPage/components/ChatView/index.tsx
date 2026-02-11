@@ -18,7 +18,7 @@ import { QuestionDialog } from "../../../../components/QuestionDialog";
 import "./styles.css";
 import { useChatViewScroll } from "./useChatViewScroll";
 import type { WorkflowDraft } from "../InputContainer";
-import { useChatViewMessages } from "./useChatViewMessages";
+import { useChatViewMessages, type RenderableEntry } from "./useChatViewMessages";
 
 const { useToken } = theme;
 const { useBreakpoint } = Grid;
@@ -112,23 +112,22 @@ export const ChatView: React.FC = () => {
   const showMessagesView =
     currentChatId && (hasMessages || hasSystemPrompt || hasWorkflowDraft);
 
-  const renderableMessagesWithDraft = useMemo(() => {
+  const renderableMessagesWithDraft = useMemo<RenderableEntry[]>(() => {
     if (!workflowDraft?.content) {
       return renderableMessages;
     }
 
-    return [
-      ...renderableMessages,
-      {
-        message: {
-          id: workflowDraft.id,
-          role: "user",
-          content: workflowDraft.content,
-          createdAt: workflowDraft.createdAt,
-        } as Message,
-        messageType: "text" as const,
-      },
-    ];
+    const draftEntry: RenderableEntry = {
+      message: {
+        id: workflowDraft.id,
+        role: "user",
+        content: workflowDraft.content,
+        createdAt: workflowDraft.createdAt,
+      } as Message,
+      messageType: "text" as const,
+    };
+
+    return [...renderableMessages, draftEntry];
   }, [renderableMessages, workflowDraft]);
 
   // Get agent session ID from chat config (created by Agent Server)
