@@ -1,4 +1,4 @@
-//! MCP (Model Context Protocol) client library for Bodhi Agent
+//! MCP (Model Context Protocol) client library for Bamboo Agent
 //!
 //! This crate provides MCP client functionality allowing the agent to connect
 //! to MCP servers and use their tools.

@@ -7,7 +7,7 @@ Anthropic API to OpenAI API adapter for Bodhi with capability-based model mappin
 - **Protocol Conversion**: Convert between Anthropic and OpenAI API formats
 - **Capability-Based Mapping**: Map models by capability (background, thinking, long_context, default)
 - **Environment Variable Support**: Configure via environment variables
-- **Config File Support**: Load from `~/.bodhi/anthropic_model_mapping.json`
+- **Config File Support**: Load from `~/.bamboo/anthropic_model_mapping.json`
 - **Backward Compatibility**: Supports old model-to-model mapping format
 
 ## Usage
@@ -46,7 +46,7 @@ let resolution = resolve_model("claude-3-opus");
 
 ### Config File
 
-Location: `~/.bodhi/anthropic_model_mapping.json`
+Location: `~/.bamboo/anthropic_model_mapping.json`
 
 ```json
 {

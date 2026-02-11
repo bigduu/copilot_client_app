@@ -141,7 +141,7 @@ fn is_safe_workflow_name(name: &str) -> bool {
     true
 }
 
-#[get("/bodhi/workflows")]
+#[get("/bamboo/workflows")]
 pub async fn list_workflows(_app_state: web::Data<AppState>) -> Result<HttpResponse, AppError> {
     let dir = workflows_dir();
 
@@ -185,7 +185,7 @@ pub async fn list_workflows(_app_state: web::Data<AppState>) -> Result<HttpRespo
     Ok(HttpResponse::Ok().json(workflows))
 }
 
-#[get("/bodhi/workflows/{name}")]
+#[get("/bamboo/workflows/{name}")]
 pub async fn get_workflow(
     _app_state: web::Data<AppState>,
     path: web::Path<String>,
@@ -220,8 +220,8 @@ pub async fn get_workflow(
     }))
 }
 
-#[get("/bodhi/config")]
-pub async fn get_bodhi_config(app_state: web::Data<AppState>) -> Result<HttpResponse, AppError> {
+#[get("/bamboo/config")]
+pub async fn get_bamboo_config(app_state: web::Data<AppState>) -> Result<HttpResponse, AppError> {
     let path = config_path(&app_state);
     match fs::read_to_string(&path).await {
         Ok(content) => {
@@ -237,8 +237,8 @@ pub async fn get_bodhi_config(app_state: web::Data<AppState>) -> Result<HttpResp
     }
 }
 
-#[post("/bodhi/config")]
-pub async fn set_bodhi_config(
+#[post("/bamboo/config")]
+pub async fn set_bamboo_config(
     app_state: web::Data<AppState>,
     payload: web::Json<Value>,
 ) -> Result<HttpResponse, AppError> {
@@ -259,7 +259,7 @@ struct ProxyAuthPayload {
     password: Option<String>,
 }
 
-#[post("/bodhi/proxy-auth")]
+#[post("/bamboo/proxy-auth")]
 pub async fn set_proxy_auth(
     app_state: web::Data<AppState>,
     payload: web::Json<ProxyAuthPayload>,
@@ -281,8 +281,8 @@ pub async fn set_proxy_auth(
     Ok(HttpResponse::Ok().json(serde_json::json!({ "success": true })))
 }
 
-#[post("/bodhi/config/reset")]
-pub async fn reset_bodhi_config(app_state: web::Data<AppState>) -> Result<HttpResponse, AppError> {
+#[post("/bamboo/config/reset")]
+pub async fn reset_bamboo_config(app_state: web::Data<AppState>) -> Result<HttpResponse, AppError> {
     let path = config_path(&app_state);
     // Try to delete config.json if it exists
     match fs::try_exists(&path).await {
@@ -297,7 +297,7 @@ pub async fn reset_bodhi_config(app_state: web::Data<AppState>) -> Result<HttpRe
     Ok(HttpResponse::Ok().json(serde_json::json!({ "success": true })))
 }
 
-#[get("/bodhi/anthropic-model-mapping")]
+#[get("/bamboo/anthropic-model-mapping")]
 pub async fn get_anthropic_model_mapping(
     _app_state: web::Data<AppState>,
 ) -> Result<HttpResponse, AppError> {
@@ -306,7 +306,7 @@ pub async fn get_anthropic_model_mapping(
     Ok(HttpResponse::Ok().json(mapping))
 }
 
-#[post("/bodhi/anthropic-model-mapping")]
+#[post("/bamboo/anthropic-model-mapping")]
 pub async fn set_anthropic_model_mapping(
     _app_state: web::Data<AppState>,
     payload: web::Json<crate::services::anthropic_model_mapping_service::AnthropicModelMapping>,
@@ -319,9 +319,9 @@ pub async fn set_anthropic_model_mapping(
 pub fn config(cfg: &mut web::ServiceConfig) {
     cfg.service(list_workflows)
         .service(get_workflow)
-        .service(get_bodhi_config)
-        .service(set_bodhi_config)
-        .service(reset_bodhi_config)
+        .service(get_bamboo_config)
+        .service(set_bamboo_config)
+        .service(reset_bamboo_config)
         .service(set_proxy_auth)
         .service(get_anthropic_model_mapping)
         .service(set_anthropic_model_mapping);

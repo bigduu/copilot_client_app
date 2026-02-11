@@ -7,8 +7,8 @@ use rand::Rng;
 use sha2::{Digest, Sha256};
 use std::process::Command;
 
-const KEY_ENV_VAR: &str = "BODHI_CONFIG_ENCRYPTION_KEY";
-const KEY_DERIVATION_CONTEXT: &[u8] = b"bodhi-config-encryption-v1";
+const KEY_ENV_VAR: &str = "BAMBOO_CONFIG_ENCRYPTION_KEY";
+const KEY_DERIVATION_CONTEXT: &[u8] = b"bamboo-config-encryption-v1";
 
 /// Get the encryption key.
 /// Priority: environment variable, machine-derived key, then random fallback.

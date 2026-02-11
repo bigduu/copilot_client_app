@@ -17,7 +17,7 @@ describe("WorkflowManagerService", () => {
     vi.restoreAllMocks();
   });
 
-  it("lists workflows from bodhi config endpoint", async () => {
+  it("lists workflows from bamboo config endpoint", async () => {
     const workflows = [
       {
         name: "review",
@@ -40,12 +40,12 @@ describe("WorkflowManagerService", () => {
       },
     ]);
     expect(mockFetch).toHaveBeenCalledWith(
-      "http://127.0.0.1:8080/v1/bodhi/workflows",
+      "http://127.0.0.1:8080/v1/bamboo/workflows",
       expect.any(Object),
     );
   });
 
-  it("gets workflow content from bodhi config endpoint", async () => {
+  it("gets workflow content from bamboo config endpoint", async () => {
     const workflow = {
       name: "review",
       content: "# Review\n\n1. Check logs.",

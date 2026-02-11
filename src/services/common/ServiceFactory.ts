@@ -8,14 +8,14 @@ export interface UtilityService {
   copyToClipboard(text: string): Promise<void>;
 
   /**
-   * Get Bodhi config
+   * Get Bamboo config
    */
-  getBodhiConfig(): Promise<any>;
+  getBambooConfig(): Promise<any>;
 
   /**
-   * Set Bodhi config
+   * Set Bamboo config
    */
-  setBodhiConfig(config: any): Promise<any>;
+  setBambooConfig(config: any): Promise<any>;
 
   /**
    * Set proxy auth credentials
@@ -33,9 +33,9 @@ export interface UtilityService {
   setAnthropicModelMapping(mapping: any): Promise<any>;
 
   /**
-   * Reset Bodhi config (delete config.json)
+   * Reset Bamboo config (delete config.json)
    */
-  resetBodhiConfig(): Promise<any>;
+  resetBambooConfig(): Promise<any>;
 
   /**
    * Reset setup status (mark as incomplete)
@@ -49,26 +49,26 @@ export interface UtilityService {
 }
 
 class HttpUtilityService implements Partial<UtilityService> {
-  async getBodhiConfig(): Promise<any> {
+  async getBambooConfig(): Promise<any> {
     try {
-      return await apiClient.get("bodhi/config");
+      return await apiClient.get("bamboo/config");
     } catch (error) {
-      console.error("Failed to fetch Bodhi config:", error);
+      console.error("Failed to fetch Bamboo config:", error);
       return {};
     }
   }
 
-  async setBodhiConfig(config: any): Promise<any> {
-    return apiClient.post("bodhi/config", config);
+  async setBambooConfig(config: any): Promise<any> {
+    return apiClient.post("bamboo/config", config);
   }
 
   async setProxyAuth(auth: { username: string; password: string }): Promise<any> {
-    return apiClient.post("bodhi/proxy-auth", auth);
+    return apiClient.post("bamboo/proxy-auth", auth);
   }
 
   async getAnthropicModelMapping(): Promise<any> {
     try {
-      return await apiClient.get("bodhi/anthropic-model-mapping");
+      return await apiClient.get("bamboo/anthropic-model-mapping");
     } catch (error) {
       console.error("Failed to fetch Anthropic model mapping:", error);
       return { mappings: {} };
@@ -76,11 +76,11 @@ class HttpUtilityService implements Partial<UtilityService> {
   }
 
   async setAnthropicModelMapping(mapping: any): Promise<any> {
-    return apiClient.post("bodhi/anthropic-model-mapping", mapping);
+    return apiClient.post("bamboo/anthropic-model-mapping", mapping);
   }
 
-  async resetBodhiConfig(): Promise<any> {
-    return apiClient.post("bodhi/config/reset", {});
+  async resetBambooConfig(): Promise<any> {
+    return apiClient.post("bamboo/config/reset", {});
   }
 }
 
@@ -142,14 +142,14 @@ export class ServiceFactory {
         command: string,
         args?: Record<string, any>,
       ): Promise<T> => this.tauriUtilityService.invoke(command, args),
-      getBodhiConfig: () => this.httpUtilityService.getBodhiConfig(),
-      setBodhiConfig: (config: any) =>
-        this.httpUtilityService.setBodhiConfig(config),
+      getBambooConfig: () => this.httpUtilityService.getBambooConfig(),
+      setBambooConfig: (config: any) =>
+        this.httpUtilityService.setBambooConfig(config),
       setProxyAuth: (auth: { username: string; password: string }) =>
         this.httpUtilityService.setProxyAuth(auth),
       getAnthropicModelMapping: () => this.httpUtilityService.getAnthropicModelMapping(),
       setAnthropicModelMapping: (mapping: any) => this.httpUtilityService.setAnthropicModelMapping(mapping),
-      resetBodhiConfig: () => this.httpUtilityService.resetBodhiConfig(),
+      resetBambooConfig: () => this.httpUtilityService.resetBambooConfig(),
       resetSetupStatus: () => this.tauriUtilityService.resetSetupStatus(),
     };
   }
@@ -159,12 +159,12 @@ export class ServiceFactory {
     return this.getUtilityService().copyToClipboard(text);
   }
 
-  async getBodhiConfig(): Promise<any> {
-    return this.getUtilityService().getBodhiConfig();
+  async getBambooConfig(): Promise<any> {
+    return this.getUtilityService().getBambooConfig();
   }
 
-  async setBodhiConfig(config: any): Promise<any> {
-    return this.getUtilityService().setBodhiConfig(config);
+  async setBambooConfig(config: any): Promise<any> {
+    return this.getUtilityService().setBambooConfig(config);
   }
 
   async setProxyAuth(auth: { username: string; password: string }): Promise<any> {
@@ -179,8 +179,8 @@ export class ServiceFactory {
     return this.getUtilityService().setAnthropicModelMapping(mapping);
   }
 
-  async resetBodhiConfig(): Promise<any> {
-    return this.getUtilityService().resetBodhiConfig();
+  async resetBambooConfig(): Promise<any> {
+    return this.getUtilityService().resetBambooConfig();
   }
 
   async resetSetupStatus(): Promise<void> {

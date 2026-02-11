@@ -24,7 +24,7 @@ import {
 const { Text } = Typography;
 const { useToken } = theme;
 
-const BODHI_CONFIG_DEMO = `{
+const BAMBOO_CONFIG_DEMO = `{
   "http_proxy": "http://proxy.example.com:8080",
   "https_proxy": "http://proxy.example.com:8080",
   "proxy_auth_mode": "auto",
@@ -35,9 +35,9 @@ const BODHI_CONFIG_DEMO = `{
 }`;
 
 interface SystemSettingsConfigTabProps {
-  bodhiConfigJson: string;
-  bodhiConfigError: string | null;
-  isLoadingBodhiConfig: boolean;
+  bambooConfigJson: string;
+  bambooConfigError: string | null;
+  isLoadingBambooConfig: boolean;
   onReload: () => void;
   onSave: () => void;
   onChange: (value: string) => void;
@@ -55,9 +55,9 @@ interface SystemSettingsConfigTabProps {
 }
 
 const SystemSettingsConfigTab: React.FC<SystemSettingsConfigTabProps> = ({
-  bodhiConfigJson,
-  bodhiConfigError,
-  isLoadingBodhiConfig,
+  bambooConfigJson,
+  bambooConfigError,
+  isLoadingBambooConfig,
   onReload,
   onSave,
   onChange,
@@ -148,14 +148,14 @@ const SystemSettingsConfigTab: React.FC<SystemSettingsConfigTabProps> = ({
   );
 
   useEffect(() => {
-    const parsed = parseConfig(bodhiConfigJson);
+    const parsed = parseConfig(bambooConfigJson);
     if (!parsed) return;
     lastValidConfigRef.current = parsed;
     setFormState(buildFormState(parsed));
     if (typeof parsed.model === "string" && parsed.model !== selectedModel) {
       onModelChange(parsed.model);
     }
-  }, [bodhiConfigJson, buildFormState, onModelChange, parseConfig, selectedModel]);
+  }, [bambooConfigJson, buildFormState, onModelChange, parseConfig, selectedModel]);
 
   // Load Anthropic model mapping
   useEffect(() => {
@@ -305,7 +305,7 @@ const SystemSettingsConfigTab: React.FC<SystemSettingsConfigTabProps> = ({
           <Space direction="vertical" size={token.marginXS} style={{ width: "100%" }}>
             <Input.TextArea
               rows={10}
-              value={bodhiConfigJson}
+              value={bambooConfigJson}
               onChange={(event) => onChange(event.target.value)}
               placeholder='{"http_proxy":"","https_proxy":"","proxy_auth_mode":"auto","api_key":null,"api_base":null,"model":null,"headless_auth":false}'
             />
@@ -331,14 +331,14 @@ const SystemSettingsConfigTab: React.FC<SystemSettingsConfigTabProps> = ({
                   fontSize: token.fontSizeSM,
                 }}
               >
-                {BODHI_CONFIG_DEMO}
+                {BAMBOO_CONFIG_DEMO}
               </pre>
             </Space>
           </Space>
         ),
       },
     ],
-    [bodhiConfigJson, onChange, token, anthropicMapping, isLoadingMapping, models, isLoadingModels],
+    [bambooConfigJson, onChange, token, anthropicMapping, isLoadingMapping, models, isLoadingModels],
   );
 
   return (
@@ -350,15 +350,15 @@ const SystemSettingsConfigTab: React.FC<SystemSettingsConfigTabProps> = ({
           style={{ width: "100%" }}
         >
           <Flex justify="space-between" align="center">
-            <Text strong>Bodhi Config</Text>
+            <Text strong>Bamboo Config</Text>
             <Space size={token.marginSM}>
-              <Button onClick={onReload} disabled={isLoadingBodhiConfig}>
+              <Button onClick={onReload} disabled={isLoadingBambooConfig}>
                 Reload
               </Button>
               <Button
                 type="primary"
                 onClick={onSave}
-                disabled={isLoadingBodhiConfig}
+                disabled={isLoadingBambooConfig}
               >
                 Save
               </Button>
@@ -508,10 +508,10 @@ const SystemSettingsConfigTab: React.FC<SystemSettingsConfigTabProps> = ({
                 onChange={(checked) => updateConfig({ headless_auth: checked })}
               />
             </Flex>
-            {bodhiConfigError && <Text type="danger">{bodhiConfigError}</Text>}
+            {bambooConfigError && <Text type="danger">{bambooConfigError}</Text>}
           </Space>
           <Text type="secondary" style={{ fontSize: token.fontSizeSM }}>
-            Edit <Text code>~/.bodhi/config.json</Text> directly or use this
+            Edit <Text code>~/.bamboo/config.json</Text> directly or use this
             editor. The UI refreshes periodically; use Reload to apply file
             changes or Save to persist edits.
           </Text>

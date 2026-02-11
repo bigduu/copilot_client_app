@@ -1,6 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 
-export interface BodhiConfig {
+export interface BambooConfig {
   model?: string;
   api_key?: string;
   api_base?: string;
@@ -12,7 +12,7 @@ export interface BodhiConfig {
 
 export class ConfigService {
   private static instance: ConfigService;
-  private cachedConfig: BodhiConfig | null = null;
+  private cachedConfig: BambooConfig | null = null;
 
   private constructor() {}
 
@@ -24,19 +24,19 @@ export class ConfigService {
   }
 
   /**
-   * Get the full bodhi config from config.json
+   * Get the full bamboo config from config.json
    */
-  async getConfig(): Promise<BodhiConfig> {
+  async getConfig(): Promise<BambooConfig> {
     if (this.cachedConfig) {
       return this.cachedConfig;
     }
 
     try {
-      const config = await invoke<BodhiConfig>("get_bodhi_config");
+      const config = await invoke<BambooConfig>("get_bamboo_config");
       this.cachedConfig = config;
       return config;
     } catch (error) {
-      console.error("Failed to load bodhi config:", error);
+      console.error("Failed to load bamboo config:", error);
       return {};
     }
   }

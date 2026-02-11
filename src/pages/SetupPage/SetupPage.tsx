@@ -160,7 +160,7 @@ export const SetupPage = () => {
         title: "Welcome",
         content: (
           <div>
-            <h1>Welcome to Bodhi</h1>
+            <h1>Welcome to Bamboo</h1>
             <p>
               Let&apos;s set up your environment before entering the main app.
             </p>

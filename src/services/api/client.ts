@@ -5,7 +5,7 @@
  * Eliminates duplicate fetch logic across services.
  *
  * Backend has two route prefixes:
- * - /v1/*       - Standard web_service routes (models, bodhi/*, workspace/*, mcp/*, claude/*)
+ * - /v1/*       - Standard web_service routes (models, bamboo/*, workspace/*, mcp/*, claude/*)
  * - /api/v1/*   - Agent server routes (chat, stream, todo, respond, sessions, metrics)
  */
 import { getBackendBaseUrl } from "../../shared/utils/backendBaseUrl";

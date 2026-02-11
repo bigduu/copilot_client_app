@@ -85,7 +85,7 @@ impl Config {
         if let Ok(model) = std::env::var("MODEL") {
             config.model = Some(model);
         }
-        if let Ok(headless) = std::env::var("COPILOT_CHAT_HEADLESS") {
+        if let Ok(headless) = std::env::var("BAMBOO_HEADLESS") {
             config.headless_auth = parse_bool_env(&headless);
         }
         config
@@ -148,7 +148,7 @@ mod tests {
         }
 
         fn set_config_json(&self, content: &str) {
-            let config_dir = self.path.join(".bodhi");
+            let config_dir = self.path.join(".bamboo");
             std::fs::create_dir_all(&config_dir).expect("failed to create config dir");
             std::fs::write(config_dir.join("config.json"), content)
                 .expect("failed to write config.json");

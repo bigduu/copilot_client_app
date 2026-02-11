@@ -142,7 +142,7 @@ impl Default for SkillStoreConfig {
     fn default() -> Self {
         let home = dirs::home_dir().unwrap_or_else(|| std::path::PathBuf::from("."));
         Self {
-            skills_dir: home.join(".bodhi").join("skills"),
+            skills_dir: home.join(".bamboo").join("skills"),
         }
     }
 }

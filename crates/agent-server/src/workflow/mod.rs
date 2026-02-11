@@ -171,7 +171,7 @@ impl WorkflowLoader {
     pub fn new() -> Self {
         let home = dirs::home_dir().unwrap_or_else(std::env::temp_dir);
         Self {
-            workflows_dir: home.join(".bodhi").join("workflows"),
+            workflows_dir: home.join(".bamboo").join("workflows"),
             cache: RwLock::new(HashMap::new()),
         }
     }

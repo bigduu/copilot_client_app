@@ -1,37 +1,37 @@
 use std::path::{Path, PathBuf};
 
-/// Get Bodhi config directory (~/.bodhi)
-pub fn bodhi_dir() -> PathBuf {
+/// Get Bamboo config directory (~/.bamboo)
+pub fn bamboo_dir() -> PathBuf {
     std::env::var_os("HOME")
         .or_else(|| std::env::var_os("USERPROFILE"))
         .map(PathBuf::from)
         .unwrap_or_else(|| std::env::temp_dir())
-        .join(".bodhi")
+        .join(".bamboo")
 }
 
 /// Get config.json path
 pub fn config_json_path() -> PathBuf {
-    bodhi_dir().join("config.json")
+    bamboo_dir().join("config.json")
 }
 
 /// Get keyword_masking.json path
 pub fn keyword_masking_json_path() -> PathBuf {
-    bodhi_dir().join("keyword_masking.json")
+    bamboo_dir().join("keyword_masking.json")
 }
 
 /// Get workflows directory
 pub fn workflows_dir() -> PathBuf {
-    bodhi_dir().join("workflows")
+    bamboo_dir().join("workflows")
 }
 
 /// Get anthropic-model-mapping.json path
 pub fn anthropic_model_mapping_path() -> PathBuf {
-    bodhi_dir().join("anthropic-model-mapping.json")
+    bamboo_dir().join("anthropic-model-mapping.json")
 }
 
-/// Ensure bodhi directory exists
-pub fn ensure_bodhi_dir() -> std::io::Result<PathBuf> {
-    let dir = bodhi_dir();
+/// Ensure bamboo directory exists
+pub fn ensure_bamboo_dir() -> std::io::Result<PathBuf> {
+    let dir = bamboo_dir();
     std::fs::create_dir_all(&dir)?;
     Ok(dir)
 }

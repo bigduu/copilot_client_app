@@ -32,7 +32,7 @@ export class WorkflowManagerService {
   async listWorkflows(): Promise<WorkflowMetadata[]> {
     try {
       console.log("[WorkflowManagerService] Listing workflows");
-      const data = await apiClient.get<unknown[]>("bodhi/workflows");
+      const data = await apiClient.get<unknown[]>("bamboo/workflows");
       const workflows = Array.isArray(data) ? data : [];
       console.log("[WorkflowManagerService] Listed workflows:", workflows);
 
@@ -63,7 +63,7 @@ export class WorkflowManagerService {
         size?: number;
         modified_at?: string;
         content?: string;
-      }>("bodhi/workflows/" + encodeURIComponent(name));
+      }>("bamboo/workflows/" + encodeURIComponent(name));
 
       const resolvedName = data?.name ? String(data.name) : name;
       const metadata: WorkflowMetadata = {

@@ -1,4 +1,4 @@
-use chat_core::paths::bodhi_dir;
+use chat_core::paths::bamboo_dir;
 use clap::{Parser, Subcommand};
 use std::env;
 use std::path::PathBuf;
@@ -66,7 +66,7 @@ async fn main() {
             tracing::info!("Starting standalone web service...");
 
             // Start the server
-            let app_data_dir = data_dir.unwrap_or_else(bodhi_dir);
+            let app_data_dir = data_dir.unwrap_or_else(bamboo_dir);
             if let Err(e) = web_service::server::run(app_data_dir, port).await {
                 tracing::error!("Failed to run web service: {}", e);
                 std::process::exit(1);
@@ -93,7 +93,7 @@ async fn main() {
                 .and_then(|s| s.parse::<u16>().ok())
                 .unwrap_or(8080);
 
-            let app_data_dir = bodhi_dir();
+            let app_data_dir = bamboo_dir();
 
             // Start the server
             if let Err(e) = web_service::server::run(app_data_dir, port).await {

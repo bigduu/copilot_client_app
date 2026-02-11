@@ -14,7 +14,7 @@ import type { ChatItem, Message } from "../types/chat";
 const DEFAULT_PROXY_AUTH_MODE = "auto";
 const REQUIRED_PROXY_AUTH_MODE = "required";
 const STARTUP_FALLBACK_MODELS = ["gpt-5-mini", "gpt-5", "gemini-2.5-pro"];
-const SELECTED_MODEL_LS_KEY = "copilot_selected_model_id";
+const SELECTED_MODEL_LS_KEY = "bamboo_selected_model_id";
 const AGENT_HEALTH_CHECK_INTERVAL_MS = 10000;
 
 type AgentAvailabilitySlice = {
@@ -136,7 +136,7 @@ const applyStoredProxyAuth = async (): Promise<boolean> => {
 
 const bootstrapProxyAuthGate = async (): Promise<boolean> => {
   try {
-    const config = await serviceFactory.getBodhiConfig();
+    const config = await serviceFactory.getBambooConfig();
     const mode =
       typeof config?.proxy_auth_mode === "string"
         ? config.proxy_auth_mode

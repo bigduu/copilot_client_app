@@ -50,7 +50,7 @@ impl Tool for ReadFileTool {
     }
 
     fn description(&self) -> &str {
-        "Read file content. Supports text files (txt, json, md, rs, etc.). Path can be absolute (e.g., /Users/bigduu/workspace/file.txt) or use ~ for home directory (e.g., ~/.bodhi/skills/my-skill/SKILL.md)"
+        "Read file content. Supports text files (txt, json, md, rs, etc.). Path can be absolute (e.g., /Users/bigduu/workspace/file.txt) or use ~ for home directory (e.g., ~/.bamboo/skills/my-skill/SKILL.md)"
     }
 
     fn parameters_schema(&self) -> serde_json::Value {

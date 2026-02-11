@@ -1,4 +1,4 @@
-export const PROXY_AUTH_STORAGE_KEY = "bodhi_proxy_auth";
+export const PROXY_AUTH_STORAGE_KEY = "bamboo_proxy_auth";
 
 export interface ProxyAuthCredentials {
   username: string;
