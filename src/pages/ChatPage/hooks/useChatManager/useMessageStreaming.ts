@@ -99,7 +99,11 @@ export function useMessageStreaming(deps: UseMessageStreamingDeps): UseMessageSt
           });
         }
 
-        // Step 2: Setup streaming
+        // Step 2: Trigger execution (idempotent)
+        const executeResult = await agentClientRef.current.execute(session_id);
+        console.log("[Agent] Execute status:", executeResult.status);
+
+        // Step 3: Setup streaming
         const streamingMessageId = `streaming-${chatId}`;
         streamingMessageIdRef.current = streamingMessageId;
         streamingContentRef.current = "";
@@ -116,8 +120,9 @@ export function useMessageStreaming(deps: UseMessageStreamingDeps): UseMessageSt
           { name: string; args: Record<string, unknown> }
         >();
 
-        // Step 3: Stream events
-        await agentClientRef.current.streamEvents(
+        // Step 4: Subscribe to events if execution started or already running
+        if (["started", "already_running"].includes(executeResult.status)) {
+          await agentClientRef.current.streamEvents(
           session_id,
           {
             onToken: (tokenContent: string) => {
@@ -237,6 +242,16 @@ export function useMessageStreaming(deps: UseMessageStreamingDeps): UseMessageSt
           },
           controller,
         );
+        } else if (executeResult.status === "completed") {
+          // Session already completed, no need to stream
+          console.log("[Agent] Session already completed");
+          deps.setProcessing(false);
+        } else {
+          // Error or other status
+          console.error("[Agent] Execute failed:", executeResult.status);
+          deps.setProcessing(false);
+          throw new Error(`Execute failed: ${executeResult.status}`);
+        }
       } catch (error) {
         throw error; // Re-throw to trigger fallback
       }

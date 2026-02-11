@@ -1,34 +1,47 @@
-use actix_web::http::header;
-use actix_web::{web, HttpRequest, HttpResponse, Responder};
+use actix_web::{web, HttpResponse, Responder};
 use chrono::Utc;
+use serde::Serialize;
 use std::sync::Arc;
 use tokio::sync::mpsc;
 
 use crate::state::{AgentRunner, AgentStatus, AppState};
+use agent_core::agent::Role;
 use agent_loop::{run_agent_loop_with_config, AgentLoopConfig};
 
-/// DEPRECATED: Use POST /execute + GET /events instead
-/// This handler maintains backward compatibility by combining execute + events
+#[derive(Serialize)]
+pub struct ExecuteResponse {
+    pub session_id: String,
+    pub status: String,
+    pub events_url: String,
+}
+
 pub async fn handler(
     state: web::Data<AppState>,
     path: web::Path<String>,
-    _req: HttpRequest,
 ) -> impl Responder {
     let session_id = path.into_inner();
-    log::warn!(
-        "[{}] DEPRECATED: /stream endpoint called. Use /execute + /events instead",
-        session_id
-    );
+    log::debug!("[{}] Execute request received", session_id);
 
     // Check if there's already a runner for this session
-    let existing_runner = {
+    {
         let runners = state.agent_runners.read().await;
-        runners.get(&session_id).cloned()
-    };
+        if let Some(runner) = runners.get(&session_id) {
+            let status_str = match &runner.status {
+                AgentStatus::Running => "already_running",
+                AgentStatus::Completed => "completed",
+                AgentStatus::Cancelled => "cancelled",
+                AgentStatus::Error(_) => "error",
+                AgentStatus::Pending => "pending",
+            };
 
-    if let Some(runner) = existing_runner {
-        // Runner exists, just subscribe to events
-        return subscribe_to_runner(runner, session_id);
+            log::debug!("[{}] Returning existing runner status: {}", session_id, status_str);
+
+            return HttpResponse::Ok().json(ExecuteResponse {
+                session_id: session_id.clone(),
+                status: status_str.to_string(),
+                events_url: format!("/api/v1/events/{}", session_id),
+            });
+        }
     }
 
     // Load session from memory or storage
@@ -62,17 +75,16 @@ pub async fn handler(
     let last_message_is_user = session
         .messages
         .last()
-        .map(|m| matches!(m.role, agent_core::agent::Role::User))
+        .map(|m| matches!(m.role, Role::User))
         .unwrap_or(false);
 
     if !last_message_is_user {
-        // No pending message, just send complete event
-        log::debug!(
-            "[{}] Session already processed, sending complete event",
-            session_id
-        );
-        let runner = AgentRunner::new();
-        return subscribe_to_runner(runner, session_id);
+        log::debug!("[{}] No pending user message, returning completed status", session_id);
+        return HttpResponse::Ok().json(ExecuteResponse {
+            session_id: session_id.clone(),
+            status: "completed".to_string(),
+            events_url: format!("/api/v1/events/{}", session_id),
+        });
     }
 
     // Create runner
@@ -86,7 +98,7 @@ pub async fn handler(
         runners.insert(session_id.clone(), runner);
     }
 
-    log::info!("[{}] Starting agent execution (legacy stream handler)", session_id);
+    log::info!("[{}] Starting agent execution", session_id);
 
     // Create mpsc channel for agent loop
     let (mpsc_tx, mut mpsc_rx) = mpsc::channel::<agent_core::AgentEvent>(100);
@@ -112,14 +124,14 @@ pub async fn handler(
         let system_prompt = session
             .messages
             .iter()
-            .find(|m| matches!(m.role, agent_core::agent::Role::System))
+            .find(|m| matches!(m.role, Role::System))
             .map(|m| m.content.clone());
 
         // Get initial user message
         let initial_message = session
             .messages
             .last()
-            .filter(|m| matches!(m.role, agent_core::agent::Role::User))
+            .filter(|m| matches!(m.role, Role::User))
             .map(|m| m.content.clone())
             .unwrap_or_default();
 
@@ -203,88 +215,12 @@ pub async fn handler(
             tokens.remove(&session_id_clone);
         }
 
-        log::info!("[{}] Agent execution completed (legacy stream)", session_id_clone);
+        log::info!("[{}] Agent execution completed", session_id_clone);
     });
 
-    // Subscribe to the broadcast channel
-    let mut receiver = {
-        let runners = state.agent_runners.read().await;
-        runners.get(&session_id).unwrap().event_sender.subscribe()
-    };
-
-    HttpResponse::Ok()
-        .append_header((header::CONTENT_TYPE, "text/event-stream"))
-        .append_header((header::CACHE_CONTROL, "no-cache"))
-        .append_header((header::CONNECTION, "keep-alive"))
-        .streaming(async_stream::stream! {
-            while let Ok(event) = receiver.recv().await {
-                let event_json = match serde_json::to_string(&event) {
-                    Ok(json) => json,
-                    Err(_) => continue,
-                };
-
-                let sse_data = format!("data: {}\n\n", event_json);
-                yield Ok::<_, actix_web::Error>(
-                    actix_web::web::Bytes::from(sse_data)
-                );
-
-                // Terminal events end the stream
-                match &event {
-                    agent_core::AgentEvent::Complete { .. } |
-                    agent_core::AgentEvent::Error { .. } => break,
-                    _ => {}
-                }
-            }
-        })
-}
-
-/// Subscribe to an existing runner's broadcast channel
-fn subscribe_to_runner(
-    runner: AgentRunner,
-    _session_id: String,
-) -> HttpResponse {
-    let mut receiver = runner.event_sender.subscribe();
-
-    HttpResponse::Ok()
-        .append_header((header::CONTENT_TYPE, "text/event-stream"))
-        .append_header((header::CACHE_CONTROL, "no-cache"))
-        .append_header((header::CONNECTION, "keep-alive"))
-        .streaming(async_stream::stream! {
-            while let Ok(event) = receiver.recv().await {
-                let event_json = match serde_json::to_string(&event) {
-                    Ok(json) => json,
-                    Err(_) => continue,
-                };
-
-                let sse_data = format!("data: {}\n\n", event_json);
-                yield Ok::<_, actix_web::Error>(
-                    actix_web::web::Bytes::from(sse_data)
-                );
-
-                // Terminal events end the stream
-                match &event {
-                    agent_core::AgentEvent::Complete { .. } |
-                    agent_core::AgentEvent::Error { .. } => break,
-                    _ => {}
-                }
-            }
-        })
-}
-
-// Implement Clone for AppState (for passing between threads)
-impl Clone for AppState {
-    fn clone(&self) -> Self {
-        Self {
-            sessions: self.sessions.clone(),
-            storage: self.storage.clone(),
-            llm: self.llm.clone(),
-            tools: self.tools.clone(),
-            cancel_tokens: self.cancel_tokens.clone(),
-            skill_manager: self.skill_manager.clone(),
-            mcp_manager: self.mcp_manager.clone(),
-            metrics_service: self.metrics_service.clone(),
-            model_name: self.model_name.clone(),
-            agent_runners: self.agent_runners.clone(),
-        }
-    }
+    HttpResponse::Accepted().json(ExecuteResponse {
+        session_id: session_id.clone(),
+        status: "started".to_string(),
+        events_url: format!("/api/v1/events/{}", session_id),
+    })
 }

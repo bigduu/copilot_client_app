@@ -89,15 +89,17 @@ export const TodoList: React.FC<TodoListProps> = ({
   }, [sessionId]);
 
   // Connect to SSE for real-time updates
+  // Uses /events endpoint - pure subscription, does NOT trigger agent execution
   const connectSSE = useCallback(() => {
     if (eventSourceRef.current) {
       eventSourceRef.current.close();
     }
 
     // Build SSE URL using backend base URL
-    // Stream endpoint is under /api/v1, not /v1
+    // Events endpoint is under /api/v1, not /v1
     const baseUrl = getBackendBaseUrl().replace(/\/$/, '').replace(/\/v1$/, '');
-    const sseUrl = `${baseUrl}/api/v1/stream/${sessionId}`;
+    // Use /events endpoint - pure subscription, no execution trigger
+    const sseUrl = `${baseUrl}/api/v1/events/${sessionId}`;
     const eventSource = new EventSource(sseUrl);
     eventSourceRef.current = eventSource;
 
@@ -154,21 +156,22 @@ export const TodoList: React.FC<TodoListProps> = ({
         return;
       }
 
-      // Limit reconnection attempts to avoid infinite loops
+      // Simple fixed interval reconnection
+      // Using /events endpoint means reconnection won't trigger re-execution
       reconnectCountRef.current += 1;
       if (reconnectCountRef.current > MAX_RECONNECT_ATTEMPTS) {
         console.log('Max reconnect attempts reached, stopping reconnection');
+        setError('Connection lost. Please refresh the page.');
         return;
       }
 
-      // Use exponential backoff: 5s, 10s, 20s
-      const delay = Math.min(5000 * Math.pow(2, reconnectCountRef.current - 1), 30000);
+      const delay = 5000;
       console.log(`Reconnecting in ${delay}ms (attempt ${reconnectCountRef.current}/${MAX_RECONNECT_ATTEMPTS})`);
       reconnectTimeoutRef.current = setTimeout(connectSSE, delay);
     };
 
     eventSource.onopen = () => {
-      console.log('SSE connected');
+      console.log('SSE connected (events endpoint)');
       setError(null);
       // Reset reconnection counter on successful connection
       reconnectCountRef.current = 0;

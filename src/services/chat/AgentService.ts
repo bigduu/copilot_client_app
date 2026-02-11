@@ -49,6 +49,12 @@ export interface ChatResponse {
   status: string;
 }
 
+export interface ExecuteResponse {
+  session_id: string;
+  status: "started" | "already_running" | "completed" | "error" | "cancelled";
+  events_url: string;
+}
+
 export interface HistoryResponse {
   session_id: string;
   messages: Array<{
@@ -103,7 +109,15 @@ export class AgentClient {
   }
 
   /**
-   * Stream events from the agent using SSE
+   * Execute agent for a session (idempotent)
+   * Returns status: started | already_running | completed | error | cancelled
+   */
+  async execute(sessionId: string): Promise<ExecuteResponse> {
+    return agentApiClient.post<ExecuteResponse>(`execute/${sessionId}`);
+  }
+
+  /**
+   * Stream events from the agent using SSE (legacy - triggers execution)
    */
   async streamEvents(
     sessionId: string,
@@ -117,6 +131,70 @@ export class AgentClient {
 
     if (!response.ok) {
       throw new Error(`Failed to stream events: ${response.statusText}`);
+    }
+
+    const reader = response.body?.getReader();
+    if (!reader) {
+      throw new Error("No response body");
+    }
+
+    const decoder = new TextDecoder();
+    let buffer = "";
+
+    try {
+      while (true) {
+        if (signal?.aborted) {
+          break;
+        }
+
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+
+        // Process SSE lines
+        const lines = buffer.split("\n");
+        buffer = lines.pop() || ""; // Keep incomplete line in buffer
+
+        for (const line of lines) {
+          if (line.startsWith("data: ")) {
+            const data = line.slice(6);
+
+            // Check for [DONE] marker
+            if (data === "[DONE]") {
+              return;
+            }
+
+            try {
+              const event: AgentEvent = JSON.parse(data);
+              this.handleEvent(event, handlers);
+            } catch (e) {
+              console.warn("Failed to parse event:", data, e);
+            }
+          }
+        }
+      }
+    } finally {
+      reader.releaseLock();
+    }
+  }
+
+  /**
+   * Subscribe to events only (no execution trigger)
+   * Use this for passive observation like TodoList updates
+   */
+  async subscribeToEvents(
+    sessionId: string,
+    handlers: AgentEventHandlers,
+    abortController?: AbortController,
+  ): Promise<void> {
+    const signal = abortController?.signal;
+    const response = await agentApiClient.fetchRaw(`events/${sessionId}`, {
+      signal,
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to subscribe to events: ${response.statusText}`);
     }
 
     const reader = response.body?.getReader();

@@ -11,6 +11,8 @@ import type {
   WorkspaceMetadata,
   PathSuggestionsResponse,
   BrowseFolderResponse,
+  WorkspaceFileEntry,
+  WorkspaceFilesRequest,
   WorkspaceServiceOptions,
 } from "./types";
 
@@ -206,10 +208,21 @@ export class WorkspaceService {
   /** @deprecated Use healthCheck instead */
   getHealthStatus = this.healthCheck.bind(this);
 
-  /** @deprecated Not implemented in unified service */
-  listWorkspaceFiles = async (_path: string): Promise<any[]> => {
-    throw new Error("listWorkspaceFiles is not implemented in unified WorkspaceService");
-  };
+  /**
+   * List workspace files
+   * Returns a flat list of files in the workspace directory
+   */
+  async listWorkspaceFiles(
+    path: string,
+    options?: Omit<WorkspaceFilesRequest, "path">,
+  ): Promise<WorkspaceFileEntry[]> {
+    return apiClient.post<WorkspaceFileEntry[]>("workspace/files", {
+      path,
+      max_depth: options?.max_depth ?? 3,
+      max_entries: options?.max_entries ?? 500,
+      include_hidden: options?.include_hidden ?? false,
+    });
+  }
 
   // =============================================================
 

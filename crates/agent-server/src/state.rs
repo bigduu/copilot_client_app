@@ -5,15 +5,64 @@ use agent_llm::OpenAIProvider;
 use agent_mcp::{CompositeToolExecutor, McpServerManager};
 use agent_skill::{SkillManager, SkillStoreConfig};
 use agent_tools::BuiltinToolExecutor;
+use chrono::{DateTime, Utc};
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
-use tokio::sync::{mpsc, RwLock};
+use std::time::Duration;
+use tokio::sync::{broadcast, mpsc, RwLock};
+use tokio_util::sync::CancellationToken;
 
 pub const DEFAULT_BASE_PROMPT: &str =
     "You are a helpful AI assistant with access to various tools and skills.";
 pub const WORKSPACE_PROMPT_GUIDANCE: &str =
     "If you need to inspect files, check the workspace first, then ~/.bodhi.";
+
+/// Status of an agent runner
+#[derive(Debug, Clone)]
+pub enum AgentStatus {
+    Pending,
+    Running,
+    Completed,
+    Cancelled,
+    Error(String),
+}
+
+impl AgentStatus {
+    pub fn as_str(&self) -> &str {
+        match self {
+            AgentStatus::Pending => "pending",
+            AgentStatus::Running => "running",
+            AgentStatus::Completed => "completed",
+            AgentStatus::Cancelled => "cancelled",
+            AgentStatus::Error(_) => "error",
+        }
+    }
+}
+
+/// Runner that manages agent execution for a session
+/// Supports multiple subscribers via broadcast channel
+#[derive(Clone)]
+pub struct AgentRunner {
+    pub event_sender: broadcast::Sender<AgentEvent>,
+    pub cancel_token: CancellationToken,
+    pub status: AgentStatus,
+    pub started_at: DateTime<Utc>,
+    pub completed_at: Option<DateTime<Utc>>,
+}
+
+impl AgentRunner {
+    pub fn new() -> Self {
+        let (event_sender, _) = broadcast::channel(1000);
+        Self {
+            event_sender,
+            cancel_token: CancellationToken::new(),
+            status: AgentStatus::Pending,
+            started_at: Utc::now(),
+            completed_at: None,
+        }
+    }
+}
 
 pub struct AppState {
     pub sessions: Arc<RwLock<HashMap<String, Session>>>,
@@ -25,6 +74,8 @@ pub struct AppState {
     pub mcp_manager: Arc<McpServerManager>,
     pub metrics_service: Arc<MetricsService>,
     pub model_name: String,
+    /// Agent runners with broadcast channels for multi-subscriber support
+    pub agent_runners: Arc<RwLock<HashMap<String, AgentRunner>>>,
 }
 
 impl AppState {
@@ -154,6 +205,40 @@ impl AppState {
                 }),
         );
 
+        let agent_runners: Arc<RwLock<HashMap<String, AgentRunner>>> =
+            Arc::new(RwLock::new(HashMap::new()));
+
+        // Start runner cleanup task
+        {
+            let runners = agent_runners.clone();
+            tokio::spawn(async move {
+                loop {
+                    tokio::time::sleep(Duration::from_secs(60)).await;
+
+                    let mut runners_guard = runners.write().await;
+                    let now = Utc::now();
+
+                    runners_guard.retain(|session_id, runner| {
+                        let should_keep = match &runner.status {
+                            AgentStatus::Running => true,
+                            _ => {
+                                let age = now.signed_duration_since(
+                                    runner.completed_at.unwrap_or(runner.started_at)
+                                );
+                                age.num_seconds() < 300 // 5分钟 TTL
+                            }
+                        };
+
+                        if !should_keep {
+                            log::debug!("[{}] Cleaning up completed runner", session_id);
+                        }
+
+                        should_keep
+                    });
+                }
+            });
+        }
+
         Self {
             sessions: Arc::new(RwLock::new(HashMap::new())),
             storage,
@@ -164,6 +249,7 @@ impl AppState {
             mcp_manager,
             metrics_service,
             model_name: model,
+            agent_runners,
         }
     }
 
