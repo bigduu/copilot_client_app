@@ -278,7 +278,6 @@ const MessageCardComponent: React.FC<MessageCardProps> = ({
                 markdownComponents={markdownComponents}
                 markdownPlugins={markdownPlugins}
                 rehypePlugins={rehypePlugins}
-                token={token}
               />
             </Flex>
 

@@ -12,8 +12,8 @@ export interface CollapseOptions {
 }
 
 const DEFAULT_COLLAPSE_OPTIONS: Required<CollapseOptions> = {
-  maxLines: 18,
-  maxCharacters: 2_000,
+  maxLines: 8,
+  maxCharacters: 500,
 };
 
 /**
@@ -155,6 +155,61 @@ export const createContentPreview = (
     preview: content.substring(0, maxLength).trimEnd() + "…",
     isTruncated: true,
   };
+};
+
+/**
+ * Generate a compact preview (~60 chars) for collapsed view.
+ * Used in ToolResultCard header to show a brief result summary.
+ */
+export const createCompactPreview = (content: string): string => {
+  if (!content) {
+    return "No content";
+  }
+
+  const maxLength = 60;
+  const trimmed = content.trim();
+
+  if (trimmed.length <= maxLength) {
+    return trimmed;
+  }
+
+  // For JSON content, try to extract a meaningful summary
+  if (trimmed.startsWith("{") || trimmed.startsWith("[")) {
+    try {
+      const parsed = JSON.parse(trimmed);
+
+      // Check for common result patterns
+      if (typeof parsed === "object" && parsed !== null) {
+        // If it has a content/result/output field, use that
+        const resultKey = [
+          "content",
+          "result",
+          "output",
+          "message",
+          "data",
+        ].find((k) => k in parsed && typeof parsed[k] === "string");
+        if (resultKey) {
+          const value = parsed[resultKey];
+          return value.length <= maxLength
+            ? value
+            : value.substring(0, maxLength).trimEnd() + "…";
+        }
+
+        // For arrays, show count
+        if (Array.isArray(parsed)) {
+          return `Array with ${parsed.length} items`;
+        }
+
+        // For objects, show key count
+        const keys = Object.keys(parsed);
+        return `Object with ${keys.length} propert${keys.length === 1 ? "y" : "ies"}`;
+      }
+    } catch {
+      // Fall through to default truncation
+    }
+  }
+
+  return trimmed.substring(0, maxLength).trimEnd() + "…";
 };
 
 /**

@@ -1,5 +1,5 @@
 import React from "react";
-import { Card, Flex, Space, Typography } from "antd";
+import { Space, Typography } from "antd";
 import ReactMarkdown from "react-markdown";
 import type { Components } from "react-markdown";
 import type { PluggableList } from "unified";
@@ -10,6 +10,7 @@ import {
   type Message,
 } from "../../types/chat";
 import ToolResultCard from "../ToolResultCard";
+import ToolCallCard from "../ToolCallCard";
 import WorkflowResultCard from "../WorkflowResultCard";
 
 const { Text } = Typography;
@@ -22,7 +23,6 @@ interface MessageCardContentProps {
   markdownComponents: Components;
   markdownPlugins: PluggableList;
   rehypePlugins: PluggableList;
-  token: any;
 }
 
 const MessageCardContent: React.FC<MessageCardContentProps> = ({
@@ -33,7 +33,6 @@ const MessageCardContent: React.FC<MessageCardContentProps> = ({
   markdownComponents,
   markdownPlugins,
   rehypePlugins,
-  token,
 }) => {
   if (isAssistantToolResultMessage(message)) {
     const toolResultContent = message.result.result ?? "";
@@ -59,7 +58,7 @@ const MessageCardContent: React.FC<MessageCardContentProps> = ({
               : "success"
         }
         timestamp={message.createdAt}
-        defaultCollapsed={message.result.display_preference === "Collapsible"}
+        defaultCollapsed={true}
         isLoading={toolResultIsLoading}
         errorMessage={toolResultErrorMessage}
       />
@@ -92,39 +91,13 @@ const MessageCardContent: React.FC<MessageCardContentProps> = ({
     return (
       <Space direction="vertical" style={{ width: "100%" }}>
         {message.toolCalls.map((call) => (
-          <Card
+          <ToolCallCard
             key={call.toolCallId}
-            size="small"
-            title={
-              <Space>
-                <Text>🔧 Requesting Tool: {call.toolName}</Text>
-              </Space>
-            }
-            style={{
-              backgroundColor: token.colorInfoBg,
-              borderColor: token.colorInfoBorder,
-            }}
-          >
-            <Space direction="vertical" style={{ width: "100%" }} size="middle">
-              <Flex vertical>
-                <Text strong style={{ marginBottom: token.marginXS }}>
-                  Parameters:
-                </Text>
-                <pre
-                  style={{
-                    whiteSpace: "pre-wrap",
-                    wordBreak: "break-all",
-                    backgroundColor: token.colorBgContainer,
-                    padding: token.paddingSM,
-                    borderRadius: token.borderRadius,
-                    margin: 0,
-                  }}
-                >
-                  {JSON.stringify(call.parameters, null, 2)}
-                </pre>
-              </Flex>
-            </Space>
-          </Card>
+            toolName={call.toolName}
+            parameters={call.parameters}
+            toolCallId={call.toolCallId}
+            defaultExpanded={false}
+          />
         ))}
       </Space>
     );
