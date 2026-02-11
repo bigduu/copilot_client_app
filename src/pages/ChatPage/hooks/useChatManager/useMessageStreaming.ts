@@ -42,6 +42,7 @@ export function useMessageStreaming(deps: UseMessageStreamingDeps): UseMessageSt
   const startAgentHealthCheck = useAppStore(
     (state) => state.startAgentHealthCheck,
   );
+  const selectedModel = useAppStore((state) => state.selectedModel);
 
   useEffect(() => {
     startAgentHealthCheck();
@@ -84,6 +85,7 @@ export function useMessageStreaming(deps: UseMessageStreamingDeps): UseMessageSt
           system_prompt: baseSystemPrompt || undefined,
           enhance_prompt: enhancePrompt || undefined,
           workspace_path: workspacePath || undefined,
+          model: selectedModel || undefined,
         });
 
         const { session_id } = response;
@@ -239,7 +241,7 @@ export function useMessageStreaming(deps: UseMessageStreamingDeps): UseMessageSt
         throw error; // Re-throw to trigger fallback
       }
     },
-    [deps],
+    [deps, selectedModel],
   );
 
   const sendMessage = useCallback(

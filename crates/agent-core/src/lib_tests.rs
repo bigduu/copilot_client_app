@@ -134,4 +134,154 @@ mod tests {
         assert_eq!(parsed["role"], "assistant");
         assert!(parsed.get("tool_calls").is_some(), "tool_calls field should exist");
     }
+
+    #[test]
+    fn test_session_metadata_serialization() {
+        let mut session = Session::new("test-metadata");
+        session.metadata.insert("model".to_string(), "gpt-5".to_string());
+        session.metadata.insert("key".to_string(), "value".to_string());
+
+        let json = serde_json::to_string(&session).unwrap();
+        println!("Serialized session with metadata: {}", json);
+
+        // Verify metadata is present in JSON
+        let parsed: serde_json::Value = serde_json::from_str(&json).unwrap();
+        assert!(parsed.get("metadata").is_some(), "metadata field should exist");
+        assert_eq!(parsed["metadata"]["model"], "gpt-5");
+        assert_eq!(parsed["metadata"]["key"], "value");
+
+        // Deserialize and verify
+        let deserialized: Session = serde_json::from_str(&json).unwrap();
+        assert_eq!(deserialized.metadata.get("model"), Some(&"gpt-5".to_string()));
+        assert_eq!(deserialized.metadata.get("key"), Some(&"value".to_string()));
+    }
+
+    #[test]
+    fn test_session_metadata_empty_not_serialized() {
+        let session = Session::new("test-no-metadata");
+        // metadata is empty by default
+
+        let json = serde_json::to_string(&session).unwrap();
+        println!("Serialized session without metadata: {}", json);
+
+        // Verify metadata is not present when empty (skip_serializing_if)
+        let parsed: serde_json::Value = serde_json::from_str(&json).unwrap();
+        assert!(
+            parsed.get("metadata").is_none(),
+            "metadata field should be skipped when empty"
+        );
+    }
+
+    #[test]
+    fn test_session_metadata_backward_compatibility() {
+        // Test that old sessions without metadata can still be deserialized
+        let old_session_json = r#"{
+            "id": "old-session",
+            "messages": [],
+            "created_at": "2024-01-01T00:00:00Z",
+            "updated_at": "2024-01-01T00:00:00Z"
+        }"#;
+
+        let session: Session = serde_json::from_str(old_session_json).unwrap();
+        assert_eq!(session.id, "old-session");
+        assert!(session.metadata.is_empty());
+    }
+
+    #[test]
+    fn test_session_with_model_field() {
+        let mut session = Session::new("test-session");
+        session.model = Some("gpt-4o-mini".to_string());
+
+        // Simulate reading model from dedicated field (like in stream.rs)
+        let model = session
+            .model
+            .clone()
+            .unwrap_or_else(|| "default-model".to_string());
+
+        assert_eq!(model, "gpt-4o-mini");
+    }
+
+    #[test]
+    fn test_session_model_fallback() {
+        let session = Session::new("test-session");
+        // No model set
+
+        // Simulate reading model with fallback
+        let model = session
+            .model
+            .clone()
+            .unwrap_or_else(|| "fallback-model".to_string());
+
+        assert_eq!(model, "fallback-model");
+    }
+
+    #[test]
+    fn test_session_model_serialization() {
+        let mut session = Session::new("test-session");
+        session.model = Some("gpt-5".to_string());
+
+        let json = serde_json::to_string(&session).unwrap();
+        println!("Serialized session with model: {}", json);
+
+        // Verify model is present in JSON
+        let parsed: serde_json::Value = serde_json::from_str(&json).unwrap();
+        assert!(parsed.get("model").is_some(), "model field should exist");
+        assert_eq!(parsed["model"], "gpt-5");
+
+        // Deserialize and verify
+        let deserialized: Session = serde_json::from_str(&json).unwrap();
+        assert_eq!(deserialized.model, Some("gpt-5".to_string()));
+    }
+
+    #[test]
+    fn test_session_model_not_serialized_when_none() {
+        let session = Session::new("test-session");
+        // model is None by default
+
+        let json = serde_json::to_string(&session).unwrap();
+        println!("Serialized session without model: {}", json);
+
+        // Verify model is not present when None (skip_serializing_if)
+        let parsed: serde_json::Value = serde_json::from_str(&json).unwrap();
+        assert!(
+            parsed.get("model").is_none(),
+            "model field should be skipped when None"
+        );
+    }
+
+    #[test]
+    fn test_session_model_backward_compatibility() {
+        // Test that old sessions without model field can still be deserialized
+        let old_session_json = r#"{
+            "id": "old-session",
+            "messages": [],
+            "created_at": "2024-01-01T00:00:00Z",
+            "updated_at": "2024-01-01T00:00:00Z"
+        }"#;
+
+        let session: Session = serde_json::from_str(old_session_json).unwrap();
+        assert_eq!(session.id, "old-session");
+        assert_eq!(session.model, None);
+    }
+
+    #[test]
+    fn test_session_model_and_metadata_together() {
+        // Test that model and metadata can coexist
+        let mut session = Session::new("test-session");
+        session.model = Some("gpt-4o".to_string());
+        session.metadata.insert("temperature".to_string(), "0.7".to_string());
+        session.metadata.insert("max_tokens".to_string(), "4096".to_string());
+
+        let json = serde_json::to_string(&session).unwrap();
+        println!("Serialized session with model and metadata: {}", json);
+
+        let parsed: serde_json::Value = serde_json::from_str(&json).unwrap();
+        assert_eq!(parsed["model"], "gpt-4o");
+        assert_eq!(parsed["metadata"]["temperature"], "0.7");
+        assert_eq!(parsed["metadata"]["max_tokens"], "4096");
+
+        let deserialized: Session = serde_json::from_str(&json).unwrap();
+        assert_eq!(deserialized.model, Some("gpt-4o".to_string()));
+        assert_eq!(deserialized.metadata.get("temperature"), Some(&"0.7".to_string()));
+    }
 }

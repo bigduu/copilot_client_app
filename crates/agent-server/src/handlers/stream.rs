@@ -148,6 +148,13 @@ pub async fn handler(
             // Get all tool schemas (including skill-associated)
             let all_tool_schemas = state_clone.get_all_tool_schemas();
 
+            // Get model from session, fallback to state model_name
+            let model_name = session
+                .model
+                .clone()
+                .unwrap_or_else(|| state_clone.model_name.clone());
+            log::info!("[{}] Using model: {}", session_id_clone, model_name);
+
             // Run Agent Loop
             // Note: Initial user message was already added in chat.rs handler, skip here
             let storage: Arc<dyn agent_core::storage::Storage> =
@@ -167,7 +174,7 @@ pub async fn handler(
                     skip_initial_user_message: true, // Message already in session
                     storage: Some(storage),
                     metrics_collector: Some(state_clone.metrics_service.collector()),
-                    model_name: Some(state_clone.model_name.clone()),
+                    model_name: Some(model_name),
                     ..Default::default()
                 },
             )

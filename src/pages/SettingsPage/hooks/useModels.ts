@@ -11,14 +11,18 @@ export const useModels = () => {
   // Get actions from the store
   const fetchModels = useAppStore((state) => state.fetchModels);
   const setSelectedModel = useAppStore((state) => state.setSelectedModel);
+  const loadConfigModel = useAppStore((state) => state.loadConfigModel);
 
   // Trigger model loading once when the hook is mounted
   useEffect(() => {
+    // Load model from config.json first
+    loadConfigModel();
+
     // Load only when the model list is empty to avoid unnecessary duplicate requests
     if (models.length === 0) {
       fetchModels();
     }
-  }, [fetchModels, models.length]);
+  }, [fetchModels, models.length, loadConfigModel]);
 
   return {
     models,

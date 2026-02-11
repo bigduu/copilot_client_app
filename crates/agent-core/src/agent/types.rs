@@ -107,6 +107,12 @@ pub struct Session {
     /// Pending question when waiting for user response via ask_user tool
     #[serde(skip_serializing_if = "Option::is_none")]
     pub pending_question: Option<PendingQuestion>,
+    /// Model name for this session (e.g., "gpt-4o", "gpt-4o-mini")
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub model: Option<String>,
+    /// Session metadata for extensibility (other configuration)
+    #[serde(default, skip_serializing_if = "std::collections::HashMap::is_empty")]
+    pub metadata: std::collections::HashMap<String, String>,
 }
 
 impl Session {
@@ -119,6 +125,8 @@ impl Session {
             updated_at: now,
             todo_list: None,
             pending_question: None,
+            model: None,
+            metadata: std::collections::HashMap::new(),
         }
     }
 
