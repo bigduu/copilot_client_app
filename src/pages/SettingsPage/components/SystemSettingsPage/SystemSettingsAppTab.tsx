@@ -8,8 +8,13 @@ import {
   Switch,
   Typography,
   theme,
+  Divider,
 } from "antd";
-import { DeleteOutlined } from "@ant-design/icons";
+import {
+  DeleteOutlined,
+  WarningOutlined,
+  RedoOutlined,
+} from "@ant-design/icons";
 
 const { Text } = Typography;
 const { useToken } = theme;
@@ -23,6 +28,8 @@ interface SystemSettingsAppTabProps {
   onDeleteAll: () => void;
   onDeleteEmpty: () => void;
   onClearLocalStorage: () => void;
+  onResetApp: () => void;
+  isResetting: boolean;
   darkModeKey: string;
 }
 
@@ -35,6 +42,8 @@ const SystemSettingsAppTab: React.FC<SystemSettingsAppTabProps> = ({
   onDeleteAll,
   onDeleteEmpty,
   onClearLocalStorage,
+  onResetApp,
+  isResetting,
   darkModeKey,
 }) => {
   const { token } = useToken();
@@ -107,6 +116,49 @@ const SystemSettingsAppTab: React.FC<SystemSettingsAppTabProps> = ({
         >
           <Button danger block icon={<DeleteOutlined />}>
             Clear Local Storage
+          </Button>
+        </Popconfirm>
+
+        <Divider style={{ margin: `${token.marginSM}px 0` }} />
+
+        <Flex align="center" gap={token.marginSM}>
+          <WarningOutlined style={{ color: token.colorError }} />
+          <Text strong style={{ color: token.colorError }}>
+            Danger Zone
+          </Text>
+        </Flex>
+        <Text type="secondary" style={{ fontSize: token.fontSizeSM }}>
+          These actions cannot be undone. All data will be permanently deleted.
+        </Text>
+
+        <Popconfirm
+          title="Reset Application"
+          description={
+            <div>
+              <p>Are you sure? This will:</p>
+              <ul style={{ margin: 0, paddingLeft: 16 }}>
+                <li>Delete ALL chats (including pinned)</li>
+                <li>Clear all local storage data</li>
+                <li>Reset config.json to default</li>
+                <li>Trigger the initial setup flow on next launch</li>
+                <li>Reload the application</li>
+              </ul>
+            </div>
+          }
+          onConfirm={onResetApp}
+          okText="Yes, reset everything"
+          cancelText="Cancel"
+          placement="top"
+          okButtonProps={{ danger: true }}
+        >
+          <Button
+            danger
+            block
+            type="primary"
+            icon={<RedoOutlined />}
+            loading={isResetting}
+          >
+            Reset Application (All Data)
           </Button>
         </Popconfirm>
       </Space>

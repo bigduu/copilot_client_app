@@ -144,6 +144,7 @@ pub struct ChatCompletionResponse {
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct ResponseChoice {
+    #[serde(default)]
     pub index: u32,
     pub message: ChatMessage,
     #[serde(default)]

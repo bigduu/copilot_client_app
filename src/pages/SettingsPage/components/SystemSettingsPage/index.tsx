@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Button, Flex, Layout, Tabs, Typography, message, theme } from "antd";
 import { ArrowLeftOutlined } from "@ant-design/icons";
 import { useChatManager } from "../../../ChatPage/hooks/useChatManager";
+import { serviceFactory } from "../../../../services/common/ServiceFactory";
 import { useModels } from "../../hooks/useModels";
 import {
   getSystemPromptEnhancement,
@@ -46,10 +47,12 @@ const SystemSettingsPage = ({
   const {
     deleteAllUnpinnedChats,
     deleteEmptyChats,
+    deleteAllChats,
     autoGenerateTitles,
     setAutoGenerateTitlesPreference,
     isUpdatingAutoTitlePreference,
   } = useChatManager();
+  const [isResetting, setIsResetting] = useState(false);
   const [msgApi, contextHolder] = message.useMessage();
   const {
     models,
@@ -91,6 +94,36 @@ const SystemSettingsPage = ({
   const handleClearLocalStorage = () => {
     localStorage.clear();
     msgApi.success("Local storage has been cleared");
+  };
+
+  const handleResetApp = async () => {
+    setIsResetting(true);
+    try {
+      // 1. Delete all chats (including pinned)
+      await deleteAllChats();
+
+      // 2. Reset setup status to force re-initialization on next launch
+      await serviceFactory.resetSetupStatus();
+
+      // 3. Reset config.json on backend
+      await serviceFactory.resetBodhiConfig();
+
+      // 4. Clear localStorage
+      localStorage.clear();
+
+      msgApi.success("Application reset successful. Reloading...");
+
+      // 5. Reload the page after a short delay
+      setTimeout(() => {
+        window.location.reload();
+      }, 1500);
+    } catch (error) {
+      console.error("Failed to reset application:", error);
+      msgApi.error(
+        error instanceof Error ? error.message : "Failed to reset application"
+      );
+      setIsResetting(false);
+    }
   };
 
   const handleAutoTitleToggle = async (checked: boolean) => {
@@ -254,6 +287,8 @@ const SystemSettingsPage = ({
                   onDeleteAll={handleDeleteAll}
                   onDeleteEmpty={handleDeleteEmpty}
                   onClearLocalStorage={handleClearLocalStorage}
+                  onResetApp={handleResetApp}
+                  isResetting={isResetting}
                   darkModeKey={DARK_MODE_KEY}
                 />
               ),

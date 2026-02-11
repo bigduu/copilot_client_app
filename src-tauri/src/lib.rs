@@ -97,16 +97,10 @@ fn is_setup_completed(config: &Value) -> bool {
         .unwrap_or(false)
 }
 
-fn should_show_setup(setup_completed: bool, has_proxy_config: bool, has_proxy_env: bool) -> bool {
-    if setup_completed {
-        return false;
-    }
-
-    if has_proxy_config {
-        return false;
-    }
-
-    has_proxy_env
+fn should_show_setup(setup_completed: bool, _has_proxy_config: bool, _has_proxy_env: bool) -> bool {
+    // 如果 setup 未完成（或重置后），一定显示 Setup 页面
+    // 让用户手动选择，不依赖系统自动检测代理环境变量
+    !setup_completed
 }
 
 fn setup_status_message(
@@ -426,6 +420,43 @@ async fn mark_setup_complete() -> Result<(), String> {
     write_config_json(&config)
 }
 
+#[tauri::command]
+async fn mark_setup_incomplete() -> Result<(), String> {
+    let mut config = read_config_json()?;
+
+    // If setup field exists and is an object, set completed to false
+    if let Some(config_obj) = config.as_object_mut() {
+        if let Some(setup_entry) = config_obj.get_mut("setup") {
+            if let Some(setup_obj) = setup_entry.as_object_mut() {
+                setup_obj.insert("completed".to_string(), Value::Bool(false));
+                setup_obj.insert(
+                    "reset_at".to_string(),
+                    Value::String(Utc::now().to_rfc3339_opts(SecondsFormat::Secs, true)),
+                );
+                return write_config_json(&config);
+            }
+        }
+    }
+
+    // If config doesn't have setup object, we still need to create one with completed=false
+    // to force the setup flow on next launch
+    let setup_obj = serde_json::json!({
+        "completed": false,
+        "reset_at": Utc::now().to_rfc3339_opts(SecondsFormat::Secs, true),
+    });
+
+    if let Some(config_obj) = config.as_object_mut() {
+        config_obj.insert("setup".to_string(), setup_obj);
+        write_config_json(&config)
+    } else {
+        // If config is not an object, create a new one
+        let new_config = serde_json::json!({
+            "setup": setup_obj
+        });
+        write_config_json(&new_config)
+    }
+}
+
 /// Detect proxy requirement by checking environment variables only.
 /// Does NOT make any network requests to avoid security/firewall concerns.
 #[tauri::command]
@@ -566,6 +597,7 @@ pub fn run() {
             get_proxy_config,
             get_setup_status,
             mark_setup_complete,
+            mark_setup_incomplete,
             detect_proxy_requirement,
             set_proxy_config,
             get_bodhi_config
@@ -612,18 +644,22 @@ mod tests {
     }
 
     #[test]
-    fn should_not_show_setup_when_proxy_config_exists() {
-        assert!(!super::should_show_setup(false, true, true));
+    fn should_show_setup_when_setup_incomplete_even_with_proxy_config() {
+        // 只要 setup 未完成，即使有代理配置也要显示 Setup 页面
+        assert!(super::should_show_setup(false, true, true));
     }
 
     #[test]
-    fn should_show_setup_when_proxy_env_detected_without_completion_or_config() {
+    fn should_show_setup_when_setup_incomplete_with_proxy_env() {
+        // setup 未完成，显示 Setup 页面（无论是否有代理环境变量）
         assert!(super::should_show_setup(false, false, true));
     }
 
     #[test]
-    fn should_not_show_setup_on_first_start_without_proxy_requirements() {
-        assert!(!super::should_show_setup(false, false, false));
+    fn should_show_setup_on_first_start() {
+        // 首次启动（setup_completed=false）一定显示 Setup 页面
+        // 不再检测系统代理环境变量，让用户手动选择
+        assert!(super::should_show_setup(false, false, false));
     }
 
     #[test]

@@ -15,7 +15,7 @@ name = "copilot_chat_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]
-tauri-build = { version = "2.4.1", features = [] }
+tauri-build = { workspace = true }
 
 [dependencies]
 agent-llm = { path = "../crates/agent-llm" }
@@ -23,47 +23,46 @@ web_service = { path = "../crates/web_service" }
 agent-server = { path = "../crates/agent-server" }
 claude_installer = { path = "../crates/claude_installer" }
 chat_core = { path = "../crates/chat_core" }
+
 # Tauri core and plugins
-tauri = { version = "2.5.1", features = ["macos-private-api"] }
+tauri = { workspace = true }
 
 # Serialization
-serde = { version = "1.0.228", features = ["derive"] }
-serde_json = "1.0.145"
-serde_yaml = "0.9"
+serde = { workspace = true }
+serde_json = { workspace = true }
+serde_yaml = { workspace = true }
 
-async-stream = "0.3.6"
+async-stream = { workspace = true }
 
 # Error Handling & Utilities
-thiserror = "2.0.17"
-arboard = "3.6.1"    # Clipboard handling
-anyhow = "1.0.100"
+thiserror = { workspace = true }
+arboard = { workspace = true }
+anyhow = { workspace = true }
 
 # Logging and Debug
-log = { version = "0.4.28", features = ["std"] }
-env_logger = "0.11.8"
-tauri-plugin-log = "2.7.0"
-chrono = { version = "0.4", features = ["serde"] }
-dirs = "5.0.1"
-regex = "1.11.2"
-sha2 = "0.10.9"
-zstd = "0.13.2"
+log = { workspace = true }
+env_logger = { workspace = true }
+tauri-plugin-log = { workspace = true }
+chrono = { workspace = true }
+dirs = { workspace = true }
+regex = { workspace = true }
+sha2 = { workspace = true }
+zstd = { workspace = true }
 
-crossbeam = "0.8.4"
+crossbeam = { workspace = true }
 
 # Utilities
-tauri-plugin-dialog = "2.4.0"
-tauri-plugin-fs = "2.4.2"
-tokio = { version = "1.48.0", features = ["full"] }
-reqwest = { version = "0.12", features = ["json", "rustls-tls"] }
-uuid = { version = "1.18.1", features = ["v4"] }
+tauri-plugin-dialog = { workspace = true }
+tauri-plugin-fs = { workspace = true }
+tokio = { workspace = true }
+reqwest = { workspace = true, features = ["rustls-tls"] }
+uuid = { workspace = true }
 
 [target.'cfg(unix)'.dependencies]
-portable-pty = "0.8"
+portable-pty = { workspace = true }
 
-
-once_cell = "1.21.3"
-
-rfd = "0.15.4"
+once_cell = { workspace = true }
+rfd = { workspace = true }
 
 [features]
 default = []
@@ -71,4 +70,4 @@ default = []
 internal = []
 
 [dev-dependencies]
-tempfile = "3.23.0"
+tempfile = { workspace = true }
