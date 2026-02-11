@@ -70,6 +70,25 @@ export interface BrowseFolderResponse {
 }
 
 /**
+ * Workspace file entry
+ */
+export interface WorkspaceFileEntry {
+  name: string;
+  path: string;
+  is_directory: boolean;
+}
+
+/**
+ * Workspace files request options
+ */
+export interface WorkspaceFilesRequest {
+  path: string;
+  max_depth?: number;
+  max_entries?: number;
+  include_hidden?: boolean;
+}
+
+/**
  * Generic API response
  */
 export interface ApiResponse<T = unknown> {

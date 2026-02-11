@@ -62,6 +62,16 @@ pub async fn run_server_with_config_and_mode(
             .service(
                 web::scope("/api/v1")
                     .route("/chat", web::post().to(handlers::chat::handler))
+                    // New separated execute + events endpoints
+                    .route(
+                        "/execute/{session_id}",
+                        web::post().to(handlers::execute::handler),
+                    )
+                    .route(
+                        "/events/{session_id}",
+                        web::get().to(handlers::events::handler),
+                    )
+                    // Legacy stream endpoint (deprecated)
                     .route(
                         "/stream/{session_id}",
                         web::get().to(handlers::stream::handler),

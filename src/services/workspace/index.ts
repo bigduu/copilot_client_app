@@ -13,6 +13,8 @@ export type {
   PathSuggestionsResponse,
   BrowseFolderRequest,
   BrowseFolderResponse,
+  WorkspaceFileEntry,
+  WorkspaceFilesRequest,
   ApiResponse,
   WorkspaceServiceOptions,
   // Legacy aliases

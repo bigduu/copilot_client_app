@@ -1,5 +1,7 @@
 pub mod chat;
 pub mod delete;
+pub mod events;
+pub mod execute;
 pub mod health;
 pub mod history;
 pub mod mcp;

@@ -14,6 +14,8 @@ export type {
   PathSuggestionsResponse,
   BrowseFolderRequest,
   BrowseFolderResponse,
+  WorkspaceFileEntry,
+  WorkspaceFilesRequest,
   ApiResponse,
   WorkspaceServiceOptions as WorkspaceApiServiceOptions,
   Workspace,
