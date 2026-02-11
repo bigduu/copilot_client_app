@@ -11,7 +11,7 @@ use tokio::sync::oneshot;
 
 use crate::controllers::anthropic as anthropic_controller;
 use crate::controllers::{
-    agent_controller, bodhi_controller, claude_install_controller, openai_controller,
+    agent_controller, bamboo_controller, claude_install_controller, openai_controller,
     skill_controller, tools_controller, workspace_controller,
 };
 
@@ -28,7 +28,7 @@ pub fn app_config(cfg: &mut web::ServiceConfig) {
         web::scope("/v1")
             .configure(agent_controller::config)
             .configure(openai_controller::config)
-            .configure(bodhi_controller::config)
+            .configure(bamboo_controller::config)
             .configure(claude_install_controller::config)
             .configure(skill_controller::config)
             .configure(tools_controller::config)

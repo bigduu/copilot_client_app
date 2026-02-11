@@ -134,7 +134,7 @@ export const SkillManager = () => {
         }
       >
         <div style={{ marginBottom: "16px", color: "#8c8c8c" }}>
-          Skills are read-only. Edit `~/.bodhi/skills/&lt;skill-name&gt;/SKILL.md` and refresh to apply changes. Auto-refresh every 30s.
+          Skills are read-only. Edit `~/.bamboo/skills/&lt;skill-name&gt;/SKILL.md` and refresh to apply changes. Auto-refresh every 30s.
         </div>
         {/* Filters */}
         <Row gutter={[16, 16]} style={{ marginBottom: "24px" }}>
@@ -171,7 +171,7 @@ export const SkillManager = () => {
               description={
                 searchQuery || selectedCategory
                   ? "No skills match your filters"
-                  : "No skills found. Add skill folders in ~/.bodhi/skills"
+                  : "No skills found. Add skill folders in ~/.bamboo/skills"
               }
             />
           ) : (

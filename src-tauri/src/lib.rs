@@ -18,7 +18,7 @@ use tauri::{App, Runtime};
 use tauri_plugin_log::{Target, TargetKind};
 use web_service::server::run as start_server;
 
-pub mod bodhi_settings;
+pub mod bamboo_settings;
 pub mod claude;
 
 pub mod claude_binary {
@@ -29,7 +29,7 @@ pub mod command;
 pub mod process;
 pub mod proxy_auth_dialog;
 
-const WEB_SERVICE_PROXY_AUTH_URL: &str = "http://127.0.0.1:8080/v1/bodhi/proxy-auth";
+const WEB_SERVICE_PROXY_AUTH_URL: &str = "http://127.0.0.1:8080/v1/bamboo/proxy-auth";
 const WEB_SERVICE_PROXY_AUTH_RETRIES: u8 = 8;
 const SETUP_VERSION: &str = "1.0";
 
@@ -216,13 +216,13 @@ async fn push_proxy_auth_to_web_service(
 }
 
 fn read_config_json() -> Result<Value, String> {
-    let config_path = bodhi_settings::config_json_path();
-    bodhi_settings::load_config_json(&config_path)
+    let config_path = bamboo_settings::config_json_path();
+    bamboo_settings::load_config_json(&config_path)
 }
 
 fn write_config_json(config: &Value) -> Result<(), String> {
-    let config_path = bodhi_settings::config_json_path();
-    bodhi_settings::write_config_json(&config_path, config)
+    let config_path = bamboo_settings::config_json_path();
+    bamboo_settings::write_config_json(&config_path, config)
 }
 
 fn read_proxy_auth_from_plain(config: &Value, key: &str) -> Option<chat_core::ProxyAuth> {
@@ -269,7 +269,7 @@ fn bodhi_dir() -> PathBuf {
         .or_else(|| std::env::var_os("USERPROFILE"))
         .map(PathBuf::from)
         .unwrap_or_else(|| std::env::temp_dir())
-        .join(".bodhi")
+        .join(".bamboo")
 }
 
 fn should_exit_on_main_window_close(label: &str, is_close_requested: bool) -> bool {
@@ -385,9 +385,9 @@ async fn get_proxy_config() -> Result<serde_json::Value, String> {
     }))
 }
 
-/// Get the full bodhi config (config.json content)
+/// Get the full bamboo config (config.json content)
 #[tauri::command]
-async fn get_bodhi_config() -> Result<serde_json::Value, String> {
+async fn get_bamboo_config() -> Result<serde_json::Value, String> {
     read_config_json()
 }
 
@@ -600,7 +600,7 @@ pub fn run() {
             mark_setup_incomplete,
             detect_proxy_requirement,
             set_proxy_config,
-            get_bodhi_config
+            get_bamboo_config
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")

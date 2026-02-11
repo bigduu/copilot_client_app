@@ -25,14 +25,14 @@ import SystemSettingsKeywordMaskingTab from "./SystemSettingsKeywordMaskingTab";
 import SystemSettingsWorkflowsTab from "./SystemSettingsWorkflowsTab";
 import SystemSettingsMcpTab from "./SystemSettingsMcpTab";
 import SystemSettingsMetricsTab from "./SystemSettingsMetricsTab";
-import { useSystemSettingsBodhiConfig } from "./useSystemSettingsBodhiConfig";
+import { useSystemSettingsBambooConfig } from "./useSystemSettingsBambooConfig";
 import { useSystemSettingsBackend } from "./useSystemSettingsBackend";
 import { SkillManager } from "../../../../components/Skill";
 
 const { Text } = Typography;
 const { useToken } = theme;
 
-const DARK_MODE_KEY = "copilot_dark_mode";
+const DARK_MODE_KEY = "bamboo_dark_mode";
 
 const SystemSettingsPage = ({
   themeMode,
@@ -79,7 +79,7 @@ const SystemSettingsPage = ({
     refreshModels,
   });
 
-  const bodhiConfigState = useSystemSettingsBodhiConfig({ msgApi });
+  const bambooConfigState = useSystemSettingsBambooConfig({ msgApi });
 
   const handleDeleteAll = () => {
     deleteAllUnpinnedChats();
@@ -106,7 +106,7 @@ const SystemSettingsPage = ({
       await serviceFactory.resetSetupStatus();
 
       // 3. Reset config.json on backend
-      await serviceFactory.resetBodhiConfig();
+      await serviceFactory.resetBambooConfig();
 
       // 4. Clear localStorage
       localStorage.clear();
@@ -201,9 +201,9 @@ const SystemSettingsPage = ({
               label: "Config",
               children: (
                 <SystemSettingsConfigTab
-                  bodhiConfigJson={bodhiConfigState.bodhiConfigJson}
-                  bodhiConfigError={bodhiConfigState.bodhiConfigError}
-                  isLoadingBodhiConfig={bodhiConfigState.isLoadingBodhiConfig}
+                  bambooConfigJson={bambooConfigState.bambooConfigJson}
+                  bambooConfigError={bambooConfigState.bambooConfigError}
+                  isLoadingBambooConfig={bambooConfigState.isLoadingBambooConfig}
                   models={models}
                   selectedModel={selectedModel}
                   onModelChange={setSelectedModel}
@@ -217,19 +217,19 @@ const SystemSettingsPage = ({
                   defaultBackendBaseUrl={getDefaultBackendBaseUrl()}
                   onReload={async () => {
                     try {
-                      await bodhiConfigState.reloadBodhiConfig();
+                      await bambooConfigState.reloadBambooConfig();
                     } catch (error) {
                       msgApi.error(
                         error instanceof Error
                           ? error.message
-                          : "Failed to reload Bodhi config",
+                          : "Failed to reload Bamboo config",
                       );
                     }
                   }}
-                  onSave={bodhiConfigState.handleSaveBodhiConfig}
+                  onSave={bambooConfigState.handleSaveBambooConfig}
                   onChange={(value) => {
-                    bodhiConfigState.setBodhiConfigJson(value);
-                    bodhiConfigState.bodhiConfigDirtyRef.current = true;
+                    bambooConfigState.setBambooConfigJson(value);
+                    bambooConfigState.bambooConfigDirtyRef.current = true;
                   }}
                 />
               ),

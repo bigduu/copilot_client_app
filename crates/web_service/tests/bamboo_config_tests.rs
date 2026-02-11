@@ -69,7 +69,7 @@ async fn setup_test_environment() -> (
 }
 
 #[actix_web::test]
-async fn test_bodhi_config_strips_proxy_auth() {
+async fn test_bamboo_config_strips_proxy_auth() {
     let (app, _last_auth, temp_dir) = setup_test_environment().await;
 
     let payload = json!({
@@ -82,7 +82,7 @@ async fn test_bodhi_config_strips_proxy_auth() {
     });
 
     let req = test::TestRequest::post()
-        .uri("/v1/bodhi/config")
+        .uri("/v1/bamboo/config")
         .set_json(&payload)
         .to_request();
     let resp: Value = test::call_and_read_body_json(&app, req).await;
@@ -97,7 +97,7 @@ async fn test_bodhi_config_strips_proxy_auth() {
     assert!(stored.get("https_proxy_auth").is_none());
 
     let req = test::TestRequest::get()
-        .uri("/v1/bodhi/config")
+        .uri("/v1/bamboo/config")
         .to_request();
     let resp: Value = test::call_and_read_body_json(&app, req).await;
     assert!(resp.get("http_proxy_auth").is_none());
@@ -113,7 +113,7 @@ async fn test_proxy_auth_endpoint_updates_client() {
         "password": "pass"
     });
     let req = test::TestRequest::post()
-        .uri("/v1/bodhi/proxy-auth")
+        .uri("/v1/bamboo/proxy-auth")
         .set_json(&payload)
         .to_request();
     let _resp: Value = test::call_and_read_body_json(&app, req).await;
@@ -129,7 +129,7 @@ async fn test_proxy_auth_endpoint_updates_client() {
         "password": ""
     });
     let req = test::TestRequest::post()
-        .uri("/v1/bodhi/proxy-auth")
+        .uri("/v1/bamboo/proxy-auth")
         .set_json(&payload)
         .to_request();
     let _resp: Value = test::call_and_read_body_json(&app, req).await;

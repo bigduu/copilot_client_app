@@ -8,11 +8,11 @@ pub const VALIDATE_SKILL_SCRIPT: &str = include_str!("builtin_scripts/validate_s
 
 const SKILL_CREATOR_PROMPT: &str = r#"# Skill Creator
 
-This skill provides guidance for creating effective skills for Bodhi.
+This skill provides guidance for creating effective skills for Bamboo.
 
 ## About Skills
 
-Skills are modular, self-contained folders that extend Bodhi's capabilities by providing specialized knowledge and workflows. They are stored in `~/.bodhi/skills/` as individual folders.
+Skills are modular, self-contained folders that extend Bamboo's capabilities by providing specialized knowledge and workflows. They are stored in `~/.bamboo/skills/` as individual folders.
 
 ### What Skills Provide
 
@@ -61,7 +61,7 @@ skill-name/
 Skills can be organized in subdirectories for better organization:
 
 ```
-~/.bodhi/skills/
+~/.bamboo/skills/
 ├── builtin/
 │   ├── file-analysis/
 │   │   └── SKILL.md
@@ -78,7 +78,7 @@ Skills can be organized in subdirectories for better organization:
     └── SKILL.md
 ```
 
-The system recursively searches for all `SKILL.md` files in `~/.bodhi/skills/`. Any directory containing a `SKILL.md` file is considered a skill directory. The `id` in the frontmatter must match the directory name (the immediate parent of `SKILL.md`).
+The system recursively searches for all `SKILL.md` files in `~/.bamboo/skills/`. Any directory containing a `SKILL.md` file is considered a skill directory. The `id` in the frontmatter must match the directory name (the immediate parent of `SKILL.md`).
 
 ### Bundled Resources
 
@@ -117,7 +117,7 @@ Analyze what reusable resources would help:
 Use the init script to create the skill:
 
 ```bash
-python3 ~/.bodhi/skills/skill-creator/scripts/init_skill.py <skill-name> --path ~/.bodhi/skills
+python3 ~/.bamboo/skills/skill-creator/scripts/init_skill.py <skill-name> --path ~/.bamboo/skills
 ```
 
 Options:
@@ -145,7 +145,7 @@ Options:
 Run the validator to check structure:
 
 ```bash
-python3 ~/.bodhi/skills/skill-creator/scripts/validate_skill.py ~/.bodhi/skills/<skill-name>
+python3 ~/.bamboo/skills/skill-creator/scripts/validate_skill.py ~/.bamboo/skills/<skill-name>
 ```
 
 ## Skill Naming
@@ -200,7 +200,7 @@ pub fn create_builtin_skills() -> Vec<SkillDefinition> {
         SkillDefinition::new(
             "skill-creator",
             "Skill Creator",
-            "Guide for creating effective skills for Bodhi. Use this skill when users want to create a new skill that extends Bodhi's capabilities with specialized knowledge, workflows, or tool integrations.",
+            "Guide for creating effective skills for Bamboo. Use this skill when users want to create a new skill that extends Bamboo's capabilities with specialized knowledge, workflows, or tool integrations.",
             "system",
             SKILL_CREATOR_PROMPT,
         )

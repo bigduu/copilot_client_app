@@ -207,7 +207,7 @@ impl HttpRequestTool {
         {
             let client = reqwest::Client::builder()
                 .timeout(Duration::from_secs(30))
-                .user_agent("Bodhi-Agent-Tools/0.1.0")
+                .user_agent("Bamboo-Agent-Tools/0.1.0")
                 // Disable automatic redirects to prevent bypassing domain whitelist checks
                 // If redirects are needed, the application should handle them explicitly
                 .redirect(reqwest::redirect::Policy::none())

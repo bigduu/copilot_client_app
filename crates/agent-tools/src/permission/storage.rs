@@ -180,7 +180,7 @@ pub enum PermissionStorageError {
 /// Returns `None` if the config directory cannot be determined.
 pub fn default_storage() -> Option<PermissionStorage> {
     dirs::config_dir().map(|config_dir| {
-        let app_config_dir = config_dir.join("bodhi");
+        let app_config_dir = config_dir.join("bamboo");
         PermissionStorage::new(app_config_dir)
     })
 }
@@ -200,7 +200,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_save_and_load() {
-        let temp_dir = std::env::temp_dir().join("bodhi_permission_test");
+        let temp_dir = std::env::temp_dir().join("bamboo_permission_test");
         let _ = tokio::fs::remove_dir_all(&temp_dir).await;
 
         let storage = PermissionStorage::new(&temp_dir);
@@ -226,7 +226,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_load_nonexistent() {
-        let temp_dir = std::env::temp_dir().join("bodhi_permission_test_nonexistent");
+        let temp_dir = std::env::temp_dir().join("bamboo_permission_test_nonexistent");
         let _ = tokio::fs::remove_dir_all(&temp_dir).await;
 
         let storage = PermissionStorage::new(&temp_dir);
@@ -236,7 +236,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_load_or_default() {
-        let temp_dir = std::env::temp_dir().join("bodhi_permission_test_default");
+        let temp_dir = std::env::temp_dir().join("bamboo_permission_test_default");
         let _ = tokio::fs::remove_dir_all(&temp_dir).await;
 
         let storage = PermissionStorage::new(&temp_dir);

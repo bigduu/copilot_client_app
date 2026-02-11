@@ -7,7 +7,7 @@ import {
   isTodoEnhancementEnabled,
 } from "./todoEnhancementUtils";
 
-const SYSTEM_PROMPT_ENHANCEMENT_KEY = "copilot_system_prompt_enhancement";
+const SYSTEM_PROMPT_ENHANCEMENT_KEY = "bamboo_system_prompt_enhancement";
 
 const joinPromptSegments = (segments: string[]): string => {
   const normalized = segments
@@ -35,7 +35,7 @@ const buildWorkspaceContextSegment = (workspacePath?: string): string => {
   }
   return [
     `Workspace path: ${normalized}`,
-    "If you need to inspect files, check the workspace first, then ~/.bodhi.",
+    "If you need to inspect files, check the workspace first, then ~/.bamboo.",
   ].join("\n");
 };
 

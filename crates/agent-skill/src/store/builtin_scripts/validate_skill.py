@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """
-Skill Validator for Bodhi - Validates skill structure and content
+Skill Validator for Bamboo - Validates skill structure and content
 
 Usage:
     validate_skill.py <path/to/skill-folder>
 
 Examples:
-    validate_skill.py ~/.bodhi/skills/my-skill
+    validate_skill.py ~/.bamboo/skills/my-skill
 """
 
 import argparse
@@ -196,7 +196,7 @@ def validate_skill(skill_dir):
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Validate a Bodhi skill directory structure.",
+        description="Validate a Bamboo skill directory structure.",
     )
     parser.add_argument("skill_path", help="Path to the skill directory")
     args = parser.parse_args()

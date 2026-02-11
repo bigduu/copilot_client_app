@@ -172,10 +172,37 @@ describe("WorkspaceApiService", () => {
   });
 
   describe("listWorkspaceFiles", () => {
-    it("should throw error as it is deprecated in unified service", async () => {
-      await expect(
-        workspaceApiService.listWorkspaceFiles("/workspace")
-      ).rejects.toThrow("listWorkspaceFiles is not implemented in unified WorkspaceService");
+    it("should list workspace files", async () => {
+      const mockFiles = [
+        { path: "/workspace/file1.txt", name: "file1.txt", type: "file" },
+        { path: "/workspace/folder", name: "folder", type: "directory" },
+      ];
+
+      (fetch as any).mockResolvedValueOnce({
+        ok: true,
+        json: async () => mockFiles,
+        headers: new Headers({ "content-type": "application/json" }),
+      });
+
+      const result = await workspaceApiService.listWorkspaceFiles("/workspace");
+
+      expect(fetch).toHaveBeenCalledWith(
+        "http://127.0.0.1:8080/v1/workspace/files",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            path: "/workspace",
+            max_depth: 3,
+            max_entries: 500,
+            include_hidden: false,
+          }),
+        },
+      );
+
+      expect(result).toEqual(mockFiles);
     });
   });
 

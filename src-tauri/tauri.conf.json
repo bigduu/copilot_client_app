@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "CopilotChat",
+  "productName": "Bamboo",
   "version": "0.2.0",
-  "identifier": "com.copilot.chat",
+  "identifier": "com.bamboo.chat",
   "build": {
     "beforeDevCommand": "yarn dev",
     "devUrl": "http://localhost:1420",
@@ -13,7 +13,7 @@
     "macOSPrivateApi": true,
     "windows": [
       {
-        "title": "Copilot Chat",
+        "title": "Bamboo",
         "width": 1200,
         "height": 800,
         "decorations": true,

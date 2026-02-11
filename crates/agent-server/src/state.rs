@@ -16,7 +16,7 @@ use tokio_util::sync::CancellationToken;
 pub const DEFAULT_BASE_PROMPT: &str =
     "You are a helpful AI assistant with access to various tools and skills.";
 pub const WORKSPACE_PROMPT_GUIDANCE: &str =
-    "If you need to inspect files, check the workspace first, then ~/.bodhi.";
+    "If you need to inspect files, check the workspace first, then ~/.bamboo.";
 
 /// Status of an agent runner
 #[derive(Debug, Clone)]
@@ -100,7 +100,7 @@ impl AppState {
         app_data_dir: Option<PathBuf>,
         tauri_mode: bool,
     ) -> Self {
-        let app_data_root = app_data_dir.unwrap_or_else(bodhi_dir);
+        let app_data_root = app_data_dir.unwrap_or_else(bamboo_dir);
         let data_dir = if tauri_mode {
             app_data_root.join("copilot-agent")
         } else {
@@ -305,12 +305,12 @@ fn merge_workspace_context(base_prompt: &str, workspace_path: Option<&str>) -> S
     merged
 }
 
-fn bodhi_dir() -> PathBuf {
+fn bamboo_dir() -> PathBuf {
     std::env::var_os("HOME")
         .or_else(|| std::env::var_os("USERPROFILE"))
         .map(PathBuf::from)
         .unwrap_or_else(|| std::env::temp_dir())
-        .join(".bodhi")
+        .join(".bamboo")
 }
 
 /// Load MCP configuration from file
@@ -394,7 +394,7 @@ mod tests {
         let merged = merge_workspace_context("Base prompt", Some("/tmp/workspace"));
         assert_eq!(
             merged,
-            "Base prompt\n\nWorkspace path: /tmp/workspace\nIf you need to inspect files, check the workspace first, then ~/.bodhi."
+            "Base prompt\n\nWorkspace path: /tmp/workspace\nIf you need to inspect files, check the workspace first, then ~/.bamboo."
         );
     }
 

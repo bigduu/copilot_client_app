@@ -185,7 +185,7 @@ mod tests {
         );
 
         let workspace_segment =
-            "Workspace path: /tmp/workspace\nIf you need to inspect files, check the workspace first, then ~/.bodhi.";
+            "Workspace path: /tmp/workspace\nIf you need to inspect files, check the workspace first, then ~/.bamboo.";
 
         assert!(prompt.contains(workspace_segment));
     }

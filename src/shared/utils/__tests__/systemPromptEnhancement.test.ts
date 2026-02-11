@@ -81,7 +81,7 @@ describe("systemPromptEnhancement", () => {
     const result = getEffectiveSystemPrompt("Base prompt", "/Users/alice/app");
     const workspaceSegment = [
       "Workspace path: /Users/alice/app",
-      "If you need to inspect files, check the workspace first, then ~/.bodhi.",
+      "If you need to inspect files, check the workspace first, then ~/.bamboo.",
     ].join("\n");
 
     expect(result).toBe(

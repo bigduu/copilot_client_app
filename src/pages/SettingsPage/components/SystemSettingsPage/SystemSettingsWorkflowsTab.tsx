@@ -174,7 +174,7 @@ const SystemSettingsWorkflowsTab: React.FC = () => {
         }
       >
         <Text type="secondary">
-          Workflows are stored in `~/.bodhi/workflows` as Markdown files. Use
+          Workflows are stored in `~/.bamboo/workflows` as Markdown files. Use
           `/name` to insert a workflow in chat.
         </Text>
         <Flex gap={token.marginLG} style={{ marginTop: token.marginLG }}>

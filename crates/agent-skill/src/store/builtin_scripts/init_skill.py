@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
 """
-Skill Initializer for Bodhi - Creates a new skill from template
+Skill Initializer for Bamboo - Creates a new skill from template
 
 Usage:
     init_skill.py <skill-name> --path <path> [--resources scripts,references,assets] [--examples]
 
 Examples:
-    init_skill.py my-new-skill --path ~/.bodhi/skills
-    init_skill.py my-new-skill --path ~/.bodhi/skills --resources scripts,references
-    init_skill.py my-api-helper --path ~/.bodhi/skills --resources scripts --examples
+    init_skill.py my-new-skill --path ~/.bamboo/skills
+    init_skill.py my-new-skill --path ~/.bamboo/skills --resources scripts,references
+    init_skill.py my-api-helper --path ~/.bamboo/skills --resources scripts --examples
 """
 
 import argparse
@@ -249,14 +249,14 @@ def init_skill(skill_name, path, resources, include_examples):
     print("2. Update the description field - this determines when the skill triggers")
     print("3. Add resources to scripts/, references/, assets/ as needed")
     print("4. Run the validator when ready:")
-    print(f"   python3 ~/.bodhi/skills/skill-creator/scripts/validate_skill.py {skill_dir}")
+    print(f"   python3 ~/.bamboo/skills/skill-creator/scripts/validate_skill.py {skill_dir}")
 
     return skill_dir
 
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Create a new Bodhi skill directory with a SKILL.md template.",
+        description="Create a new Bamboo skill directory with a SKILL.md template.",
     )
     parser.add_argument("skill_name", help="Skill name (normalized to hyphen-case)")
     parser.add_argument("--path", required=True, help="Output directory for the skill")

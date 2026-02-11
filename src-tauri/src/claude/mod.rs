@@ -2,7 +2,7 @@ mod command;
 mod discovery;
 mod version;
 
-use crate::bodhi_settings::{
+use crate::bamboo_settings::{
     config_json_path, read_claude_binary_path, read_claude_installation_preference,
 };
 use log::{error, info, warn};

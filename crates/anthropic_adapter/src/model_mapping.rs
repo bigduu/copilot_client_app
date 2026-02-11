@@ -43,10 +43,10 @@ impl ModelCapability {
     /// Get environment variable name for this capability
     pub fn env_var(&self) -> &'static str {
         match self {
-            Self::Default => "BODHI_MODEL_DEFAULT",
-            Self::Background => "BODHI_MODEL_BACKGROUND",
-            Self::Thinking => "BODHI_MODEL_THINKING",
-            Self::LongContext => "BODHI_MODEL_LONG_CONTEXT",
+            Self::Default => "BAMBOO_MODEL_DEFAULT",
+            Self::Background => "BAMBOO_MODEL_BACKGROUND",
+            Self::Thinking => "BAMBOO_MODEL_THINKING",
+            Self::LongContext => "BAMBOO_MODEL_LONG_CONTEXT",
         }
     }
 }
@@ -86,16 +86,16 @@ impl CapabilityModelMapping {
         }
 
         // Environment variables override config file
-        if let Ok(v) = std::env::var("BODHI_MODEL_DEFAULT") {
+        if let Ok(v) = std::env::var("BAMBOO_MODEL_DEFAULT") {
             mapping.default_model = v;
         }
-        if let Ok(v) = std::env::var("BODHI_MODEL_BACKGROUND") {
+        if let Ok(v) = std::env::var("BAMBOO_MODEL_BACKGROUND") {
             mapping.background_model = v;
         }
-        if let Ok(v) = std::env::var("BODHI_MODEL_THINKING") {
+        if let Ok(v) = std::env::var("BAMBOO_MODEL_THINKING") {
             mapping.thinking_model = v;
         }
-        if let Ok(v) = std::env::var("BODHI_MODEL_LONG_CONTEXT") {
+        if let Ok(v) = std::env::var("BAMBOO_MODEL_LONG_CONTEXT") {
             mapping.long_context_model = v;
         }
 
@@ -327,15 +327,15 @@ mod tests {
 
     #[test]
     fn test_capability_env_vars() {
-        assert_eq!(ModelCapability::Default.env_var(), "BODHI_MODEL_DEFAULT");
+        assert_eq!(ModelCapability::Default.env_var(), "BAMBOO_MODEL_DEFAULT");
         assert_eq!(
             ModelCapability::Background.env_var(),
-            "BODHI_MODEL_BACKGROUND"
+            "BAMBOO_MODEL_BACKGROUND"
         );
-        assert_eq!(ModelCapability::Thinking.env_var(), "BODHI_MODEL_THINKING");
+        assert_eq!(ModelCapability::Thinking.env_var(), "BAMBOO_MODEL_THINKING");
         assert_eq!(
             ModelCapability::LongContext.env_var(),
-            "BODHI_MODEL_LONG_CONTEXT"
+            "BAMBOO_MODEL_LONG_CONTEXT"
         );
     }
 

@@ -2,7 +2,7 @@
 name = "anthropic_adapter"
 version = "0.1.0"
 edition = "2021"
-description = "Anthropic API to OpenAI API adapter for Bodhi"
+description = "Anthropic API to OpenAI API adapter for Bamboo"
 
 [dependencies]
 serde = { workspace = true }
