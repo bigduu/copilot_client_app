@@ -23,6 +23,16 @@ export interface UtilityService {
   setProxyAuth(auth: { username: string; password: string }): Promise<any>;
 
   /**
+   * Get Anthropic model mapping
+   */
+  getAnthropicModelMapping(): Promise<any>;
+
+  /**
+   * Set Anthropic model mapping
+   */
+  setAnthropicModelMapping(mapping: any): Promise<any>;
+
+  /**
    * Reset Bodhi config (delete config.json)
    */
   resetBodhiConfig(): Promise<any>;
@@ -54,6 +64,19 @@ class HttpUtilityService implements Partial<UtilityService> {
 
   async setProxyAuth(auth: { username: string; password: string }): Promise<any> {
     return apiClient.post("bodhi/proxy-auth", auth);
+  }
+
+  async getAnthropicModelMapping(): Promise<any> {
+    try {
+      return await apiClient.get("bodhi/anthropic-model-mapping");
+    } catch (error) {
+      console.error("Failed to fetch Anthropic model mapping:", error);
+      return { mappings: {} };
+    }
+  }
+
+  async setAnthropicModelMapping(mapping: any): Promise<any> {
+    return apiClient.post("bodhi/anthropic-model-mapping", mapping);
   }
 
   async resetBodhiConfig(): Promise<any> {
@@ -124,6 +147,8 @@ export class ServiceFactory {
         this.httpUtilityService.setBodhiConfig(config),
       setProxyAuth: (auth: { username: string; password: string }) =>
         this.httpUtilityService.setProxyAuth(auth),
+      getAnthropicModelMapping: () => this.httpUtilityService.getAnthropicModelMapping(),
+      setAnthropicModelMapping: (mapping: any) => this.httpUtilityService.setAnthropicModelMapping(mapping),
       resetBodhiConfig: () => this.httpUtilityService.resetBodhiConfig(),
       resetSetupStatus: () => this.tauriUtilityService.resetSetupStatus(),
     };
@@ -144,6 +169,14 @@ export class ServiceFactory {
 
   async setProxyAuth(auth: { username: string; password: string }): Promise<any> {
     return this.getUtilityService().setProxyAuth(auth);
+  }
+
+  async getAnthropicModelMapping(): Promise<any> {
+    return this.getUtilityService().getAnthropicModelMapping();
+  }
+
+  async setAnthropicModelMapping(mapping: any): Promise<any> {
+    return this.getUtilityService().setAnthropicModelMapping(mapping);
   }
 
   async resetBodhiConfig(): Promise<any> {

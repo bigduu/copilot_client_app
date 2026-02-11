@@ -297,11 +297,32 @@ pub async fn reset_bodhi_config(app_state: web::Data<AppState>) -> Result<HttpRe
     Ok(HttpResponse::Ok().json(serde_json::json!({ "success": true })))
 }
 
+#[get("/bodhi/anthropic-model-mapping")]
+pub async fn get_anthropic_model_mapping(
+    _app_state: web::Data<AppState>,
+) -> Result<HttpResponse, AppError> {
+    use crate::services::anthropic_model_mapping_service::load_anthropic_model_mapping;
+    let mapping = load_anthropic_model_mapping().await?;
+    Ok(HttpResponse::Ok().json(mapping))
+}
+
+#[post("/bodhi/anthropic-model-mapping")]
+pub async fn set_anthropic_model_mapping(
+    _app_state: web::Data<AppState>,
+    payload: web::Json<crate::services::anthropic_model_mapping_service::AnthropicModelMapping>,
+) -> Result<HttpResponse, AppError> {
+    use crate::services::anthropic_model_mapping_service::save_anthropic_model_mapping;
+    let mapping = save_anthropic_model_mapping(payload.into_inner()).await?;
+    Ok(HttpResponse::Ok().json(mapping))
+}
+
 pub fn config(cfg: &mut web::ServiceConfig) {
     cfg.service(list_workflows)
         .service(get_workflow)
         .service(get_bodhi_config)
         .service(set_bodhi_config)
         .service(reset_bodhi_config)
-        .service(set_proxy_auth);
+        .service(set_proxy_auth)
+        .service(get_anthropic_model_mapping)
+        .service(set_anthropic_model_mapping);
 }

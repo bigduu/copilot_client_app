@@ -93,6 +93,22 @@ const SystemSettingsConfigTab: React.FC<SystemSettingsConfigTabProps> = ({
   const [advancedActiveKeys, setAdvancedActiveKeys] = useState<string[]>([]);
   const [isApplyingProxyAuth, setIsApplyingProxyAuth] = useState(false);
 
+  // Anthropic model mapping state - simplified to 3 model types
+  const [anthropicMapping, setAnthropicMapping] = useState<Record<string, string>>({});
+  const [isLoadingMapping, setIsLoadingMapping] = useState(false);
+
+  // Simplified Anthropic model types (matched by keyword in backend)
+  const ANTHROPIC_MODELS = [
+    { key: 'opus', label: 'Opus', description: 'Matches any model ID containing "opus"' },
+    { key: 'sonnet', label: 'Sonnet', description: 'Matches any model ID containing "sonnet"' },
+    { key: 'haiku', label: 'Haiku', description: 'Matches any model ID containing "haiku"' },
+  ];
+
+  // Get the mapped Copilot model for an Anthropic model type
+  const getMappedCopilotModel = (modelType: string) => {
+    return anthropicMapping[modelType] || '';
+  };
+
   const parseConfig = useCallback((raw: string) => {
     try {
       const parsed = JSON.parse(raw || "{}");
@@ -140,6 +156,38 @@ const SystemSettingsConfigTab: React.FC<SystemSettingsConfigTabProps> = ({
       onModelChange(parsed.model);
     }
   }, [bodhiConfigJson, buildFormState, onModelChange, parseConfig, selectedModel]);
+
+  // Load Anthropic model mapping
+  useEffect(() => {
+    const loadMapping = async () => {
+      setIsLoadingMapping(true);
+      try {
+        const result = await serviceFactory.getAnthropicModelMapping();
+        setAnthropicMapping(result?.mappings || {});
+      } catch (error) {
+        console.error("Failed to load Anthropic model mapping:", error);
+      } finally {
+        setIsLoadingMapping(false);
+      }
+    };
+    loadMapping();
+  }, []);
+
+  const handleMappingChange = async (anthropicModelId: string, copilotModel: string) => {
+    const newMapping = { ...anthropicMapping };
+    if (copilotModel) {
+      newMapping[anthropicModelId] = copilotModel;
+    } else {
+      delete newMapping[anthropicModelId];
+    }
+    try {
+      await serviceFactory.setAnthropicModelMapping({ mappings: newMapping });
+      setAnthropicMapping(newMapping);
+      message.success("Mapping saved successfully");
+    } catch (error) {
+      message.error("Failed to save mapping");
+    }
+  };
 
   useEffect(() => {
     const stored = readStoredProxyAuth();
@@ -214,6 +262,43 @@ const SystemSettingsConfigTab: React.FC<SystemSettingsConfigTabProps> = ({
   const advancedItems = useMemo(
     () => [
       {
+        key: "anthropic-mapping",
+        label: "Anthropic Model Mapping",
+        children: (
+          <Space direction="vertical" size={token.marginMD} style={{ width: "100%" }}>
+            <Text type="secondary" style={{ fontSize: token.fontSizeSM }}>
+              Configure which Copilot models should be used when Claude CLI requests Opus, Sonnet, or Haiku models.
+            </Text>
+            {isLoadingMapping ? (
+              <Text>Loading mappings...</Text>
+            ) : (
+              ANTHROPIC_MODELS.map(({ key, label, description }) => (
+                <Space key={key} direction="vertical" size={token.marginXXS} style={{ width: "100%" }}>
+                  <Text strong>{label}</Text>
+                  <Text type="secondary" style={{ fontSize: token.fontSizeSM }}>
+                    {description}
+                  </Text>
+                  <Select
+                    style={{ width: "100%" }}
+                    placeholder={`Select a Copilot model for ${label}`}
+                    value={getMappedCopilotModel(key)}
+                    onChange={(value) => handleMappingChange(key, value)}
+                    allowClear
+                    showSearch
+                    optionFilterProp="children"
+                    loading={isLoadingModels}
+                    options={models.map((model) => ({
+                      label: model,
+                      value: model,
+                    }))}
+                  />
+                </Space>
+              ))
+            )}
+          </Space>
+        ),
+      },
+      {
         key: "advanced-json",
         label: "Advanced JSON",
         children: (
@@ -253,7 +338,7 @@ const SystemSettingsConfigTab: React.FC<SystemSettingsConfigTabProps> = ({
         ),
       },
     ],
-    [bodhiConfigJson, onChange, token],
+    [bodhiConfigJson, onChange, token, anthropicMapping, isLoadingMapping, models, isLoadingModels],
   );
 
   return (
