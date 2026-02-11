@@ -6,7 +6,7 @@ import React, {
   useState,
 } from "react";
 import { FloatButton, Grid, Layout, theme, Flex } from "antd";
-import { DownOutlined } from "@ant-design/icons";
+import { DownOutlined, UpOutlined } from "@ant-design/icons";
 import { useVirtualizer } from "@tanstack/react-virtual";
 
 import { useAppStore } from "../../store";
@@ -146,7 +146,9 @@ export const ChatView: React.FC = () => {
     handleMessagesScroll,
     resetUserScroll,
     scrollToBottom,
+    scrollToTop,
     showScrollToBottom,
+    showScrollToTop,
   } = useChatViewScroll({
     currentChatId,
     interactionState,
@@ -230,20 +232,37 @@ export const ChatView: React.FC = () => {
           padding={getContainerPadding()}
         />
 
-        {showScrollToBottom ? (
-          <FloatButton
-            type="primary"
-            icon={<DownOutlined />}
+        {/* 滚动按钮组 - 都在右下角 */}
+        {(showScrollToTop || showScrollToBottom) && (
+          <FloatButton.Group
             style={{
               right: getScrollButtonPosition(),
-              bottom: screens.xs ? 80 : 96,
+              bottom: screens.xs ? 160 : 180,
+              gap: token.marginSM,
+              zIndex: 1000,
             }}
-            onClick={() => {
-              resetUserScroll();
-              scrollToBottom();
-            }}
-          />
-        ) : null}
+          >
+            {showScrollToTop && (
+              <FloatButton
+                type="default"
+                icon={<UpOutlined />}
+                onClick={() => {
+                  scrollToTop();
+                }}
+              />
+            )}
+            {showScrollToBottom && (
+              <FloatButton
+                type="primary"
+                icon={<DownOutlined />}
+                onClick={() => {
+                  resetUserScroll();
+                  scrollToBottom();
+                }}
+              />
+            )}
+          </FloatButton.Group>
+        )}
 
         <ChatInputArea
           isCenteredLayout={!showMessagesView}

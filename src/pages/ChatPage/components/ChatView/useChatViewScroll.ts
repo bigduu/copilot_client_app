@@ -35,39 +35,53 @@ export const useChatViewScroll = ({
   rowVirtualizer,
 }: UseChatViewScrollArgs) => {
   const [showScrollToBottom, setShowScrollToBottom] = useState(false);
+  const [showScrollToTop, setShowScrollToTop] = useState(false);
   const userHasScrolledUpRef = useRef(false);
 
   const handleMessagesScroll = useCallback(() => {
     const el = messagesListRef.current;
     if (!el) return;
+    // 没有消息时不显示滚动按钮
+    if (renderableMessages.length === 0) {
+      setShowScrollToBottom(false);
+      setShowScrollToTop(false);
+      return;
+    }
     const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
-    const nearBottomThreshold = 5;
-    const atBottom = distanceFromBottom < nearBottomThreshold;
+    const scrollTop = el.scrollTop;
+    // 使用统一的阈值：距离底部 150px 以内都视为"在底部"
+    const bottomThreshold = 150;
+    const topThreshold = 150;
+    const atBottom = distanceFromBottom < bottomThreshold;
+    const atTop = scrollTop < topThreshold;
     setShowScrollToBottom(!atBottom);
-    const significantScrollThreshold = 100;
-    if (distanceFromBottom > significantScrollThreshold) {
+    setShowScrollToTop(!atTop && renderableMessages.length > 3);
+    // 用户主动向上滚动超过阈值时，标记为已滚动
+    if (distanceFromBottom > bottomThreshold * 2) {
       userHasScrolledUpRef.current = true;
     } else if (atBottom) {
       userHasScrolledUpRef.current = false;
     }
-  }, []);
+  }, [renderableMessages.length]);
 
   const scrollToBottom = useCallback(() => {
     const el = messagesListRef.current;
     if (!el) return;
-    if (interactionState.matches("THINKING")) {
-      requestAnimationFrame(() => {
-        el.scrollTo({ top: el.scrollHeight });
-      });
-      return;
-    }
     if (renderableMessages.length === 0) return;
     requestAnimationFrame(() => {
-      rowVirtualizer.scrollToIndex(renderableMessages.length - 1, {
-        align: "end",
-      });
+      // 直接滚动到容器底部，确保到达最底部
+      el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
     });
-  }, [interactionState, renderableMessages.length, rowVirtualizer]);
+  }, [renderableMessages.length]);
+
+  const scrollToTop = useCallback(() => {
+    const el = messagesListRef.current;
+    if (!el) return;
+    requestAnimationFrame(() => {
+      // 直接滚动到容器顶部
+      el.scrollTo({ top: 0, behavior: "smooth" });
+    });
+  }, []);
 
   const resetUserScroll = useCallback(() => {
     userHasScrolledUpRef.current = false;
@@ -145,10 +159,37 @@ export const useChatViewScroll = ({
     }
   }, [renderableMessages.length, scrollToBottom]);
 
+  // 当消息数量变化或切换聊天时，主动检查是否应该显示滚动按钮
+  useEffect(() => {
+    const el = messagesListRef.current;
+    if (!el) {
+      setShowScrollToBottom(false);
+      setShowScrollToTop(false);
+      return;
+    }
+    // 没有消息时不显示按钮
+    if (renderableMessages.length === 0) {
+      setShowScrollToBottom(false);
+      setShowScrollToTop(false);
+      return;
+    }
+    // 检查当前滚动位置
+    const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+    const scrollTop = el.scrollTop;
+    const bottomThreshold = 150;
+    const topThreshold = 150;
+    const atBottom = distanceFromBottom < bottomThreshold;
+    const atTop = scrollTop < topThreshold;
+    setShowScrollToBottom(!atBottom);
+    setShowScrollToTop(!atTop && renderableMessages.length > 3);
+  }, [renderableMessages.length, currentChatId]);
+
   return {
     handleMessagesScroll,
     resetUserScroll,
     scrollToBottom,
+    scrollToTop,
     showScrollToBottom,
+    showScrollToTop,
   };
 };
