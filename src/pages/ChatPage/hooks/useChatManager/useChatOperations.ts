@@ -17,6 +17,7 @@ export interface UseChatOperations {
   updateChatTitle: (chatId: string, newTitle: string) => void;
   deleteEmptyChats: () => void;
   deleteAllUnpinnedChats: () => void;
+  deleteAllChats: () => void;
 }
 
 export function useChatOperations(state: UseChatState): UseChatOperations {
@@ -121,6 +122,13 @@ export function useChatOperations(state: UseChatState): UseChatOperations {
     }
   }, [state]);
 
+  const deleteAllChats = useCallback(() => {
+    const allChatIds = state.chats.map((chat) => chat.id);
+    if (allChatIds.length > 0) {
+      state.deleteChats(allChatIds);
+    }
+  }, [state]);
+
   return {
     createNewChat,
     createChatWithSystemPrompt,
@@ -128,5 +136,6 @@ export function useChatOperations(state: UseChatState): UseChatOperations {
     updateChatTitle,
     deleteEmptyChats,
     deleteAllUnpinnedChats,
+    deleteAllChats,
   };
 }

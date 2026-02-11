@@ -7,15 +7,17 @@ use async_trait::async_trait;
 use serde_json::json;
 
 use crate::guide::{context::GuideBuildContext, EnhancedPromptBuilder, ToolGuide};
+use crate::permission::{check_permissions, PermissionChecker, PermissionError};
 use crate::tools::{
     ApplyPatchTool, AskUserTool, CreateTodoListTool, ExecuteCommandTool, FileExistsTool,
-    GetCurrentDirTool, GetFileInfoTool, GitDiffTool, GitStatusTool, ListDirectoryTool, ReadFileTool,
-    ReadFileRangeTool, SearchInFileTool, SearchInProjectTool, SetWorkspaceTool, ToolRegistry,
-    UpdateTodoItemTool, WriteFileTool,
+    GetCurrentDirTool, GetFileInfoTool, GitDiffTool, GitStatusTool, GitWriteTool, GlobSearchTool,
+    HttpRequestTool, ListDirectoryTool, ReadFileTool, ReadFileRangeTool,
+    SearchInFileTool, SearchInProjectTool, SetWorkspaceTool, SleepTool, TerminalSessionTool,
+    ToolRegistry, UpdateTodoItemTool, WriteFileTool,
 };
 
 /// List of all built-in tool names
-pub const BUILTIN_TOOL_NAMES: [&str; 17] = [
+pub const BUILTIN_TOOL_NAMES: [&str; 22] = [
     "read_file",
     "write_file",
     "list_directory",
@@ -31,8 +33,13 @@ pub const BUILTIN_TOOL_NAMES: [&str; 17] = [
     "search_in_project",
     "git_status",
     "git_diff",
+    "git_write",
     "create_todo_list",
     "update_todo_item",
+    "glob_search",
+    "http_request",
+    "sleep",
+    "terminal_session",
 ];
 
 /// Normalizes a tool reference to a standard tool name
@@ -64,6 +71,7 @@ pub fn is_builtin_tool(value: &str) -> bool {
 /// Built-in tool executor that uses ToolRegistry for dynamic dispatch
 pub struct BuiltinToolExecutor {
     registry: ToolRegistry,
+    permission_checker: Option<Arc<dyn PermissionChecker>>,
 }
 
 impl BuiltinToolExecutor {
@@ -71,12 +79,28 @@ impl BuiltinToolExecutor {
     pub fn new() -> Self {
         let registry = ToolRegistry::new();
         Self::register_builtin_tools(&registry);
-        Self { registry }
+        Self {
+            registry,
+            permission_checker: None,
+        }
+    }
+
+    /// Creates a new executor with a permission checker
+    pub fn new_with_permissions(permission_checker: Arc<dyn PermissionChecker>) -> Self {
+        let registry = ToolRegistry::new();
+        Self::register_builtin_tools(&registry);
+        Self {
+            registry,
+            permission_checker: Some(permission_checker),
+        }
     }
 
     /// Creates a new executor from an existing registry
     pub fn with_registry(registry: ToolRegistry) -> Self {
-        Self { registry }
+        Self {
+            registry,
+            permission_checker: None,
+        }
     }
 
     /// Returns a reference to the internal registry
@@ -112,10 +136,17 @@ impl BuiltinToolExecutor {
         // Register git tools
         let _ = registry.register(GitStatusTool::new());
         let _ = registry.register(GitDiffTool::new());
+        let _ = registry.register(GitWriteTool::new());
 
         // Register todo list tools
         let _ = registry.register(CreateTodoListTool::new());
         let _ = registry.register(UpdateTodoItemTool::new());
+
+        // Register new utility tools
+        let _ = registry.register(GlobSearchTool::new());
+        let _ = registry.register(HttpRequestTool::new());
+        let _ = registry.register(SleepTool::new());
+        let _ = registry.register(TerminalSessionTool::new());
     }
 
     /// Returns all built-in tool schemas
@@ -154,6 +185,13 @@ impl BuiltinToolExecutor {
     }
 }
 
+fn permission_error_to_tool_error(error: PermissionError) -> ToolError {
+    match error {
+        PermissionError::CheckFailed(_) => ToolError::InvalidArguments(error.to_string()),
+        _ => ToolError::Execution(error.to_string()),
+    }
+}
+
 impl Default for BuiltinToolExecutor {
     fn default() -> Self {
         Self::new()
@@ -180,6 +218,26 @@ impl ToolExecutor for BuiltinToolExecutor {
             .get(tool_name)
             .ok_or_else(|| ToolError::NotFound(format!("Tool '{}' not found", tool_name)))?;
 
+        if let Some(permission_checker) = &self.permission_checker {
+            if let Some(contexts) =
+                check_permissions(tool_name, &args).map_err(permission_error_to_tool_error)?
+            {
+                for context in contexts {
+                    let resource = context.resource.clone();
+                    let allowed = permission_checker
+                        .check_or_request(context)
+                        .await
+                        .map_err(permission_error_to_tool_error)?;
+                    if !allowed {
+                        return Err(ToolError::Execution(format!(
+                            "Permission denied for: {}",
+                            resource
+                        )));
+                    }
+                }
+            }
+        }
+
         // Execute the tool
         tool.execute(args).await
     }
@@ -192,6 +250,7 @@ impl ToolExecutor for BuiltinToolExecutor {
 /// Builder for constructing a BuiltinToolExecutor with custom tool configurations
 pub struct BuiltinToolExecutorBuilder {
     registry: ToolRegistry,
+    permission_checker: Option<Arc<dyn PermissionChecker>>,
 }
 
 impl BuiltinToolExecutorBuilder {
@@ -199,6 +258,7 @@ impl BuiltinToolExecutorBuilder {
     pub fn new() -> Self {
         Self {
             registry: ToolRegistry::new(),
+            permission_checker: None,
         }
     }
 
@@ -241,9 +301,18 @@ impl BuiltinToolExecutorBuilder {
         Ok(self)
     }
 
+    /// Sets a permission checker for this executor
+    pub fn with_permission_checker(mut self, checker: Arc<dyn PermissionChecker>) -> Self {
+        self.permission_checker = Some(checker);
+        self
+    }
+
     /// Builds the executor
     pub fn build(self) -> BuiltinToolExecutor {
-        BuiltinToolExecutor::with_registry(self.registry)
+        BuiltinToolExecutor {
+            registry: self.registry,
+            permission_checker: self.permission_checker,
+        }
     }
 }
 
@@ -256,6 +325,36 @@ impl Default for BuiltinToolExecutorBuilder {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use agent_core::tools::FunctionCall;
+    use serde_json::json;
+    use std::sync::Arc;
+    use tokio::fs;
+
+    use crate::tools::WriteFileTool;
+
+    fn make_tool_call(name: &str, args: serde_json::Value) -> ToolCall {
+        ToolCall {
+            id: "call_1".to_string(),
+            tool_type: "function".to_string(),
+            function: FunctionCall {
+                name: name.to_string(),
+                arguments: args.to_string(),
+            },
+        }
+    }
+
+    fn make_executor(permission_checker: Option<Arc<dyn PermissionChecker>>) -> BuiltinToolExecutor {
+        let builder = BuiltinToolExecutorBuilder::new()
+            .with_tool(WriteFileTool::new())
+            .expect("register write_file tool");
+
+        let builder = match permission_checker {
+            Some(checker) => builder.with_permission_checker(checker),
+            None => builder,
+        };
+
+        builder.build()
+    }
 
     #[test]
     fn test_normalize_tool_ref_supports_legacy_run_command_alias() {
@@ -315,5 +414,32 @@ mod tests {
         let tools = executor.list_tools();
         assert_eq!(tools.len(), 1);
         assert_eq!(tools[0].function.name, "read_file");
+    }
+
+    #[tokio::test]
+    async fn test_executor_skips_permission_checks_without_checker() {
+        let executor = make_executor(None);
+        let path = "/tmp/executor_permission_none.txt";
+        let _ = fs::remove_file(path).await;
+
+        let call = make_tool_call("write_file", json!({"path": path, "content": "ok"}));
+        let result = executor.execute(&call).await.expect("execute tool");
+
+        assert!(result.success);
+        let _ = fs::remove_file(path).await;
+    }
+
+    #[tokio::test]
+    async fn test_executor_with_permission_checker_enforces_checks() {
+        let checker = Arc::new(crate::permission::DenyDangerousPermissionChecker);
+        let executor = make_executor(Some(checker));
+        let path = "/tmp/executor_permission_denied.txt";
+        let _ = fs::remove_file(path).await;
+
+        let call = make_tool_call("write_file", json!({"path": path, "content": "nope"}));
+        let result = executor.execute(&call).await;
+
+        assert!(matches!(result, Err(ToolError::Execution(_))));
+        assert!(fs::metadata(path).await.is_err());
     }
 }

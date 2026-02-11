@@ -281,10 +281,27 @@ pub async fn set_proxy_auth(
     Ok(HttpResponse::Ok().json(serde_json::json!({ "success": true })))
 }
 
+#[post("/bodhi/config/reset")]
+pub async fn reset_bodhi_config(app_state: web::Data<AppState>) -> Result<HttpResponse, AppError> {
+    let path = config_path(&app_state);
+    // Try to delete config.json if it exists
+    match fs::try_exists(&path).await {
+        Ok(true) => {
+            fs::remove_file(&path).await.map_err(AppError::StorageError)?;
+        }
+        Ok(false) => {
+            // Config file doesn't exist, nothing to do
+        }
+        Err(err) => return Err(AppError::StorageError(err)),
+    }
+    Ok(HttpResponse::Ok().json(serde_json::json!({ "success": true })))
+}
+
 pub fn config(cfg: &mut web::ServiceConfig) {
     cfg.service(list_workflows)
         .service(get_workflow)
         .service(get_bodhi_config)
         .service(set_bodhi_config)
+        .service(reset_bodhi_config)
         .service(set_proxy_auth);
 }

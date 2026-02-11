@@ -23,6 +23,16 @@ export interface UtilityService {
   setProxyAuth(auth: { username: string; password: string }): Promise<any>;
 
   /**
+   * Reset Bodhi config (delete config.json)
+   */
+  resetBodhiConfig(): Promise<any>;
+
+  /**
+   * Reset setup status (mark as incomplete)
+   */
+  resetSetupStatus(): Promise<void>;
+
+  /**
    * Generic invoke method for custom commands
    */
   invoke<T = any>(command: string, args?: Record<string, any>): Promise<T>;
@@ -45,6 +55,10 @@ class HttpUtilityService implements Partial<UtilityService> {
   async setProxyAuth(auth: { username: string; password: string }): Promise<any> {
     return apiClient.post("bodhi/proxy-auth", auth);
   }
+
+  async resetBodhiConfig(): Promise<any> {
+    return apiClient.post("bodhi/config/reset", {});
+  }
 }
 
 class TauriUtilityService {
@@ -53,6 +67,13 @@ class TauriUtilityService {
    */
   async copyToClipboard(text: string): Promise<void> {
     await invoke("copy_to_clipboard", { text });
+  }
+
+  /**
+   * Reset setup status (mark as incomplete)
+   */
+  async resetSetupStatus(): Promise<void> {
+    await invoke("mark_setup_incomplete");
   }
 
   /**
@@ -103,6 +124,8 @@ export class ServiceFactory {
         this.httpUtilityService.setBodhiConfig(config),
       setProxyAuth: (auth: { username: string; password: string }) =>
         this.httpUtilityService.setProxyAuth(auth),
+      resetBodhiConfig: () => this.httpUtilityService.resetBodhiConfig(),
+      resetSetupStatus: () => this.tauriUtilityService.resetSetupStatus(),
     };
   }
 
@@ -121,6 +144,14 @@ export class ServiceFactory {
 
   async setProxyAuth(auth: { username: string; password: string }): Promise<any> {
     return this.getUtilityService().setProxyAuth(auth);
+  }
+
+  async resetBodhiConfig(): Promise<any> {
+    return this.getUtilityService().resetBodhiConfig();
+  }
+
+  async resetSetupStatus(): Promise<void> {
+    return this.getUtilityService().resetSetupStatus();
   }
 
   async invoke<T = any>(

@@ -5,6 +5,7 @@
 
 mod executor;
 pub mod guide;
+pub mod permission;
 pub mod tools;
 
 // Re-export executor types
@@ -22,9 +23,10 @@ pub use guide::{
 // Re-export all tool implementations
 pub use tools::{
     ApplyPatchTool, AskUserTool, CreateTodoListTool, ExecuteCommandTool, FileExistsTool,
-    GetCurrentDirTool, GetFileInfoTool, GitDiffTool, GitStatusTool, ListDirectoryTool, ReadFileTool,
-    ReadFileRangeTool, SearchInFileTool, SearchInProjectTool, SetWorkspaceTool, ToolRegistry,
-    UpdateTodoItemTool, WriteFileTool,
+    GetCurrentDirTool, GetFileInfoTool, GitDiffTool, GitStatusTool, GitWriteTool, GlobSearchTool,
+    HttpRequestTool, ListDirectoryTool, ReadFileTool, ReadFileRangeTool,
+    SearchInFileTool, SearchInProjectTool, SetWorkspaceTool, SleepTool, TerminalSessionTool,
+    ToolRegistry, UpdateTodoItemTool, WriteFileTool,
 };
 
 // Re-export todo types from agent-core for convenience

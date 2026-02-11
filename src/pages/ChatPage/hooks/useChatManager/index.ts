@@ -86,6 +86,7 @@ export const useChatManager = () => {
     updateChatTitle: operations.updateChatTitle,
     deleteEmptyChats: operations.deleteEmptyChats,
     deleteAllUnpinnedChats: operations.deleteAllUnpinnedChats,
+    deleteAllChats: operations.deleteAllChats,
 
     // Actions from useChatHistory
     retryLastMessage: history.retryLastMessage,

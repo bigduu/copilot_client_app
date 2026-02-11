@@ -19,3 +19,103 @@ members = [
 ]
 resolver = "2"
 default-members = ["src-tauri"]
+
+[workspace.dependencies]
+# Core async runtime
+tokio = { version = "1", features = ["full"] }
+tokio-util = "0.7"
+tokio-stream = "0.1"
+
+# Serialization
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+serde_yaml = "0.9"
+
+# Async traits
+async-trait = "0.1"
+
+# Error handling
+thiserror = "1"
+anyhow = "1"
+
+# Logging
+log = "0.4"
+env_logger = "0.11"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# Time
+chrono = { version = "0.4", features = ["serde"] }
+
+# HTTP
+reqwest = { version = "0.12", features = ["json", "stream"] }
+actix-web = "4"
+actix-cors = "0.7"
+actix-http = "3"
+
+# Utilities
+uuid = { version = "1", features = ["v4", "serde"] }
+regex = "1"
+dirs = "5"
+dashmap = "6"
+futures = "0.3"
+futures-util = "0.3"
+bytes = "1"
+walkdir = "2"
+libc = "0.2"
+async-stream = "0.3"
+
+# Data structures
+glob = "0.3"
+globset = "0.4"
+
+# Cryptography
+sha2 = "0.10"
+aes-gcm = "0.10"
+rand = "0.8"
+hex = "0.4"
+
+# Database
+rusqlite = "0.31"
+
+# Tauri
+tauri = { version = "2.5", features = ["macos-private-api"] }
+tauri-build = "2.5"
+tauri-plugin-log = "2"
+tauri-plugin-dialog = "2"
+tauri-plugin-fs = "2"
+
+# Development
+tempfile = "3"
+wiremock = "0.5"
+tokio-test = "0.4"
+mockall = "0.13"
+
+# CLI
+clap = { version = "4", features = ["derive", "env"] }
+
+# Other
+url = "2"
+once_cell = "1"
+crossbeam = "0.8"
+zstd = "0.13"
+webbrowser = "1"
+arboard = "3"
+rfd = "0.15"
+portable-pty = "0.8"
+toml = "0.8"
+
+# Internal crates (for workspace dependency reference)
+agent-core = { path = "crates/agent-core" }
+chat_core = { path = "crates/chat_core" }
+agent-llm = { path = "crates/agent-llm" }
+agent-tools = { path = "crates/agent-tools" }
+agent-loop = { path = "crates/agent-loop" }
+agent-server = { path = "crates/agent-server" }
+agent-skill = { path = "crates/agent-skill" }
+agent-mcp = { path = "crates/agent-mcp" }
+agent-metrics = { path = "crates/agent-metrics" }
+agent-cli = { path = "crates/agent-cli" }
+web_service = { path = "crates/web_service" }
+claude_installer = { path = "crates/claude_installer" }
+anthropic_adapter = { path = "crates/anthropic_adapter" }

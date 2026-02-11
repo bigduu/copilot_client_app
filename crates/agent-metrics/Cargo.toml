@@ -7,13 +7,13 @@ edition = "2021"
 agent-core = { path = "../agent-core" }
 
 async-trait = "0.1"
-chrono = { version = "0.4", features = ["serde"] }
-rusqlite = { version = "0.31", features = ["bundled", "chrono"] }
-serde = { version = "1", features = ["derive"] }
-serde_json = "1"
-thiserror = "1"
-tokio = { version = "1", features = ["full"] }
-log = "0.4"
+chrono = { workspace = true, features = ["serde"] }
+rusqlite = { workspace = true, features = ["bundled", "chrono"] }
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+tokio = { workspace = true, features = ["full"] }
+log = { workspace = true }
 
 [dev-dependencies]
 tempfile = "3"

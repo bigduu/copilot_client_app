@@ -13,7 +13,7 @@ pub async fn handler(
     _req: HttpRequest,
 ) -> impl Responder {
     let session_id = path.into_inner();
-    log::info!("[{}] Stream started", session_id);
+    log::debug!("[{}] Stream started", session_id);
 
     let session = {
         let sessions = state.sessions.read().await;
@@ -118,7 +118,19 @@ pub async fn handler(
             .map(|m| m.content.clone())
             .unwrap_or_default();
 
-        if !initial_message.is_empty() {
+        // Check if this session has already been processed
+        // If the last message is from assistant or tool, agent has already responded
+        let last_message_is_user = session
+            .messages
+            .last()
+            .map(|m| matches!(m.role, agent_core::agent::Role::User))
+            .unwrap_or(false);
+
+        // Only run agent loop if there's a pending user message that hasn't been processed
+        // A user message is "pending" if it's the last message in the session
+        let should_run_agent = !initial_message.is_empty() && last_message_is_user;
+
+        if should_run_agent {
             let system_prompt = session
                 .messages
                 .iter()
@@ -188,6 +200,21 @@ pub async fn handler(
                     })
                     .await;
             }
+        } else {
+            // Session already processed - send complete event to close the stream cleanly
+            log::debug!(
+                "[{}] Session already processed, sending complete event",
+                session_id_clone
+            );
+            let _ = debug_event_tx
+                .send(agent_core::AgentEvent::Complete {
+                    usage: agent_core::TokenUsage {
+                        prompt_tokens: 0,
+                        completion_tokens: 0,
+                        total_tokens: 0,
+                    },
+                })
+                .await;
         }
 
         // Close event channel
