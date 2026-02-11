@@ -8,15 +8,17 @@ type InteractionState = {
   matches: (stateName: "IDLE" | "THINKING" | "AWAITING_APPROVAL") => boolean;
 };
 
-type RenderableEntry = {
-  message: Message;
+type ScrollEntry = {
+  message?: Message;
+  type?: string;
+  id?: string;
 };
 
 type UseChatViewScrollArgs = {
   currentChatId: string | null;
   interactionState: InteractionState;
   messagesListRef: RefObject<HTMLDivElement>;
-  renderableMessages: RenderableEntry[];
+  renderableMessages: ScrollEntry[];
   rowVirtualizer: {
     scrollToIndex: (
       index: number,
@@ -82,7 +84,7 @@ export const useChatViewScroll = ({
       }
 
       const targetIndex = renderableMessages.findIndex(
-        (item) => item.message.id === messageId,
+        (item) => item.message?.id === messageId || item.id === messageId,
       );
 
       if (targetIndex === -1) {
