@@ -82,6 +82,9 @@ impl CopilotClient {
 
     fn build_http_client(config: &Config) -> anyhow::Result<Client> {
         let mut builder = Client::builder().default_headers(Self::get_default_headers());
+
+        let has_proxy_config = !config.http_proxy.is_empty() || !config.https_proxy.is_empty();
+
         if !config.http_proxy.is_empty() {
             let mut proxy = Proxy::http(&config.http_proxy)?;
             proxy = apply_proxy_auth(proxy, config.http_proxy_auth.as_ref());
@@ -92,6 +95,12 @@ impl CopilotClient {
             proxy = apply_proxy_auth(proxy, config.https_proxy_auth.as_ref());
             builder = builder.proxy(proxy);
         }
+
+        // Disable automatic proxy detection from system/environment if no proxy is configured
+        if !has_proxy_config {
+            builder = builder.no_proxy();
+        }
+
         builder
             .build()
             .map_err(|e| anyhow!("Failed to build HTTP client: {e}"))

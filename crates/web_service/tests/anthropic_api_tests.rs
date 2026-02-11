@@ -174,7 +174,7 @@ async fn test_messages_non_streaming() {
     });
 
     let req = test::TestRequest::post()
-        .uri("/v1/messages")
+        .uri("/anthropic/v1/messages")
         .set_json(&req_body)
         .to_request();
 
@@ -245,7 +245,7 @@ async fn test_messages_missing_mapping_falls_back() {
     });
 
     let req = test::TestRequest::post()
-        .uri("/v1/messages")
+        .uri("/anthropic/v1/messages")
         .set_json(&req_body)
         .to_request();
 
@@ -316,7 +316,7 @@ async fn test_messages_reasoning_is_mapped_to_reasoning_effort() {
     });
 
     let req = test::TestRequest::post()
-        .uri("/v1/messages")
+        .uri("/anthropic/v1/messages")
         .set_json(&req_body)
         .to_request();
 
@@ -423,7 +423,7 @@ async fn test_messages_streaming() {
     });
 
     let req = test::TestRequest::post()
-        .uri("/v1/messages")
+        .uri("/anthropic/v1/messages")
         .set_json(&req_body)
         .to_request();
 
@@ -562,7 +562,7 @@ async fn test_messages_streaming_tool_use() {
     });
 
     let req = test::TestRequest::post()
-        .uri("/v1/messages")
+        .uri("/anthropic/v1/messages")
         .set_json(&req_body)
         .to_request();
 
@@ -686,7 +686,7 @@ async fn test_messages_streaming_text_and_tool_use() {
     });
 
     let req = test::TestRequest::post()
-        .uri("/v1/messages")
+        .uri("/anthropic/v1/messages")
         .set_json(&req_body)
         .to_request();
 
@@ -759,7 +759,7 @@ async fn test_complete_non_streaming() {
     });
 
     let req = test::TestRequest::post()
-        .uri("/v1/complete")
+        .uri("/anthropic/v1/complete")
         .set_json(&req_body)
         .to_request();
 
@@ -867,7 +867,7 @@ async fn test_complete_streaming() {
     });
 
     let req = test::TestRequest::post()
-        .uri("/v1/complete")
+        .uri("/anthropic/v1/complete")
         .set_json(&req_body)
         .to_request();
 
@@ -937,4 +937,38 @@ fn parse_sse_data(body: &str) -> Vec<Value> {
     }
 
     events
+}
+
+#[actix_web::test]
+async fn test_get_models() {
+    let (app, _mock_server) = setup_test_environment().await;
+
+    let req = test::TestRequest::get().uri("/anthropic/v1/models").to_request();
+
+    let resp: Value = test::call_and_read_body_json(&app, req).await;
+
+    // Verify response structure matches Anthropic format
+    assert!(resp["data"].is_array());
+    assert_eq!(resp["has_more"], false);
+    assert!(resp["first_id"].is_string());
+    assert!(resp["last_id"].is_string());
+
+    // Verify each model has the correct structure
+    let models = resp["data"].as_array().unwrap();
+    assert!(!models.is_empty());
+
+    for model in models {
+        assert_eq!(model["type"], "model");
+        assert!(model["id"].is_string());
+        assert!(model["display_name"].is_string());
+        assert!(model["created_at"].is_string());
+    }
+
+    // Verify the models match what MockCopilotClient returns
+    let model_ids: Vec<String> = models
+        .iter()
+        .map(|m| m["id"].as_str().unwrap().to_string())
+        .collect();
+    assert!(model_ids.contains(&"gpt-4".to_string()));
+    assert!(model_ids.contains(&"gpt-3.5-turbo".to_string()));
 }

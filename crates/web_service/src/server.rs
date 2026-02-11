@@ -23,10 +23,10 @@ pub struct AppState {
 const DEFAULT_WORKER_COUNT: usize = 10;
 
 pub fn app_config(cfg: &mut web::ServiceConfig) {
+    // OpenAI and other endpoints under /v1
     cfg.service(
         web::scope("/v1")
             .configure(agent_controller::config)
-            .configure(anthropic_controller::config)
             .configure(openai_controller::config)
             .configure(bodhi_controller::config)
             .configure(claude_install_controller::config)
@@ -34,12 +34,27 @@ pub fn app_config(cfg: &mut web::ServiceConfig) {
             .configure(tools_controller::config)
             .configure(workspace_controller::config),
     );
+
+    // Anthropic endpoints under /anthropic/v1 (to match Anthropic SDK expectations)
+    cfg.service(
+        web::scope("/anthropic/v1").configure(anthropic_controller::config),
+    );
 }
 
 pub fn agent_api_config(cfg: &mut web::ServiceConfig) {
     cfg.service(
         web::scope("/api/v1")
             .route("/chat", web::post().to(agent_handlers::chat::handler))
+            // New separated execute + events endpoints
+            .route(
+                "/execute/{session_id}",
+                web::post().to(agent_handlers::execute::handler),
+            )
+            .route(
+                "/events/{session_id}",
+                web::get().to(agent_handlers::events::handler),
+            )
+            // Legacy stream endpoint (deprecated)
             .route(
                 "/stream/{session_id}",
                 web::get().to(agent_handlers::stream::handler),

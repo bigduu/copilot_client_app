@@ -1,10 +1,11 @@
 use crate::services::anthropic_model_mapping_service::load_anthropic_model_mapping;
 use crate::{error::AppError, server::AppState};
-use actix_web::{http::StatusCode, post, web, HttpResponse};
+use actix_web::{get, http::StatusCode, post, web, HttpResponse};
 use agent_llm::api::models::{
     ChatCompletionRequest, ChatCompletionResponse, ChatCompletionStreamChunk, ChatMessage, Content,
     ContentPart, FunctionCall, ImageUrl, Role, StreamToolCall, Tool, ToolCall, ToolChoice, Usage,
 };
+use agent_llm::ProxyAuthRequiredError;
 use async_stream::stream;
 use bytes::Bytes;
 use serde::{Deserialize, Serialize};
@@ -518,8 +519,91 @@ pub async fn complete(
     }
 }
 
+/// Anthropic model list response structs
+#[derive(Serialize)]
+struct AnthropicListModelsResponse {
+    data: Vec<AnthropicModel>,
+    has_more: bool,
+    first_id: Option<String>,
+    last_id: Option<String>,
+}
+
+#[derive(Serialize)]
+struct AnthropicModel {
+    #[serde(rename = "type")]
+    model_type: String,
+    id: String,
+    display_name: String,
+    created_at: String,
+}
+
+#[get("/models")]
+pub async fn get_models(app_state: web::Data<AppState>) -> Result<HttpResponse, AppError> {
+    // Fetch real models from copilot_client
+    let model_ids = match app_state.copilot_client.get_models().await {
+        Ok(model_ids) => model_ids,
+        Err(e) => {
+            if e.downcast_ref::<ProxyAuthRequiredError>().is_some() {
+                return Err(AppError::ProxyAuthRequired);
+            }
+            return Err(AppError::InternalError(anyhow::anyhow!(
+                "Failed to fetch models: {}",
+                e
+            )));
+        }
+    };
+
+    // Convert model IDs to Anthropic-compatible format
+    let models: Vec<AnthropicModel> = model_ids
+        .into_iter()
+        .map(|id| {
+            // Create a display name from the model id
+            let display_name = format_model_display_name(&id);
+            AnthropicModel {
+                model_type: "model".to_string(),
+                id,
+                display_name,
+                created_at: "2024-01-01T00:00:00Z".to_string(), // Use a fixed timestamp
+            }
+        })
+        .collect();
+
+    let first_id = models.first().map(|m| m.id.clone());
+    let last_id = models.last().map(|m| m.id.clone());
+
+    let response = AnthropicListModelsResponse {
+        data: models,
+        has_more: false,
+        first_id,
+        last_id,
+    };
+
+    Ok(HttpResponse::Ok().json(response))
+}
+
+/// Format a model ID into a human-readable display name
+fn format_model_display_name(model_id: &str) -> String {
+    // Handle common model naming patterns
+    if model_id.starts_with("claude") {
+        model_id
+            .replace("claude-3-5-", "Claude 3.5 ")
+            .replace("claude-3-", "Claude 3 ")
+            .replace("-sonnet", " Sonnet")
+            .replace("-haiku", " Haiku")
+            .replace("-opus", " Opus")
+            .replace("-latest", " (Latest)")
+    } else if model_id.starts_with("gpt") {
+        model_id
+            .replace("gpt-4o", "GPT-4o")
+            .replace("gpt-4", "GPT-4")
+            .replace("gpt-3.5", "GPT-3.5")
+    } else {
+        model_id.to_string()
+    }
+}
+
 pub fn config(cfg: &mut web::ServiceConfig) {
-    cfg.service(messages).service(complete);
+    cfg.service(messages).service(complete).service(get_models);
 }
 
 #[derive(Clone)]
@@ -553,11 +637,38 @@ async fn resolve_model(model: &str) -> Result<ModelResolution, AnthropicError> {
         )
     })?;
 
+    log::info!(
+        "Resolving model '{}', available mappings: {:?}",
+        model,
+        mapping.mappings
+    );
+
+    // Match by keyword in model name (case-insensitive)
+    let model_lower = model.to_lowercase();
+
+    let model_type = if model_lower.contains("opus") {
+        "opus"
+    } else if model_lower.contains("sonnet") {
+        "sonnet"
+    } else if model_lower.contains("haiku") {
+        "haiku"
+    } else {
+        log::warn!(
+            "No Anthropic model mapping found for '{}', falling back to default model",
+            model
+        );
+        return Ok(ModelResolution {
+            mapped_model: String::new(),
+            response_model: model.to_string(),
+        });
+    };
+
     if let Some(mapped) = mapping
         .mappings
-        .get(model)
+        .get(model_type)
         .filter(|value| !value.trim().is_empty())
     {
+        log::info!("Model '{}' (type: {}) mapped to '{}'", model, model_type, mapped);
         return Ok(ModelResolution {
             mapped_model: mapped.to_string(),
             response_model: model.to_string(),
@@ -565,8 +676,8 @@ async fn resolve_model(model: &str) -> Result<ModelResolution, AnthropicError> {
     }
 
     log::warn!(
-        "No Anthropic model mapping found for '{}', falling back to default model",
-        model
+        "No mapping configured for model type '{}', falling back to default model",
+        model_type
     );
 
     Ok(ModelResolution {
