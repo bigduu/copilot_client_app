@@ -391,6 +391,12 @@ async fn get_proxy_config() -> Result<serde_json::Value, String> {
     }))
 }
 
+/// Get the full bodhi config (config.json content)
+#[tauri::command]
+async fn get_bodhi_config() -> Result<serde_json::Value, String> {
+    read_config_json()
+}
+
 #[tauri::command]
 async fn get_setup_status() -> Result<SetupStatus, String> {
     let config = read_config_json()?;
@@ -561,7 +567,8 @@ pub fn run() {
             get_setup_status,
             mark_setup_complete,
             detect_proxy_requirement,
-            set_proxy_config
+            set_proxy_config,
+            get_bodhi_config
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")

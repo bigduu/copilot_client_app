@@ -3,11 +3,22 @@ import {
   modelService,
   ProxyAuthRequiredError,
 } from "../../services/ModelService";
+import { configService } from "../../../../services/config";
 import type { AppState } from "../";
 
 const SELECTED_MODEL_LS_KEY = "copilot_selected_model_id";
 const FALLBACK_MODELS = ["gpt-5-mini", "gpt-5", "gemini-2.5-pro"];
 let fetchModelsInFlight: Promise<void> | null = null;
+
+// 同步读取 localStorage 中的模型选择
+const getInitialSelectedModel = (): string | undefined => {
+  try {
+    const stored = localStorage.getItem(SELECTED_MODEL_LS_KEY);
+    return stored || undefined;
+  } catch {
+    return undefined;
+  }
+};
 
 export interface ModelSlice {
   // Model Management State
@@ -15,21 +26,24 @@ export interface ModelSlice {
   selectedModel: string | undefined;
   isLoadingModels: boolean;
   modelsError: string | null;
+  configModel: string | undefined; // model from config.json
 
   // Actions
   fetchModels: () => Promise<void>;
   setSelectedModel: (modelId: string) => void;
+  loadConfigModel: () => Promise<void>;
 }
 
 export const createModelSlice: StateCreator<AppState, [], [], ModelSlice> = (
   set,
   get,
 ) => ({
-  // Initial state
+  // Initial state - 同步读取 localStorage 避免启动时 fallback
   models: [],
-  selectedModel: undefined,
+  selectedModel: getInitialSelectedModel(),
   isLoadingModels: false,
   modelsError: null,
+  configModel: undefined,
 
   // Model Management Actions
   setSelectedModel: (modelId) => {
@@ -38,6 +52,28 @@ export const createModelSlice: StateCreator<AppState, [], [], ModelSlice> = (
       localStorage.setItem(SELECTED_MODEL_LS_KEY, modelId);
     } catch (error) {
       console.error("Failed to save selected model to localStorage:", error);
+    }
+  },
+
+  // Load model from config.json
+  loadConfigModel: async () => {
+    try {
+      const configModel = await configService.getModel();
+      if (configModel) {
+        set({ configModel });
+        // If no model is selected in localStorage, use the one from config
+        const currentSelected = get().selectedModel;
+        if (!currentSelected) {
+          set({ selectedModel: configModel });
+          try {
+            localStorage.setItem(SELECTED_MODEL_LS_KEY, configModel);
+          } catch (error) {
+            console.error("Failed to save config model to localStorage:", error);
+          }
+        }
+      }
+    } catch (error) {
+      console.error("Failed to load model from config:", error);
     }
   },
 

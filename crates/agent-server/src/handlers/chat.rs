@@ -72,6 +72,11 @@ pub async fn handler(state: web::Data<AppState>, req: web::Json<ChatRequest>) ->
 
     session.add_message(agent_core::Message::user(req.message.clone()));
 
+    // Store model in session if provided
+    if let Some(ref model) = req.model {
+        session.model = Some(model.clone());
+    }
+
     {
         let mut sessions = state.sessions.write().await;
         sessions.insert(session_id.clone(), session.clone());
@@ -131,6 +136,7 @@ fn build_enhanced_system_prompt(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use agent_core::Session;
 
     #[test]
     fn upsert_system_prompt_inserts_when_missing() {
@@ -188,5 +194,62 @@ mod tests {
     fn build_enhanced_system_prompt_ignores_empty_enhancement() {
         let prompt = build_enhanced_system_prompt("Base prompt", Some("   "), None);
         assert_eq!(prompt, "Base prompt");
+    }
+
+    #[test]
+    fn chat_request_deserialization_with_model() {
+        let json = r#"{
+            "message": "Hello",
+            "session_id": "test-session",
+            "model": "gpt-5"
+        }"#;
+
+        let request: ChatRequest = serde_json::from_str(json).unwrap();
+        assert_eq!(request.message, "Hello");
+        assert_eq!(request.session_id, Some("test-session".to_string()));
+        assert_eq!(request.model, Some("gpt-5".to_string()));
+    }
+
+    #[test]
+    fn chat_request_deserialization_without_model() {
+        let json = r#"{
+            "message": "Hello"
+        }"#;
+
+        let request: ChatRequest = serde_json::from_str(json).unwrap();
+        assert_eq!(request.message, "Hello");
+        assert_eq!(request.model, None);
+    }
+
+    #[test]
+    fn session_stores_model_in_dedicated_field() {
+        // Simulate what the handler does
+        let mut session = Session::new("test-session");
+        let model = Some("gpt-4o-mini".to_string());
+
+        if let Some(ref m) = model {
+            session.model = Some(m.clone());
+        }
+
+        assert_eq!(session.model, Some("gpt-4o-mini".to_string()));
+    }
+
+    #[test]
+    fn session_model_round_trip() {
+        // Create session with model
+        let mut session = Session::new("test-session");
+        session.model = Some("gpt-5".to_string());
+
+        // Serialize and deserialize
+        let json = serde_json::to_string(&session).unwrap();
+        let deserialized: Session = serde_json::from_str(&json).unwrap();
+
+        // Retrieve model (like stream.rs does)
+        let model = deserialized
+            .model
+            .clone()
+            .unwrap_or_else(|| "fallback".to_string());
+
+        assert_eq!(model, "gpt-5");
     }
 }
