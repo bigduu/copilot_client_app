@@ -13,7 +13,7 @@ pub async fn handler(
     log::debug!("[{}] Events subscription requested", session_id);
 
     // Check if there's a runner for this session
-    let (event_receiver, _status) = {
+    let (event_receiver, runner_status) = {
         let runners = state.agent_runners.read().await;
         match runners.get(&session_id) {
             Some(runner) => {
@@ -31,6 +31,28 @@ pub async fn handler(
 
     match event_receiver {
         Some(mut receiver) => {
+            // Check if runner is already completed - if so, send immediate complete event
+            if matches!(runner_status, Some(AgentStatus::Completed)) {
+                log::debug!("[{}] Runner already completed, sending immediate complete event", session_id);
+                return HttpResponse::Ok()
+                    .append_header((header::CONTENT_TYPE, "text/event-stream"))
+                    .append_header((header::CACHE_CONTROL, "no-cache"))
+                    .streaming(async_stream::stream! {
+                        let event = agent_core::AgentEvent::Complete {
+                            usage: TokenUsage {
+                                prompt_tokens: 0,
+                                completion_tokens: 0,
+                                total_tokens: 0,
+                            }
+                        };
+                        let event_json = serde_json::to_string(&event).unwrap();
+                        let sse_data = format!("data: {}\n\n", event_json);
+                        yield Ok::<_, actix_web::Error>(
+                            actix_web::web::Bytes::from(sse_data)
+                        );
+                    });
+            }
+
             // Has runner, stream events from broadcast channel
             HttpResponse::Ok()
                 .append_header((header::CONTENT_TYPE, "text/event-stream"))
