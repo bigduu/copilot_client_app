@@ -15,6 +15,7 @@ import { ChatInputArea } from "./ChatInputArea";
 import { ChatMessagesList } from "./ChatMessagesList";
 import { TodoList } from "../../../../components/TodoList";
 import { QuestionDialog } from "../../../../components/QuestionDialog";
+import { useAgentEventSubscription } from "../../../../hooks/useAgentEventSubscription";
 import "./styles.css";
 import { useChatViewScroll } from "./useChatViewScroll";
 import type { WorkflowDraft } from "../InputContainer";
@@ -24,6 +25,9 @@ const { useToken } = theme;
 const { useBreakpoint } = Grid;
 
 export const ChatView: React.FC = () => {
+  // Maintain persistent subscription to agent events for real-time streaming
+  useAgentEventSubscription();
+
   const currentChatId = useAppStore((state) => state.currentChatId);
   const currentChat = useAppStore(
     (state) =>

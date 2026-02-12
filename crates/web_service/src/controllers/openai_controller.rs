@@ -4,7 +4,8 @@ use agent_llm::api::models::{ChatCompletionRequest, ChatCompletionResponse};
 use agent_llm::ProxyAuthRequiredError;
 use bytes::Bytes;
 use futures_util::StreamExt;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
+use std::path::Path;
 use tokio::sync::mpsc;
 use tokio_stream::wrappers::ReceiverStream;
 
@@ -22,8 +23,100 @@ struct Model {
     owned_by: String,
 }
 
+#[derive(Deserialize)]
+struct CopilotTokenConfig {
+    token: String,
+    expires_at: u64,
+    #[allow(dead_code)]
+    annotations_enabled: bool,
+    #[allow(dead_code)]
+    chat_enabled: bool,
+}
+
+/// Check if we have valid authentication before triggering device flow
+/// Returns true if auth is available (via env var or valid token files)
+fn has_valid_auth(app_data_dir: &Path) -> bool {
+    // Check for COPILOT_API_KEY environment variable first
+    if std::env::var("COPILOT_API_KEY")
+        .ok()
+        .and_then(|k| Some(!k.trim().is_empty()))
+        .unwrap_or(false)
+    {
+        log::info!("COPILOT_API_KEY is set, auth available");
+        return true;
+    }
+
+    let token_path = app_data_dir.join(".token");
+    let copilot_token_path = app_data_dir.join(".copilot_token.json");
+
+    // Check .copilot_token.json first (cached config with expiry)
+    if copilot_token_path.exists() {
+        match std::fs::read_to_string(&copilot_token_path) {
+            Ok(content) => {
+                // Try to parse and validate the token
+                if let Ok(config) = serde_json::from_str::<CopilotTokenConfig>(&content) {
+                    let now = std::time::SystemTime::now()
+                        .duration_since(std::time::UNIX_EPOCH)
+                        .map(|d| d.as_secs())
+                        .unwrap_or(0);
+
+                    // Add 60 second buffer to match token validation logic
+                    if config.expires_at.saturating_sub(60) > now {
+                        log::info!("Valid cached copilot token found, auth available");
+                        return true;
+                    } else {
+                        log::info!("Cached copilot token expired, will trigger auth if needed");
+                        // Remove expired token file
+                        let _ = std::fs::remove_file(&copilot_token_path);
+                    }
+                } else {
+                    log::warn!("Failed to parse .copilot_token.json, will re-authenticate");
+                    // Remove invalid token file
+                    let _ = std::fs::remove_file(&copilot_token_path);
+                }
+            }
+            Err(e) => {
+                log::error!("Failed to read .copilot_token.json: {}", e);
+                // Continue to check .token file
+            }
+        }
+    }
+
+    // Check .token file (access token for exchange)
+    if token_path.exists() {
+        match std::fs::read_to_string(&token_path) {
+            Ok(content) => {
+                let trimmed = content.trim();
+                if !trimmed.is_empty() {
+                    log::info!("Valid .token file found, auth available");
+                    true
+                } else {
+                    log::info!(".token file is empty, auth not available");
+                    false
+                }
+            }
+            Err(e) => {
+                log::error!("Failed to read .token file: {}", e);
+                false
+            }
+        }
+    } else {
+        log::info!("No token files found, auth not available");
+        false
+    }
+}
+
 #[get("/models")]
 pub async fn get_models(app_state: web::Data<AppState>) -> Result<HttpResponse, AppError> {
+    // Check if we have valid authentication before triggering any auth flow
+    if !has_valid_auth(&app_state.app_data_dir) {
+        log::info!("No valid authentication found (no env var or valid token files), returning empty model list");
+        return Ok(HttpResponse::Ok().json(ListModelsResponse {
+            object: "list".to_string(),
+            data: vec![],
+        }));
+    }
+
     // Fetch real models from copilot_client
     let model_ids = match app_state.copilot_client.get_models().await {
         Ok(model_ids) => model_ids,

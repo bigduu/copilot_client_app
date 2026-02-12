@@ -22,6 +22,7 @@ vi.mock("../../pages/ChatPage/store", () => ({
       loadSystemPrompts: typeof mockLoadSystemPrompts;
     }) => unknown,
   ) => selector({ loadSystemPrompts: mockLoadSystemPrompts }),
+  initializeStore: vi.fn(),
 }));
 
 import App from "../App";
