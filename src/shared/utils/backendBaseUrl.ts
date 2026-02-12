@@ -20,7 +20,15 @@ export const getDefaultBackendBaseUrl = (): string => {
 export const getBackendBaseUrl = (): string => {
   const stored = localStorage.getItem(BACKEND_BASE_URL_KEY);
   if (stored) {
-    return normalizeBackendBaseUrl(stored);
+    const normalized = normalizeBackendBaseUrl(stored);
+    // Validate the URL before returning
+    try {
+      new URL(normalized);
+      return normalized;
+    } catch (e) {
+      console.warn("Invalid stored backend URL, using default:", normalized);
+      localStorage.removeItem(BACKEND_BASE_URL_KEY);
+    }
   }
   return getDefaultBackendBaseUrl();
 };

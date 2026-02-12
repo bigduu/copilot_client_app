@@ -5,7 +5,7 @@ import { invoke } from "@tauri-apps/api/core";
 import "./App.css";
 import { MainLayout } from "./MainLayout";
 import { SetupPage } from "../pages/SetupPage";
-import { useAppStore } from "../pages/ChatPage/store";
+import { useAppStore, initializeStore } from "../pages/ChatPage/store";
 
 const DARK_MODE_KEY = "copilot_dark_mode";
 interface SetupStatus {
@@ -67,6 +67,7 @@ function App() {
   useEffect(() => {
     if (isSetupComplete) {
       loadSystemPrompts();
+      initializeStore();
     }
   }, [isSetupComplete, loadSystemPrompts]);
 

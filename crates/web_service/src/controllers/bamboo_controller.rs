@@ -246,8 +246,31 @@ pub async fn set_bamboo_config(
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent).await?;
     }
+
+    // Preserve existing encrypted proxy auth fields before processing
+    let existing_encrypted_auth = fs::read_to_string(&path).await.ok().and_then(|content| {
+        let existing: Value = serde_json::from_str(&content).ok()?;
+        Some((
+            existing.get("http_proxy_auth_encrypted").cloned(),
+            existing.get("https_proxy_auth_encrypted").cloned(),
+        ))
+    });
+
     let config = strip_proxy_auth(payload.into_inner());
-    let config = clean_empty_proxy_fields(config);
+    let mut config = clean_empty_proxy_fields(config);
+
+    // Restore encrypted proxy auth fields if they existed
+    if let Some((http_encrypted, https_encrypted)) = existing_encrypted_auth {
+        if let Some(obj) = config.as_object_mut() {
+            if let Some(http_val) = http_encrypted {
+                obj.insert("http_proxy_auth_encrypted".to_string(), http_val);
+            }
+            if let Some(https_val) = https_encrypted {
+                obj.insert("https_proxy_auth_encrypted".to_string(), https_val);
+            }
+        }
+    }
+
     let content = serde_json::to_string_pretty(&config)?;
     fs::write(path, content).await?;
     Ok(HttpResponse::Ok().json(config))

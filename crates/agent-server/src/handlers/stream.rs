@@ -20,18 +20,7 @@ pub async fn handler(
         session_id
     );
 
-    // Check if there's already a runner for this session
-    let existing_runner = {
-        let runners = state.agent_runners.read().await;
-        runners.get(&session_id).cloned()
-    };
-
-    if let Some(runner) = existing_runner {
-        // Runner exists, just subscribe to events
-        return subscribe_to_runner(runner, session_id);
-    }
-
-    // Load session from memory or storage
+    // Load session from memory or storage first (async, no locks held)
     let mut session = {
         let sessions = state.sessions.read().await;
         sessions.get(&session_id).cloned()
@@ -75,16 +64,31 @@ pub async fn handler(
         return subscribe_to_runner(runner, session_id);
     }
 
-    // Create runner
-    let mut runner = AgentRunner::new();
-    runner.status = AgentStatus::Running;
-    let broadcast_tx = runner.event_sender.clone();
-    let cancel_token = runner.cancel_token.clone();
-
-    {
+    // Atomically check and insert runner to prevent race conditions
+    let (broadcast_tx, cancel_token) = {
         let mut runners = state.agent_runners.write().await;
+
+        // Check if there's already a running runner for this session
+        if let Some(runner) = runners.get(&session_id) {
+            if matches!(runner.status, AgentStatus::Running) {
+                log::debug!("[{}] Runner already running, subscribing to events", session_id);
+                return subscribe_to_runner(runner.clone(), session_id);
+            }
+            log::debug!("[{}] Existing runner with status {:?}, will restart", session_id, runner.status);
+        }
+
+        // Remove stale runner and insert new one atomically
+        runners.remove(&session_id);
+
+        let mut runner = AgentRunner::new();
+        runner.status = AgentStatus::Running;
+        let broadcast_tx = runner.event_sender.clone();
+        let cancel_token = runner.cancel_token.clone();
+
         runners.insert(session_id.clone(), runner);
-    }
+
+        (broadcast_tx, cancel_token)
+    };
 
     log::info!("[{}] Starting agent execution (legacy stream handler)", session_id);
 
@@ -166,9 +170,14 @@ pub async fn handler(
         )
         .await;
 
-        // Send terminal event if error
+        // Send terminal event for all error cases (including cancellation)
         if let Err(ref e) = result {
-            if !e.to_string().contains("cancelled") {
+            if e.to_string().contains("cancelled") {
+                // Emit a specific cancellation event so SSE streams can close cleanly
+                let _ = mpsc_tx.send(agent_core::AgentEvent::Error {
+                    message: "Agent execution cancelled by user".to_string(),
+                }).await;
+            } else {
                 let _ = mpsc_tx.send(agent_core::AgentEvent::Error {
                     message: e.to_string(),
                 }).await;

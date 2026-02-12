@@ -10,6 +10,13 @@ export interface BambooConfig {
   [key: string]: unknown;
 }
 
+export interface SetupStatus {
+  is_complete: boolean;
+  has_proxy_config: boolean;
+  has_proxy_env: boolean;
+  message: string;
+}
+
 export class ConfigService {
   private static instance: ConfigService;
   private cachedConfig: BambooConfig | null = null;
@@ -47,6 +54,24 @@ export class ConfigService {
   async getModel(): Promise<string | undefined> {
     const config = await this.getConfig();
     return config.model;
+  }
+
+  /**
+   * Get the setup status
+   */
+  async getSetupStatus(): Promise<SetupStatus> {
+    try {
+      const status = await invoke<SetupStatus>("get_setup_status");
+      return status;
+    } catch (error) {
+      console.error("Failed to get setup status:", error);
+      return {
+        is_complete: false,
+        has_proxy_config: false,
+        has_proxy_env: false,
+        message: "Failed to check setup status",
+      };
+    }
   }
 
   /**

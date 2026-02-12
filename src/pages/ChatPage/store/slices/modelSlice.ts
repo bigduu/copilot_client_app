@@ -6,7 +6,7 @@ import {
 import { configService } from "../../../../services/config";
 import type { AppState } from "../";
 
-const SELECTED_MODEL_LS_KEY = "copilot_selected_model_id";
+const SELECTED_MODEL_LS_KEY = "bamboo_selected_model_id";
 const FALLBACK_MODELS = ["gpt-5-mini", "gpt-5", "gemini-2.5-pro"];
 let fetchModelsInFlight: Promise<void> | null = null;
 
@@ -85,6 +85,24 @@ export const createModelSlice: StateCreator<AppState, [], [], ModelSlice> = (
     fetchModelsInFlight = (async () => {
       set({ isLoadingModels: true, modelsError: null });
       try {
+        // Check setup status before fetching models
+        try {
+          const setupStatus = await configService.getSetupStatus();
+          if (!setupStatus.is_complete) {
+            console.log("Setup not complete, skipping model fetch");
+            set({
+              models: FALLBACK_MODELS,
+              selectedModel: get().selectedModel || FALLBACK_MODELS[0],
+              isLoadingModels: false,
+              modelsError: "Complete setup to access all models",
+            });
+            return;
+          }
+        } catch (setupError) {
+          console.error("Failed to check setup status:", setupError);
+          // Continue with fetch if setup status check fails
+        }
+
         const availableModels = await modelService.getModels();
         set((state) => {
           const storedModelId = localStorage.getItem(SELECTED_MODEL_LS_KEY);

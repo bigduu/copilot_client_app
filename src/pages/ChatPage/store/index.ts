@@ -175,7 +175,15 @@ const bootstrapProxyAuthGate = async (): Promise<boolean> => {
 };
 
 // Initialize the store
-const initializeStore = async () => {
+let isInitialized = false;
+
+const initializeStore = async (force: boolean = false) => {
+  if (isInitialized && !force) {
+    console.log("Store already initialized, skipping");
+    return;
+  }
+  isInitialized = true;
+
   if (import.meta.env.MODE !== "test") {
     useAppStore.getState().startAgentHealthCheck();
   }
@@ -191,4 +199,5 @@ const initializeStore = async () => {
   await useAppStore.getState().loadFavorites();
 };
 
-initializeStore();
+// Export for explicit initialization by App.tsx after setup is complete
+export { initializeStore };

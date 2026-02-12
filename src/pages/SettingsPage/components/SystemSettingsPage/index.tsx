@@ -25,7 +25,7 @@ import SystemSettingsKeywordMaskingTab from "./SystemSettingsKeywordMaskingTab";
 import SystemSettingsWorkflowsTab from "./SystemSettingsWorkflowsTab";
 import SystemSettingsMcpTab from "./SystemSettingsMcpTab";
 import SystemSettingsMetricsTab from "./SystemSettingsMetricsTab";
-import { useSystemSettingsBambooConfig } from "./useSystemSettingsBambooConfig";
+import { useSystemSettingsBodhiConfig } from "./useSystemSettingsBodhiConfig";
 import { useSystemSettingsBackend } from "./useSystemSettingsBackend";
 import { SkillManager } from "../../../../components/Skill";
 

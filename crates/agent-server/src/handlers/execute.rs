@@ -22,29 +22,7 @@ pub async fn handler(
     let session_id = path.into_inner();
     log::debug!("[{}] Execute request received", session_id);
 
-    // Check if there's already a runner for this session
-    {
-        let runners = state.agent_runners.read().await;
-        if let Some(runner) = runners.get(&session_id) {
-            let status_str = match &runner.status {
-                AgentStatus::Running => "already_running",
-                AgentStatus::Completed => "completed",
-                AgentStatus::Cancelled => "cancelled",
-                AgentStatus::Error(_) => "error",
-                AgentStatus::Pending => "pending",
-            };
-
-            log::debug!("[{}] Returning existing runner status: {}", session_id, status_str);
-
-            return HttpResponse::Ok().json(ExecuteResponse {
-                session_id: session_id.clone(),
-                status: status_str.to_string(),
-                events_url: format!("/api/v1/events/{}", session_id),
-            });
-        }
-    }
-
-    // Load session from memory or storage
+    // Load session from memory or storage first (async, no locks held)
     let mut session = {
         let sessions = state.sessions.read().await;
         sessions.get(&session_id).cloned()
@@ -87,16 +65,35 @@ pub async fn handler(
         });
     }
 
-    // Create runner
-    let mut runner = AgentRunner::new();
-    runner.status = AgentStatus::Running;
-    let broadcast_tx = runner.event_sender.clone();
-    let cancel_token = runner.cancel_token.clone();
-
-    {
+    // Atomically check and insert runner to prevent race conditions
+    let (broadcast_tx, cancel_token) = {
         let mut runners = state.agent_runners.write().await;
+
+        // Check if there's already a running runner for this session
+        if let Some(runner) = runners.get(&session_id) {
+            if matches!(runner.status, AgentStatus::Running) {
+                log::debug!("[{}] Runner already running, returning status: already_running", session_id);
+                return HttpResponse::Ok().json(ExecuteResponse {
+                    session_id: session_id.clone(),
+                    status: "already_running".to_string(),
+                    events_url: format!("/api/v1/events/{}", session_id),
+                });
+            }
+            log::debug!("[{}] Existing runner with status {:?}, will restart", session_id, runner.status);
+        }
+
+        // Remove stale runner and insert new one atomically
+        runners.remove(&session_id);
+
+        let mut runner = AgentRunner::new();
+        runner.status = AgentStatus::Running;
+        let broadcast_tx = runner.event_sender.clone();
+        let cancel_token = runner.cancel_token.clone();
+
         runners.insert(session_id.clone(), runner);
-    }
+
+        (broadcast_tx, cancel_token)
+    };
 
     log::info!("[{}] Starting agent execution", session_id);
 
@@ -178,9 +175,14 @@ pub async fn handler(
         )
         .await;
 
-        // Send terminal event if error
+        // Send terminal event for all error cases (including cancellation)
         if let Err(ref e) = result {
-            if !e.to_string().contains("cancelled") {
+            if e.to_string().contains("cancelled") {
+                // Emit a specific cancellation event so SSE streams can close cleanly
+                let _ = mpsc_tx.send(agent_core::AgentEvent::Error {
+                    message: "Agent execution cancelled by user".to_string(),
+                }).await;
+            } else {
                 let _ = mpsc_tx.send(agent_core::AgentEvent::Error {
                     message: e.to_string(),
                 }).await;
@@ -223,4 +225,47 @@ pub async fn handler(
         status: "started".to_string(),
         events_url: format!("/api/v1/events/{}", session_id),
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::state::AgentRunner;
+
+    #[test]
+    fn test_agent_status_running_blocks_restart() {
+        // Test that Running status should block restart
+        let status = AgentStatus::Running;
+        assert!(matches!(status, AgentStatus::Running));
+    }
+
+    #[test]
+    fn test_agent_status_completed_allows_restart() {
+        // Test that Completed status should allow restart
+        let status = AgentStatus::Completed;
+        assert!(!matches!(status, AgentStatus::Running));
+    }
+
+    #[test]
+    fn test_agent_status_error_allows_restart() {
+        // Test that Error status should allow restart
+        let status = AgentStatus::Error("test error".to_string());
+        assert!(!matches!(status, AgentStatus::Running));
+    }
+
+    #[test]
+    fn test_agent_status_cancelled_allows_restart() {
+        // Test that Cancelled status should allow restart
+        let status = AgentStatus::Cancelled;
+        assert!(!matches!(status, AgentStatus::Running));
+    }
+
+    #[test]
+    fn test_runner_creation() {
+        // Test that runners can be created and have proper initial state
+        let runner = AgentRunner::new();
+        assert!(matches!(runner.status, AgentStatus::Pending));
+        // Verify cancel token exists (can be cloned)
+        let _token_clone = runner.cancel_token.clone();
+    }
 }

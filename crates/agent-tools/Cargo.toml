@@ -24,8 +24,8 @@ libc = { workspace = true }
 agent-core = { path = "../agent-core" }
 
 # HTTP request support
-reqwest = { workspace = true, features = ["json", "stream"], optional = true }
-futures-util = { workspace = true, optional = true }
+reqwest = { workspace = true, features = ["json", "stream"] }
+futures-util = { workspace = true }
 
 # Git operations support
 git2 = { version = "0.18", optional = true }
@@ -34,7 +34,8 @@ git2 = { version = "0.18", optional = true }
 lsp-types = { version = "0.94", optional = true }
 
 [features]
-default = ["http"]
-http = ["reqwest", "futures-util"]
+default = []
+# HTTP request support (reqwest is now a required dependency)
+http = []
 git = ["git2"]
 full = ["http", "git"]

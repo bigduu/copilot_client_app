@@ -49,8 +49,17 @@ export function useMessageStreaming(deps: UseMessageStreamingDeps): UseMessageSt
   }, [startAgentHealthCheck]);
 
   const cancel = useCallback(() => {
+    // Abort local streaming
     abortRef.current?.abort();
-  }, []);
+
+    // Also tell backend to stop agent execution
+    const sessionId = deps.currentChat?.config?.agentSessionId;
+    if (sessionId) {
+      agentClientRef.current.stopGeneration(sessionId).catch((error) => {
+        console.error('[useMessageStreaming] Failed to stop generation:', error);
+      });
+    }
+  }, [deps.currentChat?.config?.agentSessionId]);
 
   const resolveDisplayPreference = (value?: string) => {
     if (value === "Hidden") return "Hidden";
@@ -60,6 +69,7 @@ export function useMessageStreaming(deps: UseMessageStreamingDeps): UseMessageSt
 
   /**
    * Send message using Agent Server
+   * Note: Event subscription is handled by useAgentEventSubscription hook in ChatView
    */
   const sendWithAgent = useCallback(
     async (content: string, chatId: string, _userMessage: UserMessage) => {
@@ -103,147 +113,11 @@ export function useMessageStreaming(deps: UseMessageStreamingDeps): UseMessageSt
         const executeResult = await agentClientRef.current.execute(session_id);
         console.log("[Agent] Execute status:", executeResult.status);
 
-        // Step 3: Setup streaming
-        const streamingMessageId = `streaming-${chatId}`;
-        streamingMessageIdRef.current = streamingMessageId;
-        streamingContentRef.current = "";
-
-        streamingMessageBus.publish({
-          chatId,
-          messageId: streamingMessageId,
-          content: "",
-        });
-
-        // Track tool calls
-        const toolCallsInProgress = new Map<
-          string,
-          { name: string; args: Record<string, unknown> }
-        >();
-
-        // Step 4: Subscribe to events if execution started or already running
+        // Step 3: Set processing flag to activate event subscription (handled by useAgentEventSubscription)
         if (["started", "already_running"].includes(executeResult.status)) {
-          await agentClientRef.current.streamEvents(
-          session_id,
-          {
-            onToken: (tokenContent: string) => {
-              streamingContentRef.current += tokenContent;
-              streamingMessageBus.publish({
-                chatId,
-                messageId: streamingMessageId,
-                content: streamingContentRef.current,
-              });
-            },
-
-            onToolStart: (
-              toolCallId: string,
-              toolName: string,
-              args: Record<string, unknown>,
-            ) => {
-              toolCallsInProgress.set(toolCallId, { name: toolName, args });
-
-              void deps.addMessage(chatId, {
-                id: crypto.randomUUID(),
-                role: "assistant",
-                type: "tool_call",
-                toolCalls: [
-                  {
-                    toolCallId,
-                    toolName,
-                    parameters: args || {},
-                  },
-                ],
-                createdAt: new Date().toISOString(),
-              });
-            },
-
-            onToolComplete: (toolCallId: string, result: any) => {
-              const toolCall = toolCallsInProgress.get(toolCallId);
-              toolCallsInProgress.delete(toolCallId);
-
-              const toolName = toolCall?.name || result?.tool_name || "unknown";
-              const displayPreference = resolveDisplayPreference(
-                result?.display_preference,
-              );
-
-              void deps.addMessage(chatId, {
-                id: crypto.randomUUID(),
-                role: "assistant",
-                type: "tool_result",
-                toolName,
-                toolCallId,
-                result: {
-                  tool_name: toolName,
-                  result: result?.result ?? "",
-                  display_preference: displayPreference,
-                },
-                isError: !result?.success,
-                createdAt: new Date().toISOString(),
-              });
-            },
-
-            onToolError: (toolCallId: string, error: string) => {
-              const toolCall = toolCallsInProgress.get(toolCallId);
-              toolCallsInProgress.delete(toolCallId);
-
-              const toolName = toolCall?.name || "unknown";
-
-              void deps.addMessage(chatId, {
-                id: crypto.randomUUID(),
-                role: "assistant",
-                type: "tool_result",
-                toolName,
-                toolCallId,
-                result: {
-                  tool_name: toolName,
-                  result: error,
-                  display_preference: "Default",
-                },
-                isError: true,
-                createdAt: new Date().toISOString(),
-              });
-            },
-
-            onComplete: async () => {
-              if (streamingContentRef.current) {
-                await deps.addMessage(chatId, {
-                  id: `assistant-${Date.now()}`,
-                  role: "assistant",
-                  type: "text",
-                  content: streamingContentRef.current,
-                  createdAt: new Date().toISOString(),
-                  metadata: {
-                    sessionId: session_id,
-                    model: "agent",
-                  },
-                });
-              }
-              streamingMessageBus.clear(chatId, streamingMessageId);
-              streamingMessageIdRef.current = null;
-              streamingContentRef.current = "";
-              deps.setProcessing(false);
-            },
-
-            onError: async (errorMessage: string) => {
-              console.error("Agent error:", errorMessage);
-
-              await deps.addMessage(chatId, {
-                id: `error-${Date.now()}`,
-                role: "assistant",
-                type: "text",
-                content: `❌ **Error**: ${errorMessage}`,
-                createdAt: new Date().toISOString(),
-                isError: true,
-              });
-              streamingMessageBus.clear(chatId, streamingMessageId);
-              streamingMessageIdRef.current = null;
-              streamingContentRef.current = "";
-              deps.setProcessing(false);
-            },
-          },
-          controller,
-        );
+          deps.setProcessing(true);
         } else if (executeResult.status === "completed") {
-          // Session already completed, no need to stream
+          // Session already completed, no need to process
           console.log("[Agent] Session already completed");
           deps.setProcessing(false);
         } else {
@@ -304,6 +178,7 @@ export function useMessageStreaming(deps: UseMessageStreamingDeps): UseMessageSt
       try {
         console.log("[useChatStreaming] Using Agent Server");
         await sendWithAgent(content, chatId, userMessage);
+        // Note: Don't set isProcessing(false) here - let useAgentEventSubscription handle it
       } catch (error) {
         if (streamingMessageIdRef.current) {
           streamingMessageBus.clear(chatId, streamingMessageIdRef.current);
@@ -318,6 +193,7 @@ export function useMessageStreaming(deps: UseMessageStreamingDeps): UseMessageSt
           appMessage.error("Failed to send message. Please try again.");
           setAgentAvailability(false);
         }
+        deps.setProcessing(false);  // Only set false on error
       } finally {
         abortRef.current = null;
         if (streamingMessageIdRef.current) {
@@ -325,7 +201,7 @@ export function useMessageStreaming(deps: UseMessageStreamingDeps): UseMessageSt
         }
         streamingMessageIdRef.current = null;
         streamingContentRef.current = "";
-        deps.setProcessing(false);
+        // Removed: deps.setProcessing(false) - useAgentEventSubscription handles this
       }
     },
     [

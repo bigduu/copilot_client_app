@@ -151,9 +151,14 @@ export const TodoList: React.FC<TodoListProps> = ({
       eventSource.close();
 
       // Don't reconnect if conversation completed normally
+      // However, we should still reconnect because:
+      // 1. The agent may resume after user responds to clarification
+      // 2. /events endpoint is passive (doesn't trigger execution)
+      // 3. Reconnection is cheap and safe
       if (isStreamCompleted) {
-        console.log('SSE ended: conversation completed');
-        return;
+        console.log('SSE ended: conversation completed (may resume after clarification)');
+        // Reset the flag to allow reconnection
+        isStreamCompleted = false;
       }
 
       // Simple fixed interval reconnection

@@ -1,15 +1,17 @@
-import { MinusCircleOutlined, PlusOutlined } from "@ant-design/icons";
+import { CodeOutlined, FormOutlined, MinusCircleOutlined, PlusOutlined } from "@ant-design/icons";
 import {
+  Alert,
   Button,
   Form,
   Input,
   Modal,
+  Radio,
   Select,
   Space,
   Switch,
   Typography,
 } from "antd";
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   createDefaultMcpServerConfig,
   DEFAULT_HEALTHCHECK_INTERVAL_MS,
@@ -24,8 +26,10 @@ import {
 } from "../../../../../services/mcp";
 
 const { Text } = Typography;
+const { TextArea } = Input;
 
 type ModalMode = "create" | "edit";
+type EditorMode = "form" | "json";
 
 interface KeyValueEntry {
   key?: string;
@@ -161,6 +165,28 @@ const toServerConfig = (
   };
 };
 
+const formatJson = (config: McpServerConfig | null | undefined): string => {
+  if (!config) {
+    return JSON.stringify(createDefaultMcpServerConfig(""), null, 2);
+  }
+  return JSON.stringify(config, null, 2);
+};
+
+const validateJson = (json: string): { valid: true; config: McpServerConfig } | { valid: false; error: string } => {
+  try {
+    const parsed = JSON.parse(json) as McpServerConfig;
+    if (!parsed.id || typeof parsed.id !== "string") {
+      return { valid: false, error: "Missing or invalid 'id' field" };
+    }
+    if (!parsed.transport || typeof parsed.transport !== "object") {
+      return { valid: false, error: "Missing or invalid 'transport' field" };
+    }
+    return { valid: true, config: parsed };
+  } catch (e) {
+    return { valid: false, error: `Invalid JSON: ${e instanceof Error ? e.message : "Unknown error"}` };
+  }
+};
+
 export const McpServerFormModal: React.FC<McpServerFormModalProps> = ({
   open,
   mode,
@@ -170,6 +196,9 @@ export const McpServerFormModal: React.FC<McpServerFormModalProps> = ({
   onSubmit,
 }) => {
   const [form] = Form.useForm<McpServerFormValues>();
+  const [editorMode, setEditorMode] = useState<EditorMode>("form");
+  const [jsonValue, setJsonValue] = useState<string>("");
+  const [jsonError, setJsonError] = useState<string | null>(null);
 
   const initialFormValues = useMemo(
     () => toFormValues(initialConfig),
@@ -183,18 +212,74 @@ export const McpServerFormModal: React.FC<McpServerFormModalProps> = ({
       return;
     }
     form.setFieldsValue(initialFormValues);
-  }, [form, initialFormValues, open]);
+    setJsonValue(formatJson(initialConfig));
+    setJsonError(null);
+    setEditorMode("form");
+  }, [form, initialFormValues, initialConfig, open]);
 
   const handleCancel = () => {
     form.resetFields();
+    setJsonValue("");
+    setJsonError(null);
     onCancel();
   };
 
-  const handleSubmit = async () => {
-    const values = await form.validateFields();
-    const config = toServerConfig(values, mode, initialConfig);
-    await onSubmit(config);
-    form.resetFields();
+  const handleOk = async () => {
+    if (editorMode === "json") {
+      const result = validateJson(jsonValue);
+      if (!result.valid) {
+        setJsonError(result.error);
+        return;
+      }
+      setJsonError(null);
+      try {
+        await onSubmit(result.config);
+        setJsonValue("");
+      } catch (error) {
+        console.error("MCP server JSON submission error:", error);
+      }
+      return;
+    }
+
+    try {
+      const values = await form.validateFields();
+      const config = toServerConfig(values, mode, initialConfig);
+      await onSubmit(config);
+      form.resetFields();
+    } catch (error) {
+      console.error("MCP server form submission error:", error);
+    }
+  };
+
+  const handleJsonChange = (value: string) => {
+    setJsonValue(value);
+    if (jsonError) {
+      const result = validateJson(value);
+      if (result.valid) {
+        setJsonError(null);
+      }
+    }
+  };
+
+  const switchMode = (newMode: EditorMode) => {
+    if (newMode === "json") {
+      // Sync form values to JSON
+      try {
+        const values = form.getFieldsValue();
+        const config = toServerConfig(values, mode, initialConfig);
+        setJsonValue(JSON.stringify(config, null, 2));
+      } catch {
+        setJsonValue(formatJson(initialConfig));
+      }
+    } else {
+      // Sync JSON to form (if valid)
+      const result = validateJson(jsonValue);
+      if (result.valid) {
+        form.setFieldsValue(toFormValues(result.config));
+      }
+    }
+    setEditorMode(newMode);
+    setJsonError(null);
   };
 
   return (
@@ -203,19 +288,56 @@ export const McpServerFormModal: React.FC<McpServerFormModalProps> = ({
       open={open}
       onCancel={handleCancel}
       onOk={() => {
-        void handleSubmit();
+        void handleOk();
       }}
       okText="Save"
       destroyOnClose
       confirmLoading={confirmLoading}
       width={720}
     >
-      <Form<McpServerFormValues>
-        layout="vertical"
-        form={form}
-        preserve={false}
-        initialValues={initialFormValues}
-      >
+      <div style={{ marginBottom: 16 }}>
+        <Radio.Group
+          value={editorMode}
+          onChange={(e) => switchMode(e.target.value as EditorMode)}
+          optionType="button"
+          buttonStyle="solid"
+        >
+          <Radio.Button value="form">
+            <FormOutlined /> Form
+          </Radio.Button>
+          <Radio.Button value="json">
+            <CodeOutlined /> JSON
+          </Radio.Button>
+        </Radio.Group>
+      </div>
+
+      {editorMode === "json" && jsonError && (
+        <Alert
+          type="error"
+          message="JSON Error"
+          description={jsonError}
+          showIcon
+          style={{ marginBottom: 16 }}
+          closable
+          onClose={() => setJsonError(null)}
+        />
+      )}
+
+      {editorMode === "json" ? (
+        <TextArea
+          value={jsonValue}
+          onChange={(e) => handleJsonChange(e.target.value)}
+          rows={20}
+          style={{ fontFamily: "monospace", fontSize: 13 }}
+          placeholder={JSON.stringify(createDefaultMcpServerConfig("example-server"), null, 2)}
+        />
+      ) : (
+        <Form<McpServerFormValues>
+          layout="vertical"
+          form={form}
+          preserve
+          initialValues={initialFormValues}
+        >
         <Form.Item
           name="id"
           label="Server ID"
@@ -387,6 +509,7 @@ export const McpServerFormModal: React.FC<McpServerFormModalProps> = ({
           </>
         )}
       </Form>
+      )}
     </Modal>
   );
 };
