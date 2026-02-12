@@ -35,7 +35,7 @@ describe('QuestionDialog', () => {
 
   it('should fetch pending question on mount', async () => {
     const { agentApiClient } = await import('../../../services/api');
-    (agentApiClient.get as any).mockResolvedValueOnce({
+    (agentApiClient.get as any).mockResolvedValue({
       has_pending_question: true,
       question: 'Test question?',
       options: ['Option A', 'Option B'],
@@ -51,7 +51,7 @@ describe('QuestionDialog', () => {
 
   it('should display question when pending question exists', async () => {
     const { agentApiClient } = await import('../../../services/api');
-    (agentApiClient.get as any).mockResolvedValueOnce({
+    (agentApiClient.get as any).mockResolvedValue({
       has_pending_question: true,
       question: 'Choose an option:',
       options: ['A', 'B'],
@@ -69,7 +69,7 @@ describe('QuestionDialog', () => {
 
   it('should not render when no pending question', async () => {
     const { agentApiClient } = await import('../../../services/api');
-    (agentApiClient.get as any).mockResolvedValueOnce({
+    (agentApiClient.get as any).mockResolvedValue({
       has_pending_question: false,
     });
 
@@ -82,7 +82,7 @@ describe('QuestionDialog', () => {
 
   it('should call /respond and /execute on submit', async () => {
     const { agentApiClient } = await import('../../../services/api');
-    (agentApiClient.get as any).mockResolvedValueOnce({
+    (agentApiClient.get as any).mockResolvedValue({
       has_pending_question: true,
       question: 'Test?',
       options: ['A', 'B'],
@@ -128,34 +128,42 @@ describe('QuestionDialog', () => {
 
   it('should re-enable polling after response submission', async () => {
     const { agentApiClient } = await import('../../../services/api');
-    (agentApiClient.get as any)
-      .mockResolvedValueOnce({
-        has_pending_question: true,
-        question: 'Test?',
-        options: ['A'],
-        allow_custom: false,
-        tool_call_id: 'tool-1',
-      })
-      .mockResolvedValueOnce({ has_pending_question: false })
-      .mockResolvedValueOnce({ has_pending_question: false })
-      .mockResolvedValueOnce({
+
+    // Track how many times GET has been called
+    let getCallCount = 0;
+    (agentApiClient.get as any).mockImplementation(() => {
+      getCallCount++;
+      // First 3 calls return first question (gives time for test to interact)
+      if (getCallCount <= 3) {
+        return Promise.resolve({
+          has_pending_question: true,
+          question: 'Test?',
+          options: ['A'],
+          allow_custom: false,
+          tool_call_id: 'tool-1',
+        });
+      }
+      // Subsequent calls return second question
+      return Promise.resolve({
         has_pending_question: true,
         question: 'Second question?',
         options: ['C'],
         allow_custom: false,
       });
+    });
 
     (agentApiClient.post as any)
-      .mockResolvedValueOnce({})
-      .mockResolvedValueOnce({ status: 'started' });
+      .mockResolvedValueOnce({})  // /respond
+      .mockResolvedValueOnce({ status: 'started' }); // /execute
 
     await act(async () => {
       render(<QuestionDialog {...defaultProps} />);
     });
 
+    // Wait for first question to appear
     await waitFor(() => {
       expect(screen.getByText('Test?')).toBeInTheDocument();
-    });
+    }, { timeout: 3000 });
 
     // Submit first response
     const optionA = screen.getByText('A');
@@ -166,7 +174,7 @@ describe('QuestionDialog', () => {
       fireEvent.click(submitButton);
     });
 
-    // Wait for first question to disappear
+    // Wait for first question to disappear (setPendingQuestion(null) clears it)
     await waitFor(() => {
       expect(screen.queryByText('Test?')).not.toBeInTheDocument();
     });
@@ -205,7 +213,7 @@ describe('QuestionDialog', () => {
 
   it('should handle /execute failure gracefully', async () => {
     const { agentApiClient } = await import('../../../services/api');
-    (agentApiClient.get as any).mockResolvedValueOnce({
+    (agentApiClient.get as any).mockResolvedValue({
       has_pending_question: true,
       question: 'Test?',
       options: ['A'],
@@ -223,9 +231,10 @@ describe('QuestionDialog', () => {
       render(<QuestionDialog {...defaultProps} />);
     });
 
+    // Wait for loading to complete and question to appear
     await waitFor(() => {
       expect(screen.getByText('Test?')).toBeInTheDocument();
-    });
+    }, { timeout: 3000 });
 
     const optionA = screen.getByText('A');
     fireEvent.click(optionA);
@@ -278,7 +287,7 @@ describe('QuestionDialog', () => {
 
   it('should handle custom input when allow_custom is true', async () => {
     const { agentApiClient } = await import('../../../services/api');
-    (agentApiClient.get as any).mockResolvedValueOnce({
+    (agentApiClient.get as any).mockResolvedValue({
       has_pending_question: true,
       question: 'Test?',
       options: ['A'],
@@ -294,9 +303,10 @@ describe('QuestionDialog', () => {
       render(<QuestionDialog {...defaultProps} />);
     });
 
+    // Wait for loading to complete and question to appear
     await waitFor(() => {
       expect(screen.getByText('Other (custom input)')).toBeInTheDocument();
-    });
+    }, { timeout: 3000 });
 
     // Select custom option
     const customOption = screen.getByText('Other (custom input)');
