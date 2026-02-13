@@ -1,3 +1,4 @@
+use chat_core::paths;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::fs::OpenOptions;
@@ -62,9 +63,7 @@ pub struct DebugLogger {
 impl DebugLogger {
     pub fn new(enabled: bool) -> Self {
         let log_file = if enabled {
-            let data_dir = dirs::home_dir()
-                .unwrap_or_else(|| std::env::temp_dir())
-                .join(".copilot-agent");
+            let data_dir = paths::bamboo_dir();
             Some(data_dir.join("debug.log"))
         } else {
             None

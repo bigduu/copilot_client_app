@@ -19,6 +19,7 @@ agent-tools = { path = "../agent-tools" }
 agent-skill = { path = "../agent-skill" }
 agent-mcp = { path = "../agent-mcp" }
 agent-metrics = { path = "../agent-metrics" }
+chat_core = { path = "../chat_core" }
 
 actix-web = { workspace = true }
 actix-cors = { workspace = true }

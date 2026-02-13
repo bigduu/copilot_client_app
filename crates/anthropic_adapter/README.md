@@ -1,6 +1,6 @@
 # Anthropic Adapter
 
-Anthropic API to OpenAI API adapter for Bodhi with capability-based model mapping.
+Anthropic API to OpenAI API adapter for Bamboo with capability-based model mapping.
 
 ## Features
 

@@ -29,7 +29,7 @@ Copilot Agent is a standalone Agent system that provides multi-turn conversation
 ### Phase 2: Skill System Integration
 
 **Skill Loader** (`copilot-agent-server/src/skill_loader.rs`)
-- Load skills from `~/.bodhi/skills/*.md`
+- Load skills from `~/.bamboo/skills/*.md`
 - System prompt construction
 - Tool schema extraction
 
@@ -92,7 +92,7 @@ src/pages/ChatPage/
 
 ### Skill Files
 ```
-~/.bodhi/skills/
+~/.bamboo/skills/
 ├── file-assistant.md             # File operation assistant
 └── shell-helper.md               # Shell command assistant
 ```

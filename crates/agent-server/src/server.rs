@@ -121,6 +121,15 @@ pub async fn run_server_with_config_and_mode(
                         web::get().to(handlers::metrics::session_detail),
                     )
                     .route("/metrics/daily", web::get().to(handlers::metrics::daily))
+                    // Unified v2 API routes
+                    .route(
+                        "/metrics/v2/summary",
+                        web::get().to(handlers::metrics::v2_unified_summary),
+                    )
+                    .route(
+                        "/metrics/v2/timeline",
+                        web::get().to(handlers::metrics::v2_unified_timeline),
+                    )
                     .route("/health", web::get().to(handlers::health::handler))
                     // MCP routes
                     .service(

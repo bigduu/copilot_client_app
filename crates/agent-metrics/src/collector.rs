@@ -48,6 +48,21 @@ enum CollectorCommand {
         tool_call_id: String,
         completion: ToolCallCompletion,
     },
+    ForwardStarted {
+        forward_id: String,
+        endpoint: String,
+        model: String,
+        is_stream: bool,
+        started_at: DateTime<Utc>,
+    },
+    ForwardCompleted {
+        forward_id: String,
+        completed_at: DateTime<Utc>,
+        status_code: Option<u16>,
+        status: crate::types::ForwardStatus,
+        usage: Option<TokenUsage>,
+        error: Option<String>,
+    },
     Prune {
         cutoff: DateTime<Utc>,
     },
@@ -138,6 +153,29 @@ impl MetricsCollector {
                         tool_call_id,
                         completion,
                     } => storage.complete_tool_call(&tool_call_id, completion).await,
+                    CollectorCommand::ForwardStarted {
+                        forward_id,
+                        endpoint,
+                        model,
+                        is_stream,
+                        started_at,
+                    } => {
+                        storage
+                            .insert_forward_start(&forward_id, &endpoint, &model, is_stream, started_at)
+                            .await
+                    }
+                    CollectorCommand::ForwardCompleted {
+                        forward_id,
+                        completed_at,
+                        status_code,
+                        status,
+                        usage,
+                        error,
+                    } => {
+                        storage
+                            .complete_forward(&forward_id, completed_at, status_code, status, usage, error)
+                            .await
+                    }
                     CollectorCommand::Prune { cutoff } => {
                         storage.prune_rounds_before(cutoff).await.map(|_| ())
                     }
@@ -272,6 +310,42 @@ impl MetricsCollector {
             }
             _ => {}
         }
+    }
+
+    pub fn forward_started(
+        &self,
+        forward_id: impl Into<String>,
+        endpoint: impl Into<String>,
+        model: impl Into<String>,
+        is_stream: bool,
+        started_at: DateTime<Utc>,
+    ) {
+        let _ = self.tx.send(CollectorCommand::ForwardStarted {
+            forward_id: forward_id.into(),
+            endpoint: endpoint.into(),
+            model: model.into(),
+            is_stream,
+            started_at,
+        });
+    }
+
+    pub fn forward_completed(
+        &self,
+        forward_id: impl Into<String>,
+        completed_at: DateTime<Utc>,
+        status_code: Option<u16>,
+        status: crate::types::ForwardStatus,
+        usage: Option<TokenUsage>,
+        error: Option<String>,
+    ) {
+        let _ = self.tx.send(CollectorCommand::ForwardCompleted {
+            forward_id: forward_id.into(),
+            completed_at,
+            status_code,
+            status,
+            usage,
+            error,
+        });
     }
 
     fn schedule_prune(&self, retention_days: u32) {

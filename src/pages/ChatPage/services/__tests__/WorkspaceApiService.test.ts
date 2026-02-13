@@ -72,7 +72,8 @@ describe("WorkspaceApiService", () => {
       await expect(
         workspaceApiService.validateWorkspacePath("/invalid/path"),
       ).rejects.toMatchObject({
-        message: "API request failed: Bad Request",
+        // Error message now includes detailed backend response body
+        message: "Invalid path",
         status: 400,
       });
     });

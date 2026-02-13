@@ -98,16 +98,10 @@ impl AppState {
         model: String,
         api_key: String,
         app_data_dir: Option<PathBuf>,
-        tauri_mode: bool,
+        _tauri_mode: bool,
     ) -> Self {
-        let app_data_root = app_data_dir.unwrap_or_else(bamboo_dir);
-        let data_dir = if tauri_mode {
-            app_data_root.join("copilot-agent")
-        } else {
-            dirs::home_dir()
-                .unwrap_or_else(|| std::env::temp_dir())
-                .join(".copilot-agent")
-        };
+        // Use provided app_data_dir or default to ~/.bamboo
+        let data_dir = app_data_dir.unwrap_or_else(bamboo_dir);
 
         log::info!("Initializing storage at: {:?}", data_dir);
         let storage = JsonlStorage::new(&data_dir);
@@ -178,7 +172,7 @@ impl AppState {
         let mcp_manager = Arc::new(McpServerManager::new());
 
         // Try to load MCP config and initialize servers
-        let mcp_config = load_mcp_config(&app_data_root).await;
+        let mcp_config = load_mcp_config(&data_dir).await;
         mcp_manager.initialize_from_config(&mcp_config).await;
 
         // Create composite tool executor (builtin + MCP)
@@ -190,7 +184,7 @@ impl AppState {
             Arc::new(CompositeToolExecutor::new(builtin_tools, mcp_tools));
 
         let skill_manager = Arc::new(SkillManager::with_config(SkillStoreConfig {
-            skills_dir: app_data_root.join("skills"),
+            skills_dir: data_dir.join("skills"),
         }));
         if let Err(error) = skill_manager.initialize().await {
             log::warn!("Failed to initialize skill manager: {}", error);

@@ -2,9 +2,10 @@ use std::path::Path;
 use std::sync::Arc;
 
 use agent_metrics::{
-    aggregate_monthly, aggregate_weekly, DailyMetrics, MetricsCollector, MetricsDateFilter,
-    MetricsError, MetricsStorage, MetricsSummary, ModelMetrics, PeriodMetrics, SessionDetail,
-    SessionMetrics, SessionMetricsFilter, SqliteMetricsStorage,
+    aggregate_monthly, aggregate_weekly, DailyMetrics, ForwardEndpointMetrics,
+    ForwardMetricsFilter, ForwardMetricsSummary, ForwardRequestMetrics, MetricsCollector,
+    MetricsDateFilter, MetricsError, MetricsStorage, MetricsSummary, ModelMetrics, PeriodMetrics,
+    SessionDetail, SessionMetrics, SessionMetricsFilter, SqliteMetricsStorage, TokenUsage,
 };
 use chrono::NaiveDate;
 
@@ -93,5 +94,36 @@ impl MetricsService {
     ) -> Result<Vec<PeriodMetrics>, MetricsError> {
         let daily = self.daily(days, end_date).await?;
         Ok(aggregate_monthly(&daily))
+    }
+
+    // Forward metrics methods
+    pub async fn forward_summary(
+        &self,
+        filter: ForwardMetricsFilter,
+    ) -> Result<ForwardMetricsSummary, MetricsError> {
+        self.storage.forward_summary(filter).await
+    }
+
+    pub async fn forward_by_endpoint(
+        &self,
+        filter: ForwardMetricsFilter,
+    ) -> Result<Vec<ForwardEndpointMetrics>, MetricsError> {
+        self.storage.forward_by_endpoint(filter).await
+    }
+
+    pub async fn forward_requests(
+        &self,
+        filter: ForwardMetricsFilter,
+    ) -> Result<Vec<ForwardRequestMetrics>, MetricsError> {
+        self.storage.forward_requests(filter).await
+    }
+
+    pub async fn forward_daily(
+        &self,
+        filter: ForwardMetricsFilter,
+    ) -> Result<Vec<DailyMetrics>, MetricsError> {
+        self.storage
+            .forward_daily_metrics(filter.limit.unwrap_or(30), filter.end_date)
+            .await
     }
 }

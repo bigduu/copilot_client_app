@@ -348,6 +348,7 @@ async fn test_messages_streaming() {
                 },
                 finish_reason: None,
             }],
+            usage: None,
         },
         ChatCompletionStreamChunk {
             id: "chatcmpl-123".to_string(),
@@ -363,6 +364,7 @@ async fn test_messages_streaming() {
                 },
                 finish_reason: None,
             }],
+            usage: None,
         },
         ChatCompletionStreamChunk {
             id: "chatcmpl-123".to_string(),
@@ -378,6 +380,7 @@ async fn test_messages_streaming() {
                 },
                 finish_reason: None,
             }],
+            usage: None,
         },
         ChatCompletionStreamChunk {
             id: "chatcmpl-123".to_string(),
@@ -393,6 +396,7 @@ async fn test_messages_streaming() {
                 },
                 finish_reason: Some("stop".to_string()),
             }],
+            usage: None,
         },
     ];
 
@@ -494,6 +498,7 @@ async fn test_messages_streaming_tool_use() {
                 },
                 finish_reason: None,
             }],
+            usage: None,
         },
         ChatCompletionStreamChunk {
             id: "chatcmpl-234".to_string(),
@@ -517,6 +522,7 @@ async fn test_messages_streaming_tool_use() {
                 },
                 finish_reason: None,
             }],
+            usage: None,
         },
         ChatCompletionStreamChunk {
             id: "chatcmpl-234".to_string(),
@@ -532,6 +538,7 @@ async fn test_messages_streaming_tool_use() {
                 },
                 finish_reason: Some("tool_calls".to_string()),
             }],
+            usage: None,
         },
     ];
 
@@ -618,6 +625,7 @@ async fn test_messages_streaming_text_and_tool_use() {
                 },
                 finish_reason: None,
             }],
+            usage: None,
         },
         ChatCompletionStreamChunk {
             id: "chatcmpl-345".to_string(),
@@ -641,6 +649,7 @@ async fn test_messages_streaming_text_and_tool_use() {
                 },
                 finish_reason: None,
             }],
+            usage: None,
         },
         ChatCompletionStreamChunk {
             id: "chatcmpl-345".to_string(),
@@ -656,6 +665,7 @@ async fn test_messages_streaming_text_and_tool_use() {
                 },
                 finish_reason: Some("stop".to_string()),
             }],
+            usage: None,
         },
     ];
 
@@ -794,6 +804,7 @@ async fn test_complete_streaming() {
                 },
                 finish_reason: None,
             }],
+            usage: None,
         },
         ChatCompletionStreamChunk {
             id: "chatcmpl-789".to_string(),
@@ -809,6 +820,7 @@ async fn test_complete_streaming() {
                 },
                 finish_reason: None,
             }],
+            usage: None,
         },
         ChatCompletionStreamChunk {
             id: "chatcmpl-789".to_string(),
@@ -824,6 +836,7 @@ async fn test_complete_streaming() {
                 },
                 finish_reason: None,
             }],
+            usage: None,
         },
         ChatCompletionStreamChunk {
             id: "chatcmpl-789".to_string(),
@@ -839,6 +852,7 @@ async fn test_complete_streaming() {
                 },
                 finish_reason: Some("stop".to_string()),
             }],
+            usage: None,
         },
     ];
 

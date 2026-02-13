@@ -264,7 +264,7 @@ fn read_proxy_auth_from_config(config: &Value, proxy_type: &str) -> Option<chat_
     read_proxy_auth_from_plain(config, &plain_key)
 }
 
-fn bodhi_dir() -> PathBuf {
+fn bamboo_dir() -> PathBuf {
     std::env::var_os("HOME")
         .or_else(|| std::env::var_os("USERPROFILE"))
         .map(PathBuf::from)
@@ -277,7 +277,7 @@ fn should_exit_on_main_window_close(label: &str, is_close_requested: bool) -> bo
 }
 
 fn setup<R: Runtime>(app: &mut App<R>) -> std::result::Result<(), Box<dyn std::error::Error>> {
-    let app_data_dir = bodhi_dir();
+    let app_data_dir = bamboo_dir();
     std::fs::create_dir_all(&app_data_dir)?;
     info!("App data dir: {:?}", app_data_dir);
 
@@ -570,7 +570,7 @@ pub fn run() {
         .targets([
             Target::new(TargetKind::Stdout),
             Target::new(TargetKind::Folder {
-                path: bodhi_dir().join("logs"),
+                path: bamboo_dir().join("logs"),
                 file_name: None,
             }),
         ])

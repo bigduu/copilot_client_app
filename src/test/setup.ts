@@ -4,6 +4,7 @@
  */
 
 import { vi } from "vitest";
+import "@testing-library/jest-dom/vitest";
 
 const createMemoryStorage = (): Storage => {
   const store = new Map<string, string>();

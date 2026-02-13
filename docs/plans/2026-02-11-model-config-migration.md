@@ -1,7 +1,7 @@
 # Model Config Migration Plan
 
 ## 目标
-将模型选择从 localStorage 迁移到 `~/.bodhi/config.json`，解决 Session 文件记录错误模型的问题。
+将模型选择从 localStorage 迁移到 `~/.bamboo/config.json`，解决 Session 文件记录错误模型的问题。
 
 ## 不涉及的内容
 - 不添加 `agent_enabled` / `mcp_enabled` 开关
@@ -12,7 +12,7 @@
 
 ### Step 1: 后端支持 merge-write
 
-**文件**: `crates/web_service/src/controllers/bodhi_controller.rs`
+**文件**: `crates/web_service/src/controllers/bamboo_controller.rs`
 
 **修改 1.1**: 添加 merge_json_value 函数
 ```rust
@@ -35,10 +35,10 @@ fn merge_json_value(base: &mut Value, patch: Value) {
 }
 ```
 
-**修改 1.2**: 修改 set_bodhi_config 为 merge-write
+**修改 1.2**: 修改 set_bamboo_config 为 merge-write
 ```rust
-#[post("/bodhi/config")]
-pub async fn set_bodhi_config(
+#[post("/bamboo/config")]
+pub async fn set_bamboo_config(
     app_state: web::Data<AppState>,
     payload: web::Json<Value>,
 ) -> Result<HttpResponse, AppError> {
@@ -80,7 +80,7 @@ import { serviceFactory } from "../../../services/common/ServiceFactory";
 
 const LEGACY_SELECTED_MODEL_KEY = "copilot_selected_model_id";
 
-export type BodhiConfig = {
+export type BambooConfig = {
   http_proxy?: string;
   https_proxy?: string;
   proxy_auth_mode?: string;
@@ -104,8 +104,8 @@ const normalizeModelId = (value: unknown): string | undefined => {
 
 export class ConfigRepository {
   private static instance: ConfigRepository;
-  private cache: BodhiConfig | null = null;
-  private loadInFlight: Promise<BodhiConfig> | null = null;
+  private cache: BambooConfig | null = null;
+  private loadInFlight: Promise<BambooConfig> | null = null;
 
   private constructor() {}
 
@@ -140,7 +140,7 @@ export class ConfigRepository {
     } catch {}
   }
 
-  async getConfig(force = false): Promise<BodhiConfig> {
+  async getConfig(force = false): Promise<BambooConfig> {
     if (this.cache && !force) {
       return this.cache;
     }
@@ -149,7 +149,7 @@ export class ConfigRepository {
     }
 
     this.loadInFlight = (async () => {
-      const config = await serviceFactory.getBodhiConfig();
+      const config = await serviceFactory.getBambooConfig();
       this.cache = isRecord(config) ? config : {};
       return this.cache;
     })();
@@ -161,13 +161,13 @@ export class ConfigRepository {
     }
   }
 
-  async updateConfig(patch: Partial<BodhiConfig>): Promise<BodhiConfig> {
+  async updateConfig(patch: Partial<BambooConfig>): Promise<BambooConfig> {
     const previous = this.cache ?? {};
     const optimistic = { ...previous, ...patch };
     this.cache = optimistic;
 
     try {
-      const saved = await serviceFactory.setBodhiConfig(patch);
+      const saved = await serviceFactory.setBambooConfig(patch);
       const normalized = isRecord(saved) ? saved : {};
       this.cache = normalized;
       return normalized;
@@ -398,7 +398,7 @@ async fn read_model_from_config(app_data_dir: &std::path::Path) -> Option<String
 
 | 文件 | 操作 | 说明 |
 |-----|------|------|
-| `crates/web_service/src/controllers/bodhi_controller.rs` | 修改 | 添加 merge_json_value，支持 merge-write |
+| `crates/web_service/src/controllers/bamboo_controller.rs` | 修改 | 添加 merge_json_value，支持 merge-write |
 | `src/pages/ChatPage/services/ConfigRepository.ts` | 新建 | 配置管理仓库 |
 | `src/pages/ChatPage/store/slices/modelSlice.ts` | 修改 | 使用 ConfigRepository |
 | `crates/web_service/src/server.rs` | 修改 | 从 config 读取模型 |
@@ -408,7 +408,7 @@ async fn read_model_from_config(app_data_dir: &std::path::Path) -> Option<String
 ## 测试计划
 
 ### 测试 1: 首次迁移
-1. 清空 `~/.bodhi/config.json` 中的 `model` 字段
+1. 清空 `~/.bamboo/config.json` 中的 `model` 字段
 2. 在 localStorage 中设置 `copilot_selected_model_id` 为某个值
 3. 启动应用
 4. 验证：

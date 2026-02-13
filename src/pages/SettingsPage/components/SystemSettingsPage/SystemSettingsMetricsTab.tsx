@@ -31,10 +31,14 @@ import type {
   RoundMetrics,
 } from "../../../../services/metrics";
 import { useMetrics } from "./hooks/useMetrics";
+import { useForwardMetrics } from "./hooks/useForwardMetrics";
 import MetricCards from "./metrics/MetricCards";
 import ModelDistribution from "./metrics/ModelDistribution";
 import SessionTable from "./metrics/SessionTable";
 import TokenChart from "./metrics/TokenChart";
+import ForwardMetricsCards from "./metrics/ForwardMetricsCards";
+import ForwardEndpointDistribution from "./metrics/ForwardEndpointDistribution";
+import ForwardRequestTable from "./metrics/ForwardRequestTable";
 
 const { Text } = Typography;
 const { useToken } = theme;
@@ -152,6 +156,23 @@ const SystemSettingsMetricsTab: React.FC = () => {
     },
   });
 
+  // Forward metrics
+  const {
+    summary: forwardSummary,
+    endpointMetrics,
+    requests: forwardRequests,
+    isLoading: isForwardLoading,
+    isRefreshing: isForwardRefreshing,
+    error: forwardError,
+    refresh: refreshForward,
+  } = useForwardMetrics({
+    filters: {
+      startDate,
+      endDate,
+      model: selectedModel,
+    },
+  });
+
   const tokenChartData = useMemo(
     () =>
       timeline.map((item) => ({
@@ -210,6 +231,7 @@ const SystemSettingsMetricsTab: React.FC = () => {
   return (
     <Space direction="vertical" size={token.marginMD} style={{ width: "100%" }}>
       {error ? <Alert type="error" showIcon message={error} /> : null}
+      {forwardError ? <Alert type="error" showIcon message={forwardError} /> : null}
 
       <Card
         size="small"
@@ -217,9 +239,10 @@ const SystemSettingsMetricsTab: React.FC = () => {
         extra={
           <Button
             icon={<ReloadOutlined />}
-            loading={isRefreshing}
+            loading={isRefreshing || isForwardRefreshing}
             onClick={() => {
               void refresh();
+              void refreshForward();
             }}
           >
             Refresh
@@ -346,6 +369,37 @@ const SystemSettingsMetricsTab: React.FC = () => {
           )}
         </Card>
       </div>
+
+      {/* Forward Metrics Section */}
+      <Card size="small" title="Forward Metrics">
+        <Space direction="vertical" size={token.marginMD} style={{ width: "100%" }}>
+          <ForwardMetricsCards
+            summary={forwardSummary}
+            loading={isForwardLoading}
+          />
+
+          <div
+            style={{
+              width: "100%",
+              display: "grid",
+              gridTemplateColumns: "minmax(0, 1fr)",
+              gap: token.marginMD,
+            }}
+          >
+            <ForwardEndpointDistribution
+              data={endpointMetrics}
+              loading={isForwardLoading}
+            />
+          </div>
+
+          <Card size="small" title="Recent Forward Requests">
+            <ForwardRequestTable
+              requests={forwardRequests}
+              loading={isForwardLoading}
+            />
+          </Card>
+        </Space>
+      </Card>
 
       <Card
         size="small"

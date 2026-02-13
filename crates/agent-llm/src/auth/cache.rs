@@ -13,10 +13,7 @@ pub struct TokenCache {
 impl TokenCache {
     /// Get cache file path
     pub fn cache_path() -> PathBuf {
-        dirs::home_dir()
-            .unwrap_or_else(|| std::env::temp_dir())
-            .join(".copilot-agent")
-            .join("copilot_token.json")
+        chat_core::paths::bamboo_dir().join("copilot_token.json")
     }
 
     /// Load token from cache

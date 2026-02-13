@@ -1,12 +1,12 @@
 # Settings Storage JSON Design
 
 ## Summary
-Replace the SQLite app settings store with JSON files under `~/.bodhi`. Store Claude binary settings in `~/.bodhi/config.json` under a `claude` object, and store global keyword masking in `~/.bodhi/keyword_masking.json`. Remove the SQLite dependency entirely and update the Settings UI with an example dropdown and masking preview to guide users.
+Replace the SQLite app settings store with JSON files under `~/.bamboo`. Store Claude binary settings in `~/.bamboo/config.json` under a `claude` object, and store global keyword masking in `~/.bamboo/keyword_masking.json`. Remove the SQLite dependency entirely and update the Settings UI with an example dropdown and masking preview to guide users.
 
 ## Goals
 - Eliminate the SQLite dependency and `agents.db` usage.
-- Persist Claude binary settings in `~/.bodhi/config.json` under `claude`.
-- Persist keyword masking entries in `~/.bodhi/keyword_masking.json`.
+- Persist Claude binary settings in `~/.bamboo/config.json` under `claude`.
+- Persist keyword masking entries in `~/.bamboo/keyword_masking.json`.
 - Provide UI helpers (examples dropdown + preview) for keyword masking.
 
 ## Non-Goals
@@ -15,11 +15,11 @@ Replace the SQLite app settings store with JSON files under `~/.bodhi`. Store Cl
 - Rework unrelated settings storage (installer settings, tool configs, etc.).
 
 ## Storage Layout
-- `~/.bodhi/config.json`
+- `~/.bamboo/config.json`
   - Add `claude` object:
     - `binary_path`: string or absent
     - `installation_preference`: string (e.g. `system`) or absent
-- `~/.bodhi/keyword_masking.json`
+- `~/.bamboo/keyword_masking.json`
   - JSON-serialized `KeywordMaskingConfig` with `entries` array.
 
 ## Read/Write Behavior

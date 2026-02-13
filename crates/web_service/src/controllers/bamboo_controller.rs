@@ -30,11 +30,8 @@ fn config_path(_app_state: &AppState) -> PathBuf {
 
 fn strip_proxy_auth(mut config: Value) -> Value {
     if let Some(obj) = config.as_object_mut() {
-        obj.remove("http_proxy_auth");
-        obj.remove("https_proxy_auth");
-        // Also remove encrypted versions
-        obj.remove("http_proxy_auth_encrypted");
-        obj.remove("https_proxy_auth_encrypted");
+        obj.remove("proxy_auth");
+        obj.remove("proxy_auth_encrypted");
     }
     config
 }
@@ -61,34 +58,18 @@ fn clean_empty_proxy_fields(mut config: Value) -> Value {
 /// Encrypt proxy auth before storing to config file
 fn encrypt_proxy_auth(config: &mut Value) -> Result<(), AppError> {
     if let Some(obj) = config.as_object_mut() {
-        // Encrypt http_proxy_auth
-        if let Some(auth) = obj.get("http_proxy_auth").cloned() {
+        // Encrypt proxy_auth
+        if let Some(auth) = obj.get("proxy_auth").cloned() {
             if let Ok(auth_str) = serde_json::to_string(&auth) {
                 match chat_core::encryption::encrypt(&auth_str) {
                     Ok(encrypted) => {
                         obj.insert(
-                            "http_proxy_auth_encrypted".to_string(),
+                            "proxy_auth_encrypted".to_string(),
                             serde_json::Value::String(encrypted),
                         );
-                        obj.remove("http_proxy_auth");
+                        obj.remove("proxy_auth");
                     }
-                    Err(e) => log::warn!("Failed to encrypt http_proxy_auth: {}", e),
-                }
-            }
-        }
-
-        // Encrypt https_proxy_auth
-        if let Some(auth) = obj.get("https_proxy_auth").cloned() {
-            if let Ok(auth_str) = serde_json::to_string(&auth) {
-                match chat_core::encryption::encrypt(&auth_str) {
-                    Ok(encrypted) => {
-                        obj.insert(
-                            "https_proxy_auth_encrypted".to_string(),
-                            serde_json::Value::String(encrypted),
-                        );
-                        obj.remove("https_proxy_auth");
-                    }
-                    Err(e) => log::warn!("Failed to encrypt https_proxy_auth: {}", e),
+                    Err(e) => log::warn!("Failed to encrypt proxy_auth: {}", e),
                 }
             }
         }
@@ -99,33 +80,15 @@ fn encrypt_proxy_auth(config: &mut Value) -> Result<(), AppError> {
 /// Decrypt proxy auth when loading from config file
 fn decrypt_proxy_auth(config: &mut Value) {
     if let Some(obj) = config.as_object_mut() {
-        // Decrypt http_proxy_auth
-        if let Some(encrypted) = obj
-            .get("http_proxy_auth_encrypted")
-            .and_then(|v| v.as_str())
-        {
+        // Decrypt proxy_auth
+        if let Some(encrypted) = obj.get("proxy_auth_encrypted").and_then(|v| v.as_str()) {
             match chat_core::encryption::decrypt(encrypted) {
                 Ok(decrypted) => {
                     if let Ok(auth) = serde_json::from_str::<serde_json::Value>(&decrypted) {
-                        obj.insert("http_proxy_auth".to_string(), auth);
+                        obj.insert("proxy_auth".to_string(), auth);
                     }
                 }
-                Err(e) => log::warn!("Failed to decrypt http_proxy_auth: {}", e),
-            }
-        }
-
-        // Decrypt https_proxy_auth
-        if let Some(encrypted) = obj
-            .get("https_proxy_auth_encrypted")
-            .and_then(|v| v.as_str())
-        {
-            match chat_core::encryption::decrypt(encrypted) {
-                Ok(decrypted) => {
-                    if let Ok(auth) = serde_json::from_str::<serde_json::Value>(&decrypted) {
-                        obj.insert("https_proxy_auth".to_string(), auth);
-                    }
-                }
-                Err(e) => log::warn!("Failed to decrypt https_proxy_auth: {}", e),
+                Err(e) => log::warn!("Failed to decrypt proxy_auth: {}", e),
             }
         }
     }
@@ -247,27 +210,19 @@ pub async fn set_bamboo_config(
         fs::create_dir_all(parent).await?;
     }
 
-    // Preserve existing encrypted proxy auth fields before processing
+    // Preserve existing encrypted proxy auth field before processing
     let existing_encrypted_auth = fs::read_to_string(&path).await.ok().and_then(|content| {
         let existing: Value = serde_json::from_str(&content).ok()?;
-        Some((
-            existing.get("http_proxy_auth_encrypted").cloned(),
-            existing.get("https_proxy_auth_encrypted").cloned(),
-        ))
+        existing.get("proxy_auth_encrypted").cloned()
     });
 
     let config = strip_proxy_auth(payload.into_inner());
     let mut config = clean_empty_proxy_fields(config);
 
-    // Restore encrypted proxy auth fields if they existed
-    if let Some((http_encrypted, https_encrypted)) = existing_encrypted_auth {
+    // Restore encrypted proxy auth field if it existed
+    if let Some(encrypted_val) = existing_encrypted_auth {
         if let Some(obj) = config.as_object_mut() {
-            if let Some(http_val) = http_encrypted {
-                obj.insert("http_proxy_auth_encrypted".to_string(), http_val);
-            }
-            if let Some(https_val) = https_encrypted {
-                obj.insert("https_proxy_auth_encrypted".to_string(), https_val);
-            }
+            obj.insert("proxy_auth_encrypted".to_string(), encrypted_val);
         }
     }
 
@@ -302,6 +257,43 @@ pub async fn set_proxy_auth(
             AppError::InternalError(anyhow::anyhow!("Failed to update proxy auth: {e}"))
         })?;
     Ok(HttpResponse::Ok().json(serde_json::json!({ "success": true })))
+}
+
+#[get("/bamboo/proxy-auth/status")]
+pub async fn get_proxy_auth_status(
+    app_state: web::Data<AppState>,
+) -> Result<HttpResponse, AppError> {
+    let path = config_path(&app_state);
+
+    if !path.exists() {
+        return Ok(HttpResponse::Ok().json(serde_json::json!({
+            "configured": false,
+            "username": serde_json::Value::Null
+        })));
+    }
+
+    let content = fs::read_to_string(&path).await?;
+    let config: serde_json::Value = serde_json::from_str(&content)?;
+
+    // Check for encrypted proxy auth
+    if let Some(encrypted) = config.get("proxy_auth_encrypted").and_then(|v| v.as_str()) {
+        match chat_core::encryption::decrypt(encrypted) {
+            Ok(decrypted) => {
+                if let Ok(auth) = serde_json::from_str::<chat_core::ProxyAuth>(&decrypted) {
+                    return Ok(HttpResponse::Ok().json(serde_json::json!({
+                        "configured": true,
+                        "username": auth.username
+                    })));
+                }
+            }
+            Err(e) => log::warn!("Failed to decrypt proxy auth: {}", e),
+        }
+    }
+
+    Ok(HttpResponse::Ok().json(serde_json::json!({
+        "configured": false,
+        "username": serde_json::Value::Null
+    })))
 }
 
 #[post("/bamboo/config/reset")]
@@ -346,6 +338,7 @@ pub fn config(cfg: &mut web::ServiceConfig) {
         .service(set_bamboo_config)
         .service(reset_bamboo_config)
         .service(set_proxy_auth)
+        .service(get_proxy_auth_status)
         .service(get_anthropic_model_mapping)
         .service(set_anthropic_model_mapping);
 }

@@ -21,7 +21,7 @@ pub mod api {
 
 pub use auth::{CopilotAuthHandler, CopilotToken, TokenCache};
 pub use chat_core::Config;
-pub use client::CopilotClient;
+pub use client::{CopilotClient, MetricsClientDecorator};
 pub use client_trait::CopilotClientTrait;
 pub use error::ProxyAuthRequiredError;
 pub use masking::apply_masking;

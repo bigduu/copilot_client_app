@@ -1,6 +1,6 @@
-# Bodhi - GitHub Copilot Chat Desktop
+# Bamboo - GitHub Copilot Chat Desktop
 
-Bodhi is a native desktop application for GitHub Copilot Chat, built with **Tauri** (Rust backend) and **React/TypeScript** (frontend). It provides a focused, AI-assisted coding experience with autonomous agent capabilities and an intuitive chat interface.
+Bamboo is a native desktop application for GitHub Copilot Chat, built with **Tauri** (Rust backend) and **React/TypeScript** (frontend). It provides a focused, AI-assisted coding experience with autonomous agent capabilities and an intuitive chat interface.
 
 ## Features
 
@@ -82,7 +82,7 @@ npm run tauri build
 ## Project Structure
 
 ```
-bodhi/
+bamboo/
 ├── src/                    # Frontend React application
 │   ├── pages/             # Page components (Chat, Settings, Spotlight)
 │   ├── app/               # Root app component

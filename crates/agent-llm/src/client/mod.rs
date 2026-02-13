@@ -1,5 +1,8 @@
+mod decorator;
 mod models_handler;
 pub mod stream_tool_accumulator;
+
+pub use decorator::MetricsClientDecorator;
 
 use std::{path::PathBuf, sync::Arc};
 
@@ -87,12 +90,12 @@ impl CopilotClient {
 
         if !config.http_proxy.is_empty() {
             let mut proxy = Proxy::http(&config.http_proxy)?;
-            proxy = apply_proxy_auth(proxy, config.http_proxy_auth.as_ref());
+            proxy = apply_proxy_auth(proxy, config.proxy_auth.as_ref());
             builder = builder.proxy(proxy);
         }
         if !config.https_proxy.is_empty() {
             let mut proxy = Proxy::https(&config.https_proxy)?;
-            proxy = apply_proxy_auth(proxy, config.https_proxy_auth.as_ref());
+            proxy = apply_proxy_auth(proxy, config.proxy_auth.as_ref());
             builder = builder.proxy(proxy);
         }
 
@@ -224,10 +227,7 @@ impl CopilotClientTrait for CopilotClient {
             _ => false,
         });
 
-        let base_url = config
-            .api_base
-            .as_deref()
-            .unwrap_or("https://api.githubcopilot.com");
+        let base_url = "https://api.githubcopilot.com";
         let url = format!("{}/chat/completions", base_url);
         info!("Preparing request with {} messages", request.messages.len());
         if has_images {
@@ -254,7 +254,45 @@ impl CopilotClientTrait for CopilotClient {
         response: Response,
         tx: Sender<anyhow::Result<Bytes>>,
     ) -> anyhow::Result<()> {
+        let usage = self.process_chat_completion_stream_internal(response, tx.clone()).await?;
+        let _ = usage; // For now, just drop it - the decorator will capture it
+        Ok(())
+    }
+
+    async fn get_models(&self) -> anyhow::Result<Vec<String>> {
+        let (auth_handler, models_handler) = {
+            let state = self.state.read().await;
+            (state.auth_handler.clone(), state.models_handler.clone())
+        };
+        let chat_token = auth_handler.get_chat_token().await?;
+        models_handler.get_models(chat_token).await
+    }
+
+    async fn update_proxy_auth(&self, auth: Option<ProxyAuth>) -> anyhow::Result<()> {
+        let mut state = self.state.write().await;
+        state.config.proxy_auth = auth;
+        let client = Self::build_http_client(&state.config)?;
+        let retry_client = Self::build_retry_client(client);
+        let shared_client = Arc::new(retry_client);
+        state.client = Arc::clone(&shared_client);
+        state.auth_handler = CopilotAuthHandler::new(
+            Arc::clone(&shared_client),
+            state.app_data_dir.clone(),
+            state.config.headless_auth,
+        );
+        state.models_handler = CopilotModelsHandler::new(shared_client);
+        Ok(())
+    }
+}
+
+impl CopilotClient {
+    pub async fn process_chat_completion_stream_internal(
+        &self,
+        response: Response,
+        tx: Sender<anyhow::Result<Bytes>>,
+    ) -> anyhow::Result<Option<crate::models::Usage>> {
         let mut event_stream = response.bytes_stream().eventsource();
+        let mut last_usage: Option<crate::models::Usage> = None;
         while let Some(event_result) = event_stream.next().await {
             match event_result {
                 Ok(message) => {
@@ -265,6 +303,10 @@ impl CopilotClientTrait for CopilotClient {
                     }
                     match serde_json::from_str::<ChatCompletionStreamChunk>(&message.data) {
                         Ok(chunk) => {
+                            // Track usage from the last chunk
+                            if let Some(u) = &chunk.usage {
+                                last_usage = Some(u.clone());
+                            }
                             let vec = serde_json::to_vec(&chunk)?;
                             if tx.send(Ok(Bytes::from(vec))).await.is_err() {
                                 warn!("Failed to send chunk - receiver dropped.");
@@ -286,32 +328,6 @@ impl CopilotClientTrait for CopilotClient {
                 }
             }
         }
-        Ok(())
-    }
-
-    async fn get_models(&self) -> anyhow::Result<Vec<String>> {
-        let (auth_handler, models_handler) = {
-            let state = self.state.read().await;
-            (state.auth_handler.clone(), state.models_handler.clone())
-        };
-        let chat_token = auth_handler.get_chat_token().await?;
-        models_handler.get_models(chat_token).await
-    }
-
-    async fn update_proxy_auth(&self, auth: Option<ProxyAuth>) -> anyhow::Result<()> {
-        let mut state = self.state.write().await;
-        state.config.http_proxy_auth = auth.clone();
-        state.config.https_proxy_auth = auth;
-        let client = Self::build_http_client(&state.config)?;
-        let retry_client = Self::build_retry_client(client);
-        let shared_client = Arc::new(retry_client);
-        state.client = Arc::clone(&shared_client);
-        state.auth_handler = CopilotAuthHandler::new(
-            Arc::clone(&shared_client),
-            state.app_data_dir.clone(),
-            state.config.headless_auth,
-        );
-        state.models_handler = CopilotModelsHandler::new(shared_client);
-        Ok(())
+        Ok(last_usage)
     }
 }

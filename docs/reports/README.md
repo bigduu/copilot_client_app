@@ -1,6 +1,6 @@
 # Project Reports
 
-This directory contains **Architectural Decision Records (ADRs)** and design documents for the Bodhi project.
+This directory contains **Architectural Decision Records (ADRs)** and design documents for the Bamboo project.
 
 > **Note**: This directory was pruned (Feb 2026) to remove temporary implementation reports.
 > For detailed change history, see [CHANGELOG.md](../CHANGELOG.md).

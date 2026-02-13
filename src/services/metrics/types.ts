@@ -104,3 +104,70 @@ export interface MetricsDailyQuery {
   endDate?: string;
   granularity?: MetricsGranularity;
 }
+
+// Forward metrics types
+export type ForwardStatus = "success" | "error";
+
+export interface ForwardMetricsSummary {
+  total_requests: number;
+  successful_requests: number;
+  failed_requests: number;
+  total_tokens: TokenUsage;
+  avg_duration_ms?: number | null;
+}
+
+export interface ForwardEndpointMetrics {
+  endpoint: string;
+  requests: number;
+  successful: number;
+  failed: number;
+  tokens: TokenUsage;
+  avg_duration_ms?: number | null;
+}
+
+export interface ForwardRequestMetrics {
+  forward_id: string;
+  endpoint: string;
+  model: string;
+  is_stream: boolean;
+  started_at: string;
+  completed_at?: string | null;
+  status_code?: number | null;
+  status?: ForwardStatus | null;
+  token_usage?: TokenUsage | null;
+  error?: string | null;
+  duration_ms?: number | null;
+}
+
+export interface ForwardMetricsQuery {
+  startDate?: string;
+  endDate?: string;
+  endpoint?: string;
+  model?: string;
+  limit?: number;
+}
+
+// Unified API types (v2)
+export interface UnifiedSummary {
+  chat: MetricsSummary;
+  forward: ForwardMetricsSummary;
+  combined: CombinedSummary;
+}
+
+export interface CombinedSummary {
+  total_requests: number;
+  total_tokens: number;
+  total_success: number;
+  total_errors: number;
+  success_rate: number;
+}
+
+export interface UnifiedTimelinePoint {
+  date: string;
+  chat_tokens: number;
+  chat_sessions: number;
+  forward_tokens: number;
+  forward_requests: number;
+  total_tokens: number;
+}
+

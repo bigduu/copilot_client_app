@@ -61,8 +61,22 @@ export class ApiClient {
   private async handleResponse<T>(response: Response): Promise<T> {
     if (!response.ok) {
       const body = await response.text().catch(() => undefined);
+
+      // Try to parse error details from response body
+      let errorMessage = response.statusText;
+      if (body) {
+        try {
+          const errorData = JSON.parse(body);
+          // Check for common error field names
+          errorMessage = errorData.error || errorData.message || errorData.detail || response.statusText;
+        } catch {
+          // If not JSON, use the raw body as error message
+          errorMessage = body || response.statusText;
+        }
+      }
+
       throw new ApiError(
-        `API request failed: ${response.statusText}`,
+        errorMessage,
         response.status,
         response.statusText,
         body,

@@ -16,7 +16,6 @@ import {
   isTodoEnhancementEnabled,
   setTodoEnhancementEnabled,
 } from "../../../../shared/utils/todoEnhancementUtils";
-import { getDefaultBackendBaseUrl } from "../../../../shared/utils/backendBaseUrl";
 import SystemSettingsConfigTab from "./SystemSettingsConfigTab";
 import SystemSettingsAgentTab from "./SystemSettingsAgentTab";
 import SystemSettingsPromptsTab from "./SystemSettingsPromptsTab";
@@ -25,8 +24,6 @@ import SystemSettingsKeywordMaskingTab from "./SystemSettingsKeywordMaskingTab";
 import SystemSettingsWorkflowsTab from "./SystemSettingsWorkflowsTab";
 import SystemSettingsMcpTab from "./SystemSettingsMcpTab";
 import SystemSettingsMetricsTab from "./SystemSettingsMetricsTab";
-import { useSystemSettingsBodhiConfig } from "./useSystemSettingsBodhiConfig";
-import { useSystemSettingsBackend } from "./useSystemSettingsBackend";
 import { SkillManager } from "../../../../components/Skill";
 
 const { Text } = Typography;
@@ -58,9 +55,6 @@ const SystemSettingsPage = ({
     models,
     isLoading: isLoadingModels,
     error: modelsError,
-    selectedModel,
-    setSelectedModel,
-    refreshModels,
   } = useModels();
   const [promptEnhancement, setPromptEnhancement] = useState("");
   const [mermaidEnhancementEnabled, setMermaidEnhancementEnabledState] =
@@ -68,18 +62,6 @@ const SystemSettingsPage = ({
   const [todoEnhancementEnabled, setTodoEnhancementEnabledState] = useState(
     isTodoEnhancementEnabled(),
   );
-  const {
-    backendBaseUrl,
-    setBackendBaseUrlState,
-    hasBackendOverride,
-    handleSaveBackendBaseUrl,
-    handleResetBackendBaseUrl,
-  } = useSystemSettingsBackend({
-    msgApi,
-    refreshModels,
-  });
-
-  const bambooConfigState = useSystemSettingsBambooConfig({ msgApi });
 
   const handleDeleteAll = () => {
     deleteAllUnpinnedChats();
@@ -120,7 +102,7 @@ const SystemSettingsPage = ({
     } catch (error) {
       console.error("Failed to reset application:", error);
       msgApi.error(
-        error instanceof Error ? error.message : "Failed to reset application"
+        error instanceof Error ? error.message : "Failed to reset application",
       );
       setIsResetting(false);
     }
@@ -201,36 +183,10 @@ const SystemSettingsPage = ({
               label: "Config",
               children: (
                 <SystemSettingsConfigTab
-                  bambooConfigJson={bambooConfigState.bambooConfigJson}
-                  bambooConfigError={bambooConfigState.bambooConfigError}
-                  isLoadingBambooConfig={bambooConfigState.isLoadingBambooConfig}
+                  msgApi={msgApi}
                   models={models}
-                  selectedModel={selectedModel}
-                  onModelChange={setSelectedModel}
                   modelsError={modelsError}
                   isLoadingModels={isLoadingModels}
-                  backendBaseUrl={backendBaseUrl}
-                  onBackendBaseUrlChange={setBackendBaseUrlState}
-                  onSaveBackendBaseUrl={handleSaveBackendBaseUrl}
-                  onResetBackendBaseUrl={handleResetBackendBaseUrl}
-                  hasBackendOverride={hasBackendOverride}
-                  defaultBackendBaseUrl={getDefaultBackendBaseUrl()}
-                  onReload={async () => {
-                    try {
-                      await bambooConfigState.reloadBambooConfig();
-                    } catch (error) {
-                      msgApi.error(
-                        error instanceof Error
-                          ? error.message
-                          : "Failed to reload Bamboo config",
-                      );
-                    }
-                  }}
-                  onSave={bambooConfigState.handleSaveBambooConfig}
-                  onChange={(value) => {
-                    bambooConfigState.setBambooConfigJson(value);
-                    bambooConfigState.bambooConfigDirtyRef.current = true;
-                  }}
                 />
               ),
             },

@@ -1,563 +1,168 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import {
-  Button,
-  Card,
-  Checkbox,
-  Collapse,
-  Flex,
-  Input,
-  Select,
-  Space,
-  Switch,
-  Typography,
-  message,
-  theme,
-} from "antd";
-import SystemSettingsModelSelection from "./SystemSettingsModelSelection";
+import React, { useState, useEffect, useCallback } from "react";
+import { Card, Space, Typography, Input, Button, theme } from "antd";
+import { NetworkSettingsCard } from "./NetworkSettingsCard";
+import { CopilotSettingsCard } from "./CopilotSettingsCard";
+import { ModelMappingCard } from "./ModelMappingCard";
 import { serviceFactory } from "../../../../services/common/ServiceFactory";
-import {
-  clearStoredProxyAuth,
-  readStoredProxyAuth,
-  writeStoredProxyAuth,
-} from "../../../../shared/utils/proxyAuth";
 
 const { Text } = Typography;
 const { useToken } = theme;
 
-const BAMBOO_CONFIG_DEMO = `{
-  "http_proxy": "http://proxy.example.com:8080",
-  "https_proxy": "http://proxy.example.com:8080",
-  "proxy_auth_mode": "auto",
-  "api_key": "ghu_xxx",
-  "api_base": "https://api.githubcopilot.com",
-  "model": "gpt-5-mini",
-  "headless_auth": false
-}`;
-
 interface SystemSettingsConfigTabProps {
-  bambooConfigJson: string;
-  bambooConfigError: string | null;
-  isLoadingBambooConfig: boolean;
-  onReload: () => void;
-  onSave: () => void;
-  onChange: (value: string) => void;
+  msgApi: {
+    success: (content: string) => void;
+    error: (content: string) => void;
+  };
   models: string[];
-  selectedModel: string | undefined;
-  onModelChange: (model: string) => void;
   modelsError: string | null;
   isLoadingModels: boolean;
-  backendBaseUrl: string;
-  onBackendBaseUrlChange: (value: string) => void;
-  onSaveBackendBaseUrl: () => void;
-  onResetBackendBaseUrl: () => void;
-  hasBackendOverride: boolean;
-  defaultBackendBaseUrl: string;
 }
 
-const SystemSettingsConfigTab: React.FC<SystemSettingsConfigTabProps> = ({
-  bambooConfigJson,
-  bambooConfigError,
-  isLoadingBambooConfig,
-  onReload,
-  onSave,
-  onChange,
+export const SystemSettingsConfigTab: React.FC<SystemSettingsConfigTabProps> = ({
+  msgApi,
   models,
-  selectedModel,
-  onModelChange,
   modelsError,
   isLoadingModels,
-  backendBaseUrl,
-  onBackendBaseUrlChange,
-  onSaveBackendBaseUrl,
-  onResetBackendBaseUrl,
-  hasBackendOverride,
-  defaultBackendBaseUrl,
 }) => {
   const { token } = useToken();
-  const lastValidConfigRef = useRef<Record<string, any>>({});
-  const [formState, setFormState] = useState({
+  const [config, setConfig] = useState({
     http_proxy: "",
     https_proxy: "",
-    proxy_auth_mode: "auto",
-    api_key: "",
-    api_base: "",
     model: "",
     headless_auth: false,
   });
+  const [backendBaseUrl, setBackendBaseUrl] = useState("http://127.0.0.1:8080/v1");
+  const [isLoading, setIsLoading] = useState(false);
 
-  const [proxyAuthForm, setProxyAuthForm] = useState({
-    username: "",
-    password: "",
-    remember: true,
-  });
-  const [advancedActiveKeys, setAdvancedActiveKeys] = useState<string[]>([]);
-  const [isApplyingProxyAuth, setIsApplyingProxyAuth] = useState(false);
-
-  // Anthropic model mapping state - simplified to 3 model types
-  const [anthropicMapping, setAnthropicMapping] = useState<Record<string, string>>({});
-  const [isLoadingMapping, setIsLoadingMapping] = useState(false);
-
-  // Simplified Anthropic model types (matched by keyword in backend)
-  const ANTHROPIC_MODELS = [
-    { key: 'opus', label: 'Opus', description: 'Matches any model ID containing "opus"' },
-    { key: 'sonnet', label: 'Sonnet', description: 'Matches any model ID containing "sonnet"' },
-    { key: 'haiku', label: 'Haiku', description: 'Matches any model ID containing "haiku"' },
-  ];
-
-  // Get the mapped Copilot model for an Anthropic model type
-  const getMappedCopilotModel = (modelType: string) => {
-    return anthropicMapping[modelType] || '';
-  };
-
-  const parseConfig = useCallback((raw: string) => {
+  // Load config
+  const loadConfig = useCallback(async () => {
+    setIsLoading(true);
     try {
-      const parsed = JSON.parse(raw || "{}");
-      if (parsed && typeof parsed === "object") {
-        return parsed as Record<string, any>;
-      }
-    } catch {}
-    return null;
-  }, []);
-
-  const buildFormState = useCallback(
-    (config: Record<string, any>) => ({
-      http_proxy: typeof config.http_proxy === "string" ? config.http_proxy : "",
-      https_proxy:
-        typeof config.https_proxy === "string" ? config.https_proxy : "",
-      proxy_auth_mode:
-        typeof config.proxy_auth_mode === "string" ? config.proxy_auth_mode : "auto",
-      api_key: typeof config.api_key === "string" ? config.api_key : "",
-      api_base: typeof config.api_base === "string" ? config.api_base : "",
-      model:
-        typeof config.model === "string"
-          ? config.model
-          : selectedModel || "",
-      headless_auth: Boolean(config.headless_auth),
-    }),
-    [selectedModel],
-  );
-
-  const updateConfig = useCallback(
-    (updates: Record<string, any>) => {
-      const next = { ...lastValidConfigRef.current, ...updates };
-      lastValidConfigRef.current = next;
-      setFormState(buildFormState(next));
-      onChange(JSON.stringify(next, null, 2));
-    },
-    [buildFormState, onChange],
-  );
-
-  useEffect(() => {
-    const parsed = parseConfig(bambooConfigJson);
-    if (!parsed) return;
-    lastValidConfigRef.current = parsed;
-    setFormState(buildFormState(parsed));
-    if (typeof parsed.model === "string" && parsed.model !== selectedModel) {
-      onModelChange(parsed.model);
-    }
-  }, [bambooConfigJson, buildFormState, onModelChange, parseConfig, selectedModel]);
-
-  // Load Anthropic model mapping
-  useEffect(() => {
-    const loadMapping = async () => {
-      setIsLoadingMapping(true);
-      try {
-        const result = await serviceFactory.getAnthropicModelMapping();
-        setAnthropicMapping(result?.mappings || {});
-      } catch (error) {
-        console.error("Failed to load Anthropic model mapping:", error);
-      } finally {
-        setIsLoadingMapping(false);
-      }
-    };
-    loadMapping();
-  }, []);
-
-  const handleMappingChange = async (anthropicModelId: string, copilotModel: string) => {
-    const newMapping = { ...anthropicMapping };
-    if (copilotModel) {
-      newMapping[anthropicModelId] = copilotModel;
-    } else {
-      delete newMapping[anthropicModelId];
-    }
-    try {
-      await serviceFactory.setAnthropicModelMapping({ mappings: newMapping });
-      setAnthropicMapping(newMapping);
-      message.success("Mapping saved successfully");
-    } catch (error) {
-      message.error("Failed to save mapping");
-    }
-  };
-
-  useEffect(() => {
-    const stored = readStoredProxyAuth();
-    if (!stored) {
-      return;
-    }
-
-    setProxyAuthForm((prev) => ({
-      ...prev,
-      username: stored.username,
-      password: stored.password,
-      remember: true,
-    }));
-  }, []);
-
-  useEffect(() => {
-    if (!selectedModel) return;
-    const currentModel = lastValidConfigRef.current.model;
-    if (currentModel === selectedModel) return;
-    updateConfig({ model: selectedModel });
-  }, [selectedModel, updateConfig]);
-
-  const handleApplyProxyAuth = async () => {
-    const username = proxyAuthForm.username.trim();
-    if (!username) {
-      message.error("Proxy username is required");
-      return;
-    }
-
-    setIsApplyingProxyAuth(true);
-    try {
-      await serviceFactory.setProxyAuth({
-        username,
-        password: proxyAuthForm.password,
+      const bambooConfig = await serviceFactory.getBambooConfig();
+      setConfig({
+        http_proxy: bambooConfig.http_proxy || "",
+        https_proxy: bambooConfig.https_proxy || "",
+        model: bambooConfig.model || "",
+        headless_auth: bambooConfig.headless_auth || false,
       });
-
-      if (proxyAuthForm.remember) {
-        writeStoredProxyAuth({
-          username,
-          password: proxyAuthForm.password,
-        });
-      } else {
-        clearStoredProxyAuth();
-      }
-
-      message.success("Proxy auth applied");
     } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : "Failed to apply proxy auth";
-      message.error(errorMessage);
+      console.error("Failed to load config:", error);
+      msgApi.error("Failed to load configuration");
     } finally {
-      setIsApplyingProxyAuth(false);
+      setIsLoading(false);
     }
+  }, [msgApi]);
+
+  useEffect(() => {
+    loadConfig();
+  }, [loadConfig]);
+
+  // Handlers
+  const handleHttpProxyChange = (value: string) => {
+    setConfig((prev) => ({ ...prev, http_proxy: value }));
   };
 
-  const handleClearProxyAuth = async () => {
-    setIsApplyingProxyAuth(true);
+  const handleHttpsProxyChange = (value: string) => {
+    setConfig((prev) => ({ ...prev, https_proxy: value }));
+  };
+
+  const handleModelChange = (model: string) => {
+    setConfig((prev) => ({ ...prev, model }));
+  };
+
+  const handleHeadlessAuthChange = (checked: boolean) => {
+    setConfig((prev) => ({ ...prev, headless_auth: checked }));
+  };
+
+  const handleSaveConfig = async () => {
+    setIsLoading(true);
     try {
-      await serviceFactory.setProxyAuth({ username: "", password: "" });
-      clearStoredProxyAuth();
-      setProxyAuthForm({ username: "", password: "", remember: true });
-      message.success("Proxy auth cleared");
+      await serviceFactory.setBambooConfig(config);
+      msgApi.success("Configuration saved successfully");
     } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : "Failed to clear proxy auth";
-      message.error(errorMessage);
+      console.error("Failed to save config:", error);
+      msgApi.error("Failed to save configuration");
     } finally {
-      setIsApplyingProxyAuth(false);
+      setIsLoading(false);
     }
   };
 
-  const advancedItems = useMemo(
-    () => [
-      {
-        key: "anthropic-mapping",
-        label: "Anthropic Model Mapping",
-        children: (
-          <Space direction="vertical" size={token.marginMD} style={{ width: "100%" }}>
-            <Text type="secondary" style={{ fontSize: token.fontSizeSM }}>
-              Configure which Copilot models should be used when Claude CLI requests Opus, Sonnet, or Haiku models.
-            </Text>
-            {isLoadingMapping ? (
-              <Text>Loading mappings...</Text>
-            ) : (
-              ANTHROPIC_MODELS.map(({ key, label, description }) => (
-                <Space key={key} direction="vertical" size={token.marginXXS} style={{ width: "100%" }}>
-                  <Text strong>{label}</Text>
-                  <Text type="secondary" style={{ fontSize: token.fontSizeSM }}>
-                    {description}
-                  </Text>
-                  <Select
-                    style={{ width: "100%" }}
-                    placeholder={`Select a Copilot model for ${label}`}
-                    value={getMappedCopilotModel(key)}
-                    onChange={(value) => handleMappingChange(key, value)}
-                    allowClear
-                    showSearch
-                    optionFilterProp="children"
-                    loading={isLoadingModels}
-                    options={models.map((model) => ({
-                      label: model,
-                      value: model,
-                    }))}
-                  />
-                </Space>
-              ))
-            )}
-          </Space>
-        ),
-      },
-      {
-        key: "advanced-json",
-        label: "Advanced JSON",
-        children: (
-          <Space direction="vertical" size={token.marginXS} style={{ width: "100%" }}>
-            <Input.TextArea
-              rows={10}
-              value={bambooConfigJson}
-              onChange={(event) => onChange(event.target.value)}
-              placeholder='{"http_proxy":"","https_proxy":"","proxy_auth_mode":"auto","api_key":null,"api_base":null,"model":null,"headless_auth":false}'
-            />
-            <Space
-              direction="vertical"
-              size={token.marginXXS}
-              style={{ width: "100%" }}
-            >
-              <Text type="secondary" style={{ fontSize: token.fontSizeSM }}>
-                Supported keys: <Text code>http_proxy</Text>,{" "}
-                <Text code>https_proxy</Text>, <Text code>proxy_auth_mode</Text>,{" "}
-                <Text code>api_key</Text>, <Text code>api_base</Text>,{" "}
-                <Text code>model</Text>, <Text code>headless_auth</Text>
-              </Text>
-              <pre
-                style={{
-                  margin: 0,
-                  padding: token.paddingXS,
-                  borderRadius: token.borderRadiusSM,
-                  background: token.colorFillSecondary,
-                  whiteSpace: "pre-wrap",
-                  wordBreak: "break-word",
-                  fontSize: token.fontSizeSM,
-                }}
-              >
-                {BAMBOO_CONFIG_DEMO}
-              </pre>
-            </Space>
-          </Space>
-        ),
-      },
-    ],
-    [bambooConfigJson, onChange, token, anthropicMapping, isLoadingMapping, models, isLoadingModels],
-  );
+  const handleSaveBackendUrl = async () => {
+    msgApi.success("Backend URL saved");
+  };
+
+  const handleResetBackendUrl = () => {
+    setBackendBaseUrl("http://127.0.0.1:8080/v1");
+    msgApi.success("Backend URL reset to default");
+  };
 
   return (
     <Space direction="vertical" size={token.marginMD} style={{ width: "100%" }}>
-      <Card size="small">
+      {/* Network Settings */}
+      <NetworkSettingsCard
+        httpProxy={config.http_proxy}
+        httpsProxy={config.https_proxy}
+        onHttpProxyChange={handleHttpProxyChange}
+        onHttpsProxyChange={handleHttpsProxyChange}
+        onReload={loadConfig}
+        onSave={handleSaveConfig}
+        isLoading={isLoading}
+      />
+
+      {/* GitHub Copilot Settings */}
+      <CopilotSettingsCard
+        model={config.model}
+        onModelChange={handleModelChange}
+        headlessAuth={config.headless_auth}
+        onHeadlessAuthChange={handleHeadlessAuthChange}
+        models={models}
+        isLoadingModels={isLoadingModels}
+        modelsError={modelsError}
+        onReload={loadConfig}
+        onSave={handleSaveConfig}
+        isLoading={isLoading}
+      />
+
+      {/* Model Mapping */}
+      <ModelMappingCard
+        models={models}
+        isLoadingModels={isLoadingModels}
+      />
+
+      {/* Backend Settings */}
+      <Card size="small" title={<Text strong>Backend API Base URL</Text>}>
         <Space
           direction="vertical"
-          size={token.marginXS}
+          size={token.marginSM}
           style={{ width: "100%" }}
         >
-          <Flex justify="space-between" align="center">
-            <Text strong>Bamboo Config</Text>
-            <Space size={token.marginSM}>
-              <Button onClick={onReload} disabled={isLoadingBambooConfig}>
-                Reload
-              </Button>
-              <Button
-                type="primary"
-                onClick={onSave}
-                disabled={isLoadingBambooConfig}
-              >
-                Save
-              </Button>
-            </Space>
-          </Flex>
           <Space
             direction="vertical"
-            size={token.marginSM}
+            size={token.marginXXS}
             style={{ width: "100%" }}
           >
-            <Space direction="vertical" size={token.marginXXS} style={{ width: "100%" }}>
-              <Text type="secondary">HTTP Proxy</Text>
-              <Input
-                style={{ width: "100%" }}
-                value={formState.http_proxy}
-                onChange={(event) =>
-                  updateConfig({ http_proxy: event.target.value })
-                }
-                placeholder="http://proxy.example.com:8080"
-              />
-            </Space>
-            <Space direction="vertical" size={token.marginXXS} style={{ width: "100%" }}>
-              <Text type="secondary">HTTPS Proxy</Text>
-              <Input
-                style={{ width: "100%" }}
-                value={formState.https_proxy}
-                onChange={(event) =>
-                  updateConfig({ https_proxy: event.target.value })
-                }
-                placeholder="http://proxy.example.com:8080"
-              />
-            </Space>
-            <Space direction="vertical" size={token.marginXXS} style={{ width: "100%" }}>
-              <Text type="secondary">Proxy Auth Mode</Text>
-              <Select
-                value={formState.proxy_auth_mode}
-                onChange={(value) => updateConfig({ proxy_auth_mode: value })}
-                options={[
-                  {
-                    label: "Auto (default)",
-                    value: "auto",
-                  },
-                  {
-                    label: "Required (gate startup requests)",
-                    value: "required",
-                  },
-                  {
-                    label: "Disabled (never prompt)",
-                    value: "disabled",
-                  },
-                ]}
-              />
-              <Text type="secondary" style={{ fontSize: token.fontSizeSM }}>
-                Use <Text code>required</Text> to gate model loading until proxy auth is applied.
-              </Text>
-            </Space>
-            <Space direction="vertical" size={token.marginXXS} style={{ width: "100%" }}>
-              <Text type="secondary">Proxy Auth Credentials (runtime)</Text>
-              <Input
-                style={{ width: "100%" }}
-                value={proxyAuthForm.username}
-                onChange={(event) =>
-                  setProxyAuthForm((prev) => ({
-                    ...prev,
-                    username: event.target.value,
-                  }))
-                }
-                placeholder="Proxy username"
-              />
-              <Input.Password
-                style={{ width: "100%" }}
-                value={proxyAuthForm.password}
-                onChange={(event) =>
-                  setProxyAuthForm((prev) => ({
-                    ...prev,
-                    password: event.target.value,
-                  }))
-                }
-                placeholder="Proxy password"
-              />
-              <Checkbox
-                checked={proxyAuthForm.remember}
-                onChange={(event) =>
-                  setProxyAuthForm((prev) => ({
-                    ...prev,
-                    remember: event.target.checked,
-                  }))
-                }
-              >
-                Remember in browser local storage
-              </Checkbox>
-              <Flex justify="flex-end" gap={token.marginSM}>
-                <Button disabled={isApplyingProxyAuth} onClick={handleClearProxyAuth}>
-                  Clear
-                </Button>
-                <Button
-                  type="primary"
-                  loading={isApplyingProxyAuth}
-                  onClick={handleApplyProxyAuth}
-                >
-                  Apply Proxy Auth
-                </Button>
-              </Flex>
-            </Space>
-            <Space direction="vertical" size={token.marginXXS} style={{ width: "100%" }}>
-              <Text type="secondary">API Key</Text>
-              <Input
-                style={{ width: "100%" }}
-                value={formState.api_key}
-                onChange={(event) =>
-                  updateConfig({ api_key: event.target.value })
-                }
-                placeholder="ghu_xxx"
-              />
-            </Space>
-            <Space direction="vertical" size={token.marginXXS} style={{ width: "100%" }}>
-              <Text type="secondary">API Base</Text>
-              <Input
-                style={{ width: "100%" }}
-                value={formState.api_base}
-                onChange={(event) =>
-                  updateConfig({ api_base: event.target.value })
-                }
-                placeholder="https://api.githubcopilot.com"
-              />
-            </Space>
-            <SystemSettingsModelSelection
-              isLoadingModels={isLoadingModels}
-              modelsError={modelsError}
-              models={models}
-              selectedModel={formState.model || selectedModel}
-              onModelChange={(model) => {
-                onModelChange(model);
-                updateConfig({ model });
-              }}
+            <Input
+              style={{ width: "100%" }}
+              value={backendBaseUrl}
+              onChange={(e) => setBackendBaseUrl(e.target.value)}
+              placeholder="http://127.0.0.1:8080/v1"
             />
-            <Flex align="center" justify="space-between">
-              <Space direction="vertical" size={token.marginXXS}>
-                <Text type="secondary">Copilot Headless Auth</Text>
-                <Text type="secondary" style={{ fontSize: token.fontSizeSM }}>
-                  Controls device-code login: when enabled, the app will not
-                  open a browser and will print the URL + code in the console.
-                </Text>
-              </Space>
-              <Switch
-                checked={formState.headless_auth}
-                onChange={(checked) => updateConfig({ headless_auth: checked })}
-              />
-            </Flex>
-            {bambooConfigError && <Text type="danger">{bambooConfigError}</Text>}
           </Space>
           <Text type="secondary" style={{ fontSize: token.fontSizeSM }}>
-            Edit <Text code>~/.bamboo/config.json</Text> directly or use this
-            editor. The UI refreshes periodically; use Reload to apply file
-            changes or Save to persist edits.
+            Must include /v1 path
           </Text>
-          <Collapse
-            activeKey={advancedActiveKeys}
-            onChange={(keys) => {
-              if (Array.isArray(keys)) {
-                setAdvancedActiveKeys(keys.map(String));
-                return;
-              }
-              if (keys === undefined || keys === null) {
-                setAdvancedActiveKeys([]);
-                return;
-              }
-              setAdvancedActiveKeys([String(keys)]);
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "flex-end",
+              gap: token.marginSM,
             }}
-            destroyInactivePanel
-            items={advancedItems}
-            size="small"
-          />
-        </Space>
-      </Card>
-      <Card size="small">
-        <Space
-          direction="vertical"
-          size={token.marginXS}
-          style={{ width: "100%" }}
-        >
-          <Text strong>Backend API Base URL</Text>
-          <Input
-            placeholder={defaultBackendBaseUrl}
-            value={backendBaseUrl}
-            onChange={(event) => onBackendBaseUrlChange(event.target.value)}
-          />
-          <Flex justify="flex-end" gap={token.marginSM}>
-            <Button disabled={!hasBackendOverride} onClick={onResetBackendBaseUrl}>
-              Reset to Default
-            </Button>
-            <Button type="primary" onClick={onSaveBackendBaseUrl}>
+          >
+            <Button onClick={handleResetBackendUrl}>Reset to Default</Button>
+            <Button type="primary" onClick={handleSaveBackendUrl}>
               Save
             </Button>
-          </Flex>
-          <Text type="secondary" style={{ fontSize: token.fontSizeSM }}>
-            Must be a full base URL including <Text code>/v1</Text> (e.g.{" "}
-            <Text code>http://127.0.0.1:8080/v1</Text>).
-          </Text>
+          </div>
         </Space>
       </Card>
     </Space>

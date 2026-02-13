@@ -5,6 +5,7 @@ edition = "2021"
 
 [dependencies]
 agent-core = { path = "../agent-core" }
+agent-metrics = { path = "../agent-metrics" }
 chat_core = { path = "../chat_core" }
 reqwest = { workspace = true, features = ["gzip", "rustls-tls"] }
 reqwest-retry = "0.7"
@@ -27,6 +28,7 @@ chrono = { workspace = true }
 arboard = { workspace = true }
 rfd = { workspace = true }
 tauri = { workspace = true, optional = true }
+uuid = { workspace = true, features = ["v4"] }
 
 [features]
 default = []

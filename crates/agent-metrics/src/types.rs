@@ -175,3 +175,70 @@ pub struct SessionMetricsFilter {
     pub model: Option<String>,
     pub limit: Option<u32>,
 }
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum ForwardStatus {
+    Success,
+    Error,
+}
+
+impl ForwardStatus {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Success => "success",
+            Self::Error => "error",
+        }
+    }
+
+    pub fn from_db(value: &str) -> Option<Self> {
+        match value {
+            "success" => Some(Self::Success),
+            "error" => Some(Self::Error),
+            _ => None,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct ForwardRequestMetrics {
+    pub forward_id: String,
+    pub endpoint: String,
+    pub model: String,
+    pub is_stream: bool,
+    pub started_at: DateTime<Utc>,
+    pub completed_at: Option<DateTime<Utc>>,
+    pub status_code: Option<u16>,
+    pub status: Option<ForwardStatus>,
+    pub token_usage: Option<TokenUsage>,
+    pub error: Option<String>,
+    pub duration_ms: Option<u64>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct ForwardMetricsSummary {
+    pub total_requests: u64,
+    pub successful_requests: u64,
+    pub failed_requests: u64,
+    pub total_tokens: TokenUsage,
+    pub avg_duration_ms: Option<u64>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct ForwardEndpointMetrics {
+    pub endpoint: String,
+    pub requests: u64,
+    pub successful: u64,
+    pub failed: u64,
+    pub tokens: TokenUsage,
+    pub avg_duration_ms: Option<u64>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq, Eq)]
+pub struct ForwardMetricsFilter {
+    pub start_date: Option<NaiveDate>,
+    pub end_date: Option<NaiveDate>,
+    pub endpoint: Option<String>,
+    pub model: Option<String>,
+    pub limit: Option<u32>,
+}
