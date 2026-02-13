@@ -13,6 +13,11 @@ vi.mock('../../services/chat/AgentService', () => ({
   AgentClient: vi.fn(),
 }));
 
+// Type for mock selectors
+type MockSelector = (state: any) => any;
+
+
+
 describe('useAgentEventSubscription', () => {
   let mockSubscribeToEvents: any;
   let mockSetProcessing: any;
@@ -29,7 +34,7 @@ describe('useAgentEventSubscription', () => {
       subscribeToEvents: mockSubscribeToEvents,
     }));
 
-    (useAppStore as any).mockImplementation((selector) => {
+    (useAppStore as any).mockImplementation((selector: MockSelector) => {
       const state = {
         chats: [
           {
@@ -55,7 +60,7 @@ describe('useAgentEventSubscription', () => {
   });
 
   it('should subscribe when isProcessing is true and session exists', async () => {
-    (useAppStore as any).mockImplementation((selector) => {
+    (useAppStore as any).mockImplementation((selector: MockSelector) => {
       const state = {
         chats: [
           {
@@ -97,7 +102,7 @@ describe('useAgentEventSubscription', () => {
     expect(mockSubscribeToEvents).not.toHaveBeenCalled();
 
     // Change to processing
-    (useAppStore as any).mockImplementation((selector) => {
+    (useAppStore as any).mockImplementation((selector: MockSelector) => {
       const state = {
         chats: [
           {
@@ -124,7 +129,7 @@ describe('useAgentEventSubscription', () => {
     });
 
     // Change back to not processing
-    (useAppStore as any).mockImplementation((selector) => {
+    (useAppStore as any).mockImplementation((selector: MockSelector) => {
       const state = {
         chats: [
           {
@@ -149,7 +154,7 @@ describe('useAgentEventSubscription', () => {
   });
 
   it('should handle subscription errors and reset state', async () => {
-    (useAppStore as any).mockImplementation((selector) => {
+    (useAppStore as any).mockImplementation((selector: MockSelector) => {
       const state = {
         chats: [
           {
@@ -188,11 +193,11 @@ describe('useAgentEventSubscription', () => {
 
   it('should handle onComplete and save message', async () => {
     let completeHandler: any;
-    mockSubscribeToEvents.mockImplementation(async (_sessionId, handlers) => {
+    mockSubscribeToEvents.mockImplementation(async (_sessionId: string, handlers: any) => {
       completeHandler = handlers.onComplete;
     });
 
-    (useAppStore as any).mockImplementation((selector) => {
+    (useAppStore as any).mockImplementation((selector: MockSelector) => {
       const state = {
         chats: [
           {
@@ -230,11 +235,11 @@ describe('useAgentEventSubscription', () => {
 
   it('should handle onError and show error message', async () => {
     let errorHandler: any;
-    mockSubscribeToEvents.mockImplementation(async (_sessionId, handlers) => {
+    mockSubscribeToEvents.mockImplementation(async (_sessionId: string, handlers: any) => {
       errorHandler = handlers.onError;
     });
 
-    (useAppStore as any).mockImplementation((selector) => {
+    (useAppStore as any).mockImplementation((selector: MockSelector) => {
       const state = {
         chats: [
           {
@@ -280,7 +285,7 @@ describe('useAgentEventSubscription', () => {
   });
 
   it('should not create duplicate subscriptions', async () => {
-    (useAppStore as any).mockImplementation((selector) => {
+    (useAppStore as any).mockImplementation((selector: MockSelector) => {
       const state = {
         chats: [
           {
@@ -316,11 +321,11 @@ describe('useAgentEventSubscription', () => {
 
   it('should handle token streaming', async () => {
     let tokenHandler: any;
-    mockSubscribeToEvents.mockImplementation(async (_sessionId, handlers) => {
+    mockSubscribeToEvents.mockImplementation(async (_sessionId: string, handlers: any) => {
       tokenHandler = handlers.onToken;
     });
 
-    (useAppStore as any).mockImplementation((selector) => {
+    (useAppStore as any).mockImplementation((selector: MockSelector) => {
       const state = {
         chats: [
           {
@@ -356,7 +361,7 @@ describe('useAgentEventSubscription', () => {
   });
 
   it('should cleanup subscription on unmount', async () => {
-    (useAppStore as any).mockImplementation((selector) => {
+    (useAppStore as any).mockImplementation((selector: MockSelector) => {
       const state = {
         chats: [
           {

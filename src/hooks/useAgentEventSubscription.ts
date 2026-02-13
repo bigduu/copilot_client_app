@@ -176,7 +176,7 @@ export function useAgentEventSubscription() {
             type: 'text',
             content: `❌ **Error**: ${errorMessage}`,
             createdAt: new Date().toISOString(),
-            isError: true,
+            finishReason: 'error',
           });
 
           // Clean up streaming state
