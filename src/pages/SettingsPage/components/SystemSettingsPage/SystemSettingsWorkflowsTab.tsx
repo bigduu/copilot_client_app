@@ -11,6 +11,7 @@ import {
   theme,
 } from "antd";
 import {
+  DeleteOutlined,
   EditOutlined,
   PlusOutlined,
   ReloadOutlined,
@@ -144,6 +145,29 @@ const SystemSettingsWorkflowsTab: React.FC = () => {
     workflows,
   ]);
 
+  const handleDelete = useCallback(
+    async (workflow: WorkflowMetadata) => {
+      if (!isTauri) {
+        msgApi.error("Workflow deletion is only available in the desktop app");
+        return;
+      }
+
+      try {
+        await invoke("delete_workflow", { name: workflow.name });
+        msgApi.success("Workflow deleted");
+        if (selectedWorkflow?.name === workflow.name) {
+          handleCreateNew();
+        }
+        await loadWorkflows();
+      } catch (error) {
+        msgApi.error(
+          error instanceof Error ? error.message : "Failed to delete workflow",
+        );
+      }
+    },
+    [isTauri, msgApi, selectedWorkflow, loadWorkflows],
+  );
+
   return (
     <div style={{ padding: "24px" }}>
       {contextHolder}
@@ -195,6 +219,19 @@ const SystemSettingsWorkflowsTab: React.FC = () => {
                     padding: token.paddingSM,
                   }}
                   onClick={() => handleSelectWorkflow(workflow)}
+                  actions={[
+                    <Button
+                      key="delete"
+                      type="text"
+                      danger
+                      size="small"
+                      icon={<DeleteOutlined />}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDelete(workflow);
+                      }}
+                    />,
+                  ]}
                 >
                   <Space direction="vertical" size={0}>
                     <Text strong>/{workflow.name}</Text>
