@@ -5,7 +5,6 @@ use std::collections::HashMap;
 use async_trait::async_trait;
 use reqwest::{Client, header::HeaderMap};
 use agent_core::{agent::Role, tools::ToolSchema, Message};
-use serde::Deserialize;
 use serde_json::{json, Value};
 
 use crate::provider::{LLMError, LLMProvider, LLMStream, Result};
@@ -242,106 +241,139 @@ pub struct AnthropicStreamState {
     tool_uses_by_index: HashMap<usize, (String, String)>, // (id, name)
 }
 
-/// Parse a single Anthropic SSE event into an optional LLMChunk.
+/// Parse a single Anthropic SSE event into an optional [`LLMChunk`].
 ///
 /// Returns:
-/// - Ok(Some(chunk)) for text deltas and tool calls
-/// - Ok(None) for non-content events (message_start, etc.)
-/// - Err for parse errors
+/// - `Ok(Some(chunk))` for content-bearing events (text deltas, tool calls, message_stop)
+/// - `Ok(None)` for non-content events (message_start, pings, etc.)
+/// - `Err(_)` for malformed JSON or unexpected shapes
 pub fn parse_anthropic_sse_event(
     state: &mut AnthropicStreamState,
     event_type: &str,
     data: &str,
 ) -> Result<Option<LLMChunk>> {
-    if data.is_empty() {
-        return Ok(None);
-    }
-
-    let event: AnthropicSSEEvent =
-        serde_json::from_str(data).map_err(|e| LLMError::Stream(format!("Parse error: {}", e)))?;
-
     match event_type {
+        "ping" | "message_start" | "message_delta" => Ok(None),
+        "message_stop" => Ok(Some(LLMChunk::Done)),
+        "error" => Err(LLMError::Api(format!("Anthropic error event: {data}"))),
         "content_block_start" => {
-            if let Some(content_block) = event.content_block {
-                if content_block.type_field == "tool_use" {
-                    let id = content_block.id.unwrap_or_default();
-                    let name = content_block.name.unwrap_or_default();
-
-                    state
-                        .tool_uses_by_index
-                        .insert(event.index, (id.clone(), name.clone()));
-
-                    return Ok(Some(LLMChunk::ToolCalls(vec![
-                        agent_core::tools::ToolCall {
-                            id,
-                            tool_type: "function".to_string(),
-                            function: agent_core::tools::FunctionCall {
-                                name,
-                                arguments: String::new(),
-                            },
-                        },
-                    ])));
-                }
+            if data.is_empty() {
+                return Ok(None);
             }
-            Ok(None)
+
+            let v: Value = serde_json::from_str(data)?;
+            let Some(index) = v.get("index").and_then(|i| i.as_u64()) else {
+                return Err(LLMError::Stream(format!(
+                    "Anthropic content_block_start missing index: {data}"
+                )));
+            };
+            let Some(content_block) = v.get("content_block") else {
+                return Err(LLMError::Stream(format!(
+                    "Anthropic content_block_start missing content_block: {data}"
+                )));
+            };
+
+            let block_type = content_block
+                .get("type")
+                .and_then(|t| t.as_str())
+                .unwrap_or_default();
+
+            if block_type != "tool_use" {
+                return Ok(None);
+            }
+
+            let Some(id) = content_block.get("id").and_then(|s| s.as_str()) else {
+                return Err(LLMError::Stream(format!(
+                    "Anthropic tool_use content_block missing id: {data}"
+                )));
+            };
+            let Some(name) = content_block.get("name").and_then(|s| s.as_str()) else {
+                return Err(LLMError::Stream(format!(
+                    "Anthropic tool_use content_block missing name: {data}"
+                )));
+            };
+
+            let index = index as usize;
+            state
+                .tool_uses_by_index
+                .insert(index, (id.to_string(), name.to_string()));
+
+            Ok(Some(LLMChunk::ToolCalls(vec![agent_core::tools::ToolCall {
+                id: id.to_string(),
+                tool_type: "function".to_string(),
+                function: agent_core::tools::FunctionCall {
+                    name: name.to_string(),
+                    arguments: String::new(),
+                },
+            }])))
         }
         "content_block_delta" => {
-            if let Some(delta) = event.delta {
-                match delta.type_field.as_str() {
-                    "text_delta" => {
-                        if let Some(text) = delta.text {
-                            return Ok(Some(LLMChunk::Token(text)));
-                        }
-                    }
-                    "input_json_delta" => {
-                        if let Some(partial_json) = delta.partial_json {
-                            if let Some((id, name)) = state.tool_uses_by_index.get(&event.index) {
-                                return Ok(Some(LLMChunk::ToolCalls(vec![
-                                    agent_core::tools::ToolCall {
-                                        id: id.clone(),
-                                        tool_type: "function".to_string(),
-                                        function: agent_core::tools::FunctionCall {
-                                            name: name.clone(),
-                                            arguments: partial_json,
-                                        },
-                                    },
-                                ])));
-                            }
-                        }
-                    }
-                    _ => {}
+            if data.is_empty() {
+                return Ok(None);
+            }
+
+            let v: Value = serde_json::from_str(data)?;
+            let Some(delta) = v.get("delta") else {
+                return Ok(None);
+            };
+
+            let delta_type = delta
+                .get("type")
+                .and_then(|t| t.as_str())
+                .unwrap_or_default();
+
+            match delta_type {
+                "text_delta" => {
+                    let text = delta
+                        .get("text")
+                        .and_then(|t| t.as_str())
+                        .unwrap_or_default();
+                    Ok(Some(LLMChunk::Token(text.to_string())))
                 }
+                "input_json_delta" => {
+                    let Some(index) = v.get("index").and_then(|i| i.as_u64()) else {
+                        return Err(LLMError::Stream(format!(
+                            "Anthropic input_json_delta missing index: {data}"
+                        )));
+                    };
+                    let partial = delta
+                        .get("partial_json")
+                        .and_then(|p| p.as_str())
+                        .unwrap_or_default();
+
+                    let index = index as usize;
+                    let Some((id, name)) = state.tool_uses_by_index.get(&index) else {
+                        return Err(LLMError::Stream(format!(
+                            "Anthropic input_json_delta for unknown tool_use index {index}: {data}"
+                        )));
+                    };
+
+                    Ok(Some(LLMChunk::ToolCalls(vec![agent_core::tools::ToolCall {
+                        id: id.clone(),
+                        tool_type: "function".to_string(),
+                        function: agent_core::tools::FunctionCall {
+                            name: name.clone(),
+                            arguments: partial.to_string(),
+                        },
+                    }])))
+                }
+                _ => Ok(None),
+            }
+        }
+        "content_block_stop" => {
+            // Keep memory bounded: once a content block is complete, we don't need its id/name.
+            if data.is_empty() {
+                return Ok(None);
+            }
+
+            let v: Value = serde_json::from_str(data)?;
+            if let Some(index) = v.get("index").and_then(|i| i.as_u64()) {
+                state.tool_uses_by_index.remove(&(index as usize));
             }
             Ok(None)
         }
         _ => Ok(None),
     }
-}
-
-/// Anthropic SSE event structure (flexible for different event types)
-#[derive(Debug, Deserialize)]
-struct AnthropicSSEEvent {
-    #[serde(rename = "type")]
-    type_field: Option<String>,
-    index: usize,
-    content_block: Option<AnthropicContentBlock>,
-    delta: Option<AnthropicDelta>,
-}
-
-#[derive(Debug, Deserialize)]
-struct AnthropicContentBlock {
-    #[serde(rename = "type")]
-    type_field: String,
-    id: Option<String>,
-    name: Option<String>,
-}
-
-#[derive(Debug, Deserialize)]
-struct AnthropicDelta {
-    #[serde(rename = "type")]
-    type_field: String,
-    text: Option<String>,
-    partial_json: Option<String>,
 }
 
 #[cfg(test)]
@@ -406,6 +438,31 @@ mod anthropic_stream_parse {
     use crate::types::LLMChunk;
 
     #[test]
+    fn message_start_is_ignored() {
+        let mut state = super::AnthropicStreamState::default();
+        let data = r#"{"type":"message_start","message":{"id":"msg_1","type":"message","role":"assistant","content":[]}}"#;
+
+        let chunk = super::parse_anthropic_sse_event(&mut state, "message_start", data).unwrap();
+
+        assert!(chunk.is_none());
+    }
+
+    #[test]
+    fn message_stop_yields_done() {
+        let mut state = super::AnthropicStreamState::default();
+        let data = r#"{"type":"message_stop"}"#;
+
+        let chunk = super::parse_anthropic_sse_event(&mut state, "message_stop", data)
+            .unwrap()
+            .expect("chunk");
+
+        match chunk {
+            LLMChunk::Done => {}
+            other => panic!("expected LLMChunk::Done, got {other:?}"),
+        }
+    }
+
+    #[test]
     fn text_delta_yields_token() {
         let mut state = super::AnthropicStreamState::default();
         let data = r#"{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"Hello"}}"#;
@@ -468,5 +525,229 @@ mod anthropic_stream_parse {
             }
             other => panic!("expected LLMChunk::ToolCalls, got {other:?}"),
         }
+    }
+
+    #[test]
+    fn empty_data_returns_none() {
+        let mut state = super::AnthropicStreamState::default();
+        let chunk = super::parse_anthropic_sse_event(&mut state, "", "").unwrap();
+        assert!(chunk.is_none());
+    }
+
+    #[test]
+    fn invalid_json_returns_error() {
+        let mut state = super::AnthropicStreamState::default();
+        let result = super::parse_anthropic_sse_event(&mut state, "content_block_delta", "{invalid}");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn unknown_event_type_returns_none() {
+        let mut state = super::AnthropicStreamState::default();
+        let data = r#"{"type":"unknown_event"}"#;
+        let chunk = super::parse_anthropic_sse_event(&mut state, "unknown_event", data).unwrap();
+        assert!(chunk.is_none());
+    }
+
+    #[test]
+    fn text_delta_with_empty_text_returns_empty_token() {
+        let mut state = super::AnthropicStreamState::default();
+        let data = r#"{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":""}}"#;
+
+        let chunk = super::parse_anthropic_sse_event(&mut state, "content_block_delta", data)
+            .unwrap()
+            .expect("chunk");
+
+        match chunk {
+            LLMChunk::Token(token) => assert!(token.is_empty()),
+            other => panic!("expected LLMChunk::Token, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn multiple_tool_uses_tracked_independently() {
+        let mut state = super::AnthropicStreamState::default();
+
+        // First tool
+        let start1 = r#"{"type":"content_block_start","index":0,"content_block":{"type":"tool_use","id":"toolu_1","name":"search","input":{}}}"#;
+        let chunk1 = super::parse_anthropic_sse_event(&mut state, "content_block_start", start1)
+            .unwrap()
+            .expect("chunk1");
+
+        match chunk1 {
+            LLMChunk::ToolCalls(calls) => {
+                assert_eq!(calls[0].id, "toolu_1");
+                assert_eq!(calls[0].function.name, "search");
+            }
+            other => panic!("expected LLMChunk::ToolCalls, got {other:?}"),
+        }
+
+        // Second tool
+        let start2 = r#"{"type":"content_block_start","index":1,"content_block":{"type":"tool_use","id":"toolu_2","name":"read","input":{}}}"#;
+        let chunk2 = super::parse_anthropic_sse_event(&mut state, "content_block_start", start2)
+            .unwrap()
+            .expect("chunk2");
+
+        match chunk2 {
+            LLMChunk::ToolCalls(calls) => {
+                assert_eq!(calls[0].id, "toolu_2");
+                assert_eq!(calls[0].function.name, "read");
+            }
+            other => panic!("expected LLMChunk::ToolCalls, got {other:?}"),
+        }
+
+        // Delta for first tool
+        let delta1 = r#"{"type":"content_block_delta","index":0,"delta":{"type":"input_json_delta","partial_json":"{\"q\":\"test\"}"}}"#;
+        let chunk3 = super::parse_anthropic_sse_event(&mut state, "content_block_delta", delta1)
+            .unwrap()
+            .expect("chunk3");
+
+        match chunk3 {
+            LLMChunk::ToolCalls(calls) => {
+                assert_eq!(calls[0].id, "toolu_1");
+                assert_eq!(calls[0].function.name, "search");
+                assert_eq!(calls[0].function.arguments, r#"{"q":"test"}"#);
+            }
+            other => panic!("expected LLMChunk::ToolCalls, got {other:?}"),
+        }
+
+        // Delta for second tool
+        let delta2 = r#"{"type":"content_block_delta","index":1,"delta":{"type":"input_json_delta","partial_json":"{\"file\":\"test.txt\"}"}}"#;
+        let chunk4 = super::parse_anthropic_sse_event(&mut state, "content_block_delta", delta2)
+            .unwrap()
+            .expect("chunk4");
+
+        match chunk4 {
+            LLMChunk::ToolCalls(calls) => {
+                assert_eq!(calls[0].id, "toolu_2");
+                assert_eq!(calls[0].function.name, "read");
+                assert_eq!(calls[0].function.arguments, r#"{"file":"test.txt"}"#);
+            }
+            other => panic!("expected LLMChunk::ToolCalls, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn content_block_start_without_tool_use_returns_none() {
+        let mut state = super::AnthropicStreamState::default();
+        let data = r#"{"type":"content_block_start","index":0,"content_block":{"type":"text","text":"Hello"}}"#;
+
+        let chunk = super::parse_anthropic_sse_event(&mut state, "content_block_start", data).unwrap();
+        assert!(chunk.is_none());
+    }
+
+    #[test]
+    fn input_json_delta_without_prior_tool_start_returns_error() {
+        let mut state = super::AnthropicStreamState::default();
+        let data = r#"{"type":"content_block_delta","index":0,"delta":{"type":"input_json_delta","partial_json":"{\"q\":\"test\"}"}}"#;
+
+        let result = super::parse_anthropic_sse_event(&mut state, "content_block_delta", data);
+        // Should return an error because there's no prior tool_use start for index 0
+        assert!(result.is_err());
+    }
+}
+
+#[cfg(test)]
+mod anthropic_request_building_edge_cases {
+    use agent_core::Message;
+
+    #[test]
+    fn empty_messages_list() {
+        let messages: Vec<Message> = vec![];
+        let out = super::build_anthropic_request(&messages, &[], "claude-test", 64, false);
+
+        assert!(out["system"].is_null());
+        assert_eq!(out["messages"].as_array().unwrap().len(), 0);
+    }
+
+    #[test]
+    fn only_system_messages() {
+        let messages = vec![Message::system("Be helpful")];
+        let out = super::build_anthropic_request(&messages, &[], "claude-test", 64, false);
+
+        assert_eq!(out["system"], "Be helpful");
+        assert_eq!(out["messages"].as_array().unwrap().len(), 0);
+    }
+
+    #[test]
+    fn multiple_system_messages_joined() {
+        let messages = vec![
+            Message::system("Be helpful"),
+            Message::system("Be concise"),
+            Message::system("Be safe"),
+        ];
+        let out = super::build_anthropic_request(&messages, &[], "claude-test", 64, false);
+
+        assert_eq!(out["system"], "Be helpful\n\nBe concise\n\nBe safe");
+    }
+
+    #[test]
+    fn assistant_message_with_both_content_and_tool_calls() {
+        use agent_core::tools::{FunctionCall, ToolCall};
+
+        let tool_call = ToolCall {
+            id: "call_1".to_string(),
+            tool_type: "function".to_string(),
+            function: FunctionCall {
+                name: "search".to_string(),
+                arguments: r#"{"q":"test"}"#.to_string(),
+            },
+        };
+
+        let messages = vec![Message::assistant("Let me search for that.", Some(vec![tool_call]))];
+        let out = super::build_anthropic_request(&messages, &[], "claude-test", 64, false);
+
+        assert_eq!(out["messages"][0]["role"], "assistant");
+        assert_eq!(out["messages"][0]["content"].as_array().unwrap().len(), 2);
+        assert_eq!(out["messages"][0]["content"][0]["type"], "text");
+        assert_eq!(out["messages"][0]["content"][0]["text"], "Let me search for that.");
+        assert_eq!(out["messages"][0]["content"][1]["type"], "tool_use");
+    }
+
+    #[test]
+    fn tool_call_with_invalid_json_arguments_falls_back_to_string() {
+        use agent_core::tools::{FunctionCall, ToolCall};
+
+        let tool_call = ToolCall {
+            id: "call_1".to_string(),
+            tool_type: "function".to_string(),
+            function: FunctionCall {
+                name: "search".to_string(),
+                arguments: "not valid json".to_string(),
+            },
+        };
+
+        let messages = vec![Message::assistant("", Some(vec![tool_call]))];
+        let out = super::build_anthropic_request(&messages, &[], "claude-test", 64, false);
+
+        // Invalid JSON should be kept as a string
+        assert_eq!(out["messages"][0]["content"][0]["input"], "not valid json");
+    }
+
+    #[test]
+    fn stream_parameter_set_correctly() {
+        let messages = vec![Message::user("Hello")];
+
+        let out_stream_true = super::build_anthropic_request(&messages, &[], "claude-test", 64, true);
+        assert_eq!(out_stream_true["stream"], true);
+
+        let out_stream_false = super::build_anthropic_request(&messages, &[], "claude-test", 64, false);
+        assert_eq!(out_stream_false["stream"], false);
+    }
+
+    #[test]
+    fn max_tokens_included_in_request() {
+        let messages = vec![Message::user("Hello")];
+        let out = super::build_anthropic_request(&messages, &[], "claude-test", 2048, false);
+
+        assert_eq!(out["max_tokens"], 2048);
+    }
+
+    #[test]
+    fn model_included_in_request() {
+        let messages = vec![Message::user("Hello")];
+        let out = super::build_anthropic_request(&messages, &[], "claude-3-opus-20240229", 64, false);
+
+        assert_eq!(out["model"], "claude-3-opus-20240229");
     }
 }

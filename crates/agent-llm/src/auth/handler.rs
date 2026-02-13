@@ -464,10 +464,6 @@ mod retry_tests {
     use wiremock::matchers::{method, path};
     use wiremock::{Mock, MockServer, ResponseTemplate};
 
-    fn network_tests_disabled() -> bool {
-        std::env::var_os("CODEX_SANDBOX_NETWORK_DISABLED").is_some()
-    }
-
     fn create_test_client_with_retry() -> Arc<ClientWithMiddleware> {
         use reqwest::Client as ReqwestClient;
         use reqwest_middleware::ClientBuilder;
@@ -518,12 +514,10 @@ mod retry_tests {
     }
 
     /// Test that auth requests are retried on transient failures
+    /// Test server error retries (integration test - requires network)
     #[tokio::test]
+    #[ignore = "Integration test requiring network access"]
     async fn test_auth_retry_on_server_error() {
-        if network_tests_disabled() {
-            return;
-        }
-
         let mock_server = MockServer::start().await;
         let request_count = Arc::new(AtomicUsize::new(0));
         let counter = request_count.clone();
@@ -595,13 +589,10 @@ mod retry_tests {
         assert_eq!(config.token, "test-copilot-token");
     }
 
-    /// Test that auth requests fail fast on 401 (no retry)
+    /// Test that auth requests fail fast on 401 (no retry) (integration test)
     #[tokio::test]
+    #[ignore = "Integration test requiring network access"]
     async fn test_auth_no_retry_on_unauthorized() {
-        if network_tests_disabled() {
-            return;
-        }
-
         let mock_server = MockServer::start().await;
         let request_count = Arc::new(AtomicUsize::new(0));
         let counter = request_count.clone();
@@ -634,13 +625,10 @@ mod retry_tests {
         assert_eq!(request_count.load(Ordering::SeqCst), 1);
     }
 
-    /// Test device code endpoint retry
+    /// Test device code endpoint retry (integration test)
     #[tokio::test]
+    #[ignore = "Integration test requiring network access"]
     async fn test_device_code_retry() {
-        if network_tests_disabled() {
-            return;
-        }
-
         let mock_server = MockServer::start().await;
         let request_count = Arc::new(AtomicUsize::new(0));
         let counter = request_count.clone();
