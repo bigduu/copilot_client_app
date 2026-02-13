@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use std::path::Path;
 use tauri::AppHandle;
 
-use crate::bamboo_settings::keyword_masking_json_path;
+use crate::app_settings::keyword_masking_json_path;
 
 /// Response for keyword masking configuration
 #[derive(Debug, Serialize, Deserialize)]

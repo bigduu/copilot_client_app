@@ -60,7 +60,7 @@ pub fn save_proxy_auth_to_config(proxy_type: &str, auth: &ProxyAuthInput) -> Res
         return Ok(());
     }
 
-    use crate::bamboo_settings::config_json_path;
+    use crate::app_settings::config_json_path;
     use chat_core::ProxyAuth;
 
     let config_path = config_json_path();
