@@ -49,16 +49,8 @@ mod tests {
     use wiremock::matchers::{method, path};
     use wiremock::{Mock, MockServer, ResponseTemplate};
 
-    fn network_tests_disabled() -> bool {
-        std::env::var_os("CODEX_SANDBOX_NETWORK_DISABLED").is_some()
-    }
-
     #[tokio::test]
     async fn llm_stream_from_sse_filters_none_and_passes_event_name_and_data() {
-        if network_tests_disabled() {
-            return;
-        }
-
         let mock_server = MockServer::start().await;
 
         let sse_body = concat!(
@@ -107,10 +99,6 @@ mod tests {
 
     #[tokio::test]
     async fn llm_stream_from_sse_maps_handler_errors_to_stream_error() {
-        if network_tests_disabled() {
-            return;
-        }
-
         let mock_server = MockServer::start().await;
 
         let sse_body = concat!("event: token\n", "data: boom\n", "\n");
