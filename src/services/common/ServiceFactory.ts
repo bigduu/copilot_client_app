@@ -23,6 +23,16 @@ export interface UtilityService {
   setProxyAuth(auth: { username: string; password: string }): Promise<any>;
 
   /**
+   * Get proxy auth status (returns whether proxy auth is configured, without password)
+   */
+  getProxyAuthStatus(): Promise<{ configured: boolean; username: string | null }>;
+
+  /**
+   * Clear proxy auth credentials
+   */
+  clearProxyAuth(): Promise<any>;
+
+  /**
    * Get Anthropic model mapping
    */
   getAnthropicModelMapping(): Promise<any>;
@@ -64,6 +74,19 @@ class HttpUtilityService implements Partial<UtilityService> {
 
   async setProxyAuth(auth: { username: string; password: string }): Promise<any> {
     return apiClient.post("bamboo/proxy-auth", auth);
+  }
+
+  async getProxyAuthStatus(): Promise<{ configured: boolean; username: string | null }> {
+    try {
+      return await apiClient.get("bamboo/proxy-auth/status");
+    } catch (error) {
+      console.error("Failed to fetch proxy auth status:", error);
+      return { configured: false, username: null };
+    }
+  }
+
+  async clearProxyAuth(): Promise<any> {
+    return apiClient.post("bamboo/proxy-auth", { username: "", password: "" });
   }
 
   async getAnthropicModelMapping(): Promise<any> {
@@ -147,6 +170,8 @@ export class ServiceFactory {
         this.httpUtilityService.setBambooConfig(config),
       setProxyAuth: (auth: { username: string; password: string }) =>
         this.httpUtilityService.setProxyAuth(auth),
+      getProxyAuthStatus: () => this.httpUtilityService.getProxyAuthStatus(),
+      clearProxyAuth: () => this.httpUtilityService.clearProxyAuth(),
       getAnthropicModelMapping: () => this.httpUtilityService.getAnthropicModelMapping(),
       setAnthropicModelMapping: (mapping: any) => this.httpUtilityService.setAnthropicModelMapping(mapping),
       resetBambooConfig: () => this.httpUtilityService.resetBambooConfig(),
@@ -169,6 +194,14 @@ export class ServiceFactory {
 
   async setProxyAuth(auth: { username: string; password: string }): Promise<any> {
     return this.getUtilityService().setProxyAuth(auth);
+  }
+
+  async getProxyAuthStatus(): Promise<{ configured: boolean; username: string | null }> {
+    return this.getUtilityService().getProxyAuthStatus();
+  }
+
+  async clearProxyAuth(): Promise<any> {
+    return this.getUtilityService().clearProxyAuth();
   }
 
   async getAnthropicModelMapping(): Promise<any> {

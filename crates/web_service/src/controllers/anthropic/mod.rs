@@ -6,6 +6,7 @@ use agent_llm::api::models::{
     ContentPart, FunctionCall, ImageUrl, Role, StreamToolCall, Tool, ToolCall, ToolChoice, Usage,
 };
 use agent_llm::ProxyAuthRequiredError;
+use agent_server::state::AppState as AgentAppState;
 use async_stream::stream;
 use bytes::Bytes;
 use serde::{Deserialize, Serialize};
@@ -187,6 +188,7 @@ struct AnthropicErrorDetail {
 #[post("/messages")]
 pub async fn messages(
     app_state: web::Data<AppState>,
+    _agent_state: web::Data<AgentAppState>,
     req: web::Json<AnthropicMessagesRequest>,
 ) -> Result<HttpResponse, AppError> {
     let stream = req.stream.unwrap_or(false);
@@ -195,14 +197,30 @@ pub async fn messages(
 
     let resolution = match resolve_model(&response_model).await {
         Ok(resolution) => resolution,
-        Err(err) => return Ok(anthropic_error_response(err)),
+        Err(err) => {
+            return Ok(anthropic_error_response(err));
+        }
     };
 
     let mut openai_request = match convert_messages_request(request) {
         Ok(request) => request,
-        Err(err) => return Ok(anthropic_error_response(err)),
+        Err(err) => {
+            let err_msg = format!("Failed to convert request: {}", err.message);
+            return Ok(anthropic_error_response(AnthropicError::new(
+                StatusCode::BAD_REQUEST,
+                "invalid_request",
+                err_msg,
+            )));
+        }
     };
     openai_request.model = resolution.mapped_model.clone();
+
+    // Enable usage tracking for streaming requests
+    if stream {
+        openai_request.stream_options = Some(agent_llm::api::models::StreamOptions {
+            include_usage: true,
+        });
+    }
 
     if stream {
         let (tx, rx) = mpsc::channel(10);
@@ -220,16 +238,18 @@ pub async fn messages(
             }
         };
 
+        let status = response.status().as_u16();
+
         if !response.status().is_success() {
-            let status = response.status();
             let body = response.text().await.unwrap_or_default();
             return Ok(anthropic_error_response(AnthropicError::new(
-                to_actix_status(status.as_u16()),
+                to_actix_status(status),
                 "api_error",
                 format!("Upstream API error. Status: {}, Body: {}", status, body),
             )));
         }
 
+        // Spawn a task to handle the streaming response
         tokio::spawn(async move {
             if let Err(e) = client.process_chat_completion_stream(response, tx).await {
                 log::error!("Failed to process stream: {}", e);
@@ -314,6 +334,7 @@ pub async fn messages(
         };
 
         let status = response.status();
+        let status_code = status.as_u16();
         let body = match response.bytes().await {
             Ok(body) => body,
             Err(err) => {
@@ -327,7 +348,7 @@ pub async fn messages(
 
         if !status.is_success() {
             return Ok(anthropic_error_response(AnthropicError::new(
-                to_actix_status(status.as_u16()),
+                to_actix_status(status_code),
                 "api_error",
                 format!(
                     "Upstream API error. Status: {}, Body: {}",
@@ -340,17 +361,20 @@ pub async fn messages(
         let completion = match serde_json::from_slice::<ChatCompletionResponse>(&body) {
             Ok(value) => value,
             Err(err) => {
+                let err_msg = format!("Failed to parse response: {}", err);
                 return Ok(anthropic_error_response(AnthropicError::new(
                     StatusCode::BAD_GATEWAY,
                     "api_error",
-                    format!("Failed to parse response: {}", err),
+                    err_msg,
                 )))
             }
         };
 
         let response = match convert_messages_response(completion, &resolution.response_model) {
             Ok(value) => value,
-            Err(err) => return Ok(anthropic_error_response(err)),
+            Err(err) => {
+                return Ok(anthropic_error_response(err));
+            }
         };
 
         Ok(HttpResponse::Ok().json(response))
@@ -360,6 +384,7 @@ pub async fn messages(
 #[post("/complete")]
 pub async fn complete(
     app_state: web::Data<AppState>,
+    _agent_state: web::Data<AgentAppState>,
     req: web::Json<AnthropicCompleteRequest>,
 ) -> Result<HttpResponse, AppError> {
     let stream = req.stream.unwrap_or(false);
@@ -368,14 +393,30 @@ pub async fn complete(
 
     let resolution = match resolve_model(&response_model).await {
         Ok(resolution) => resolution,
-        Err(err) => return Ok(anthropic_error_response(err)),
+        Err(err) => {
+            return Ok(anthropic_error_response(err));
+        }
     };
 
     let mut openai_request = match convert_complete_request(request) {
         Ok(request) => request,
-        Err(err) => return Ok(anthropic_error_response(err)),
+        Err(err) => {
+            let err_msg = format!("Failed to convert request: {}", err.message);
+            return Ok(anthropic_error_response(AnthropicError::new(
+                StatusCode::BAD_REQUEST,
+                "invalid_request",
+                err_msg,
+            )));
+        }
     };
     openai_request.model = resolution.mapped_model.clone();
+
+    // Enable usage tracking for streaming requests
+    if stream {
+        openai_request.stream_options = Some(agent_llm::api::models::StreamOptions {
+            include_usage: true,
+        });
+    }
 
     if stream {
         let (tx, rx) = mpsc::channel(10);
@@ -393,16 +434,18 @@ pub async fn complete(
             }
         };
 
+        let status = response.status().as_u16();
+
         if !response.status().is_success() {
-            let status = response.status();
             let body = response.text().await.unwrap_or_default();
             return Ok(anthropic_error_response(AnthropicError::new(
-                to_actix_status(status.as_u16()),
+                to_actix_status(status),
                 "api_error",
                 format!("Upstream API error. Status: {}, Body: {}", status, body),
             )));
         }
 
+        // Spawn a task to handle the streaming response
         tokio::spawn(async move {
             if let Err(e) = client.process_chat_completion_stream(response, tx).await {
                 log::error!("Failed to process stream: {}", e);
@@ -476,6 +519,7 @@ pub async fn complete(
         };
 
         let status = response.status();
+        let status_code = status.as_u16();
         let body = match response.bytes().await {
             Ok(body) => body,
             Err(err) => {
@@ -489,7 +533,7 @@ pub async fn complete(
 
         if !status.is_success() {
             return Ok(anthropic_error_response(AnthropicError::new(
-                to_actix_status(status.as_u16()),
+                to_actix_status(status_code),
                 "api_error",
                 format!(
                     "Upstream API error. Status: {}, Body: {}",
@@ -502,17 +546,20 @@ pub async fn complete(
         let completion = match serde_json::from_slice::<ChatCompletionResponse>(&body) {
             Ok(value) => value,
             Err(err) => {
+                let err_msg = format!("Failed to parse response: {}", err);
                 return Ok(anthropic_error_response(AnthropicError::new(
                     StatusCode::BAD_GATEWAY,
                     "api_error",
-                    format!("Failed to parse response: {}", err),
+                    err_msg,
                 )))
             }
         };
 
         let response = match convert_complete_response(completion, &resolution.response_model) {
             Ok(value) => value,
-            Err(err) => return Ok(anthropic_error_response(err)),
+            Err(err) => {
+                return Ok(anthropic_error_response(err));
+            }
         };
 
         Ok(HttpResponse::Ok().json(response))
@@ -819,6 +866,7 @@ fn convert_messages_request(
         tools,
         tool_choice,
         stream: request.stream,
+        stream_options: None, // Will be set by the handler if needed
         parameters,
     })
 }
@@ -1187,6 +1235,7 @@ fn convert_complete_request(
         tools: None,
         tool_choice: None,
         stream: request.stream,
+        stream_options: None,
         parameters,
     })
 }

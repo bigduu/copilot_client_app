@@ -2,18 +2,18 @@
 
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
-**Goal:** Replace the SQLite app settings store with JSON files under `~/.bodhi`, update Tauri commands and the copilot client to read/write JSON, and add keyword masking UI helpers.
+**Goal:** Replace the SQLite app settings store with JSON files under `~/.bamboo`, update Tauri commands and the copilot client to read/write JSON, and add keyword masking UI helpers.
 
-**Architecture:** Introduce JSON read/write helpers for `~/.bodhi/config.json` and `~/.bodhi/keyword_masking.json`. Tauri commands and `claude_binary` will call these helpers instead of SQLite; the copilot client will load masking config from the new JSON file. UI enhancements live in the settings tab and do not change backend APIs.
+**Architecture:** Introduce JSON read/write helpers for `~/.bamboo/config.json` and `~/.bamboo/keyword_masking.json`. Tauri commands and `claude_binary` will call these helpers instead of SQLite; the copilot client will load masking config from the new JSON file. UI enhancements live in the settings tab and do not change backend APIs.
 
 **Tech Stack:** Rust (Tauri, serde_json), TypeScript/React (Ant Design), Vitest.
 
-### Task 1: Add Bodhi JSON settings helpers
+### Task 1: Add Bamboo JSON settings helpers
 
 **Files:**
-- Create: `src-tauri/src/bodhi_settings.rs`
+- Create: `src-tauri/src/bamboo_settings.rs`
 - Modify: `src-tauri/src/lib.rs`
-- Test: `src-tauri/src/bodhi_settings.rs`
+- Test: `src-tauri/src/bamboo_settings.rs`
 
 **Step 1: Write the failing test**
 
@@ -36,7 +36,7 @@ fn updates_claude_settings_without_clobbering() {
 
 **Step 2: Run test to verify it fails**
 
-Run: `cargo test --package copilot_chat bodhi_settings::updates_claude_settings_without_clobbering`
+Run: `cargo test --package copilot_chat bamboo_settings::updates_claude_settings_without_clobbering`
 Expected: FAIL with missing module or function.
 
 **Step 3: Write minimal implementation**
@@ -81,14 +81,14 @@ pub fn update_claude_config(
 
 **Step 4: Run test to verify it passes**
 
-Run: `cargo test --package copilot_chat bodhi_settings::updates_claude_settings_without_clobbering`
+Run: `cargo test --package copilot_chat bamboo_settings::updates_claude_settings_without_clobbering`
 Expected: PASS
 
 **Step 5: Commit**
 
 ```bash
-git add src-tauri/src/bodhi_settings.rs src-tauri/src/lib.rs
-git commit -m "feat: add bodhi settings json helpers"
+git add src-tauri/src/bamboo_settings.rs src-tauri/src/lib.rs
+git commit -m "feat: add bamboo settings json helpers"
 ```
 
 ### Task 2: Switch Claude binary settings to JSON
@@ -141,7 +141,7 @@ Expected: PASS
 
 ```bash
 git add src-tauri/src/claude_binary.rs src-tauri/src/command/claude_code.rs
- git commit -m "feat: read claude binary settings from bodhi config"
+ git commit -m "feat: read claude binary settings from bamboo config"
 ```
 
 ### Task 3: Switch keyword masking storage to JSON
@@ -189,7 +189,7 @@ pub fn save_keyword_masking_config(path: &Path, config: &KeywordMaskingConfig) -
 }
 ```
 
-Update the Tauri commands to use these helpers and `~/.bodhi/keyword_masking.json`, and update the copilot client to load from the same path, falling back to default on errors.
+Update the Tauri commands to use these helpers and `~/.bamboo/keyword_masking.json`, and update the copilot client to load from the same path, falling back to default on errors.
 
 **Step 4: Run test to verify it passes**
 

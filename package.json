@@ -50,6 +50,7 @@
     "@tauri-apps/api": "^2.5.0",
     "@tauri-apps/cli": "^2",
     "@testing-library/dom": "^10.4.1",
+    "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.0",
     "@types/json-stream": "^1.0.3",
     "@types/lodash-es": "^4.17.12",

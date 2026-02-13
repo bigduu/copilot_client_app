@@ -1,6 +1,12 @@
 export { MetricsService, metricsService } from "./MetricsService";
 export type {
+  CombinedSummary,
   DailyMetrics,
+  ForwardEndpointMetrics,
+  ForwardMetricsQuery,
+  ForwardMetricsSummary,
+  ForwardRequestMetrics,
+  ForwardStatus,
   MetricsDailyQuery,
   MetricsDateRange,
   MetricsGranularity,
@@ -15,4 +21,6 @@ export type {
   SessionStatus,
   TokenUsage,
   ToolCallMetrics,
+  UnifiedSummary,
+  UnifiedTimelinePoint,
 } from "./types";

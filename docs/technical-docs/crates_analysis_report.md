@@ -1,8 +1,8 @@
-# Bodhi Project Large File Code Quality Analysis Report
+# Bamboo Project Large File Code Quality Analysis Report
 
 ## Overview
 
-This report analyzes architectural issues in three key large files of the Bodhi project, focusing on Single Responsibility Principle (SRP) violations, module splitting opportunities, and common logic extraction.
+This report analyzes architectural issues in three key large files of the Bamboo project, focusing on Single Responsibility Principle (SRP) violations, module splitting opportunities, and common logic extraction.
 
 ---
 
@@ -124,7 +124,7 @@ Current code directly depends on global state; should use dependency injection:
 ```rust
 // Current approach
 pub async fn create_project(app: AppHandle, name: String, path: String) -> Result<Project> {
-    let projects_dir = bodhi_dir(app).join("projects");
+    let projects_dir = bamboo_dir(app).join("projects");
     // ...
 }
 

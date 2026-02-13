@@ -12,7 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Spotlight search functionality (Cmd+Shift+Space) for quick actions
 - Comprehensive documentation reorganization and cleanup
 - **Skill System v2: Folder-based skill storage with embedded resources**
-  - Skills now stored as folders (`~/.bodhi/skills/<skill-name>/SKILL.md`) instead of single files
+  - Skills now stored as folders (`~/.bamboo/skills/<skill-name>/SKILL.md`) instead of single files
   - Support for skill resources: scripts, references, and assets within skill folders
   - Recursive skill discovery - skills can be organized in subdirectories
   - Built-in `skill-creator` skill with embedded Python scripts for skill initialization and validation
@@ -45,7 +45,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Environment variable propagation for local base URL
 - TodoList SSE reconnection loop causing "Stream started" log spam every 5 seconds
 - QuestionDialog aggressive polling reduced with adaptive intervals and auto-stop
-- Deleting chat/session now properly removes backend session files (`~/.bodhi/*.json` and `*.jsonl`)
+- Deleting chat/session now properly removes backend session files (`~/.bamboo/*.json` and `*.jsonl`)
 - Proxy configuration no longer auto-populates from `HTTP_PROXY`/`HTTPS_PROXY` environment variables; settings now persist correctly when cleared
 - **Skill file validation now correctly matches directory name with skill ID**
 
@@ -84,7 +84,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.1.0] - 2025-08-01
 
 ### Added
-- Initial release of Bodhi - GitHub Copilot Chat Desktop
+- Initial release of Bamboo - GitHub Copilot Chat Desktop
 - React 18 + TypeScript frontend with Ant Design 5
 - Tauri + Rust backend architecture
 - Basic chat interface with streaming responses

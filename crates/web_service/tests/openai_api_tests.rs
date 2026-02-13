@@ -231,6 +231,7 @@ async fn test_chat_completions_streaming() {
                 },
                 finish_reason: None,
             }],
+            usage: None,
         },
         ChatCompletionStreamChunk {
             id: "chatcmpl-123".to_string(),
@@ -246,6 +247,7 @@ async fn test_chat_completions_streaming() {
                 },
                 finish_reason: None,
             }],
+            usage: None,
         },
         ChatCompletionStreamChunk {
             id: String::from("chatcmpl-123"),
@@ -261,6 +263,7 @@ async fn test_chat_completions_streaming() {
                 },
                 finish_reason: None,
             }],
+            usage: None,
         },
         ChatCompletionStreamChunk {
             id: "chatcmpl-123".to_string(),
@@ -276,6 +279,7 @@ async fn test_chat_completions_streaming() {
                 },
                 finish_reason: Some("stop".to_string()),
             }],
+            usage: None,
         },
     ];
 

@@ -20,9 +20,18 @@ pub struct ChatCompletionRequest {
     /// Whether to stream the response.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub stream: Option<bool>,
+    /// Options for streaming response. Set `include_usage: true` to receive usage information.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub stream_options: Option<StreamOptions>,
     /// Additional parameters like temperature, top_p, etc.
     #[serde(flatten)]
     pub parameters: HashMap<String, serde_json::Value>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+pub struct StreamOptions {
+    /// If set to true, the streaming response will include a `usage` field in the final chunk.
+    pub include_usage: bool,
 }
 
 // ========== Message and Content Structures ==========
@@ -171,6 +180,9 @@ pub struct ChatCompletionStreamChunk {
     #[serde(default)]
     pub model: Option<String>,
     pub choices: Vec<StreamChoice>,
+    /// Usage statistics for the request. Only present if `stream_options.include_usage` was set to true.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub usage: Option<Usage>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]

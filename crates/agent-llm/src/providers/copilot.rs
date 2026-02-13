@@ -23,7 +23,7 @@ use agent_core::{tools::FunctionCall, tools::ToolCall, tools::ToolSchema, Messag
 ///
 /// Token sources (in order of priority):
 /// 1. Direct API key via constructor
-/// 2. Cached token (~/.copilot-agent/copilot_token.json)
+/// 2. Cached token (~/.bamboo/copilot_token.json)
 /// 3. Environment variable COPILOT_API_KEY
 /// 4. Interactive device code flow
 pub struct CopilotProvider {

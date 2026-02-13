@@ -2,6 +2,7 @@ use crate::{error::AppError, server::AppState};
 use actix_web::{get, post, web, HttpResponse};
 use agent_llm::api::models::{ChatCompletionRequest, ChatCompletionResponse};
 use agent_llm::ProxyAuthRequiredError;
+use agent_server::state::AppState as AgentAppState;
 use bytes::Bytes;
 use futures_util::StreamExt;
 use serde::{Deserialize, Serialize};
@@ -25,6 +26,7 @@ struct Model {
 
 #[derive(Deserialize)]
 struct CopilotTokenConfig {
+    #[allow(dead_code)]
     token: String,
     expires_at: u64,
     #[allow(dead_code)]
@@ -153,10 +155,18 @@ pub async fn get_models(app_state: web::Data<AppState>) -> Result<HttpResponse, 
 #[post("/chat/completions")]
 pub async fn chat_completions(
     app_state: web::Data<AppState>,
+    _agent_state: web::Data<AgentAppState>,
     req: web::Json<ChatCompletionRequest>,
 ) -> Result<HttpResponse, AppError> {
     let stream = req.stream.unwrap_or(false);
-    let request = req.into_inner();
+    let mut request = req.into_inner();
+
+    // Enable usage tracking for streaming requests
+    if stream {
+        request.stream_options = Some(agent_llm::api::models::StreamOptions {
+            include_usage: true,
+        });
+    }
 
     if stream {
         let (tx, rx) = mpsc::channel(10);
@@ -172,12 +182,13 @@ pub async fn chat_completions(
             }
         };
 
-        if response.status().as_u16() == 407 {
+        let status = response.status().as_u16();
+
+        if status == 407 {
             return Err(AppError::ProxyAuthRequired);
         }
 
         if !response.status().is_success() {
-            let status = response.status();
             let body = response.text().await.unwrap_or_default();
             let error_message = format!("Upstream API error. Status: {}, Body: {}", status, body);
             return Err(AppError::InternalError(anyhow::anyhow!(error_message)));
@@ -218,7 +229,9 @@ pub async fn chat_completions(
         };
 
         let status = response.status();
-        if status.as_u16() == 407 {
+        let status_code = status.as_u16();
+
+        if status_code == 407 {
             return Err(AppError::ProxyAuthRequired);
         }
 

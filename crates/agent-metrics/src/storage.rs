@@ -7,9 +7,10 @@ use rusqlite::{params, params_from_iter, Connection, OptionalExtension};
 use thiserror::Error;
 
 use crate::types::{
-    DailyMetrics, MetricsDateFilter, MetricsSummary, ModelMetrics, RoundMetrics, RoundStatus,
-    SessionDetail, SessionMetrics, SessionMetricsFilter, SessionStatus, TokenUsage,
-    ToolCallMetrics,
+    DailyMetrics, ForwardEndpointMetrics, ForwardMetricsFilter, ForwardMetricsSummary,
+    ForwardRequestMetrics, ForwardStatus, MetricsDateFilter, MetricsSummary, ModelMetrics,
+    RoundMetrics, RoundStatus, SessionDetail, SessionMetrics, SessionMetricsFilter, SessionStatus,
+    TokenUsage, ToolCallMetrics,
 };
 
 pub type MetricsResult<T> = Result<T, MetricsError>;
@@ -95,6 +96,45 @@ pub trait MetricsStorage: Send + Sync {
         tool_call_id: &str,
         completion: ToolCallCompletion,
     ) -> MetricsResult<()>;
+
+    // Forward request metrics methods
+    async fn insert_forward_start(
+        &self,
+        forward_id: &str,
+        endpoint: &str,
+        model: &str,
+        is_stream: bool,
+        started_at: DateTime<Utc>,
+    ) -> MetricsResult<()>;
+
+    async fn complete_forward(
+        &self,
+        forward_id: &str,
+        completed_at: DateTime<Utc>,
+        status_code: Option<u16>,
+        status: ForwardStatus,
+        usage: Option<TokenUsage>,
+        error: Option<String>,
+    ) -> MetricsResult<()>;
+
+    async fn forward_summary(
+        &self,
+        filter: ForwardMetricsFilter,
+    ) -> MetricsResult<ForwardMetricsSummary>;
+    async fn forward_by_endpoint(
+        &self,
+        filter: ForwardMetricsFilter,
+    ) -> MetricsResult<Vec<ForwardEndpointMetrics>>;
+    async fn forward_requests(
+        &self,
+        filter: ForwardMetricsFilter,
+    ) -> MetricsResult<Vec<ForwardRequestMetrics>>;
+
+    async fn forward_daily_metrics(
+        &self,
+        days: u32,
+        end_date: Option<NaiveDate>,
+    ) -> MetricsResult<Vec<DailyMetrics>>;
 
     async fn summary(&self, filter: MetricsDateFilter) -> MetricsResult<MetricsSummary>;
     async fn by_model(&self, filter: MetricsDateFilter) -> MetricsResult<Vec<ModelMetrics>>;
@@ -190,6 +230,26 @@ impl MetricsStorage for SqliteMetricsStorage {
                 CREATE INDEX IF NOT EXISTS idx_tool_session ON tool_call_metrics(session_id);
                 CREATE INDEX IF NOT EXISTS idx_tool_started_at ON tool_call_metrics(started_at);
                 CREATE INDEX IF NOT EXISTS idx_tool_name ON tool_call_metrics(tool_name);
+
+                CREATE TABLE IF NOT EXISTS forward_request_metrics (
+                    forward_id TEXT PRIMARY KEY,
+                    endpoint TEXT NOT NULL,
+                    model TEXT NOT NULL,
+                    is_stream INTEGER NOT NULL,
+                    started_at TEXT NOT NULL,
+                    completed_at TEXT,
+                    status_code INTEGER,
+                    status TEXT,
+                    prompt_tokens INTEGER,
+                    completion_tokens INTEGER,
+                    total_tokens INTEGER,
+                    error TEXT,
+                    updated_at TEXT NOT NULL
+                );
+
+                CREATE INDEX IF NOT EXISTS idx_forward_started_at ON forward_request_metrics(started_at);
+                CREATE INDEX IF NOT EXISTS idx_forward_endpoint ON forward_request_metrics(endpoint);
+                CREATE INDEX IF NOT EXISTS idx_forward_model ON forward_request_metrics(model);
                 "#,
             )?;
             Ok(())
@@ -406,6 +466,304 @@ impl MetricsStorage for SqliteMetricsStorage {
 
             refresh_session_aggregates(connection, &session_id, completion.completed_at)?;
             Ok(())
+        })
+        .await
+    }
+
+    async fn insert_forward_start(
+        &self,
+        forward_id: &str,
+        endpoint: &str,
+        model: &str,
+        is_stream: bool,
+        started_at: DateTime<Utc>,
+    ) -> MetricsResult<()> {
+        let forward_id = forward_id.to_string();
+        let endpoint = endpoint.to_string();
+        let model = model.to_string();
+        let is_stream_int = if is_stream { 1_i64 } else { 0_i64 };
+        let started_at_str = format_timestamp(started_at);
+
+        self.with_connection(move |connection| {
+            connection.execute(
+                r#"
+                INSERT INTO forward_request_metrics (
+                    forward_id, endpoint, model, is_stream, started_at, updated_at
+                ) VALUES (?1, ?2, ?3, ?4, ?5, ?5)
+                ON CONFLICT(forward_id) DO UPDATE SET
+                    endpoint = excluded.endpoint,
+                    model = excluded.model,
+                    is_stream = excluded.is_stream,
+                    started_at = excluded.started_at,
+                    updated_at = excluded.updated_at
+                "#,
+                params![forward_id, endpoint, model, is_stream_int, started_at_str],
+            )?;
+            Ok(())
+        })
+        .await
+    }
+
+    async fn complete_forward(
+        &self,
+        forward_id: &str,
+        completed_at: DateTime<Utc>,
+        status_code: Option<u16>,
+        status: ForwardStatus,
+        usage: Option<TokenUsage>,
+        error: Option<String>,
+    ) -> MetricsResult<()> {
+        let forward_id = forward_id.to_string();
+        let completed_at_str = format_timestamp(completed_at);
+        let status_code_int = status_code.map(|s| s as i64);
+        let (prompt, completion, total) = match usage {
+            Some(u) => (Some(u.prompt_tokens as i64), Some(u.completion_tokens as i64), Some(u.total_tokens as i64)),
+            None => (None, None, None),
+        };
+
+        self.with_connection(move |connection| {
+            connection.execute(
+                r#"
+                UPDATE forward_request_metrics
+                SET completed_at = ?1,
+                    status_code = ?2,
+                    status = ?3,
+                    prompt_tokens = ?4,
+                    completion_tokens = ?5,
+                    total_tokens = ?6,
+                    error = ?7,
+                    updated_at = ?1
+                WHERE forward_id = ?8
+                "#,
+                params![
+                    completed_at_str,
+                    status_code_int,
+                    status.as_str(),
+                    prompt,
+                    completion,
+                    total,
+                    error,
+                    forward_id,
+                ],
+            )?;
+            Ok(())
+        })
+        .await
+    }
+
+    async fn forward_summary(
+        &self,
+        filter: ForwardMetricsFilter,
+    ) -> MetricsResult<ForwardMetricsSummary> {
+        self.with_connection(move |connection| {
+            let mut params_vec = Vec::new();
+            let where_clause = build_forward_where_clause(
+                filter.start_date,
+                filter.end_date,
+                filter.endpoint.as_deref(),
+                filter.model.as_deref(),
+                &mut params_vec,
+            );
+
+            let sql = format!(
+                "SELECT COUNT(*), \
+                 COALESCE(SUM(CASE WHEN status = 'success' THEN 1 ELSE 0 END), 0), \
+                 COALESCE(SUM(CASE WHEN status = 'error' THEN 1 ELSE 0 END), 0), \
+                 COALESCE(SUM(prompt_tokens), 0), \
+                 COALESCE(SUM(completion_tokens), 0), \
+                 COALESCE(SUM(total_tokens), 0), \
+                 AVG(CASE WHEN completed_at IS NOT NULL THEN \
+                     (julianday(completed_at) - julianday(started_at)) * 86400000 END) \
+                 FROM forward_request_metrics {}",
+                where_clause
+            );
+
+            let mut stmt = connection.prepare(&sql)?;
+            let summary = stmt.query_row(params_from_iter(params_vec.iter()), |row| {
+                let avg_duration: Option<f64> = row.get(6)?;
+                Ok(ForwardMetricsSummary {
+                    total_requests: row.get::<_, i64>(0)? as u64,
+                    successful_requests: row.get::<_, i64>(1)? as u64,
+                    failed_requests: row.get::<_, i64>(2)? as u64,
+                    total_tokens: TokenUsage {
+                        prompt_tokens: row.get::<_, i64>(3)? as u64,
+                        completion_tokens: row.get::<_, i64>(4)? as u64,
+                        total_tokens: row.get::<_, i64>(5)? as u64,
+                    },
+                    avg_duration_ms: avg_duration.map(|d| d as u64),
+                })
+            })?;
+
+            Ok(summary)
+        })
+        .await
+    }
+
+    async fn forward_by_endpoint(
+        &self,
+        filter: ForwardMetricsFilter,
+    ) -> MetricsResult<Vec<ForwardEndpointMetrics>> {
+        self.with_connection(move |connection| {
+            let mut params_vec = Vec::new();
+            let where_clause = build_forward_where_clause(
+                filter.start_date,
+                filter.end_date,
+                None,
+                filter.model.as_deref(),
+                &mut params_vec,
+            );
+
+            let sql = format!(
+                "SELECT endpoint, COUNT(*), \
+                 COALESCE(SUM(CASE WHEN status = 'success' THEN 1 ELSE 0 END), 0), \
+                 COALESCE(SUM(CASE WHEN status = 'error' THEN 1 ELSE 0 END), 0), \
+                 COALESCE(SUM(prompt_tokens), 0), \
+                 COALESCE(SUM(completion_tokens), 0), \
+                 COALESCE(SUM(total_tokens), 0), \
+                 AVG(CASE WHEN completed_at IS NOT NULL THEN \
+                     (julianday(completed_at) - julianday(started_at)) * 86400000 END) \
+                 FROM forward_request_metrics {} \
+                 GROUP BY endpoint ORDER BY COUNT(*) DESC",
+                where_clause
+            );
+
+            let mut stmt = connection.prepare(&sql)?;
+            let mut rows = stmt.query(params_from_iter(params_vec.iter()))?;
+            let mut endpoints = Vec::new();
+
+            while let Some(row) = rows.next()? {
+                let avg_duration: Option<f64> = row.get(7)?;
+                endpoints.push(ForwardEndpointMetrics {
+                    endpoint: row.get(0)?,
+                    requests: row.get::<_, i64>(1)? as u64,
+                    successful: row.get::<_, i64>(2)? as u64,
+                    failed: row.get::<_, i64>(3)? as u64,
+                    tokens: TokenUsage {
+                        prompt_tokens: row.get::<_, i64>(4)? as u64,
+                        completion_tokens: row.get::<_, i64>(5)? as u64,
+                        total_tokens: row.get::<_, i64>(6)? as u64,
+                    },
+                    avg_duration_ms: avg_duration.map(|d| d as u64),
+                });
+            }
+
+            Ok(endpoints)
+        })
+        .await
+    }
+
+    async fn forward_requests(
+        &self,
+        filter: ForwardMetricsFilter,
+    ) -> MetricsResult<Vec<ForwardRequestMetrics>> {
+        self.with_connection(move |connection| {
+            let mut params_vec = Vec::new();
+            let where_clause = build_forward_where_clause(
+                filter.start_date,
+                filter.end_date,
+                filter.endpoint.as_deref(),
+                filter.model.as_deref(),
+                &mut params_vec,
+            );
+
+            let limit = i64::from(filter.limit.unwrap_or(100).min(1_000));
+            let sql = format!(
+                "SELECT forward_id, endpoint, model, is_stream, started_at, completed_at, \
+                 status_code, status, prompt_tokens, completion_tokens, total_tokens, error \
+                 FROM forward_request_metrics {} \
+                 ORDER BY started_at DESC LIMIT {}",
+                where_clause, limit
+            );
+
+            let mut stmt = connection.prepare(&sql)?;
+            let mut rows = stmt.query(params_from_iter(params_vec.iter()))?;
+            let mut requests = Vec::new();
+
+            while let Some(row) = rows.next()? {
+                let started_at = parse_timestamp(row.get::<_, String>(4)?)?;
+                let completed_at = parse_optional_timestamp(row.get::<_, Option<String>>(5)?)?;
+                let status_raw: Option<String> = row.get(7)?;
+                let status = status_raw.and_then(|s| ForwardStatus::from_db(&s));
+
+                let prompt: Option<i64> = row.get(8)?;
+                let completion: Option<i64> = row.get(9)?;
+                let total: Option<i64> = row.get(10)?;
+                let token_usage = match (prompt, completion, total) {
+                    (Some(p), Some(c), Some(t)) => Some(TokenUsage {
+                        prompt_tokens: p as u64,
+                        completion_tokens: c as u64,
+                        total_tokens: t as u64,
+                    }),
+                    _ => None,
+                };
+
+                requests.push(ForwardRequestMetrics {
+                    forward_id: row.get(0)?,
+                    endpoint: row.get(1)?,
+                    model: row.get(2)?,
+                    is_stream: row.get::<_, i64>(3)? > 0,
+                    started_at,
+                    completed_at,
+                    status_code: row.get::<_, Option<i64>>(6)?.map(|s| s as u16),
+                    status,
+                    token_usage,
+                    error: row.get(11)?,
+                    duration_ms: compute_duration_ms(started_at, completed_at),
+                });
+            }
+
+            Ok(requests)
+        })
+        .await
+    }
+
+    async fn forward_daily_metrics(
+        &self,
+        days: u32,
+        end_date: Option<NaiveDate>,
+    ) -> MetricsResult<Vec<DailyMetrics>> {
+        let end_date = end_date.unwrap_or_else(|| Utc::now().date_naive());
+        let span = days.max(1) - 1;
+        let start_date = end_date - chrono::Duration::days(i64::from(span));
+
+        self.with_connection(move |connection| {
+            let mut stmt = connection.prepare(
+                r#"
+                SELECT
+                    date(started_at) AS date_key,
+                    COUNT(*) AS total_sessions,
+                    COALESCE(SUM(prompt_tokens), 0) AS prompt_tokens,
+                    COALESCE(SUM(completion_tokens), 0) AS completion_tokens,
+                    COALESCE(SUM(total_tokens), 0) AS total_tokens
+                FROM forward_request_metrics
+                WHERE date(started_at) BETWEEN date(?1) AND date(?2)
+                GROUP BY date_key
+                ORDER BY date_key ASC
+                "#,
+            )?;
+
+            let mut rows = stmt.query(params![start_date.to_string(), end_date.to_string()])?;
+            let mut result = Vec::new();
+
+            while let Some(row) = rows.next()? {
+                let date = NaiveDate::parse_from_str(&row.get::<_, String>(0)?, "%Y-%m-%d")?;
+
+                result.push(DailyMetrics {
+                    date,
+                    total_sessions: row.get::<_, i64>(1)? as u32,
+                    total_rounds: 0,
+                    total_token_usage: TokenUsage {
+                        prompt_tokens: row.get::<_, i64>(2)? as u64,
+                        completion_tokens: row.get::<_, i64>(3)? as u64,
+                        total_tokens: row.get::<_, i64>(4)? as u64,
+                    },
+                    total_tool_calls: 0,
+                    model_breakdown: HashMap::new(),
+                    tool_breakdown: HashMap::new(),
+                });
+            }
+
+            Ok(result)
         })
         .await
     }
@@ -777,6 +1135,42 @@ fn build_session_where_clause(
     if let Some(status) = required_status {
         conditions.push("status = ?".to_string());
         params_vec.push(status.to_string());
+    }
+
+    if conditions.is_empty() {
+        String::new()
+    } else {
+        format!("WHERE {}", conditions.join(" AND "))
+    }
+}
+
+fn build_forward_where_clause(
+    start_date: Option<NaiveDate>,
+    end_date: Option<NaiveDate>,
+    endpoint: Option<&str>,
+    model: Option<&str>,
+    params_vec: &mut Vec<String>,
+) -> String {
+    let mut conditions = Vec::new();
+
+    if let Some(start) = start_date {
+        conditions.push("date(started_at) >= date(?)".to_string());
+        params_vec.push(start.to_string());
+    }
+
+    if let Some(end) = end_date {
+        conditions.push("date(started_at) <= date(?)".to_string());
+        params_vec.push(end.to_string());
+    }
+
+    if let Some(ep) = endpoint {
+        conditions.push("endpoint = ?".to_string());
+        params_vec.push(ep.to_string());
+    }
+
+    if let Some(m) = model {
+        conditions.push("model = ?".to_string());
+        params_vec.push(m.to_string());
     }
 
     if conditions.is_empty() {

@@ -6,12 +6,7 @@ pub struct Config {
     pub http_proxy: String,
     #[serde(default)]
     pub https_proxy: String,
-    #[serde(default)]
-    pub http_proxy_auth: Option<ProxyAuth>,
-    #[serde(default)]
-    pub https_proxy_auth: Option<ProxyAuth>,
-    pub api_key: Option<String>,
-    pub api_base: Option<String>,
+    pub proxy_auth: Option<ProxyAuth>,
     pub model: Option<String>,
     #[serde(default)]
     pub headless_auth: bool,
@@ -42,46 +37,52 @@ impl Config {
     pub fn new() -> Self {
         use crate::paths::config_json_path;
 
+        let json_path = config_json_path();
+        if json_path.exists() {
+            if let Ok(content) = std::fs::read_to_string(&json_path) {
+                // Try to parse as old format first (for migration)
+                if let Ok(old_config) = serde_json::from_str::<OldConfig>(&content) {
+                    // Check if it has old-only fields
+                    let has_old_fields = old_config.http_proxy_auth.is_some()
+                        || old_config.https_proxy_auth.is_some()
+                        || old_config.api_key.is_some()
+                        || old_config.api_base.is_some();
+
+                    if has_old_fields {
+                        let migrated = migrate_config(old_config);
+                        // Save migrated config
+                        if let Ok(new_content) = serde_json::to_string_pretty(&migrated) {
+                            let _ = std::fs::write(&json_path, new_content);
+                        }
+                        return migrated;
+                    }
+                }
+
+                // Try to parse as new Config format
+                if let Ok(config) = serde_json::from_str::<Config>(&content) {
+                    return config;
+                }
+            }
+        }
+
+        // Fallback to legacy config.toml
+        if std::path::Path::new(CONFIG_FILE_PATH).exists() {
+            if let Ok(content) = std::fs::read_to_string(CONFIG_FILE_PATH) {
+                if let Ok(old_config) = toml::from_str::<OldConfig>(&content) {
+                    return migrate_config(old_config);
+                }
+            }
+        }
+
+        // Default config with environment variable overrides
         let mut config = Config {
             http_proxy: String::new(),
             https_proxy: String::new(),
-            http_proxy_auth: None,
-            https_proxy_auth: None,
-            api_key: None,
-            api_base: None,
+            proxy_auth: None,
             model: None,
             headless_auth: false,
         };
 
-        let mut loaded = false;
-        let json_path = config_json_path();
-        if json_path.exists() {
-            if let Ok(content) = std::fs::read_to_string(&json_path) {
-                if let Ok(mut file_config) = serde_json::from_str::<Config>(&content) {
-                    file_config.http_proxy_auth = None;
-                    file_config.https_proxy_auth = None;
-                    config = file_config;
-                    loaded = true;
-                }
-            }
-        }
-
-        if !loaded && std::path::Path::new(CONFIG_FILE_PATH).exists() {
-            if let Ok(content) = std::fs::read_to_string(CONFIG_FILE_PATH) {
-                if let Ok(mut file_config) = toml::from_str::<Config>(&content) {
-                    file_config.http_proxy_auth = None;
-                    file_config.https_proxy_auth = None;
-                    config = file_config;
-                }
-            }
-        }
-
-        if let Ok(api_key) = std::env::var("API_KEY") {
-            config.api_key = Some(api_key);
-        }
-        if let Ok(api_base) = std::env::var("API_BASE") {
-            config.api_base = Some(api_base);
-        }
         if let Ok(model) = std::env::var("MODEL") {
             config.model = Some(model);
         }
@@ -89,6 +90,43 @@ impl Config {
             config.headless_auth = parse_bool_env(&headless);
         }
         config
+    }
+}
+
+/// Old config format for backward compatibility migration
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct OldConfig {
+    #[serde(default)]
+    http_proxy: String,
+    #[serde(default)]
+    https_proxy: String,
+    #[serde(default)]
+    http_proxy_auth: Option<ProxyAuth>,
+    #[serde(default)]
+    https_proxy_auth: Option<ProxyAuth>,
+    api_key: Option<String>,
+    api_base: Option<String>,
+    model: Option<String>,
+    #[serde(default)]
+    headless_auth: bool,
+}
+
+fn migrate_config(old: OldConfig) -> Config {
+    // Log warning about deprecated fields
+    if old.api_key.is_some() {
+        log::warn!("api_key is no longer used. CopilotClient automatically manages authentication.");
+    }
+    if old.api_base.is_some() {
+        log::warn!("api_base is no longer used. CopilotClient automatically manages API endpoints.");
+    }
+
+    Config {
+        http_proxy: old.http_proxy,
+        https_proxy: old.https_proxy,
+        // Use https_proxy_auth if available, otherwise fallback to http_proxy_auth
+        proxy_auth: old.https_proxy_auth.or(old.http_proxy_auth),
+        model: old.model,
+        headless_auth: old.headless_auth,
     }
 }
 
@@ -214,7 +252,7 @@ mod tests {
         let temp_home = TempHome::new();
         temp_home.set_config_json(
             r#"{
-  "api_base": "https://api.example.com"
+  "model": "gpt-4"
 }"#,
         );
 
@@ -222,14 +260,13 @@ mod tests {
         let _home = EnvVarGuard::set("HOME", &home);
         let _http_proxy = EnvVarGuard::unset("HTTP_PROXY");
         let _https_proxy = EnvVarGuard::unset("HTTPS_PROXY");
-        let _api_base = EnvVarGuard::unset("API_BASE");
 
         let config = Config::new();
 
         assert_eq!(
-            config.api_base.as_deref(),
-            Some("https://api.example.com"),
-            "config should load api_base from config file even when proxy fields are omitted"
+            config.model.as_deref(),
+            Some("gpt-4"),
+            "config should load model from config file even when proxy fields are omitted"
         );
         assert!(config.http_proxy.is_empty());
         assert!(config.https_proxy.is_empty());
@@ -241,7 +278,7 @@ mod tests {
         let temp_home = TempHome::new();
         temp_home.set_config_json(
             r#"{
-  "api_base": "https://api.example.com"
+  "model": "gpt-4"
 }"#,
         );
 
@@ -252,7 +289,7 @@ mod tests {
 
         let config = Config::new();
 
-        assert_eq!(config.api_base.as_deref(), Some("https://api.example.com"));
+        assert_eq!(config.model.as_deref(), Some("gpt-4"));
         assert!(
             config.http_proxy.is_empty(),
             "config should keep http_proxy empty when field is omitted"
@@ -261,5 +298,80 @@ mod tests {
             config.https_proxy.is_empty(),
             "config should keep https_proxy empty when field is omitted"
         );
+    }
+
+    #[test]
+    fn config_migrates_old_format_to_new() {
+        let _lock = env_lock().lock().expect("env lock poisoned");
+        let temp_home = TempHome::new();
+
+        // Create config with old format
+        temp_home.set_config_json(
+            r#"{
+  "http_proxy": "http://proxy.example.com:8080",
+  "https_proxy": "http://proxy.example.com:8443",
+  "http_proxy_auth": {
+    "username": "http_user",
+    "password": "http_pass"
+  },
+  "https_proxy_auth": {
+    "username": "https_user",
+    "password": "https_pass"
+  },
+  "api_key": "old_key",
+  "api_base": "https://old.api.com",
+  "model": "gpt-4",
+  "headless_auth": true
+}"#,
+        );
+
+        let home = temp_home.path.to_string_lossy().to_string();
+        let _home = EnvVarGuard::set("HOME", &home);
+
+        let config = Config::new();
+
+        // Verify migration
+        assert_eq!(config.http_proxy, "http://proxy.example.com:8080");
+        assert_eq!(config.https_proxy, "http://proxy.example.com:8443");
+
+        // Should use https_proxy_auth (higher priority)
+        assert!(config.proxy_auth.is_some());
+        let auth = config.proxy_auth.unwrap();
+        assert_eq!(auth.username, "https_user");
+        assert_eq!(auth.password, "https_pass");
+
+        // Model and headless_auth should be preserved
+        assert_eq!(config.model.as_deref(), Some("gpt-4"));
+        assert!(config.headless_auth);
+
+        // api_key and api_base are no longer in Config
+    }
+
+    #[test]
+    fn config_migrates_only_http_proxy_auth() {
+        let _lock = env_lock().lock().expect("env lock poisoned");
+        let temp_home = TempHome::new();
+
+        // Create config with only http_proxy_auth
+        temp_home.set_config_json(
+            r#"{
+  "http_proxy": "http://proxy.example.com:8080",
+  "http_proxy_auth": {
+    "username": "http_user",
+    "password": "http_pass"
+  }
+}"#,
+        );
+
+        let home = temp_home.path.to_string_lossy().to_string();
+        let _home = EnvVarGuard::set("HOME", &home);
+
+        let config = Config::new();
+
+        // Should fallback to http_proxy_auth when https_proxy_auth is absent
+        assert!(config.proxy_auth.is_some(), "proxy_auth should be migrated from http_proxy_auth");
+        let auth = config.proxy_auth.unwrap();
+        assert_eq!(auth.username, "http_user");
+        assert_eq!(auth.password, "http_pass");
     }
 }

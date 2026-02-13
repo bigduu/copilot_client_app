@@ -17,6 +17,8 @@ tokio-stream = { workspace = true }
 async-stream = { workspace = true }
 futures-util = { workspace = true }
 bytes = { workspace = true }
+chrono = { workspace = true }
+uuid = { workspace = true }
 claude_installer = { path = "../claude_installer" }
 chat_core = { path = "../chat_core" }
 agent-llm = { path = "../agent-llm" }
@@ -24,6 +26,7 @@ agent-server = { path = "../agent-server" }
 agent-tools = { path = "../agent-tools" }
 agent-core = { path = "../agent-core" }
 agent-skill = { path = "../agent-skill" }
+agent-metrics = { path = "../agent-metrics" }
 
 [dev-dependencies]
 actix-http = { workspace = true }

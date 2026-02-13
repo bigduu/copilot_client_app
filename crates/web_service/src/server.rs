@@ -2,7 +2,9 @@ use std::{path::PathBuf, sync::Arc};
 
 use actix_cors::Cors;
 use actix_web::{web, App, HttpServer};
+use agent_llm::client::MetricsClientDecorator;
 use agent_llm::{CopilotClient, CopilotClientTrait};
+use agent_metrics::{MetricsBus, MetricsStorage, MetricsWorker};
 use agent_server::handlers as agent_handlers;
 use agent_server::state::AppState as AgentAppState;
 use chat_core::Config;
@@ -15,9 +17,64 @@ use crate::controllers::{
     skill_controller, tools_controller, workspace_controller,
 };
 
+const DEFAULT_METRICS_CHANNEL_CAPACITY: usize = 10000;
+
 pub struct AppState {
     pub copilot_client: Arc<dyn CopilotClientTrait>,
     pub app_data_dir: PathBuf,
+}
+
+/// Holds metrics infrastructure for the web service
+pub struct MetricsState {
+    pub bus: MetricsBus,
+    pub worker_handle: Arc<std::sync::atomic::AtomicBool>,
+}
+
+impl MetricsState {
+    /// Create and spawn the metrics infrastructure
+    pub async fn spawn(app_data_dir: PathBuf) -> Self {
+        // Create metrics bus with bounded channel
+        let (bus, receiver) = MetricsBus::new(DEFAULT_METRICS_CHANNEL_CAPACITY);
+
+        // Create storage
+        let db_path = app_data_dir.join("metrics.db");
+        let storage = Arc::new(agent_metrics::SqliteMetricsStorage::new(db_path));
+
+        // Initialize storage
+        if let Err(e) = storage.init().await {
+            error!("Failed to initialize metrics storage: {}", e);
+        }
+
+        // Spawn worker
+        let worker = MetricsWorker::new(storage);
+        let worker_handle = worker.spawn(receiver, bus.clone());
+
+        Self { bus, worker_handle }
+    }
+
+    /// Stop the metrics worker
+    pub fn stop(&self) {
+        self.worker_handle.store(false, std::sync::atomic::Ordering::SeqCst);
+    }
+}
+
+/// Creates a decorated client with metrics collection
+fn create_decorated_client(
+    config: Config,
+    app_data_dir: PathBuf,
+    metrics_bus: MetricsBus,
+) -> Arc<dyn CopilotClientTrait> {
+    // Create base client
+    let base_client = CopilotClient::new(config, app_data_dir);
+
+    // Wrap with metrics decorator
+    let decorated = MetricsClientDecorator::new(
+        base_client,
+        metrics_bus,
+        "openai.chat_completions",
+    );
+
+    Arc::new(decorated)
 }
 
 const DEFAULT_WORKER_COUNT: usize = 10;
@@ -107,6 +164,19 @@ pub fn agent_api_config(cfg: &mut web::ServiceConfig) {
                 "/metrics/daily",
                 web::get().to(agent_handlers::metrics::daily),
             )
+            // Forward metrics routes
+            .route(
+                "/metrics/forward/summary",
+                web::get().to(agent_handlers::metrics::forward_summary),
+            )
+            .route(
+                "/metrics/forward/by-endpoint",
+                web::get().to(agent_handlers::metrics::forward_by_endpoint),
+            )
+            .route(
+                "/metrics/forward/requests",
+                web::get().to(agent_handlers::metrics::forward_requests),
+            )
             .route("/health", web::get().to(agent_handlers::health::handler))
             // MCP routes
             .service(
@@ -156,9 +226,18 @@ async fn build_agent_state(app_data_dir: PathBuf, port: u16) -> AgentAppState {
 pub async fn run(app_data_dir: PathBuf, port: u16) -> Result<(), String> {
     info!("Starting web service...");
 
+    // Initialize metrics infrastructure
+    let metrics_state = MetricsState::spawn(app_data_dir.clone()).await;
+
     let config = Config::new();
-    let copilot_client: Arc<dyn CopilotClientTrait> =
-        Arc::new(CopilotClient::new(config, app_data_dir.clone()));
+
+    // Create decorated client with metrics collection
+    let copilot_client = create_decorated_client(
+        config,
+        app_data_dir.clone(),
+        metrics_state.bus.clone(),
+    );
+
     let agent_state = web::Data::new(build_agent_state(app_data_dir.clone(), port).await);
 
     let app_state = web::Data::new(AppState {
@@ -186,6 +265,9 @@ pub async fn run(app_data_dir: PathBuf, port: u16) -> Result<(), String> {
         return Err(format!("Web server error: {e}"));
     }
 
+    // Stop metrics worker on shutdown
+    metrics_state.stop();
+
     Ok(())
 }
 
@@ -193,6 +275,7 @@ pub struct WebService {
     shutdown_tx: Option<oneshot::Sender<()>>,
     server_handle: Option<tokio::task::JoinHandle<()>>,
     app_data_dir: PathBuf,
+    metrics_state: Option<MetricsState>,
 }
 
 impl WebService {
@@ -201,6 +284,7 @@ impl WebService {
             shutdown_tx: None,
             server_handle: None,
             app_data_dir,
+            metrics_state: None,
         }
     }
 
@@ -212,9 +296,18 @@ impl WebService {
 
         let (shutdown_tx, mut shutdown_rx) = oneshot::channel::<()>();
 
+        // Initialize metrics infrastructure
+        let metrics_state = MetricsState::spawn(self.app_data_dir.clone()).await;
+
         let config = Config::new();
-        let copilot_client: Arc<dyn CopilotClientTrait> =
-            Arc::new(CopilotClient::new(config, self.app_data_dir.clone()));
+
+        // Create decorated client with metrics collection
+        let copilot_client = create_decorated_client(
+            config,
+            self.app_data_dir.clone(),
+            metrics_state.bus.clone(),
+        );
+
         let agent_state = web::Data::new(build_agent_state(self.app_data_dir.clone(), port).await);
 
         let app_state = web::Data::new(AppState {
@@ -250,12 +343,18 @@ impl WebService {
 
         self.shutdown_tx = Some(shutdown_tx);
         self.server_handle = Some(server_handle);
+        self.metrics_state = Some(metrics_state);
 
         info!("Web service started successfully");
         Ok(())
     }
 
     pub async fn stop(&mut self) -> Result<(), String> {
+        // Stop metrics worker
+        if let Some(metrics_state) = &self.metrics_state {
+            metrics_state.stop();
+        }
+
         if let Some(shutdown_tx) = self.shutdown_tx.take() {
             if shutdown_tx.send(()).is_err() {
                 error!("Failed to send shutdown signal");
@@ -269,6 +368,7 @@ impl WebService {
             }
         }
 
+        self.metrics_state = None;
         info!("Web service stopped successfully");
         Ok(())
     }

@@ -186,7 +186,7 @@ fn build_system_prompt(enabled_skills: &[SkillDefinition]) -> String {
 - [ ] SkillManager list page
 - [ ] SkillEditor create/edit functionality
 - [ ] Built-in tool selector (link to existing `/v1/skills/available-tools` API)
-- [ ] Workflow selector (link to existing `/bodhi/workflows` API)
+- [ ] Workflow selector (link to existing `/bamboo/workflows` API)
 - [ ] Chat-level skill enable (Chat config integration)
 
 ### Phase 3: Capability Deepening and Extension (2 weeks)

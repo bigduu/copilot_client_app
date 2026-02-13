@@ -18,12 +18,12 @@
 - Backend: `crates/web_service/src/controllers/anthropic_controller.rs`
 - Frontend: not referenced directly (kept for compatibility)
 
-### `/v1/bodhi/workflows`
-- Backend: `crates/web_service/src/controllers/bodhi_controller.rs`
+### `/v1/bamboo/workflows`
+- Backend: `crates/web_service/src/controllers/bamboo_controller.rs`
 - Frontend: `src/services/WorkflowManagerService.ts`
 
-### `/v1/bodhi/workflows/{name}`
-- Backend: `crates/web_service/src/controllers/bodhi_controller.rs`
+### `/v1/bamboo/workflows/{name}`
+- Backend: `crates/web_service/src/controllers/bamboo_controller.rs`
 - Frontend: `src/services/WorkflowManagerService.ts`
 
 ### `/v1/tools/execute`

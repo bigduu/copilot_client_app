@@ -70,14 +70,17 @@ async fn setup_test_environment() -> (
 
 #[actix_web::test]
 async fn test_bamboo_config_strips_proxy_auth() {
-    let (app, _last_auth, temp_dir) = setup_test_environment().await;
+    // Set HOME to temp directory for config path resolution
+    let temp_dir = tempdir().expect("tempdir");
+    std::env::set_var("HOME", temp_dir.path());
+
+    let (app, _last_auth, _temp_dir) = setup_test_environment().await;
 
     let payload = json!({
         "http_proxy": "http://proxy.example.com:8080",
         "https_proxy": "http://proxy.example.com:8080",
-        "http_proxy_auth": { "username": "user", "password": "pass" },
-        "https_proxy_auth": { "username": "user", "password": "pass" },
-        "api_key": "ghu_xxx",
+        "proxy_auth": { "username": "user", "password": "pass" },
+        "model": "gpt-4",
         "headless_auth": false
     });
 
@@ -87,21 +90,28 @@ async fn test_bamboo_config_strips_proxy_auth() {
         .to_request();
     let resp: Value = test::call_and_read_body_json(&app, req).await;
 
-    assert!(resp.get("http_proxy_auth").is_none());
-    assert!(resp.get("https_proxy_auth").is_none());
+    // proxy_auth should be stripped from response
+    assert!(resp.get("proxy_auth").is_none(), "proxy_auth should be stripped from POST response");
+    assert!(resp.get("proxy_auth_encrypted").is_none(), "proxy_auth_encrypted should not exist in POST response");
 
-    let config_path = temp_dir.path().join("config.json");
+    // Verify stored config exists and doesn't have plain proxy_auth
+    let config_path = temp_dir.path().join(".bamboo").join("config.json");
+    assert!(config_path.exists(), "config.json should be created at {:?}", config_path);
+
     let content = std::fs::read_to_string(&config_path).expect("config.json");
     let stored: Value = serde_json::from_str(&content).expect("stored json");
-    assert!(stored.get("http_proxy_auth").is_none());
-    assert!(stored.get("https_proxy_auth").is_none());
+    assert!(stored.get("proxy_auth").is_none(), "stored config should not have plain proxy_auth");
 
     let req = test::TestRequest::get()
         .uri("/v1/bamboo/config")
         .to_request();
     let resp: Value = test::call_and_read_body_json(&app, req).await;
-    assert!(resp.get("http_proxy_auth").is_none());
-    assert!(resp.get("https_proxy_auth").is_none());
+    // proxy_auth should still be stripped when reading
+    assert!(resp.get("proxy_auth").is_none(), "GET response should not have proxy_auth");
+    assert!(resp.get("proxy_auth_encrypted").is_none(), "GET response should not have proxy_auth_encrypted");
+
+    // Cleanup
+    std::env::remove_var("HOME");
 }
 
 #[actix_web::test]

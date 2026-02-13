@@ -9,6 +9,7 @@ aes-gcm = { workspace = true }
 anyhow = { workspace = true }
 chrono = { workspace = true }
 hex = { workspace = true }
+log = { workspace = true }
 rand = { workspace = true }
 regex = { workspace = true }
 serde = { workspace = true }

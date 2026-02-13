@@ -130,7 +130,22 @@ export class AgentClient {
     });
 
     if (!response.ok) {
-      throw new Error(`Failed to stream events: ${response.statusText}`);
+      // Try to parse error details from response
+      let errorMessage = `Failed to stream events: ${response.statusText}`;
+      try {
+        const body = await response.text();
+        if (body) {
+          try {
+            const errorData = JSON.parse(body);
+            errorMessage = errorData.error || errorData.message || errorData.detail || errorMessage;
+          } catch {
+            errorMessage = body || errorMessage;
+          }
+        }
+      } catch (e) {
+        console.error("Failed to parse error response:", e);
+      }
+      throw new Error(errorMessage);
     }
 
     const reader = response.body?.getReader();
@@ -194,7 +209,22 @@ export class AgentClient {
     });
 
     if (!response.ok) {
-      throw new Error(`Failed to subscribe to events: ${response.statusText}`);
+      // Try to parse error details from response
+      let errorMessage = `Failed to subscribe to events: ${response.statusText}`;
+      try {
+        const body = await response.text();
+        if (body) {
+          try {
+            const errorData = JSON.parse(body);
+            errorMessage = errorData.error || errorData.message || errorData.detail || errorMessage;
+          } catch {
+            errorMessage = body || errorMessage;
+          }
+        }
+      } catch (e) {
+        console.error("Failed to parse error response:", e);
+      }
+      throw new Error(errorMessage);
     }
 
     const reader = response.body?.getReader();
