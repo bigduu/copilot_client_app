@@ -28,5 +28,6 @@ pub use masking::apply_masking;
 pub use models::*;
 pub use openai::OpenAIProvider;
 pub use provider::{LLMError, LLMProvider, LLMStream};
+pub use providers::AnthropicProvider;
 pub use providers::CopilotProvider;
 pub use types::LLMChunk;
