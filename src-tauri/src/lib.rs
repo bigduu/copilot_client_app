@@ -18,7 +18,7 @@ use tauri::{App, Runtime};
 use tauri_plugin_log::{Target, TargetKind};
 use web_service::server::run as start_server;
 
-pub mod bamboo_settings;
+pub mod app_settings;
 pub mod claude;
 
 pub mod claude_binary {
@@ -216,13 +216,13 @@ async fn push_proxy_auth_to_web_service(
 }
 
 fn read_config_json() -> Result<Value, String> {
-    let config_path = bamboo_settings::config_json_path();
-    bamboo_settings::load_config_json(&config_path)
+    let config_path = app_settings::config_json_path();
+    app_settings::load_config_json(&config_path)
 }
 
 fn write_config_json(config: &Value) -> Result<(), String> {
-    let config_path = bamboo_settings::config_json_path();
-    bamboo_settings::write_config_json(&config_path, config)
+    let config_path = app_settings::config_json_path();
+    app_settings::write_config_json(&config_path, config)
 }
 
 fn read_proxy_auth_from_plain(config: &Value, key: &str) -> Option<chat_core::ProxyAuth> {

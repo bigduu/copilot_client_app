@@ -90,7 +90,7 @@ export class SystemPromptService {
    */
   async getSystemPromptPresets(): Promise<any[]> {
     try {
-      const { BambooConfigService } = await import("./BambooConfigService");
+      const { BambooConfigService } = await import("./SettingsConfigService");
       const configService = BambooConfigService.getInstance();
       const data = await configService.getSystemPrompts();
       const prompts = Array.isArray(data.prompts) ? data.prompts : [];
