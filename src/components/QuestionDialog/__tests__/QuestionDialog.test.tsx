@@ -23,7 +23,7 @@ describe('QuestionDialog', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    (useAppStore as any).mockImplementation((selector) => {
+    (useAppStore as any).mockImplementation((selector: (state: any) => any) => {
       if (typeof selector === 'function') {
         return selector({
           setProcessing: mockSetProcessing,

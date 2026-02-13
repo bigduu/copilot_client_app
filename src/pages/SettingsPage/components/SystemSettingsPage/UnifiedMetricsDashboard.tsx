@@ -20,8 +20,8 @@ import { useMemo, useState } from "react";
 import type {
   MetricsGranularity,
   RoundMetrics,
-} from "../../../../../services/metrics";
-import { useUnifiedMetrics } from "../hooks/useUnifiedMetrics";
+} from "../../../../services/metrics";
+import { useUnifiedMetrics } from "./hooks/useUnifiedMetrics";
 import UnifiedMetricsCards from "./metrics/UnifiedMetricsCards";
 import UnifiedTimelineChart from "./metrics/UnifiedTimelineChart";
 import ModelDistribution from "./metrics/ModelDistribution";

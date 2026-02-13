@@ -12,7 +12,6 @@ import type {
   ModelMetrics,
   SessionDetail,
   SessionMetrics,
-  UnifiedSummary,
   UnifiedTimelinePoint,
 } from "../../../../../services/metrics";
 

@@ -61,12 +61,6 @@ export function useMessageStreaming(deps: UseMessageStreamingDeps): UseMessageSt
     }
   }, [deps.currentChat?.config?.agentSessionId]);
 
-  const resolveDisplayPreference = (value?: string) => {
-    if (value === "Hidden") return "Hidden";
-    if (value === "Collapsible") return "Collapsible";
-    return "Default";
-  };
-
   /**
    * Send message using Agent Server
    * Note: Event subscription is handled by useAgentEventSubscription hook in ChatView
