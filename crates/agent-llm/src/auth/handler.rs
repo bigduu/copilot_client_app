@@ -211,6 +211,8 @@ pub struct CopilotAuthHandler {
     client: Arc<ClientWithMiddleware>,
     app_data_dir: PathBuf,
     headless_auth: bool,
+    github_api_base_url: String,
+    github_login_base_url: String,
 }
 
 impl CopilotAuthHandler {
@@ -223,7 +225,23 @@ impl CopilotAuthHandler {
             client,
             app_data_dir,
             headless_auth,
+            github_api_base_url: "https://api.github.com".to_string(),
+            github_login_base_url: "https://github.com".to_string(),
         }
+    }
+
+    /// Create handler with custom GitHub API base URL (for testing)
+    #[cfg(test)]
+    fn with_github_api_base_url(mut self, url: impl Into<String>) -> Self {
+        self.github_api_base_url = url.into();
+        self
+    }
+
+    /// Create handler with custom GitHub login base URL (for testing)
+    #[cfg(test)]
+    fn with_github_login_base_url(mut self, url: impl Into<String>) -> Self {
+        self.github_login_base_url = url.into();
+        self
     }
 
     fn device_code_presentation(&self, device_code: &DeviceCodeResponse) -> DeviceCodePresentation {
@@ -348,9 +366,10 @@ impl CopilotAuthHandler {
             ("client_id", "Iv1.b507a08c87ecfe98"),
             ("scope", "read:user"),
         ]);
+        let url = format!("{}/login/device/code", self.github_login_base_url);
         let response = self
             .client
-            .post("https://github.com/login/device/code")
+            .post(&url)
             .query(&params)
             .send()
             .await?;
@@ -399,9 +418,10 @@ impl CopilotAuthHandler {
         }
 
         loop {
+            let url = format!("{}/login/oauth/access_token", self.github_login_base_url);
             let response = self
                 .client
-                .post("https://github.com/login/oauth/access_token")
+                .post(&url)
                 .query(&params)
                 .send()
                 .await?;
@@ -422,7 +442,7 @@ impl CopilotAuthHandler {
         &self,
         access_token: AccessTokenResponse,
     ) -> anyhow::Result<CopilotConfig> {
-        let url = "https://api.github.com/copilot_internal/v2/token";
+        let url = format!("{}/copilot_internal/v2/token", self.github_api_base_url);
         let actual_github_token = access_token
             .access_token
             .ok_or_else(|| anyhow!("Access token not found"))?;
@@ -514,9 +534,8 @@ mod retry_tests {
     }
 
     /// Test that auth requests are retried on transient failures
-    /// Test server error retries (integration test - requires network)
+    /// Test server error retries (integration test)
     #[tokio::test]
-    #[ignore = "Integration test requiring network access"]
     async fn test_auth_retry_on_server_error() {
         let mock_server = MockServer::start().await;
         let request_count = Arc::new(AtomicUsize::new(0));
@@ -564,7 +583,8 @@ mod retry_tests {
 
         let client = create_test_client_with_retry();
         let temp_dir = tempfile::tempdir().expect("tempdir");
-        let handler = CopilotAuthHandler::new(client, temp_dir.path().to_path_buf(), true);
+        let handler = CopilotAuthHandler::new(client, temp_dir.path().to_path_buf(), true)
+            .with_github_api_base_url(mock_server.uri());
 
         // Create a valid access token
         let access_token = AccessTokenResponse {
@@ -589,9 +609,8 @@ mod retry_tests {
         assert_eq!(config.token, "test-copilot-token");
     }
 
-    /// Test that auth requests fail fast on 401 (no retry) (integration test)
+    /// Test that auth requests fail fast on 401 (no retry)
     #[tokio::test]
-    #[ignore = "Integration test requiring network access"]
     async fn test_auth_no_retry_on_unauthorized() {
         let mock_server = MockServer::start().await;
         let request_count = Arc::new(AtomicUsize::new(0));
@@ -609,7 +628,8 @@ mod retry_tests {
 
         let client = create_test_client_with_retry();
         let temp_dir = tempfile::tempdir().expect("tempdir");
-        let handler = CopilotAuthHandler::new(client, temp_dir.path().to_path_buf(), true);
+        let handler = CopilotAuthHandler::new(client, temp_dir.path().to_path_buf(), true)
+            .with_github_api_base_url(mock_server.uri());
 
         let access_token = AccessTokenResponse {
             access_token: Some("invalid-token".to_string()),
@@ -625,9 +645,8 @@ mod retry_tests {
         assert_eq!(request_count.load(Ordering::SeqCst), 1);
     }
 
-    /// Test device code endpoint retry (integration test)
+    /// Test device code endpoint retry
     #[tokio::test]
-    #[ignore = "Integration test requiring network access"]
     async fn test_device_code_retry() {
         let mock_server = MockServer::start().await;
         let request_count = Arc::new(AtomicUsize::new(0));
@@ -655,11 +674,18 @@ mod retry_tests {
 
         let client = create_test_client_with_retry();
         let temp_dir = tempfile::tempdir().expect("tempdir");
-        let _handler = CopilotAuthHandler::new(client, temp_dir.path().to_path_buf(), true);
+        let handler = CopilotAuthHandler::new(client, temp_dir.path().to_path_buf(), true)
+            .with_github_login_base_url(mock_server.uri());
 
-        // Note: This test would need to modify the endpoint URL to use mock_server
-        // For now, we just verify the retry middleware is configured correctly
-        assert_eq!(request_count.load(Ordering::SeqCst), 0);
+        // Call the actual method - it should retry and eventually succeed
+        let result = handler.get_device_code().await;
+
+        assert!(result.is_ok(), "Should succeed after retries: {:?}", result.err());
+        assert_eq!(request_count.load(Ordering::SeqCst), 3);
+
+        let device_code = result.unwrap();
+        assert_eq!(device_code.device_code, "test-device-code");
+        assert_eq!(device_code.user_code, "ABCD-EFGH");
     }
 
     /// Test token cache validation
