@@ -25,3 +25,21 @@ pub async fn save_workflow(name: String, content: String) -> Result<String, Stri
 
     Ok(file_path.to_string_lossy().to_string())
 }
+
+#[tauri::command]
+pub async fn delete_workflow(name: String) -> Result<(), String> {
+    if !is_safe_workflow_name(&name) {
+        return Err("Invalid workflow name".to_string());
+    }
+
+    let dir = workflows_dir();
+    let file_path = dir.join(format!("{name}.md"));
+
+    if !file_path.exists() {
+        return Err("Workflow not found".to_string());
+    }
+
+    fs::remove_file(&file_path).map_err(|e| format!("Failed to delete workflow: {e}"))?;
+
+    Ok(())
+}
