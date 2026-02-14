@@ -12,7 +12,7 @@ use agent_core::tools::{
     execute_tool_call, handle_tool_result_with_agentic_support, parse_tool_args, ToolExecutor,
     ToolHandlingOutcome, ToolSchema,
 };
-use agent_core::{AgentError, AgentEvent, Message, Session};
+use agent_core::{AgentError, AgentEvent, Message, Session, TodoItemStatus};
 use agent_llm::LLMProvider;
 use agent_metrics::{
     MetricsCollector, RoundStatus as MetricsRoundStatus, SessionStatus as MetricsSessionStatus,
@@ -22,6 +22,7 @@ use agent_tools::guide::{context::GuideBuildContext, EnhancedPromptBuilder};
 
 use crate::config::AgentLoopConfig;
 use crate::stream::handler::consume_llm_stream;
+use crate::todo_context::TodoLoopContext;
 
 pub type Result<T> = std::result::Result<T, AgentError>;
 
@@ -144,9 +145,21 @@ pub async fn run_agent_loop_with_config(
 
     let mut sent_complete = false;
 
+    // Initialize TodoLoopContext from session's todo list
+    let mut todo_context = TodoLoopContext::from_session(session);
+    if todo_context.is_some() {
+        log::debug!("[{}] TodoLoopContext initialized", session_id);
+    }
+
     for round in 0..config.max_rounds {
         // Inject todo list into system message at the start of each round
         inject_todo_list_into_system_message(session);
+
+        // Update TodoLoopContext round and inject into prompt
+        if let Some(ref mut ctx) = todo_context {
+            ctx.current_round = round as u32;
+            ctx.max_rounds = config.max_rounds as u32;
+        }
 
         let round_id = format!("{}-round-{}", session_id, round + 1);
         let mut round_status = MetricsRoundStatus::Success;
@@ -406,6 +419,53 @@ pub async fn run_agent_loop_with_config(
             .await
             {
                 Ok(result) => {
+                    // Track tool execution in TodoLoopContext
+                    if let Some(ref mut ctx) = todo_context {
+                        // IMPORTANT: First auto-update status (may set active_item)
+                        // Then track tool execution (so first tool is recorded)
+                        ctx.auto_update_status(&tool_call.function.name, &result);
+
+                        ctx.track_tool_execution(
+                            &tool_call.function.name,
+                            &result,
+                            round as u32,
+                        );
+
+                        // Send progress event if active item exists
+                        // Note: Even if auto_update_status cleared active_item_id (completed),
+                        // we still have a reference to the just-updated item
+                        let progress_event = if let Some(ref active_id) = ctx.active_item_id {
+                            // Active item still set (in progress or blocked)
+                            ctx.items.iter().find(|i| &i.id == active_id).map(|item| {
+                                AgentEvent::TodoListItemProgress {
+                                    session_id: session_id.clone(),
+                                    item_id: item.id.clone(),
+                                    status: item.status.clone(),
+                                    tool_calls_count: item.tool_calls.len(),
+                                    version: ctx.version,
+                                }
+                            })
+                        } else {
+                            // Active item was just completed, find it by checking last updated item
+                            // The item that was just updated will have the highest version bump
+                            ctx.items.iter()
+                                .find(|item| item.status == TodoItemStatus::Completed)
+                                .map(|item| {
+                                    AgentEvent::TodoListItemProgress {
+                                        session_id: session_id.clone(),
+                                        item_id: item.id.clone(),
+                                        status: item.status.clone(),
+                                        tool_calls_count: item.tool_calls.len(),
+                                        version: ctx.version,
+                                    }
+                                })
+                        };
+
+                        if let Some(event) = progress_event {
+                            let _ = event_tx.send(event).await;
+                        }
+                    }
+
                     // Handle todo list tools specially
                     if tool_call.function.name == "create_todo_list" && result.success {
                         if let Ok(args) =
@@ -466,8 +526,15 @@ pub async fn run_agent_loop_with_config(
 
                                 // Emit event for frontend
                                 let _ = event_tx
-                                    .send(AgentEvent::TodoListUpdated { todo_list })
+                                    .send(AgentEvent::TodoListUpdated { todo_list: todo_list.clone() })
                                     .await;
+
+                                // IMPORTANT: Re-initialize TodoLoopContext from session
+                                // This enables automatic tracking for newly created lists
+                                todo_context = TodoLoopContext::from_session(session);
+                                if todo_context.is_some() {
+                                    log::debug!("[{}] TodoLoopContext re-initialized after create_todo_list", session_id);
+                                }
                             }
                         }
                     } else if tool_call.function.name == "update_todo_item" && result.success {
@@ -486,6 +553,13 @@ pub async fn run_agent_loop_with_config(
                                 };
                                 if let Some(s) = status_enum {
                                     let notes = args["notes"].as_str();
+
+                                    // IMPORTANT: Update TodoLoopContext first to keep it in sync
+                                    // This prevents final sync from overwriting manual updates
+                                    if let Some(ref mut ctx) = todo_context {
+                                        ctx.update_item_status(item_id, s.clone());
+                                    }
+
                                     if let Err(e) = session.update_todo_item(item_id, s, notes) {
                                         log::warn!(
                                             "[{}] Failed to update todo item: {}",
@@ -694,6 +768,59 @@ pub async fn run_agent_loop_with_config(
             }),
         );
 
+        // ========== NEW: TodoList Evaluation at end of each round ==========
+        // Let LLM evaluate task progress with a dedicated query
+        if let Some(ref ctx) = todo_context {
+            use crate::todo_evaluation::evaluate_todo_progress;
+
+            log::debug!("[{}] Evaluating todo list progress at end of round {}", session_id, round + 1);
+
+            match evaluate_todo_progress(
+                ctx,
+                session,
+                llm.clone(),
+                &event_tx,
+                &session_id,
+            ).await {
+                Ok(evaluation_result) => {
+                    if evaluation_result.needs_evaluation && !evaluation_result.updates.is_empty() {
+                        log::info!(
+                            "[{}] LLM evaluated {} todo item updates",
+                            session_id,
+                            evaluation_result.updates.len()
+                        );
+
+                        // Apply LLM's updates to TodoLoopContext
+                        if let Some(ref mut ctx) = todo_context {
+                            for update in evaluation_result.updates {
+                                let status = update.status.clone();
+                                ctx.update_item_status(&update.item_id, status);
+
+                                // Also update session for persistence
+                                if let Some(notes) = update.notes {
+                                    let _ = session.update_todo_item(
+                                        &update.item_id,
+                                        update.status,
+                                        Some(&notes),
+                                    );
+                                } else {
+                                    let status = update.status.clone();
+                                    let _ = session.update_todo_item(
+                                        &update.item_id,
+                                        status,
+                                        None,
+                                    );
+                                }
+                            }
+                        }
+                    }
+                }
+                Err(e) => {
+                    log::warn!("[{}] Todo evaluation failed: {}", session_id, e);
+                }
+            }
+        }
+
         if let Some(metrics) = metrics_collector.as_ref() {
             metrics.round_completed(
                 round_id.clone(),
@@ -707,6 +834,44 @@ pub async fn run_agent_loop_with_config(
                 session.messages.len() as u32,
                 Utc::now(),
             );
+        }
+    }
+
+    // Check if all todo items completed
+    if let Some(ref ctx) = todo_context {
+        if ctx.is_all_completed() {
+            log::info!("[{}] All todo items completed", session_id);
+
+            let _ = event_tx.send(AgentEvent::TodoListCompleted {
+                session_id: session_id.clone(),
+                completed_at: Utc::now(),
+                total_rounds: ctx.current_round + 1, // Convert 0-indexed to 1-indexed for display
+                total_tool_calls: ctx.items.iter().map(|i| i.tool_calls.len()).sum(),
+            }).await;
+        }
+    }
+
+    // Sync TodoLoopContext back to session
+    if let Some(ctx) = todo_context {
+        // Save version to session metadata before consuming ctx
+        let version = ctx.version;
+        session.metadata.insert(
+            "todo_list_version".to_string(),
+            version.to_string(),
+        );
+
+        session.todo_list = Some(ctx.into_todo_list());
+        session.updated_at = Utc::now();
+
+        log::debug!("[{}] Synced TodoLoopContext to session, version={}", session_id, version);
+
+        // Persist session with updated todo list
+        if let Some(ref storage) = config.storage {
+            if let Err(e) = storage.save_session(session).await {
+                log::warn!("[{}] Failed to save session after agent loop: {}", session_id, e);
+            } else {
+                log::debug!("[{}] Session saved with updated todo list", session_id);
+            }
         }
     }
 
