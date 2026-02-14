@@ -1,5 +1,11 @@
 import { useEffect, useRef } from 'react';
-import { AgentClient, TokenBudgetUsage, ContextSummaryInfo } from '../services/chat/AgentService';
+import {
+  AgentClient,
+  TokenBudgetUsage,
+  ContextSummaryInfo,
+  TodoList,
+  TodoListDelta,
+} from '../services/chat/AgentService';
 import { useAppStore } from '../pages/ChatPage/store';
 import { streamingMessageBus } from '../pages/ChatPage/utils/streamingMessageBus';
 import { message } from 'antd';
@@ -18,6 +24,10 @@ export function useAgentEventSubscription() {
   const updateTokenUsage = useAppStore((state) => state.updateTokenUsage);
   const setTruncationInfo = useAppStore((state) => state.setTruncationInfo);
   const updateChat = useAppStore((state) => state.updateChat);
+  const setTodoList = useAppStore((state) => state.setTodoList);
+  const updateTodoListDelta = useAppStore((state) => state.updateTodoListDelta);
+  const setEvaluationState = useAppStore((state) => state.setEvaluationState);
+  const clearEvaluationState = useAppStore((state) => state.clearEvaluationState);
 
   const agentClientRef = useRef(new AgentClient());
   const abortControllerRef = useRef<AbortController | null>(null);
@@ -201,6 +211,79 @@ export function useAgentEventSubscription() {
           );
         },
 
+        onTodoListUpdated: (todoList: TodoList) => {
+          console.log('[useAgentEventSubscription] Todo list updated:', todoList);
+          // Use agentSessionId (from todoList.session_id) as key, matching TodoList component
+          const sessionId = todoList.session_id;
+          if (sessionId) {
+            setTodoList(sessionId, todoList);
+          }
+        },
+
+        onTodoListItemProgress: (delta: TodoListDelta) => {
+          console.log('[useAgentEventSubscription] Todo list item progress:', delta);
+          // Use session_id from delta, matching TodoList component
+          const sessionId = delta.session_id;
+          if (sessionId) {
+            updateTodoListDelta(sessionId, delta);
+          }
+        },
+
+        onTodoListCompleted: (sessionId: string, totalRounds: number, totalToolCalls: number) => {
+          console.log('[useAgentEventSubscription] Todo list completed:', { sessionId, totalRounds, totalToolCalls });
+          // Show completion notification
+          message.success(
+            `All tasks completed! Total rounds: ${totalRounds}, Tool calls: ${totalToolCalls}`,
+            3
+          );
+        },
+
+        onTodoEvaluationStarted: (sessionId: string, itemsCount: number) => {
+          console.log('[useAgentEventSubscription] Todo evaluation started:', { sessionId, itemsCount });
+
+          // Set evaluating state
+          setEvaluationState(sessionId, {
+            isEvaluating: true,
+            reasoning: null,
+            timestamp: Date.now(),
+          });
+
+          // Show evaluation started notification
+          message.info(
+            `🤖 Evaluating ${itemsCount} task(s)...`,
+            2
+          );
+        },
+
+        onTodoEvaluationCompleted: (sessionId: string, updatesCount: number, reasoning: string) => {
+          console.log('[useAgentEventSubscription] Todo evaluation completed:', { sessionId, updatesCount, reasoning });
+
+          // Set completed state with reasoning
+          setEvaluationState(sessionId, {
+            isEvaluating: false,
+            reasoning: reasoning,
+            timestamp: Date.now(),
+          });
+
+          // Clear evaluation state after 5 seconds
+          setTimeout(() => {
+            clearEvaluationState(sessionId);
+          }, 5000);
+
+          // Show evaluation result
+          if (updatesCount > 0) {
+            message.success(
+              `✅ Evaluation complete: ${updatesCount} task(s) updated. ${reasoning}`,
+              4
+            );
+          } else {
+            message.info(
+              `📋 Evaluation complete: No updates needed`,
+              2
+            );
+          }
+        },
+
         onComplete: async () => {
           console.log('[useAgentEventSubscription] Agent execution completed');
 
@@ -278,6 +361,8 @@ export function useAgentEventSubscription() {
     setProcessing,
     updateTokenUsage,
     setTruncationInfo,
+    setTodoList,
+    updateTodoListDelta,
     // Note: We intentionally exclude currentChat?.config and updateChat from dependencies
     // because updateChat updates config, which would cause infinite re-subscription
   ]);

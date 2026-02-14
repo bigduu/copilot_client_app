@@ -12,6 +12,11 @@ export type AgentEventType =
   | "tool_start"
   | "tool_complete"
   | "tool_error"
+  | "todo_list_updated"
+  | "todo_list_item_progress"
+  | "todo_list_completed"
+  | "todo_evaluation_started"
+  | "todo_evaluation_completed"
   | "token_budget_updated"
   | "context_summarized"
   | "complete"
@@ -33,6 +38,33 @@ export interface ContextSummaryInfo {
   tokens_saved: number;
 }
 
+// TodoList Types
+export type TodoItemStatus = 'pending' | 'in_progress' | 'completed' | 'blocked';
+
+export interface TodoItem {
+  id: string;
+  description: string;
+  status: TodoItemStatus;
+  depends_on: string[];
+  notes: string;
+}
+
+export interface TodoList {
+  session_id: string;
+  title: string;
+  items: TodoItem[];
+  created_at: string;
+  updated_at: string;
+}
+
+export interface TodoListDelta {
+  session_id: string;
+  item_id: string;
+  status: TodoItemStatus;
+  tool_calls_count: number;
+  version: number;
+}
+
 export interface AgentEvent {
   type: AgentEventType;
   content?: string;
@@ -52,6 +84,21 @@ export interface AgentEvent {
     total_tokens: number;
   } | TokenBudgetUsage;
   summary_info?: ContextSummaryInfo;
+  // TodoList events
+  todo_list?: TodoList;
+  // TodoList delta
+  session_id?: string;
+  item_id?: string;
+  status?: TodoItemStatus;
+  tool_calls_count?: number;
+  version?: number;
+  completed_at?: string;
+  total_rounds?: number;
+  total_tool_calls?: number;
+  // TodoList evaluation (NEW)
+  items_count?: number;
+  updates_count?: number;
+  reasoning?: string;
 }
 
 export interface ChatRequest {
@@ -104,6 +151,11 @@ export interface AgentEventHandlers {
   ) => void;
   onToolComplete?: (toolCallId: string, result: AgentEvent["result"]) => void;
   onToolError?: (toolCallId: string, error: string) => void;
+  onTodoListUpdated?: (todoList: TodoList) => void;
+  onTodoListItemProgress?: (delta: TodoListDelta) => void;
+  onTodoListCompleted?: (sessionId: string, totalRounds: number, totalToolCalls: number) => void;
+  onTodoEvaluationStarted?: (sessionId: string, itemsCount: number) => void;
+  onTodoEvaluationCompleted?: (sessionId: string, updatesCount: number, reasoning: string) => void;
   onTokenBudgetUpdated?: (usage: TokenBudgetUsage) => void;
   onContextSummarized?: (summaryInfo: ContextSummaryInfo) => void;
   onComplete?: (usage: AgentEvent["usage"]) => void;
@@ -317,6 +369,37 @@ export class AgentClient {
         break;
       case "tool_error":
         handlers.onToolError?.(event.tool_call_id || "", event.error || "");
+        break;
+      case "todo_list_updated":
+        if (event.todo_list) {
+          handlers.onTodoListUpdated?.(event.todo_list);
+        }
+        break;
+      case "todo_list_item_progress":
+        if (event.session_id && event.item_id && event.status && event.tool_calls_count !== undefined && event.version !== undefined) {
+          handlers.onTodoListItemProgress?.({
+            session_id: event.session_id,
+            item_id: event.item_id,
+            status: event.status,
+            tool_calls_count: event.tool_calls_count,
+            version: event.version,
+          });
+        }
+        break;
+      case "todo_list_completed":
+        if (event.session_id && event.total_rounds !== undefined && event.total_tool_calls !== undefined) {
+          handlers.onTodoListCompleted?.(event.session_id, event.total_rounds, event.total_tool_calls);
+        }
+        break;
+      case "todo_evaluation_started":
+        if (event.session_id && event.items_count !== undefined) {
+          handlers.onTodoEvaluationStarted?.(event.session_id, event.items_count);
+        }
+        break;
+      case "todo_evaluation_completed":
+        if (event.session_id && event.updates_count !== undefined && event.reasoning) {
+          handlers.onTodoEvaluationCompleted?.(event.session_id, event.updates_count, event.reasoning);
+        }
         break;
       case "token_budget_updated":
         if (event.usage && 'system_tokens' in event.usage) {
