@@ -21,7 +21,6 @@ tauri-build = { workspace = true }
 agent-llm = { path = "../crates/agent-llm" }
 web_service = { path = "../crates/web_service" }
 agent-server = { path = "../crates/agent-server" }
-claude_installer = { path = "../crates/claude_installer" }
 chat_core = { path = "../crates/chat_core" }
 
 # Tauri core and plugins

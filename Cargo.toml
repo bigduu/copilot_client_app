@@ -1,6 +1,5 @@
 [workspace]
 members = [
-    "crates/claude_installer",
     "crates/chat_core",
     "crates/workflow_system",
     "crates/agent-core",
@@ -13,7 +12,6 @@ members = [
     "crates/agent-mcp",
     "crates/agent-metrics",
     "crates/web_service",
-    "crates/anthropic_adapter",
     "src-tauri",
     "crates/web_service_standalone",
 ]
@@ -117,5 +115,3 @@ agent-mcp = { path = "crates/agent-mcp" }
 agent-metrics = { path = "crates/agent-metrics" }
 agent-cli = { path = "crates/agent-cli" }
 web_service = { path = "crates/web_service" }
-claude_installer = { path = "crates/claude_installer" }
-anthropic_adapter = { path = "crates/anthropic_adapter" }
