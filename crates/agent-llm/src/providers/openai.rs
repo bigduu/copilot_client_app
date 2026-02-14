@@ -40,8 +40,13 @@ impl OpenAIProvider {
 
 #[async_trait]
 impl LLMProvider for OpenAIProvider {
-    async fn chat_stream(&self, messages: &[Message], tools: &[ToolSchema]) -> Result<LLMStream> {
-        let body = build_openai_compat_body(&self.model, messages, tools, None);
+    async fn chat_stream(
+        &self,
+        messages: &[Message],
+        tools: &[ToolSchema],
+        max_output_tokens: Option<u32>,
+    ) -> Result<LLMStream> {
+        let body = build_openai_compat_body(&self.model, messages, tools, None, max_output_tokens);
 
         let response = self
             .client

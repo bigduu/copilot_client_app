@@ -207,7 +207,12 @@ impl Default for CopilotProvider {
 
 #[async_trait]
 impl LLMProvider for CopilotProvider {
-    async fn chat_stream(&self, messages: &[Message], tools: &[ToolSchema]) -> Result<LLMStream> {
+    async fn chat_stream(
+        &self,
+        messages: &[Message],
+        tools: &[ToolSchema],
+        max_output_tokens: Option<u32>,
+    ) -> Result<LLMStream> {
         // Ensure authenticated
         if !self.is_authenticated() {
             return Err(LLMError::Auth(
@@ -215,13 +220,17 @@ impl LLMProvider for CopilotProvider {
             ));
         }
 
-        let body = json!({
+        let mut body = json!({
             "model": "copilot-chat",
             "messages": messages_to_openai_compat_json(messages),
             "stream": true,
             "tools": tools_to_openai_compat_json(tools),
             "tool_choice": "auto",
         });
+
+        if let Some(max_tokens) = max_output_tokens {
+            body["max_tokens"] = json!(max_tokens);
+        }
 
         log::debug!(
             "Sending request to Copilot API with {} messages and {} tools",

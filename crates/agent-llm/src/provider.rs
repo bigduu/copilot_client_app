@@ -29,5 +29,10 @@ pub type LLMStream = Pin<Box<dyn Stream<Item = Result<LLMChunk>> + Send>>;
 
 #[async_trait]
 pub trait LLMProvider: Send + Sync {
-    async fn chat_stream(&self, messages: &[Message], tools: &[ToolSchema]) -> Result<LLMStream>;
+    async fn chat_stream(
+        &self,
+        messages: &[Message],
+        tools: &[ToolSchema],
+        max_output_tokens: Option<u32>,
+    ) -> Result<LLMStream>;
 }

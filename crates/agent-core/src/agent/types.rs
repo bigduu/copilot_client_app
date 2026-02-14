@@ -95,6 +95,46 @@ pub struct PendingQuestion {
     pub allow_custom: bool,
 }
 
+/// Summary of conversation context for budget management.
+///
+/// When conversations are truncated due to token limits, a summary
+/// can preserve key information from earlier context.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ConversationSummary {
+    /// When the summary was created
+    pub created_at: DateTime<Utc>,
+    /// When the summary was last updated
+    pub updated_at: DateTime<Utc>,
+    /// The summary text
+    pub content: String,
+    /// Number of messages summarized
+    pub message_count: usize,
+    /// Token count of the summary
+    pub token_count: u32,
+}
+
+impl ConversationSummary {
+    /// Create a new conversation summary.
+    pub fn new(content: impl Into<String>, message_count: usize, token_count: u32) -> Self {
+        let now = Utc::now();
+        Self {
+            created_at: now,
+            updated_at: now,
+            content: content.into(),
+            message_count,
+            token_count,
+        }
+    }
+
+    /// Update the summary with new content.
+    pub fn update(&mut self, content: impl Into<String>, message_count: usize, token_count: u32) {
+        self.content = content.into();
+        self.message_count = message_count;
+        self.token_count = token_count;
+        self.updated_at = Utc::now();
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Session {
     pub id: String,
@@ -113,6 +153,15 @@ pub struct Session {
     /// Session metadata for extensibility (other configuration)
     #[serde(default, skip_serializing_if = "std::collections::HashMap::is_empty")]
     pub metadata: std::collections::HashMap<String, String>,
+    /// Token budget configuration for this session
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub token_budget: Option<crate::budget::TokenBudget>,
+    /// Last token usage information (updated after each LLM call)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub token_usage: Option<crate::agent::events::TokenBudgetUsage>,
+    /// Conversation summary for context management
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub conversation_summary: Option<ConversationSummary>,
 }
 
 impl Session {
@@ -127,6 +176,9 @@ impl Session {
             pending_question: None,
             model: None,
             metadata: std::collections::HashMap::new(),
+            token_budget: None,
+            token_usage: None,
+            conversation_summary: None,
         }
     }
 

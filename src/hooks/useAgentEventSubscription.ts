@@ -1,7 +1,8 @@
 import { useEffect, useRef } from 'react';
-import { AgentClient } from '../services/chat/AgentService';
+import { AgentClient, TokenBudgetUsage, ContextSummaryInfo } from '../services/chat/AgentService';
 import { useAppStore } from '../pages/ChatPage/store';
 import { streamingMessageBus } from '../pages/ChatPage/utils/streamingMessageBus';
+import { message } from 'antd';
 
 /**
  * Hook to maintain a persistent subscription to agent events for the current chat
@@ -14,11 +15,29 @@ export function useAgentEventSubscription() {
   const addMessage = useAppStore((state) => state.addMessage);
   const isProcessing = useAppStore((state) => state.isProcessing);
   const setProcessing = useAppStore((state) => state.setProcessing);
+  const updateTokenUsage = useAppStore((state) => state.updateTokenUsage);
+  const setTruncationInfo = useAppStore((state) => state.setTruncationInfo);
+  const updateChat = useAppStore((state) => state.updateChat);
 
   const agentClientRef = useRef(new AgentClient());
   const abortControllerRef = useRef<AbortController | null>(null);
   const streamingMessageIdRef = useRef<string | null>(null);
   const streamingContentRef = useRef<string>('');
+
+  // Initialize token usage from chat config (for page refresh recovery)
+  useEffect(() => {
+    const chatId = currentChat?.id;
+    const configTokenUsage = currentChat?.config?.tokenUsage;
+    const configTruncation = currentChat?.config?.truncationOccurred;
+    const configSegments = currentChat?.config?.segmentsRemoved;
+
+    if (chatId && configTokenUsage) {
+      updateTokenUsage(chatId, configTokenUsage);
+      if (configTruncation !== undefined && configSegments !== undefined) {
+        setTruncationInfo(chatId, configTruncation, configSegments);
+      }
+    }
+  }, [currentChat?.id, currentChat?.config?.tokenUsage, updateTokenUsage, setTruncationInfo]);
 
   useEffect(() => {
     const agentSessionId = currentChat?.config?.agentSessionId;
@@ -141,6 +160,47 @@ export function useAgentEventSubscription() {
           });
         },
 
+        onTokenBudgetUpdated: (usage: TokenBudgetUsage) => {
+          console.log('[useAgentEventSubscription] Token budget updated:', usage);
+
+          const tokenUsage = {
+            systemTokens: usage.system_tokens,
+            summaryTokens: usage.summary_tokens,
+            windowTokens: usage.window_tokens,
+            totalTokens: usage.total_tokens,
+            budgetLimit: usage.budget_limit,
+          };
+
+          // Update token usage in store (for real-time display)
+          updateTokenUsage(chatId, tokenUsage);
+
+          // Update truncation info in store
+          setTruncationInfo(chatId, usage.truncation_occurred, usage.segments_removed);
+
+          // Persist to chat config (for page refresh recovery)
+          // Note: This will cause a re-render but should NOT cause re-subscription
+          // because currentChat?.config?.agentSessionId hasn't changed
+          updateChat(chatId, {
+            config: {
+              ...currentChat?.config,
+              tokenUsage,
+              truncationOccurred: usage.truncation_occurred,
+              segmentsRemoved: usage.segments_removed,
+            },
+          });
+        },
+
+        onContextSummarized: (summaryInfo: ContextSummaryInfo) => {
+          console.log('[useAgentEventSubscription] Context summarized:', summaryInfo);
+
+          // Show notification to user
+          message.info(
+            `Conversation summarized: ${summaryInfo.messages_summarized} messages compressed, ` +
+            `saved ${summaryInfo.tokens_saved.toLocaleString()} tokens`,
+            5
+          );
+        },
+
         onComplete: async () => {
           console.log('[useAgentEventSubscription] Agent execution completed');
 
@@ -216,5 +276,9 @@ export function useAgentEventSubscription() {
     isProcessing,
     addMessage,
     setProcessing,
+    updateTokenUsage,
+    setTruncationInfo,
+    // Note: We intentionally exclude currentChat?.config and updateChat from dependencies
+    // because updateChat updates config, which would cause infinite re-subscription
   ]);
 }

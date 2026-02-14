@@ -39,3 +39,6 @@ default = []
 http = []
 git = ["git2"]
 full = ["http", "git"]
+
+[dev-dependencies]
+tempfile = { workspace = true }

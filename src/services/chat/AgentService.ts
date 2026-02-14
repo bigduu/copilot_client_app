@@ -12,8 +12,26 @@ export type AgentEventType =
   | "tool_start"
   | "tool_complete"
   | "tool_error"
+  | "token_budget_updated"
+  | "context_summarized"
   | "complete"
   | "error";
+
+export interface TokenBudgetUsage {
+  system_tokens: number;
+  summary_tokens: number;
+  window_tokens: number;
+  total_tokens: number;
+  budget_limit: number;
+  truncation_occurred: boolean;
+  segments_removed: number;
+}
+
+export interface ContextSummaryInfo {
+  summary: string;
+  messages_summarized: number;
+  tokens_saved: number;
+}
 
 export interface AgentEvent {
   type: AgentEventType;
@@ -27,11 +45,13 @@ export interface AgentEvent {
     display_preference?: string;
   };
   error?: string;
+  // Union type because 'usage' field has different shapes for different events
   usage?: {
     prompt_tokens: number;
     completion_tokens: number;
     total_tokens: number;
-  };
+  } | TokenBudgetUsage;
+  summary_info?: ContextSummaryInfo;
 }
 
 export interface ChatRequest {
@@ -84,6 +104,8 @@ export interface AgentEventHandlers {
   ) => void;
   onToolComplete?: (toolCallId: string, result: AgentEvent["result"]) => void;
   onToolError?: (toolCallId: string, error: string) => void;
+  onTokenBudgetUpdated?: (usage: TokenBudgetUsage) => void;
+  onContextSummarized?: (summaryInfo: ContextSummaryInfo) => void;
   onComplete?: (usage: AgentEvent["usage"]) => void;
   onError?: (message: string) => void;
 }
@@ -295,6 +317,16 @@ export class AgentClient {
         break;
       case "tool_error":
         handlers.onToolError?.(event.tool_call_id || "", event.error || "");
+        break;
+      case "token_budget_updated":
+        if (event.usage && 'system_tokens' in event.usage) {
+          handlers.onTokenBudgetUpdated?.(event.usage);
+        }
+        break;
+      case "context_summarized":
+        if (event.summary_info) {
+          handlers.onContextSummarized?.(event.summary_info);
+        }
         break;
       case "complete":
         handlers.onComplete?.(event.usage);

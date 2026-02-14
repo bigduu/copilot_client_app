@@ -1,5 +1,6 @@
 import { StateValue } from "xstate";
 import type { TodoListMsg } from "./todoList";
+import type { TokenUsage } from "./tokenBudget";
 
 export type AgentRole = "planner" | "actor";
 
@@ -165,6 +166,9 @@ export interface ChatItem {
     agentRole?: AgentRole;
     workspacePath?: string;
     agentSessionId?: string;
+    tokenUsage?: TokenUsage;
+    truncationOccurred?: boolean;
+    segmentsRemoved?: number;
   };
   currentInteraction: {
     machineState: StateValue;
