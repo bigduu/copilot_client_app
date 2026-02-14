@@ -57,7 +57,11 @@ impl Tool for CreateTodoListTool {
     }
 
     fn description(&self) -> &str {
-        "Create a todo list to track multi-step task progress. After creation, it will be embedded in the session and the AI will follow the list to execute tasks and maintain progress"
+        "Create a structured todo list to track multi-step task progress. \
+        IMPORTANT: When the user requests multiple tasks or complex work, \
+        you MUST use this tool to create a formal todo list instead of writing markdown checklists. \
+        This enables real-time progress tracking and automatic status updates. \
+        After creation, the todo list will be displayed in the UI and the system will track progress automatically."
     }
 
     fn parameters_schema(&self) -> serde_json::Value {

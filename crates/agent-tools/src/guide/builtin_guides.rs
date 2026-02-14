@@ -229,8 +229,8 @@ pub fn builtin_guide_spec(tool_name: &str) -> Option<ToolGuideSpec> {
         "create_todo_list" => Some(guide(
             "create_todo_list",
             ToolCategory::TaskManagement,
-            "Break complex requirements into executable steps / Break complex work into tracked tasks.",
-            "Not suitable for single-step trivial tasks / Skip for trivial one-step requests.",
+            "MANDATORY for multi-step tasks: Create a structured todo list INSTEAD of markdown checklists. This enables real-time progress tracking and automatic status updates.",
+            "SKIP only for single-step trivial tasks / DO NOT output markdown checklists - always use this tool for multi-step work.",
             &["update_todo_item", "ask_user"],
             vec![example(
                 "Create implementation plan",
