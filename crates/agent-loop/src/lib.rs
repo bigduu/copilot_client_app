@@ -1,9 +1,13 @@
 pub mod config;
 pub mod runner;
 pub mod stream;
+pub mod todo_context;
+pub mod todo_evaluation;
 
 pub use config::AgentLoopConfig;
 pub use runner::{run_agent_loop, run_agent_loop_with_config};
+pub use todo_context::TodoLoopContext;
+pub use todo_evaluation::{evaluate_todo_progress, TodoEvaluationResult};
 
 #[cfg(test)]
 mod tests {
