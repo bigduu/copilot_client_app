@@ -1,5 +1,6 @@
 use crate::tools::ToolResult;
-use crate::todo::TodoList;
+use crate::todo::{TodoItemStatus, TodoList};
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -33,6 +34,36 @@ pub enum AgentEvent {
     /// Emitted when todo list is created or updated
     TodoListUpdated {
         todo_list: TodoList,
+    },
+
+    /// Emitted when a todo item makes progress (delta update)
+    TodoListItemProgress {
+        session_id: String,
+        item_id: String,
+        status: TodoItemStatus,
+        tool_calls_count: usize,
+        version: u64,
+    },
+
+    /// Emitted when all todo items are completed
+    TodoListCompleted {
+        session_id: String,
+        completed_at: DateTime<Utc>,
+        total_rounds: u32,
+        total_tool_calls: usize,
+    },
+
+    /// Emitted when todo evaluation starts (NEW)
+    TodoEvaluationStarted {
+        session_id: String,
+        items_count: usize,
+    },
+
+    /// Emitted when todo evaluation completes (NEW)
+    TodoEvaluationCompleted {
+        session_id: String,
+        updates_count: usize,
+        reasoning: String,
     },
 
     /// Emitted when token budget is prepared (after context truncation)
