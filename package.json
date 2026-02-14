@@ -26,7 +26,7 @@
     "antd": "^5.24.7",
     "date-fns": "^4.1.0",
     "html2canvas": "^1.4.1",
-    "html2pdf.js": "^0.10.3",
+    "html2pdf.js": "^0.14.0",
     "jspdf": "^3.0.1",
     "markdown-it": "^14.1.0",
     "mermaid": "^11.9.0",
@@ -34,7 +34,7 @@
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-markdown": "^10.1.0",
-    "react-syntax-highlighter": "^15.6.1",
+    "react-syntax-highlighter": "^16.1.0",
     "react-zoom-pan-pinch": "^3.7.0",
     "recharts": "^2.15.4",
     "rehype-sanitize": "^6.0.0",
@@ -62,6 +62,6 @@
     "prettier": "^3.6.2",
     "typescript": "~5.6.2",
     "vite": "^6.0.3",
-    "vitest": "^1.6.1"
+    "vitest": "^4.0.18"
   }
 }
