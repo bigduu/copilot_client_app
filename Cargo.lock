@@ -326,6 +326,7 @@ dependencies = [
  "chrono",
  "futures",
  "log",
+ "serde",
  "serde_json",
  "tokio",
  "tokio-util",
@@ -568,17 +569,6 @@ dependencies = [
  "anstyle",
  "once_cell_polyfill",
  "windows-sys 0.60.2",
-]
-
-[[package]]
-name = "anthropic_adapter"
-version = "0.1.0"
-dependencies = [
- "agent-llm",
- "chat_core",
- "serde",
- "serde_json",
- "tokio",
 ]
 
 [[package]]
@@ -1295,18 +1285,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a1d728cc89cf3aee9ff92b05e62b19ee65a02b5702cff7d5a377e32c6ae29d8d"
 
 [[package]]
-name = "claude_installer"
-version = "0.1.0"
-dependencies = [
- "chrono",
- "serde",
- "serde_json",
- "tempfile",
- "thiserror 1.0.69",
- "tokio",
-]
-
-[[package]]
 name = "clipboard-win"
 version = "5.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1405,7 +1383,6 @@ dependencies = [
  "async-stream",
  "chat_core",
  "chrono",
- "claude_installer",
  "crossbeam",
  "dirs 5.0.1",
  "env_logger",
@@ -7513,7 +7490,6 @@ dependencies = [
  "bytes",
  "chat_core",
  "chrono",
- "claude_installer",
  "dirs 5.0.1",
  "futures-util",
  "log",

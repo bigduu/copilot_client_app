@@ -13,7 +13,7 @@ use tokio::sync::oneshot;
 
 use crate::controllers::anthropic as anthropic_controller;
 use crate::controllers::{
-    agent_controller, settings_controller, claude_install_controller, openai_controller,
+    agent_controller, settings_controller, openai_controller,
     skill_controller, tools_controller, workspace_controller,
 };
 
@@ -86,7 +86,6 @@ pub fn app_config(cfg: &mut web::ServiceConfig) {
             .configure(agent_controller::config)
             .configure(openai_controller::config)
             .configure(settings_controller::config)
-            .configure(claude_install_controller::config)
             .configure(skill_controller::config)
             .configure(tools_controller::config)
             .configure(workspace_controller::config),
