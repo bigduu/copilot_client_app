@@ -204,7 +204,7 @@ impl CopilotClientTrait for CopilotClient {
         // Apply keyword masking to message content
         self.apply_keyword_masking_to_request(&mut request);
 
-        let (auth_handler, client, config) = {
+        let (auth_handler, client, _config) = {
             let state = self.state.read().await;
             (
                 state.auth_handler.clone(),
