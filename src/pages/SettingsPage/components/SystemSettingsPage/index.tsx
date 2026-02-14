@@ -17,7 +17,6 @@ import {
   setTodoEnhancementEnabled,
 } from "../../../../shared/utils/todoEnhancementUtils";
 import SystemSettingsConfigTab from "./SystemSettingsConfigTab";
-import SystemSettingsAgentTab from "./SystemSettingsAgentTab";
 import SystemSettingsPromptsTab from "./SystemSettingsPromptsTab";
 import SystemSettingsAppTab from "./SystemSettingsAppTab";
 import SystemSettingsKeywordMaskingTab from "./SystemSettingsKeywordMaskingTab";
@@ -189,11 +188,6 @@ const SystemSettingsPage = ({
                   isLoadingModels={isLoadingModels}
                 />
               ),
-            },
-            {
-              key: "agent",
-              label: "Agent",
-              children: <SystemSettingsAgentTab />,
             },
             {
               key: "prompts",
