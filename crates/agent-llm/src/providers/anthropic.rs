@@ -66,8 +66,14 @@ impl AnthropicProvider {
 
 #[async_trait]
 impl LLMProvider for AnthropicProvider {
-    async fn chat_stream(&self, messages: &[Message], tools: &[ToolSchema]) -> Result<LLMStream> {
-        let body = build_anthropic_request(messages, tools, &self.model, self.max_tokens, true);
+    async fn chat_stream(
+        &self,
+        messages: &[Message],
+        tools: &[ToolSchema],
+        max_output_tokens: Option<u32>,
+    ) -> Result<LLMStream> {
+        let max_tokens = max_output_tokens.unwrap_or(self.max_tokens);
+        let body = build_anthropic_request(messages, tools, &self.model, max_tokens, true);
         let headers = self.build_headers()?;
 
         let response = self

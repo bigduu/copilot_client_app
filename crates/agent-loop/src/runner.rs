@@ -4,7 +4,10 @@ use chrono::Utc;
 use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
 
-use agent_core::agent::events::TokenUsage;
+use agent_core::agent::events::{TokenBudgetUsage, TokenUsage};
+use agent_core::budget::{
+    prepare_hybrid_context, HeuristicTokenCounter, ModelLimitsRegistry, TokenBudget,
+};
 use agent_core::tools::{
     execute_tool_call, handle_tool_result_with_agentic_support, parse_tool_args, ToolExecutor,
     ToolHandlingOutcome, ToolSchema,
@@ -186,9 +189,81 @@ pub async fn run_agent_loop_with_config(
 
         let tool_schemas = resolve_available_tool_schemas(&config, tools.as_ref());
 
+        // Token budget preparation
+        let budget = resolve_token_budget(&session, &config, &model_name);
+        let counter = HeuristicTokenCounter::default();
+
+        let prepared_context = match prepare_hybrid_context(&session, &budget, &counter) {
+            Ok(ctx) => ctx,
+            Err(e) => {
+                let agent_error = AgentError::Budget(e.to_string());
+                round_status = MetricsRoundStatus::Error;
+                round_error = Some(agent_error.to_string());
+                if let Some(metrics) = metrics_collector.as_ref() {
+                    metrics.round_completed(
+                        round_id.clone(),
+                        Utc::now(),
+                        round_status,
+                        MetricsTokenUsage::default(),
+                        round_error.clone(),
+                    );
+                    metrics.session_message_count(
+                        session_id.clone(),
+                        session.messages.len() as u32,
+                        Utc::now(),
+                    );
+                    metrics.session_completed(
+                        session_id.clone(),
+                        MetricsSessionStatus::Error,
+                        Utc::now(),
+                    );
+                }
+                return Err(agent_error);
+            }
+        };
+
+        if prepared_context.truncation_occurred {
+            log::info!(
+                "[{}] Context truncated: removed {} segments, using {} tokens of {} ({:.1}%)",
+                session_id,
+                prepared_context.segments_removed,
+                prepared_context.token_usage.total_tokens,
+                prepared_context.token_usage.budget_limit,
+                prepared_context.token_usage.usage_percentage()
+            );
+        }
+
         let timer = Timer::new("llm_request");
-        let stream = match llm.chat_stream(&session.messages, &tool_schemas).await {
-            Ok(stream) => stream,
+        let stream = match llm
+            .chat_stream(
+                &prepared_context.messages,
+                &tool_schemas,
+                Some(budget.max_output_tokens),
+            )
+            .await
+        {
+            Ok(stream) => {
+                // Send token budget update AFTER LLM call succeeds
+                // This timing gives frontend time to subscribe to /events endpoint
+                let usage = TokenBudgetUsage {
+                    system_tokens: prepared_context.token_usage.system_tokens,
+                    summary_tokens: prepared_context.token_usage.summary_tokens,
+                    window_tokens: prepared_context.token_usage.window_tokens,
+                    total_tokens: prepared_context.token_usage.total_tokens,
+                    budget_limit: prepared_context.token_usage.budget_limit,
+                    truncation_occurred: prepared_context.truncation_occurred,
+                    segments_removed: prepared_context.segments_removed,
+                };
+
+                // Save to session for persistence
+                session.token_usage = Some(usage.clone());
+
+                let budget_event = AgentEvent::TokenBudgetUpdated { usage };
+                if let Err(e) = event_tx.send(budget_event).await {
+                    log::warn!("[{}] Failed to send token budget event: {}", session_id, e);
+                }
+                stream
+            }
             Err(error) => {
                 let agent_error = AgentError::LLM(error.to_string());
                 round_status = MetricsRoundStatus::Error;
@@ -673,6 +748,34 @@ async fn send_event_with_metrics(
     }
 
     let _ = event_tx.send(event).await;
+}
+
+fn resolve_token_budget(
+    session: &Session,
+    config: &AgentLoopConfig,
+    model_name: &str,
+) -> TokenBudget {
+    // Priority: session override > config override > model defaults
+    if let Some(ref budget) = session.token_budget {
+        log::debug!("Using session-specific token budget");
+        return budget.clone();
+    }
+
+    if let Some(ref budget) = config.token_budget {
+        log::debug!("Using config token budget");
+        return budget.clone();
+    }
+
+    // Default to model limits
+    let registry = ModelLimitsRegistry::default();
+    let model_limit = registry.get_or_default(model_name);
+
+    TokenBudget::with_safety_margin(
+        model_limit.max_context_tokens,
+        model_limit.get_max_output_tokens(),
+        agent_core::budget::BudgetStrategy::default(),
+        model_limit.get_safety_margin(),
+    )
 }
 
 fn resolve_available_tool_schemas(

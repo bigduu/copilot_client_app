@@ -106,8 +106,18 @@ pub async fn handler(
 
     // Spawn event forwarder: mpsc -> broadcast
     let session_id_forwarder = session_id.clone();
+    let state_for_forwarder = state.get_ref().clone();
     tokio::spawn(async move {
         while let Some(event) = mpsc_rx.recv().await {
+            // Store budget events for late subscribers
+            if matches!(&event, agent_core::AgentEvent::TokenBudgetUpdated { .. }) {
+                let mut runners = state_for_forwarder.agent_runners.write().await;
+                if let Some(runner) = runners.get_mut(&session_id_forwarder) {
+                    runner.last_budget_event = Some(event.clone());
+                    log::debug!("[{}] Stored budget event for late subscribers", session_id_forwarder);
+                }
+            }
+
             if broadcast_tx.send(event.clone()).is_err() {
                 log::debug!("[{}] No subscribers for event", session_id_forwarder);
             }

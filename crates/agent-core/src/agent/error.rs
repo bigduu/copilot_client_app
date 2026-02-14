@@ -11,6 +11,9 @@ pub enum AgentError {
     #[error("Tool error: {0}")]
     Tool(String),
 
+    #[error("Budget error: {0}")]
+    Budget(String),
+
     #[error("Cancelled")]
     Cancelled,
 }

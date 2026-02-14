@@ -13,18 +13,19 @@ pub async fn handler(
     log::debug!("[{}] Events subscription requested", session_id);
 
     // Check if there's a runner for this session
-    let (event_receiver, runner_status) = {
+    let (event_receiver, runner_status, budget_event_to_replay) = {
         let runners = state.agent_runners.read().await;
         match runners.get(&session_id) {
             Some(runner) => {
                 let rx = runner.event_sender.subscribe();
                 let status = runner.status.clone();
+                let budget_event = runner.last_budget_event.clone();
                 log::debug!("[{}] Found runner with status: {:?}", session_id, status);
-                (Some(rx), Some(status))
+                (Some(rx), Some(status), budget_event)
             }
             None => {
                 log::debug!("[{}] No runner found for session", session_id);
-                (None, None)
+                (None, None, None)
             }
         }
     };
@@ -59,6 +60,23 @@ pub async fn handler(
                 .append_header((header::CACHE_CONTROL, "no-cache"))
                 .append_header((header::CONNECTION, "keep-alive"))
                 .streaming(async_stream::stream! {
+                    // Replay last budget event if available (for late subscribers)
+                    if let Some(ref budget_event) = budget_event_to_replay {
+                        let event_json = match serde_json::to_string(budget_event) {
+                            Ok(json) => json,
+                            Err(_) => {
+                                log::warn!("[{}] Failed to serialize budget event for replay", session_id);
+                                String::new()
+                            }
+                        };
+                        if !event_json.is_empty() {
+                            let sse_data = format!("data: {}\n\n", event_json);
+                            yield Ok::<_, actix_web::Error>(
+                                actix_web::web::Bytes::from(sse_data)
+                            );
+                        }
+                    }
+
                     while let Ok(event) = receiver.recv().await {
                         let event_json = match serde_json::to_string(&event) {
                             Ok(json) => json,

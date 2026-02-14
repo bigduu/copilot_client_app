@@ -49,6 +49,8 @@ pub struct AgentRunner {
     pub status: AgentStatus,
     pub started_at: DateTime<Utc>,
     pub completed_at: Option<DateTime<Utc>>,
+    /// Last token budget event to replay for new subscribers
+    pub last_budget_event: Option<AgentEvent>,
 }
 
 impl AgentRunner {
@@ -60,6 +62,7 @@ impl AgentRunner {
             status: AgentStatus::Pending,
             started_at: Utc::now(),
             completed_at: None,
+            last_budget_event: None,
         }
     }
 }

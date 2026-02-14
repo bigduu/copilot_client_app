@@ -16,6 +16,10 @@ futures = { workspace = true }
 tokio-util = { workspace = true }
 uuid = { workspace = true }
 regex = { workspace = true }
+dirs = { workspace = true }
+log = { workspace = true }
+tracing = { workspace = true }
 
 [dev-dependencies]
 tokio-test = { workspace = true }
+tempfile = { workspace = true }

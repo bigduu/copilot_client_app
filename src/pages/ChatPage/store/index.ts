@@ -6,6 +6,7 @@ import { PromptSlice, createPromptSlice } from "./slices/promptSlice";
 import { FavoritesSlice, createFavoritesSlice } from "./slices/favoritesSlice";
 import { SessionSlice, createSessionSlice } from "./slices/appSettingsSlice";
 import { SkillSlice, createSkillSlice } from "./slices/skillSlice";
+import { TokenBudgetSlice, createTokenBudgetSlice } from "./slices/tokenBudgetSlice";
 import { AgentClient } from "../services/AgentService";
 import { serviceFactory } from "../../../services/common/ServiceFactory";
 import { readStoredProxyAuth } from "../../../shared/utils/proxyAuth";
@@ -35,6 +36,7 @@ export type AppState = ChatSlice &
   FavoritesSlice &
   SessionSlice &
   SkillSlice &
+  TokenBudgetSlice &
   AgentAvailabilitySlice;
 
 export const useAppStore = create<AppState>()(
@@ -46,6 +48,7 @@ export const useAppStore = create<AppState>()(
       ...createFavoritesSlice(set, get, api),
       ...createSessionSlice(set, get, api),
       ...createSkillSlice(set, get, api),
+      ...createTokenBudgetSlice(set, get, api),
       agentAvailability: null,
       setAgentAvailability: (available) => {
         set({ agentAvailability: available });

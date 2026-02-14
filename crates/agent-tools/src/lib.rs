@@ -5,6 +5,7 @@
 
 mod executor;
 pub mod guide;
+pub mod output_manager;
 pub mod permission;
 pub mod tools;
 
@@ -19,6 +20,9 @@ pub use guide::{
     context::{GuideBuildContext, GuideLanguage},
     EnhancedPromptBuilder, ToolCategory, ToolExample, ToolGuide, ToolGuideSpec,
 };
+
+// Re-export output manager types
+pub use output_manager::{ArtifactRef, ToolOutputManager};
 
 // Re-export all tool implementations
 pub use tools::{

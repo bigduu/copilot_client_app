@@ -54,6 +54,7 @@ pub fn build_openai_compat_body(
     messages: &[Message],
     tools: &[ToolSchema],
     tool_choice: Option<Value>,
+    max_output_tokens: Option<u32>,
 ) -> Value {
     let mut body = json!({
         "model": model,
@@ -64,6 +65,10 @@ pub fn build_openai_compat_body(
 
     if let Some(tool_choice) = tool_choice {
         body["tool_choice"] = tool_choice;
+    }
+
+    if let Some(max_tokens) = max_output_tokens {
+        body["max_tokens"] = json!(max_tokens);
     }
 
     body
@@ -263,13 +268,14 @@ mod tests {
         let messages = vec![Message::user("Hello")];
         let tools: Vec<ToolSchema> = Vec::new();
 
-        let body = super::build_openai_compat_body("gpt-4o-mini", &messages, &tools, None);
+        let body = super::build_openai_compat_body("gpt-4o-mini", &messages, &tools, None, None);
 
         assert_eq!(body["model"], "gpt-4o-mini");
         assert_eq!(body["stream"], true);
         assert_eq!(body["messages"].as_array().unwrap().len(), 1);
         assert_eq!(body["tools"].as_array().unwrap().len(), 0);
         assert!(body.get("tool_choice").is_none());
+        assert!(body.get("max_tokens").is_none());
     }
 
     #[test]
@@ -405,9 +411,19 @@ mod tests {
         let tools: Vec<ToolSchema> = Vec::new();
         let tool_choice = serde_json::json!("auto");
 
-        let body = super::build_openai_compat_body("gpt-4", &messages, &tools, Some(tool_choice));
+        let body = super::build_openai_compat_body("gpt-4", &messages, &tools, Some(tool_choice), None);
 
         assert_eq!(body["tool_choice"], "auto");
+    }
+
+    #[test]
+    fn build_openai_compat_body_with_max_tokens() {
+        let messages = vec![Message::user("Hello")];
+        let tools: Vec<ToolSchema> = Vec::new();
+
+        let body = super::build_openai_compat_body("gpt-4", &messages, &tools, None, Some(4096));
+
+        assert_eq!(body["max_tokens"], 4096);
     }
 
     #[test]

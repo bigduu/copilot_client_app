@@ -35,6 +35,18 @@ pub enum AgentEvent {
         todo_list: TodoList,
     },
 
+    /// Emitted when token budget is prepared (after context truncation)
+    TokenBudgetUpdated {
+        usage: TokenBudgetUsage,
+    },
+
+    /// Emitted when conversation context is summarized
+    ContextSummarized {
+        summary: String,
+        messages_summarized: usize,
+        tokens_saved: u32,
+    },
+
     Complete {
         usage: TokenUsage,
     },
@@ -49,4 +61,23 @@ pub struct TokenUsage {
     pub prompt_tokens: u32,
     pub completion_tokens: u32,
     pub total_tokens: u32,
+}
+
+/// Token budget usage information sent to frontend
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TokenBudgetUsage {
+    /// Tokens used by system message(s)
+    pub system_tokens: u32,
+    /// Tokens used by conversation summary (if any)
+    pub summary_tokens: u32,
+    /// Tokens used by recent message window
+    pub window_tokens: u32,
+    /// Total tokens in prepared context
+    pub total_tokens: u32,
+    /// Budget limit for input tokens
+    pub budget_limit: u32,
+    /// Whether truncation occurred
+    pub truncation_occurred: bool,
+    /// Number of message segments removed
+    pub segments_removed: usize,
 }

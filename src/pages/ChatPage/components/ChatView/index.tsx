@@ -16,6 +16,7 @@ import { ChatMessagesList } from "./ChatMessagesList";
 import { TodoList } from "../../../../components/TodoList";
 import { QuestionDialog } from "../../../../components/QuestionDialog";
 import { useAgentEventSubscription } from "../../../../hooks/useAgentEventSubscription";
+import { TokenUsageDisplay } from "../TokenUsageDisplay";
 import "./styles.css";
 import { useChatViewScroll } from "./useChatViewScroll";
 import type { WorkflowDraft } from "../InputContainer";
@@ -36,6 +37,9 @@ export const ChatView: React.FC = () => {
   const deleteMessage = useAppStore((state) => state.deleteMessage);
   const updateChat = useAppStore((state) => state.updateChat);
   const isProcessing = useAppStore((state) => state.isProcessing);
+  const tokenUsages = useAppStore((state) => state.tokenUsages);
+  const truncationOccurred = useAppStore((state) => state.truncationOccurred);
+  const segmentsRemoved = useAppStore((state) => state.segmentsRemoved);
   const currentMessages = useMemo(
     () => currentChat?.messages || [],
     [currentChat],
@@ -137,6 +141,19 @@ export const ChatView: React.FC = () => {
   // Get agent session ID from chat config (created by Agent Server)
   const agentSessionId = currentChat?.config?.agentSessionId;
 
+  // Get token usage - prefer store (real-time), fallback to chat config (persisted)
+  const storeTokenUsage = currentChatId ? tokenUsages[currentChatId] : null;
+  const configTokenUsage = currentChat?.config?.tokenUsage;
+  const currentTokenUsage = storeTokenUsage || configTokenUsage || null;
+
+  const storeTruncation = currentChatId ? truncationOccurred[currentChatId] : false;
+  const configTruncation = currentChat?.config?.truncationOccurred;
+  const currentTruncationOccurred = storeTruncation || configTruncation || false;
+
+  const storeSegments = currentChatId ? segmentsRemoved[currentChatId] : 0;
+  const configSegments = currentChat?.config?.segmentsRemoved;
+  const currentSegmentsRemoved = storeSegments || configSegments || 0;
+
   const rowVirtualizer = useVirtualizer({
     count: renderableMessagesWithDraft.length,
     getScrollElement: () => messagesListRef.current,
@@ -216,6 +233,44 @@ export const ChatView: React.FC = () => {
             <QuestionDialog
               sessionId={agentSessionId}
             />
+          </div>
+        )}
+
+        {/* Token Usage Display - show when there's token usage data */}
+        {currentTokenUsage && currentTokenUsage.budgetLimit > 0 && (
+          <div
+            style={{
+              padding: `0 ${getContainerPadding()}px`,
+              paddingTop: agentSessionId ? token.paddingXS : getContainerPadding(),
+              maxWidth: getContainerMaxWidth(),
+              margin: "0 auto",
+              width: "100%",
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "flex-end",
+                gap: token.marginXS,
+              }}
+            >
+              <TokenUsageDisplay
+                usage={currentTokenUsage}
+                showDetails={true}
+                size="small"
+              />
+              {currentTruncationOccurred && (
+                <span
+                  style={{
+                    fontSize: 11,
+                    color: token.colorTextSecondary,
+                  }}
+                >
+                  ({currentSegmentsRemoved} truncated)
+                </span>
+              )}
+            </div>
           </div>
         )}
 

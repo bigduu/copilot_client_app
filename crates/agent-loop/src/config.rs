@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use agent_core::budget::TokenBudget;
 use agent_core::composition::CompositionExecutor;
 use agent_core::storage::Storage;
 use agent_core::tools::ToolSchema;
@@ -23,6 +24,8 @@ pub struct AgentLoopConfig {
     pub metrics_collector: Option<MetricsCollector>,
     /// Model name used for metrics attribution
     pub model_name: Option<String>,
+    /// Token budget for context management (optional, defaults to model's limits)
+    pub token_budget: Option<TokenBudget>,
 }
 
 impl Default for AgentLoopConfig {
@@ -38,6 +41,7 @@ impl Default for AgentLoopConfig {
             storage: None,
             metrics_collector: None,
             model_name: None,
+            token_budget: None,
         }
     }
 }
