@@ -1,5 +1,14 @@
 //! Anthropic provider and request-building helpers.
 
+pub mod api_types;
+pub mod conversion;
+pub mod stream;
+
+// Re-export commonly used types
+pub use api_types::*;
+pub use conversion::{convert_complete_request, convert_complete_response, convert_messages_request, convert_messages_response, format_model_display_name};
+pub use stream::{AnthropicStreamAdapter, map_completion_stream_chunk, format_sse_event, format_sse_data};
+
 use std::collections::HashMap;
 
 use async_trait::async_trait;
