@@ -18,6 +18,7 @@ pub async fn load_anthropic_model_mapping() -> Result<AnthropicModelMapping, App
             Ok(mapping)
         }
         Err(err) if err.kind() == std::io::ErrorKind::NotFound => {
+            // Return default mapping if file doesn't exist
             Ok(AnthropicModelMapping::default())
         }
         Err(err) => Err(AppError::StorageError(err)),
