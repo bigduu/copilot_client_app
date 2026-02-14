@@ -1,15 +1,42 @@
-import React, { useEffect, useState, useCallback, useRef } from 'react';
-import { agentApiClient } from '../../services/api';
-import { getBackendBaseUrl } from '../../shared/utils/backendBaseUrl';
-import styles from './TodoList.module.css';
+import React, { useState } from 'react';
+import { useAppStore } from '../../pages/ChatPage/store';
+import {
+  Card,
+  List,
+  Tag,
+  Progress,
+  Badge,
+  Tooltip,
+  Space,
+  Typography,
+  Alert,
+  theme,
+} from 'antd';
+import {
+  CheckCircleOutlined,
+  SyncOutlined,
+  ClockCircleOutlined,
+  ExclamationCircleOutlined,
+  PushpinOutlined,
+  PushpinFilled,
+  DownOutlined,
+  RightOutlined,
+  RobotOutlined,
+  ToolOutlined,
+  LinkOutlined,
+  UnorderedListOutlined,
+} from '@ant-design/icons';
 
-// Type definitions
+const { Text } = Typography;
+
+// Type definitions (matching backend)
 export interface TodoItem {
   id: string;
   description: string;
   status: 'pending' | 'in_progress' | 'completed' | 'blocked';
   depends_on: string[];
   notes: string;
+  tool_calls_count?: number;
 }
 
 export interface TodoListData {
@@ -28,180 +55,80 @@ interface TodoListProps {
   initialCollapsed?: boolean;
 }
 
-// Status icon mapping
-const statusIcons: Record<TodoItem['status'], string> = {
-  pending: '⭕',
-  in_progress: '🔄',
-  completed: '✅',
-  blocked: '⚠️',
-};
-
-// Status style mapping
-const statusClassNames: Record<TodoItem['status'], string> = {
-  pending: styles.statusPending,
-  in_progress: styles.statusInProgress,
-  completed: styles.statusCompleted,
-  blocked: styles.statusBlocked,
-};
-
-// Status text mapping
-const statusTexts: Record<TodoItem['status'], string> = {
-  pending: 'Pending',
-  in_progress: 'In Progress',
-  completed: 'Completed',
-  blocked: 'Blocked',
+// Status configuration
+const statusConfig: Record<
+  TodoItem['status'],
+  { icon: React.ReactNode; color: string; text: string; tagColor: string }
+> = {
+  pending: {
+    icon: <ClockCircleOutlined />,
+    color: '#8c8c8c',
+    text: 'Pending',
+    tagColor: 'default',
+  },
+  in_progress: {
+    icon: <SyncOutlined spin />,
+    color: '#1890ff',
+    text: 'In Progress',
+    tagColor: 'processing',
+  },
+  completed: {
+    icon: <CheckCircleOutlined />,
+    color: '#52c41a',
+    text: 'Completed',
+    tagColor: 'success',
+  },
+  blocked: {
+    icon: <ExclamationCircleOutlined />,
+    color: '#ff4d4f',
+    text: 'Blocked',
+    tagColor: 'error',
+  },
 };
 
 export const TodoList: React.FC<TodoListProps> = ({
   sessionId,
   initialCollapsed = true,
 }) => {
-  const [todoList, setTodoList] = useState<TodoListData | null>(null);
+  const { token } = theme.useToken();
+
+  // Get from Zustand store (real-time updates via useAgentEventSubscription)
+  const todoListData = useAppStore((state) => state.todoLists[sessionId]);
+  const activeItemId = useAppStore((state) => state.activeItems[sessionId]);
+  const evaluationState = useAppStore((state) => state.evaluationStates[sessionId]);
+
   const [isCollapsed, setIsCollapsed] = useState(initialCollapsed);
   const [isPinned, setIsPinned] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const eventSourceRef = useRef<EventSource | null>(null);
-  const reconnectTimeoutRef = useRef<NodeJS.Timeout>();
-  const reconnectCountRef = useRef(0);
-  const MAX_RECONNECT_ATTEMPTS = 3;
 
-  // Fetch Todo List via HTTP
-  const fetchTodoList = useCallback(async () => {
-    try {
-      const data = await agentApiClient.get<TodoListData>(`todo/${sessionId}`);
-      if (data.items?.length > 0) {
-        setTodoList(data);
-      } else {
-        setTodoList(null);
-      }
-    } catch (err) {
-      // Handle 404 - no todo list for this session yet
-      if (err instanceof Error && err.message.includes('404')) {
-        setTodoList(null);
-        return;
-      }
-      console.error('Failed to fetch todo list:', err);
-      setError(err instanceof Error ? err.message : 'Unknown error');
-    } finally {
-      setIsLoading(false);
-    }
-  }, [sessionId]);
+  // Use evaluation state from store
+  const isEvaluating = evaluationState?.isEvaluating || false;
+  const evaluationReasoning = evaluationState?.reasoning || null;
 
-  // Connect to SSE for real-time updates
-  // Uses /events endpoint - pure subscription, does NOT trigger agent execution
-  const connectSSE = useCallback(() => {
-    if (eventSourceRef.current) {
-      eventSourceRef.current.close();
-    }
-
-    // Build SSE URL using backend base URL
-    // Events endpoint is under /api/v1, not /v1
-    const baseUrl = getBackendBaseUrl().replace(/\/$/, '').replace(/\/v1$/, '');
-    // Use /events endpoint - pure subscription, no execution trigger
-    const sseUrl = `${baseUrl}/api/v1/events/${sessionId}`;
-    const eventSource = new EventSource(sseUrl);
-    eventSourceRef.current = eventSource;
-
-    // Track if stream ended normally (don't reconnect if conversation completed)
-    let isStreamCompleted = false;
-
-    eventSource.onmessage = (event) => {
-      try {
-        const data = JSON.parse(event.data);
-
-        switch (data.type) {
-          case 'todo_list_updated':
-            const updatedList: TodoListData = {
-              session_id: data.todo_list.session_id,
-              title: data.todo_list.title,
-              items: data.todo_list.items,
-              progress: {
-                completed: data.todo_list.items.filter(
-                  (i: TodoItem) => i.status === 'completed'
-                ).length,
-                total: data.todo_list.items.length,
-                percentage: Math.round(
-                  (data.todo_list.items.filter((i: TodoItem) => i.status === 'completed').length /
-                    data.todo_list.items.length) *
+  // Transform store data to display format
+  const todoList: TodoListData | null = todoListData
+    ? {
+        session_id: todoListData.session_id,
+        title: todoListData.title,
+        items: todoListData.items,
+        progress: {
+          completed: todoListData.items.filter((i) => i.status === 'completed').length,
+          total: todoListData.items.length,
+          percentage:
+            todoListData.items.length > 0
+              ? Math.round(
+                  (todoListData.items.filter((i) => i.status === 'completed').length /
+                    todoListData.items.length) *
                     100
-                ),
-              },
-            };
-            setTodoList(updatedList);
-            setError(null);
-            break;
-
-          case 'complete':
-            // Conversation completed, mark stream as done
-            isStreamCompleted = true;
-            break;
-
-          case 'error':
-            console.error('SSE error:', data.message);
-            setError(data.message);
-            break;
-        }
-      } catch (err) {
-        console.error('Failed to parse SSE message:', err);
+                )
+              : 0,
+        },
       }
-    };
+    : null;
 
-    eventSource.onerror = () => {
-      eventSource.close();
-
-      // Don't reconnect if conversation completed normally
-      // However, we should still reconnect because:
-      // 1. The agent may resume after user responds to clarification
-      // 2. /events endpoint is passive (doesn't trigger execution)
-      // 3. Reconnection is cheap and safe
-      if (isStreamCompleted) {
-        console.log('SSE ended: conversation completed (may resume after clarification)');
-        // Reset the flag to allow reconnection
-        isStreamCompleted = false;
-      }
-
-      // Simple fixed interval reconnection
-      // Using /events endpoint means reconnection won't trigger re-execution
-      reconnectCountRef.current += 1;
-      if (reconnectCountRef.current > MAX_RECONNECT_ATTEMPTS) {
-        console.log('Max reconnect attempts reached, stopping reconnection');
-        setError('Connection lost. Please refresh the page.');
-        return;
-      }
-
-      const delay = 5000;
-      console.log(`Reconnecting in ${delay}ms (attempt ${reconnectCountRef.current}/${MAX_RECONNECT_ATTEMPTS})`);
-      reconnectTimeoutRef.current = setTimeout(connectSSE, delay);
-    };
-
-    eventSource.onopen = () => {
-      console.log('SSE connected (events endpoint)');
-      setError(null);
-      // Reset reconnection counter on successful connection
-      reconnectCountRef.current = 0;
-    };
-  }, [sessionId]);
-
-  // Reset reconnection counter when sessionId changes
-  useEffect(() => {
-    reconnectCountRef.current = 0;
-  }, [sessionId]);
-
-  // Initialize
-  useEffect(() => {
-    fetchTodoList();
-    connectSSE();
-
-    return () => {
-      if (eventSourceRef.current) {
-        eventSourceRef.current.close();
-      }
-      if (reconnectTimeoutRef.current) {
-        clearTimeout(reconnectTimeoutRef.current);
-      }
-    };
-  }, [fetchTodoList, connectSSE]);
+  // If no todo list, don't render anything
+  if (!todoList) {
+    return null;
+  }
 
   // Toggle collapse state
   const toggleCollapse = () => {
@@ -219,132 +146,192 @@ export const TodoList: React.FC<TodoListProps> = ({
     }
   };
 
-  // If no todo list, don't render anything
-  if (!todoList && !isLoading) {
-    return null;
-  }
-
-  const { title, items, progress } = todoList || {
-    title: '',
-    items: [],
-    progress: { completed: 0, total: 0, percentage: 0 },
-  };
-
+  const { title, items, progress } = todoList;
   const isCompleted = progress.percentage === 100;
 
   return (
-    <div
-      className={`
-        ${styles.todoPanel}
-        ${isCollapsed && !isPinned ? styles.collapsed : ''}
-        ${isPinned ? styles.pinned : ''}
-      `}
-    >
-      {/* Header - clickable to collapse */}
-      <div className={styles.todoHeader} onClick={toggleCollapse}>
-        <span className={styles.todoTitle}>
-          <span className={styles.todoIcon}>📋</span>
-          <span>{title || 'Task List'}</span>
-        </span>
-
-        <div className={styles.todoActions}>
-          {/* Progress */}
-          {progress.total > 0 && (
-            <span
-              className={`${styles.progress} ${
-                isCompleted ? styles.completed : ''
-              }`}
-            >
+    <Card
+      size="small"
+      style={{
+        marginBottom: 16,
+        borderRadius: 8,
+        boxShadow: isEvaluating
+          ? `0 0 0 2px ${token.colorPrimaryBorder}`
+          : '0 2px 8px rgba(0, 0, 0, 0.06)',
+        opacity: isCollapsed && !isPinned ? 0.9 : 1,
+      }}
+      styles={{
+        body: {
+          padding: isCollapsed ? '12px 16px' : 16,
+        },
+      }}
+      title={
+        <Space onClick={toggleCollapse} style={{ cursor: 'pointer', width: '100%' }}>
+          <UnorderedListOutlined style={{ color: token.colorPrimary }} />
+          <Text strong style={{ fontSize: 15 }}>
+            {title || 'Task List'}
+          </Text>
+          {isEvaluating && (
+            <Tag icon={<SyncOutlined spin />} color="processing">
+              Evaluating
+            </Tag>
+          )}
+          {!isCollapsed && progress.total > 0 && (
+            <Badge
+              count={`${progress.completed}/${progress.total}`}
+              style={{
+                backgroundColor: isCompleted ? '#52c41a' : token.colorPrimary,
+              }}
+            />
+          )}
+        </Space>
+      }
+      extra={
+        <Space>
+          {progress.total > 0 && isCollapsed && (
+            <Text type="secondary" style={{ fontSize: 13 }}>
               {progress.completed}/{progress.total}
-              {isCompleted && ' ✓'}
+              {isCompleted && <CheckCircleOutlined style={{ color: '#52c41a', marginLeft: 4 }} />}
+            </Text>
+          )}
+          <Tooltip title={isPinned ? 'Unpin' : 'Pin'}>
+            <span
+              onClick={togglePin}
+              style={{
+                cursor: 'pointer',
+                color: isPinned ? token.colorPrimary : token.colorTextSecondary,
+                fontSize: 16,
+              }}
+            >
+              {isPinned ? <PushpinFilled /> : <PushpinOutlined />}
+            </span>
+          </Tooltip>
+          {!isPinned && (
+            <span
+              onClick={toggleCollapse}
+              style={{
+                cursor: 'pointer',
+                color: token.colorTextSecondary,
+                fontSize: 12,
+                transform: isCollapsed ? 'rotate(-90deg)' : undefined,
+                transition: 'transform 0.2s',
+              }}
+            >
+              {isCollapsed ? <RightOutlined /> : <DownOutlined />}
             </span>
           )}
-
-          {/* Pin button */}
-          <button
-            className={`${styles.pinBtn} ${isPinned ? styles.pinned : ''}`}
-            onClick={togglePin}
-            title={isPinned ? 'Unpin' : 'Pin'}
-          >
-            {isPinned ? '📌' : '📎'}
-          </button>
-
-          {/* Collapse button */}
-          {!isPinned && (
-            <button className={styles.toggleBtn}>
-              {isCollapsed ? '▼' : '▲'}
-            </button>
-          )}
-        </div>
-      </div>
-
-      {/* Content area */}
+        </Space>
+      }
+    >
       {!isCollapsed && (
-        <div className={styles.todoContent}>
+        <>
+          {/* Evaluation reasoning banner */}
+          {evaluationReasoning && (
+            <Alert
+              icon={<RobotOutlined />}
+              message="LLM Evaluation"
+              description={evaluationReasoning}
+              type="info"
+              showIcon
+              style={{ marginBottom: 16 }}
+            />
+          )}
+
           {/* Progress bar */}
           {progress.total > 0 && (
-            <div className={styles.progressBar}>
-              <div
-                className={`${styles.progressBarFill} ${
-                  isCompleted ? styles.completed : ''
-                }`}
-                style={{ width: `${progress.percentage}%` }}
+            <div style={{ marginBottom: 16 }}>
+              <Progress
+                percent={progress.percentage}
+                size="small"
+                status={isCompleted ? 'success' : 'active'}
+                format={(percent) => <Text type="secondary">{percent}%</Text>}
               />
             </div>
           )}
 
           {/* Task list */}
-          <div className={styles.todoItems}>
-            {items.map((item) => (
-              <div
-                key={item.id}
-                className={styles.todoItem}
-                title={statusTexts[item.status]}
-              >
-                <span
-                  className={`${styles.statusIcon} ${statusClassNames[item.status]}`}
+          <List
+            size="small"
+            dataSource={items}
+            renderItem={(item) => {
+              const status = statusConfig[item.status];
+              const isActive = activeItemId === item.id;
+
+              return (
+                <List.Item
+                  style={{
+                    padding: '12px 0',
+                    borderLeft: isActive ? `3px solid ${token.colorPrimary}` : '3px solid transparent',
+                    paddingLeft: isActive ? 12 : 15,
+                    backgroundColor: isActive ? token.colorPrimaryBg : 'transparent',
+                    borderRadius: 4,
+                    marginBottom: 4,
+                  }}
                 >
-                  {statusIcons[item.status]}
-                </span>
+                  <div style={{ width: '100%' }}>
+                    <Space align="start" style={{ width: '100%' }}>
+                      <Tooltip title={status.text}>
+                        <span style={{ color: status.color, fontSize: 16 }}>{status.icon}</span>
+                      </Tooltip>
 
-                <div className={styles.itemContent}>
-                  <div
-                    className={`${styles.itemDescription} ${
-                      item.status === 'completed' ? styles.completed : ''
-                    }`}
-                  >
-                    {item.description}
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <Text
+                          style={{
+                            textDecoration: item.status === 'completed' ? 'line-through' : 'none',
+                            color: item.status === 'completed' ? token.colorTextSecondary : token.colorText,
+                            fontWeight: isActive ? 500 : 400,
+                          }}
+                        >
+                          {item.description}
+                        </Text>
+
+                        {/* Meta info */}
+                        <div style={{ marginTop: 4 }}>
+                          <Space size={8} wrap>
+                            <Tag color={status.tagColor}>{status.text}</Tag>
+
+                            {/* Tool calls count */}
+                            {item.tool_calls_count !== undefined && item.tool_calls_count > 0 && (
+                              <Tag icon={<ToolOutlined />} color="blue">
+                                {item.tool_calls_count} tools
+                              </Tag>
+                            )}
+
+                            {/* Dependencies */}
+                            {item.depends_on.length > 0 && (
+                              <Tooltip title={`Depends on: ${item.depends_on.join(', ')}`}>
+                                <Tag icon={<LinkOutlined />}>{item.depends_on.length} deps</Tag>
+                              </Tooltip>
+                            )}
+                          </Space>
+                        </div>
+
+                        {/* Notes */}
+                        {item.notes && (
+                          <Text
+                            type="secondary"
+                            style={{
+                              display: 'block',
+                              marginTop: 6,
+                              fontSize: 12,
+                              padding: '4px 8px',
+                              backgroundColor: token.colorFillQuaternary,
+                              borderRadius: 4,
+                            }}
+                          >
+                            {item.notes}
+                          </Text>
+                        )}
+                      </div>
+                    </Space>
                   </div>
-
-                  {/* Meta info */}
-                  {(item.depends_on.length > 0 || item.notes) && (
-                    <div className={styles.itemMeta}>
-                      {item.depends_on.length > 0 && (
-                        <span className={styles.dependsOn}>
-                          📎 Depends on: {item.depends_on.join(', ')}
-                        </span>
-                      )}
-                    </div>
-                  )}
-
-                  {/* Notes */}
-                  {item.notes && (
-                    <div className={styles.itemNotes}>{item.notes}</div>
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
-
-          {/* Error message */}
-          {error && (
-            <div style={{ color: '#ff4d4f', marginTop: 12, fontSize: 12 }}>
-              ⚠️ Connection error, retrying...
-            </div>
-          )}
-        </div>
+                </List.Item>
+              );
+            }}
+          />
+        </>
       )}
-    </div>
+    </Card>
   );
 };
 
