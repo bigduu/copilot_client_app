@@ -10,6 +10,61 @@ pub struct Config {
     pub model: Option<String>,
     #[serde(default)]
     pub headless_auth: bool,
+
+    // Provider configuration
+    #[serde(default = "default_provider")]
+    pub provider: String,
+
+    #[serde(default)]
+    pub providers: ProviderConfigs,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct ProviderConfigs {
+    pub openai: Option<OpenAIConfig>,
+    pub anthropic: Option<AnthropicConfig>,
+    pub gemini: Option<GeminiConfig>,
+    pub copilot: Option<CopilotConfig>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct OpenAIConfig {
+    pub api_key: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub base_url: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub model: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AnthropicConfig {
+    pub api_key: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub base_url: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub model: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub max_tokens: Option<u32>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GeminiConfig {
+    pub api_key: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub base_url: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub model: Option<String>,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct CopilotConfig {
+    // Copilot uses OAuth, no additional config needed
+    #[serde(default)]
+    pub enabled: bool,
+}
+
+fn default_provider() -> String {
+    "copilot".to_string()
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -81,6 +136,8 @@ impl Config {
             proxy_auth: None,
             model: None,
             headless_auth: false,
+            provider: default_provider(),
+            providers: ProviderConfigs::default(),
         };
 
         if let Ok(model) = std::env::var("MODEL") {
@@ -127,6 +184,8 @@ fn migrate_config(old: OldConfig) -> Config {
         proxy_auth: old.https_proxy_auth.or(old.http_proxy_auth),
         model: old.model,
         headless_auth: old.headless_auth,
+        provider: default_provider(),
+        providers: ProviderConfigs::default(),
     }
 }
 

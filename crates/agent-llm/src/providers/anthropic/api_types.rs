@@ -42,7 +42,7 @@ pub struct AnthropicMessage {
 }
 
 /// Anthropic role types
-#[derive(Deserialize, Serialize, Clone)]
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
 #[serde(rename_all = "lowercase")]
 pub enum AnthropicRole {
     User,
@@ -92,7 +92,7 @@ pub enum AnthropicSystemBlock {
 }
 
 /// Anthropic tool definition
-#[derive(Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 pub struct AnthropicTool {
     pub name: String,
     #[serde(default)]

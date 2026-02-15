@@ -1,10 +1,6 @@
-pub mod auth;
-pub mod client;
-pub mod client_trait;
 pub mod error;
-pub mod masking;
 pub mod models;
-pub mod openai;
+pub mod protocol;
 pub mod provider;
 pub mod providers;
 pub mod types;
@@ -15,19 +11,17 @@ pub mod api {
     }
 
     pub mod stream_tool_accumulator {
-        pub use crate::client::stream_tool_accumulator::*;
+        pub use crate::providers::common::stream_tool_accumulator::*;
     }
 }
 
-pub use auth::{CopilotAuthHandler, CopilotToken, TokenCache};
+pub mod provider_factory;
+
 pub use chat_core::Config;
-pub use client::{CopilotClient, MetricsClientDecorator};
-pub use client_trait::CopilotClientTrait;
 pub use error::ProxyAuthRequiredError;
-pub use masking::apply_masking;
 pub use models::*;
-pub use openai::OpenAIProvider;
+pub use protocol::{AnthropicProtocol, GeminiProtocol, OpenAIProtocol, FromProvider, ToProvider, ProtocolError, ProtocolResult};
 pub use provider::{LLMError, LLMProvider, LLMStream};
-pub use providers::AnthropicProvider;
-pub use providers::CopilotProvider;
+pub use provider_factory::{create_provider, create_provider_with_dir, validate_provider_config, AVAILABLE_PROVIDERS};
+pub use providers::{AnthropicProvider, CopilotProvider, GeminiProvider, OpenAIProvider};
 pub use types::LLMChunk;

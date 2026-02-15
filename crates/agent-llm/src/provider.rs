@@ -21,6 +21,9 @@ pub enum LLMError {
 
     #[error("Authentication error: {0}")]
     Auth(String),
+
+    #[error("Protocol conversion error: {0}")]
+    Protocol(#[from] crate::protocol::ProtocolError),
 }
 
 pub type Result<T> = std::result::Result<T, LLMError>;
@@ -29,10 +32,24 @@ pub type LLMStream = Pin<Box<dyn Stream<Item = Result<LLMChunk>> + Send>>;
 
 #[async_trait]
 pub trait LLMProvider: Send + Sync {
+    /// Stream chat completion
+    ///
+    /// # Arguments
+    /// * `messages` - Chat messages
+    /// * `tools` - Available tools
+    /// * `max_output_tokens` - Maximum output tokens
+    /// * `model` - Optional model override. If None, uses the provider's default model
     async fn chat_stream(
         &self,
         messages: &[Message],
         tools: &[ToolSchema],
         max_output_tokens: Option<u32>,
+        model: Option<&str>,
     ) -> Result<LLMStream>;
+
+    /// List available models
+    async fn list_models(&self) -> Result<Vec<String>> {
+        // Default implementation returns empty list
+        Ok(vec![])
+    }
 }

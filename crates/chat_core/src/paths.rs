@@ -29,6 +29,11 @@ pub fn anthropic_model_mapping_path() -> PathBuf {
     bamboo_dir().join("anthropic-model-mapping.json")
 }
 
+/// Get gemini-model-mapping.json path
+pub fn gemini_model_mapping_path() -> PathBuf {
+    bamboo_dir().join("gemini-model-mapping.json")
+}
+
 /// Ensure bamboo directory exists
 pub fn ensure_bamboo_dir() -> std::io::Result<PathBuf> {
     let dir = bamboo_dir();

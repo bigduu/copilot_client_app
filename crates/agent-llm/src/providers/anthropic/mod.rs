@@ -80,9 +80,22 @@ impl LLMProvider for AnthropicProvider {
         messages: &[Message],
         tools: &[ToolSchema],
         max_output_tokens: Option<u32>,
+        model: Option<&str>,
     ) -> Result<LLMStream> {
         let max_tokens = max_output_tokens.unwrap_or(self.max_tokens);
-        let body = build_anthropic_request(messages, tools, &self.model, max_tokens, true);
+
+        // Use provided model or fall back to default
+        let model_to_use = model.unwrap_or(&self.model);
+
+        if model.is_some() {
+            log::debug!(
+                "Anthropic provider using override model '{}' (default: '{}')",
+                model_to_use,
+                self.model
+            );
+        }
+
+        let body = build_anthropic_request(messages, tools, model_to_use, max_tokens, true);
         let headers = self.build_headers()?;
 
         let response = self
@@ -764,5 +777,102 @@ mod anthropic_request_building_edge_cases {
         let out = super::build_anthropic_request(&messages, &[], "claude-3-opus-20240229", 64, false);
 
         assert_eq!(out["model"], "claude-3-opus-20240229");
+    }
+}
+
+#[cfg(test)]
+mod anthropic_provider_tests {
+    use super::*;
+
+    #[test]
+    fn test_new_provider() {
+        let provider = AnthropicProvider::new("test_api_key");
+        assert_eq!(provider.api_key, "test_api_key");
+        assert_eq!(provider.base_url, "https://api.anthropic.com/v1");
+        assert_eq!(provider.model, "claude-3-5-sonnet-20241022");
+        assert_eq!(provider.max_tokens, 1024);
+    }
+
+    #[test]
+    fn test_with_base_url() {
+        let provider = AnthropicProvider::new("test_key")
+            .with_base_url("https://custom.anthropic.com");
+        assert_eq!(provider.base_url, "https://custom.anthropic.com");
+    }
+
+    #[test]
+    fn test_with_model() {
+        let provider = AnthropicProvider::new("test_key")
+            .with_model("claude-3-opus-20240229");
+        assert_eq!(provider.model, "claude-3-opus-20240229");
+    }
+
+    #[test]
+    fn test_with_max_tokens() {
+        let provider = AnthropicProvider::new("test_key")
+            .with_max_tokens(2048);
+        assert_eq!(provider.max_tokens, 2048);
+    }
+
+    #[test]
+    fn test_chained_builders() {
+        let provider = AnthropicProvider::new("test_key")
+            .with_base_url("https://custom.api.com")
+            .with_model("claude-3-opus-20240229")
+            .with_max_tokens(4096);
+
+        assert_eq!(provider.api_key, "test_key");
+        assert_eq!(provider.base_url, "https://custom.api.com");
+        assert_eq!(provider.model, "claude-3-opus-20240229");
+        assert_eq!(provider.max_tokens, 4096);
+    }
+
+    #[test]
+    fn test_request_headers() {
+        let provider = AnthropicProvider::new("test_key");
+        let headers = provider.build_headers().unwrap();
+
+        assert!(headers.contains_key("x-api-key"));
+        assert_eq!(headers.get("x-api-key").unwrap().to_str().unwrap(), "test_key");
+
+        assert!(headers.contains_key("anthropic-version"));
+        assert_eq!(headers.get("anthropic-version").unwrap().to_str().unwrap(), "2023-06-01");
+
+        assert!(headers.contains_key("content-type"));
+        assert_eq!(headers.get("content-type").unwrap().to_str().unwrap(), "application/json");
+    }
+
+    #[test]
+    fn test_headers_with_invalid_api_key() {
+        // Test that headers with non-ASCII characters in API key fail
+        let provider = AnthropicProvider::new("test\u{0000}key"); // null byte
+        let result = provider.build_headers();
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_default_values() {
+        let provider = AnthropicProvider::new("key");
+
+        assert_eq!(provider.base_url, "https://api.anthropic.com/v1");
+        assert_eq!(provider.model, "claude-3-5-sonnet-20241022");
+        assert_eq!(provider.max_tokens, 1024);
+    }
+
+    #[test]
+    fn test_error_response_handling() {
+        // Test error event parsing
+        let mut state = AnthropicStreamState::default();
+        let error_data = r#"{"type":"error","error":{"type":"overloaded_error","message":"Overloaded"}}"#;
+
+        let result = parse_anthropic_sse_event(&mut state, "error", error_data);
+        assert!(result.is_err());
+
+        match result {
+            Err(LLMError::Api(msg)) => {
+                assert!(msg.contains("Anthropic error event"));
+            }
+            _ => panic!("Expected LLMError::Api"),
+        }
     }
 }

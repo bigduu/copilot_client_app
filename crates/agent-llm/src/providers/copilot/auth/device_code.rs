@@ -22,6 +22,7 @@ pub async fn get_device_code(client: &Client) -> Result<DeviceCodeResponse, Stri
     let response = client
         .post(DEVICE_CODE_URL)
         .header("Accept", "application/json")
+        .header("User-Agent", "BambooCopilot/1.0")
         .form(&params)
         .send()
         .await
