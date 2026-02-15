@@ -1,5 +1,6 @@
 import React from "react";
-import { Space, Typography } from "antd";
+import { Space, Typography, Button, Alert } from "antd";
+import { SettingOutlined } from "@ant-design/icons";
 import ReactMarkdown from "react-markdown";
 import type { Components } from "react-markdown";
 import type { PluggableList } from "unified";
@@ -105,6 +106,39 @@ const MessageCardContent: React.FC<MessageCardContentProps> = ({
 
   if (message.role === "assistant" && !messageText) {
     return <Text italic>Assistant is thinking...</Text>;
+  }
+
+  // Check if this is an authentication error message
+  if (message.isAuthError) {
+    return (
+      <Space direction="vertical" style={{ width: "100%" }} size="middle">
+        <Alert
+          message="Authentication Required"
+          description={
+            <ReactMarkdown
+              remarkPlugins={markdownPlugins}
+              rehypePlugins={rehypePlugins}
+              components={markdownComponents}
+            >
+              {messageText}
+            </ReactMarkdown>
+          }
+          type="error"
+          showIcon
+        />
+        <Button
+          type="primary"
+          icon={<SettingOutlined />}
+          onClick={() => {
+            // Navigate to settings - assuming there's a way to do this
+            // In Tauri/Electron, we might need to use IPC to switch tabs
+            window.location.hash = "/settings";
+          }}
+        >
+          Go to Settings
+        </Button>
+      </Space>
+    );
   }
 
   return (

@@ -66,6 +66,8 @@ export type ExecutionStatus = "success" | "error" | "warning";
 interface BaseMessage {
   id: string;
   createdAt: string;
+  isError?: boolean;
+  isAuthError?: boolean;
 }
 
 export interface SystemMessage extends BaseMessage {

@@ -58,6 +58,7 @@ pub async fn poll_access_token(
         let response = client
             .post(ACCESS_TOKEN_URL)
             .header("Accept", "application/json")
+            .header("User-Agent", "BambooCopilot/1.0")
             .form(&params)
             .send()
             .await
@@ -115,6 +116,7 @@ pub async fn get_copilot_token(
         .get(COPILOT_TOKEN_URL)
         .header("Authorization", format!("token {}", access_token))
         .header("Accept", "application/json")
+        .header("User-Agent", "BambooCopilot/1.0")
         .send()
         .await
         .map_err(|e| format!("Failed to get copilot token: {}", e))?;

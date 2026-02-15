@@ -252,6 +252,7 @@ pub async fn run_agent_loop_with_config(
                 &prepared_context.messages,
                 &tool_schemas,
                 Some(budget.max_output_tokens),
+                None,
             )
             .await
         {

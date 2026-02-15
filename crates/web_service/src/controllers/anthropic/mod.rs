@@ -1,10 +1,13 @@
 use crate::services::anthropic_model_mapping_service::load_anthropic_model_mapping;
 use crate::{error::AppError, server::AppState};
 use actix_web::{get, http::StatusCode, post, web, HttpResponse};
+use agent_core::Message;
+use agent_core::tools::ToolSchema;
 use agent_llm::api::models::{
     ChatCompletionRequest, ChatCompletionResponse, ChatCompletionStreamChunk, ChatMessage, Content,
     ContentPart, FunctionCall, ImageUrl, Role, StreamToolCall, Tool, ToolCall, ToolChoice, Usage,
 };
+use agent_llm::protocol::{FromProvider, ToProvider};
 use agent_llm::ProxyAuthRequiredError;
 use agent_server::state::AppState as AgentAppState;
 use async_stream::stream;
@@ -223,12 +226,26 @@ pub async fn messages(
     }
 
     if stream {
-        let (tx, rx) = mpsc::channel(10);
-        let client = app_state.copilot_client.clone();
+        let provider = app_state.get_provider().await;
         let model = resolution.response_model.clone();
 
-        let response = match client.send_chat_completion_request(openai_request).await {
-            Ok(resp) => resp,
+        // Convert messages to internal format
+        let internal_messages = convert_messages(openai_request.messages.clone())?;
+        let internal_tools = convert_tools(openai_request.tools.clone())?;
+        let max_tokens = openai_request.parameters.get("max_tokens").and_then(|v| v.as_u64()).map(|v| v as u32);
+
+        // Start streaming
+        let mut stream_result = provider
+            .chat_stream(
+                &internal_messages,
+                &internal_tools,
+                max_tokens,
+                None,
+            )
+            .await;
+
+        let mut stream = match stream_result {
+            Ok(s) => s,
             Err(err) => {
                 return Ok(anthropic_error_response(AnthropicError::new(
                     StatusCode::BAD_GATEWAY,
@@ -238,60 +255,18 @@ pub async fn messages(
             }
         };
 
-        let status = response.status().as_u16();
-
-        if !response.status().is_success() {
-            let body = response.text().await.unwrap_or_default();
-            return Ok(anthropic_error_response(AnthropicError::new(
-                to_actix_status(status),
-                "api_error",
-                format!("Upstream API error. Status: {}, Body: {}", status, body),
-            )));
-        }
-
-        // Spawn a task to handle the streaming response
-        tokio::spawn(async move {
-            if let Err(e) = client.process_chat_completion_stream(response, tx).await {
-                log::error!("Failed to process stream: {}", e);
-            }
-        });
-
         let stream = stream! {
-            let mut state = AnthropicStreamState::new(model);
-            let mut receiver = rx;
-            while let Some(res) = receiver.recv().await {
-                match res {
-                    Ok(bytes) => {
-                        if bytes == "[DONE]" {
-                            if !state.sent_message_stop {
-                                let payload = state.finish(None);
-                                yield Ok::<Bytes, AppError>(Bytes::from(payload));
-                            }
-                            yield Ok::<Bytes, AppError>(Bytes::from("data: [DONE]\n\n"));
-                            break;
-                        }
+            let mut state = AnthropicStreamState::new(model.clone());
+            use futures_util::StreamExt;
 
-                        match serde_json::from_slice::<ChatCompletionStreamChunk>(&bytes) {
-                            Ok(chunk) => {
-                                let payload = state.handle_chunk(&chunk);
-                                if !payload.is_empty() {
-                                    yield Ok::<Bytes, AppError>(Bytes::from(payload));
-                                }
-                            }
-                            Err(err) => {
-                                let payload = format_sse_event(
-                                    "error",
-                                    json!({
-                                        "type": "error",
-                                        "error": {
-                                            "type": "api_error",
-                                            "message": format!("Failed to parse stream chunk: {}", err)
-                                        }
-                                    }),
-                                );
+            while let Some(chunk_result) = stream.next().await {
+                match chunk_result {
+                    Ok(chunk) => {
+                        // Convert LLMChunk to ChatCompletionStreamChunk
+                        if let Some(openai_chunk) = convert_llm_chunk_to_openai(chunk, &model) {
+                            let payload = state.handle_chunk(&openai_chunk);
+                            if !payload.is_empty() {
                                 yield Ok::<Bytes, AppError>(Bytes::from(payload));
-                                yield Ok::<Bytes, AppError>(Bytes::from("data: [DONE]\n\n"));
-                                break;
                             }
                         }
                     }
@@ -312,62 +287,91 @@ pub async fn messages(
                     }
                 }
             }
+
+            // Finish the stream
+            if !state.sent_message_stop {
+                let payload = state.finish(None);
+                yield Ok::<Bytes, AppError>(Bytes::from(payload));
+            }
+            yield Ok::<Bytes, AppError>(Bytes::from("data: [DONE]\n\n"));
         };
 
         Ok(HttpResponse::Ok()
             .content_type("text/event-stream")
             .streaming(stream))
     } else {
-        let response = match app_state
-            .copilot_client
-            .send_chat_completion_request(openai_request)
+        let provider = app_state.get_provider().await;
+
+        // Convert messages to internal format
+        let internal_messages = convert_messages(openai_request.messages.clone())?;
+        let internal_tools = convert_tools(openai_request.tools.clone())?;
+        let max_tokens = openai_request.parameters.get("max_tokens").and_then(|v| v.as_u64()).map(|v| v as u32);
+
+        // Get completion by collecting the stream
+        let mut stream = provider
+            .chat_stream(
+                &internal_messages,
+                &internal_tools,
+                max_tokens,
+                None,
+            )
             .await
-        {
-            Ok(resp) => resp,
-            Err(err) => {
-                return Ok(anthropic_error_response(AnthropicError::new(
-                    StatusCode::BAD_GATEWAY,
-                    "api_error",
-                    format!("Upstream API error: {}", err),
-                )))
-            }
-        };
+            .map_err(|err| {
+                AppError::InternalError(anyhow::anyhow!("Upstream API error: {}", err))
+            })?;
 
-        let status = response.status();
-        let status_code = status.as_u16();
-        let body = match response.bytes().await {
-            Ok(body) => body,
-            Err(err) => {
-                return Ok(anthropic_error_response(AnthropicError::new(
-                    StatusCode::BAD_GATEWAY,
-                    "api_error",
-                    format!("Failed to read response body: {}", err),
-                )))
-            }
-        };
+        // Collect stream into a response
+        use futures_util::StreamExt;
+        let mut content = String::new();
+        let mut tool_calls: Option<Vec<agent_llm::api::models::ToolCall>> = None;
 
-        if !status.is_success() {
-            return Ok(anthropic_error_response(AnthropicError::new(
-                to_actix_status(status_code),
-                "api_error",
-                format!(
-                    "Upstream API error. Status: {}, Body: {}",
-                    status,
-                    String::from_utf8_lossy(&body)
-                ),
-            )));
+        while let Some(chunk_result) = stream.next().await {
+            match chunk_result {
+                Ok(agent_llm::types::LLMChunk::Token(text)) => {
+                    content.push_str(&text);
+                }
+                Ok(agent_llm::types::LLMChunk::ToolCalls(calls)) => {
+                    let converted_calls: Vec<agent_llm::api::models::ToolCall> = calls
+                        .into_iter()
+                        .map(|tc| agent_llm::api::models::ToolCall {
+                            id: tc.id,
+                            tool_type: tc.tool_type,
+                            function: agent_llm::api::models::FunctionCall {
+                                name: tc.function.name,
+                                arguments: tc.function.arguments,
+                            },
+                        })
+                        .collect();
+                    tool_calls = Some(converted_calls);
+                }
+                Ok(agent_llm::types::LLMChunk::Done) => break,
+                Err(err) => {
+                    return Err(AppError::InternalError(anyhow::anyhow!("Stream error: {}", err)));
+                }
+            }
         }
 
-        let completion = match serde_json::from_slice::<ChatCompletionResponse>(&body) {
-            Ok(value) => value,
-            Err(err) => {
-                let err_msg = format!("Failed to parse response: {}", err);
-                return Ok(anthropic_error_response(AnthropicError::new(
-                    StatusCode::BAD_GATEWAY,
-                    "api_error",
-                    err_msg,
-                )))
-            }
+        let completion = ChatCompletionResponse {
+            id: format!("chatcmpl-{}", uuid::Uuid::new_v4()),
+            object: Some("chat.completion".to_string()),
+            created: Some(chrono::Utc::now().timestamp() as u64),
+            model: Some(resolution.mapped_model.clone()),
+            choices: vec![agent_llm::api::models::ResponseChoice {
+                index: 0,
+                message: agent_llm::api::models::ChatMessage {
+                    role: agent_llm::api::models::Role::Assistant,
+                    content: agent_llm::api::models::Content::Text(content),
+                    tool_calls,
+                    tool_call_id: None,
+                },
+                finish_reason: Some("stop".to_string()),
+            }],
+            usage: Some(agent_llm::api::models::Usage {
+                prompt_tokens: 0,
+                completion_tokens: 0,
+                total_tokens: 0,
+            }),
+            system_fingerprint: None,
         };
 
         let response = match convert_messages_response(completion, &resolution.response_model) {
@@ -419,12 +423,26 @@ pub async fn complete(
     }
 
     if stream {
-        let (tx, rx) = mpsc::channel(10);
-        let client = app_state.copilot_client.clone();
+        let provider = app_state.get_provider().await;
         let model = resolution.response_model.clone();
 
-        let response = match client.send_chat_completion_request(openai_request).await {
-            Ok(resp) => resp,
+        // Convert messages to internal format
+        let internal_messages = convert_messages(openai_request.messages.clone())?;
+        let internal_tools = convert_tools(openai_request.tools.clone())?;
+        let max_tokens = openai_request.parameters.get("max_tokens").and_then(|v| v.as_u64()).map(|v| v as u32);
+
+        // Start streaming
+        let mut stream_result = provider
+            .chat_stream(
+                &internal_messages,
+                &internal_tools,
+                max_tokens,
+                None,
+            )
+            .await;
+
+        let mut stream = match stream_result {
+            Ok(s) => s,
             Err(err) => {
                 return Ok(anthropic_error_response(AnthropicError::new(
                     StatusCode::BAD_GATEWAY,
@@ -434,52 +452,17 @@ pub async fn complete(
             }
         };
 
-        let status = response.status().as_u16();
-
-        if !response.status().is_success() {
-            let body = response.text().await.unwrap_or_default();
-            return Ok(anthropic_error_response(AnthropicError::new(
-                to_actix_status(status),
-                "api_error",
-                format!("Upstream API error. Status: {}, Body: {}", status, body),
-            )));
-        }
-
-        // Spawn a task to handle the streaming response
-        tokio::spawn(async move {
-            if let Err(e) = client.process_chat_completion_stream(response, tx).await {
-                log::error!("Failed to process stream: {}", e);
-            }
-        });
-
         let stream = stream! {
-            let mut receiver = rx;
-            while let Some(res) = receiver.recv().await {
-                match res {
-                    Ok(bytes) => {
-                        if bytes == "[DONE]" {
-                            yield Ok::<Bytes, AppError>(Bytes::from("data: [DONE]\n\n"));
-                            break;
-                        }
+            use futures_util::StreamExt;
 
-                        match serde_json::from_slice::<ChatCompletionStreamChunk>(&bytes) {
-                            Ok(chunk) => {
-                                let payload = map_completion_stream_chunk(&chunk, &model);
-                                if !payload.is_empty() {
-                                    yield Ok::<Bytes, AppError>(Bytes::from(payload));
-                                }
-                            }
-                            Err(err) => {
-                                let payload = format_sse_data(json!({
-                                    "type": "error",
-                                    "error": {
-                                        "type": "api_error",
-                                        "message": format!("Failed to parse stream chunk: {}", err)
-                                    }
-                                }));
+            while let Some(chunk_result) = stream.next().await {
+                match chunk_result {
+                    Ok(chunk) => {
+                        // Convert LLMChunk to ChatCompletionStreamChunk
+                        if let Some(openai_chunk) = convert_llm_chunk_to_openai(chunk, &model) {
+                            let payload = map_completion_stream_chunk(&openai_chunk, &model);
+                            if !payload.is_empty() {
                                 yield Ok::<Bytes, AppError>(Bytes::from(payload));
-                                yield Ok::<Bytes, AppError>(Bytes::from("data: [DONE]\n\n"));
-                                break;
                             }
                         }
                     }
@@ -497,62 +480,85 @@ pub async fn complete(
                     }
                 }
             }
+            yield Ok::<Bytes, AppError>(Bytes::from("data: [DONE]\n\n"));
         };
 
         Ok(HttpResponse::Ok()
             .content_type("text/event-stream")
             .streaming(stream))
     } else {
-        let response = match app_state
-            .copilot_client
-            .send_chat_completion_request(openai_request)
+        let provider = app_state.get_provider().await;
+
+        // Convert messages to internal format
+        let internal_messages = convert_messages(openai_request.messages.clone())?;
+        let internal_tools = convert_tools(openai_request.tools.clone())?;
+        let max_tokens = openai_request.parameters.get("max_tokens").and_then(|v| v.as_u64()).map(|v| v as u32);
+
+        // Get completion by collecting the stream
+        let mut stream = provider
+            .chat_stream(
+                &internal_messages,
+                &internal_tools,
+                max_tokens,
+                None,
+            )
             .await
-        {
-            Ok(resp) => resp,
-            Err(err) => {
-                return Ok(anthropic_error_response(AnthropicError::new(
-                    StatusCode::BAD_GATEWAY,
-                    "api_error",
-                    format!("Upstream API error: {}", err),
-                )))
-            }
-        };
+            .map_err(|err| {
+                AppError::InternalError(anyhow::anyhow!("Upstream API error: {}", err))
+            })?;
 
-        let status = response.status();
-        let status_code = status.as_u16();
-        let body = match response.bytes().await {
-            Ok(body) => body,
-            Err(err) => {
-                return Ok(anthropic_error_response(AnthropicError::new(
-                    StatusCode::BAD_GATEWAY,
-                    "api_error",
-                    format!("Failed to read response body: {}", err),
-                )))
-            }
-        };
+        // Collect stream into a response
+        use futures_util::StreamExt;
+        let mut content = String::new();
+        let mut tool_calls: Option<Vec<agent_llm::api::models::ToolCall>> = None;
 
-        if !status.is_success() {
-            return Ok(anthropic_error_response(AnthropicError::new(
-                to_actix_status(status_code),
-                "api_error",
-                format!(
-                    "Upstream API error. Status: {}, Body: {}",
-                    status,
-                    String::from_utf8_lossy(&body)
-                ),
-            )));
+        while let Some(chunk_result) = stream.next().await {
+            match chunk_result {
+                Ok(agent_llm::types::LLMChunk::Token(text)) => {
+                    content.push_str(&text);
+                }
+                Ok(agent_llm::types::LLMChunk::ToolCalls(calls)) => {
+                    let converted_calls: Vec<agent_llm::api::models::ToolCall> = calls
+                        .into_iter()
+                        .map(|tc| agent_llm::api::models::ToolCall {
+                            id: tc.id,
+                            tool_type: tc.tool_type,
+                            function: agent_llm::api::models::FunctionCall {
+                                name: tc.function.name,
+                                arguments: tc.function.arguments,
+                            },
+                        })
+                        .collect();
+                    tool_calls = Some(converted_calls);
+                }
+                Ok(agent_llm::types::LLMChunk::Done) => break,
+                Err(err) => {
+                    return Err(AppError::InternalError(anyhow::anyhow!("Stream error: {}", err)));
+                }
+            }
         }
 
-        let completion = match serde_json::from_slice::<ChatCompletionResponse>(&body) {
-            Ok(value) => value,
-            Err(err) => {
-                let err_msg = format!("Failed to parse response: {}", err);
-                return Ok(anthropic_error_response(AnthropicError::new(
-                    StatusCode::BAD_GATEWAY,
-                    "api_error",
-                    err_msg,
-                )))
-            }
+        let completion = ChatCompletionResponse {
+            id: format!("chatcmpl-{}", uuid::Uuid::new_v4()),
+            object: Some("chat.completion".to_string()),
+            created: Some(chrono::Utc::now().timestamp() as u64),
+            model: Some(resolution.mapped_model.clone()),
+            choices: vec![agent_llm::api::models::ResponseChoice {
+                index: 0,
+                message: agent_llm::api::models::ChatMessage {
+                    role: agent_llm::api::models::Role::Assistant,
+                    content: agent_llm::api::models::Content::Text(content),
+                    tool_calls,
+                    tool_call_id: None,
+                },
+                finish_reason: Some("stop".to_string()),
+            }],
+            usage: Some(agent_llm::api::models::Usage {
+                prompt_tokens: 0,
+                completion_tokens: 0,
+                total_tokens: 0,
+            }),
+            system_fingerprint: None,
         };
 
         let response = match convert_complete_response(completion, &resolution.response_model) {
@@ -586,11 +592,14 @@ struct AnthropicModel {
 
 #[get("/models")]
 pub async fn get_models(app_state: web::Data<AppState>) -> Result<HttpResponse, AppError> {
-    // Fetch real models from copilot_client
-    let model_ids = match app_state.copilot_client.get_models().await {
+    // Get provider and fetch models
+    let provider = app_state.get_provider().await;
+    let model_ids = match provider.list_models().await {
         Ok(model_ids) => model_ids,
         Err(e) => {
-            if e.downcast_ref::<ProxyAuthRequiredError>().is_some() {
+            // Check if error is related to proxy auth
+            let err_msg = e.to_string();
+            if err_msg.contains("proxy") || err_msg.contains("407") {
                 return Err(AppError::ProxyAuthRequired);
             }
             return Err(AppError::InternalError(anyhow::anyhow!(
@@ -1559,4 +1568,110 @@ fn map_completion_stream_chunk(chunk: &ChatCompletionStreamChunk, model: &str) -
     }
 
     output
+}
+
+/// Convert OpenAI chat messages to internal messages
+fn convert_messages(
+    chat_messages: Vec<agent_llm::api::models::ChatMessage>,
+) -> Result<Vec<Message>, AppError> {
+    chat_messages
+        .into_iter()
+        .map(|msg| Message::from_provider(msg).map_err(|e| {
+            AppError::InternalError(anyhow::anyhow!("Failed to convert message: {}", e))
+        }))
+        .collect()
+}
+
+/// Convert OpenAI tools to internal tool schemas
+fn convert_tools(
+    tools: Option<Vec<agent_llm::api::models::Tool>>,
+) -> Result<Vec<ToolSchema>, AppError> {
+    match tools {
+        Some(tools) => tools
+            .into_iter()
+            .map(|tool| ToolSchema::from_provider(tool).map_err(|e| {
+                AppError::InternalError(anyhow::anyhow!("Failed to convert tool: {}", e))
+            }))
+            .collect(),
+        None => Ok(vec![]),
+    }
+}
+
+/// Convert LLMChunk to OpenAI stream format
+fn convert_llm_chunk_to_openai(
+    chunk: agent_llm::types::LLMChunk,
+    model: &str,
+) -> Option<ChatCompletionStreamChunk> {
+    use agent_llm::api::models::*;
+
+    match chunk {
+        agent_llm::types::LLMChunk::Token(text) => {
+            Some(ChatCompletionStreamChunk {
+                id: format!("chatcmpl-{}", uuid::Uuid::new_v4()),
+                object: Some("chat.completion.chunk".to_string()),
+                created: chrono::Utc::now().timestamp() as u64,
+                model: Some(model.to_string()),
+                choices: vec![StreamChoice {
+                    index: 0,
+                    delta: StreamDelta {
+                        role: None,
+                        content: Some(text),
+                        tool_calls: None,
+                    },
+                    finish_reason: None,
+                }],
+                usage: None,
+            })
+        }
+        agent_llm::types::LLMChunk::ToolCalls(tool_calls) => {
+            let stream_tool_calls: Vec<StreamToolCall> = tool_calls
+                .into_iter()
+                .enumerate()
+                .map(|(idx, tc)| StreamToolCall {
+                    index: idx as u32,
+                    id: Some(tc.id),
+                    tool_type: Some(tc.tool_type),
+                    function: Some(StreamFunctionCall {
+                        name: Some(tc.function.name),
+                        arguments: Some(tc.function.arguments),
+                    }),
+                })
+                .collect();
+
+            Some(ChatCompletionStreamChunk {
+                id: format!("chatcmpl-{}", uuid::Uuid::new_v4()),
+                object: Some("chat.completion.chunk".to_string()),
+                created: chrono::Utc::now().timestamp() as u64,
+                model: Some(model.to_string()),
+                choices: vec![StreamChoice {
+                    index: 0,
+                    delta: StreamDelta {
+                        role: None,
+                        content: None,
+                        tool_calls: Some(stream_tool_calls),
+                    },
+                    finish_reason: None,
+                }],
+                usage: None,
+            })
+        }
+        agent_llm::types::LLMChunk::Done => {
+            Some(ChatCompletionStreamChunk {
+                id: format!("chatcmpl-{}", uuid::Uuid::new_v4()),
+                object: Some("chat.completion.chunk".to_string()),
+                created: chrono::Utc::now().timestamp() as u64,
+                model: Some(model.to_string()),
+                choices: vec![StreamChoice {
+                    index: 0,
+                    delta: StreamDelta {
+                        role: None,
+                        content: None,
+                        tool_calls: None,
+                    },
+                    finish_reason: Some("stop".to_string()),
+                }],
+                usage: None,
+            })
+        }
+    }
 }

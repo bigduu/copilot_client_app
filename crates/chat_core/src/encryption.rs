@@ -173,10 +173,10 @@ pub fn encrypt(plaintext: &str) -> Result<String> {
         Aes256Gcm::new_from_slice(&key).map_err(|e| anyhow!("Failed to create cipher: {e}"))?;
 
     let nonce_bytes: [u8; 12] = rand::thread_rng().gen();
-    let nonce = Nonce::from_slice(&nonce_bytes);
+    let nonce = Nonce::from(nonce_bytes);
 
     let ciphertext = cipher
-        .encrypt(nonce, plaintext.as_bytes())
+        .encrypt(&nonce, plaintext.as_bytes())
         .map_err(|e| anyhow!("Encryption failed: {e}"))?;
 
     // Format: hex(nonce) + ":" + hex(ciphertext)
@@ -194,13 +194,20 @@ pub fn decrypt(encrypted: &str) -> Result<String> {
     let nonce_bytes = hex::decode(parts[0]).map_err(|e| anyhow!("Invalid nonce: {e}"))?;
     let ciphertext = hex::decode(parts[1]).map_err(|e| anyhow!("Invalid ciphertext: {e}"))?;
 
+    if nonce_bytes.len() != 12 {
+        return Err(anyhow!("Invalid nonce length: expected 12, got {}", nonce_bytes.len()));
+    }
+
     let key = get_encryption_key();
     let cipher =
         Aes256Gcm::new_from_slice(&key).map_err(|e| anyhow!("Failed to create cipher: {e}"))?;
 
-    let nonce = Nonce::from_slice(&nonce_bytes);
+    let nonce_array: [u8; 12] = nonce_bytes
+        .try_into()
+        .expect("nonce length checked above");
+    let nonce = Nonce::from(nonce_array);
     let plaintext = cipher
-        .decrypt(nonce, ciphertext.as_ref())
+        .decrypt(&nonce, ciphertext.as_ref())
         .map_err(|e| anyhow!("Decryption failed: {e}"))?;
 
     String::from_utf8(plaintext).map_err(|e| anyhow!("Invalid UTF-8: {e}"))

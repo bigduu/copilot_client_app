@@ -2,16 +2,17 @@ use std::{path::PathBuf, sync::Arc};
 
 use actix_cors::Cors;
 use actix_web::{web, App, HttpServer};
-use agent_llm::client::MetricsClientDecorator;
-use agent_llm::{CopilotClient, CopilotClientTrait};
+use agent_llm::LLMProvider;
 use agent_metrics::{MetricsBus, MetricsStorage, MetricsWorker};
 use agent_server::handlers as agent_handlers;
 use agent_server::state::AppState as AgentAppState;
 use chat_core::Config;
 use log::{error, info};
-use tokio::sync::oneshot;
+use tokio::sync::{oneshot, RwLock};
 
 use crate::controllers::anthropic as anthropic_controller;
+use crate::controllers::copilot_auth_controller;
+use crate::controllers::gemini_controller;
 use crate::controllers::{
     agent_controller, settings_controller, openai_controller,
     skill_controller, tools_controller, workspace_controller,
@@ -20,8 +21,37 @@ use crate::controllers::{
 const DEFAULT_METRICS_CHANNEL_CAPACITY: usize = 10000;
 
 pub struct AppState {
-    pub copilot_client: Arc<dyn CopilotClientTrait>,
     pub app_data_dir: PathBuf,
+    pub provider: Arc<RwLock<Arc<dyn LLMProvider>>>,
+    pub config: Arc<RwLock<Config>>,
+    pub metrics_bus: Option<MetricsBus>,
+}
+
+impl AppState {
+    /// Reload the provider based on current configuration
+    pub async fn reload_provider(&self) -> Result<(), agent_llm::LLMError> {
+        let config = self.config.read().await.clone();
+        let new_provider = agent_llm::create_provider_with_dir(&config, self.app_data_dir.clone()).await?;
+
+        let mut provider = self.provider.write().await;
+        *provider = new_provider;
+
+        log::info!("Provider reloaded successfully to: {}", config.provider);
+        Ok(())
+    }
+
+    /// Reload the configuration from file
+    pub async fn reload_config(&self) -> Config {
+        let new_config = Config::new();
+        let mut config = self.config.write().await;
+        *config = new_config.clone();
+        new_config
+    }
+
+    /// Get a clone of the current provider
+    pub async fn get_provider(&self) -> Arc<dyn LLMProvider> {
+        self.provider.read().await.clone()
+    }
 }
 
 /// Holds metrics infrastructure for the web service
@@ -58,25 +88,6 @@ impl MetricsState {
     }
 }
 
-/// Creates a decorated client with metrics collection
-fn create_decorated_client(
-    config: Config,
-    app_data_dir: PathBuf,
-    metrics_bus: MetricsBus,
-) -> Arc<dyn CopilotClientTrait> {
-    // Create base client
-    let base_client = CopilotClient::new(config, app_data_dir);
-
-    // Wrap with metrics decorator
-    let decorated = MetricsClientDecorator::new(
-        base_client,
-        metrics_bus,
-        "openai.chat_completions",
-    );
-
-    Arc::new(decorated)
-}
-
 const DEFAULT_WORKER_COUNT: usize = 10;
 
 pub fn app_config(cfg: &mut web::ServiceConfig) {
@@ -88,12 +99,18 @@ pub fn app_config(cfg: &mut web::ServiceConfig) {
             .configure(settings_controller::config)
             .configure(skill_controller::config)
             .configure(tools_controller::config)
-            .configure(workspace_controller::config),
+            .configure(workspace_controller::config)
+            .configure(copilot_auth_controller::config), // Copilot auth endpoints
     );
 
     // Anthropic endpoints under /anthropic/v1 (to match Anthropic SDK expectations)
     cfg.service(
         web::scope("/anthropic/v1").configure(anthropic_controller::config),
+    );
+
+    // Gemini endpoints under /gemini/v1beta (to match Gemini SDK expectations)
+    cfg.service(
+        web::scope("/gemini/v1beta").configure(gemini_controller::config),
     );
 }
 
@@ -230,18 +247,18 @@ pub async fn run(app_data_dir: PathBuf, port: u16) -> Result<(), String> {
 
     let config = Config::new();
 
-    // Create decorated client with metrics collection
-    let copilot_client = create_decorated_client(
-        config,
-        app_data_dir.clone(),
-        metrics_state.bus.clone(),
-    );
+    // Create provider based on configuration
+    let provider = agent_llm::create_provider_with_dir(&config, app_data_dir.clone())
+        .await
+        .map_err(|e| format!("Failed to create provider: {}", e))?;
 
     let agent_state = web::Data::new(build_agent_state(app_data_dir.clone(), port).await);
 
     let app_state = web::Data::new(AppState {
-        copilot_client,
         app_data_dir,
+        provider: Arc::new(RwLock::new(provider)),
+        config: Arc::new(RwLock::new(config)),
+        metrics_bus: Some(metrics_state.bus.clone()),
     });
 
     let server = HttpServer::new(move || {
@@ -300,18 +317,18 @@ impl WebService {
 
         let config = Config::new();
 
-        // Create decorated client with metrics collection
-        let copilot_client = create_decorated_client(
-            config,
-            self.app_data_dir.clone(),
-            metrics_state.bus.clone(),
-        );
+        // Create provider based on configuration
+        let provider = agent_llm::create_provider(&config)
+            .await
+            .map_err(|e| format!("Failed to create provider: {}", e))?;
 
         let agent_state = web::Data::new(build_agent_state(self.app_data_dir.clone(), port).await);
 
         let app_state = web::Data::new(AppState {
-            copilot_client,
             app_data_dir: self.app_data_dir.clone(),
+            provider: Arc::new(RwLock::new(provider)),
+            config: Arc::new(RwLock::new(config)),
+            metrics_bus: Some(metrics_state.bus.clone()),
         });
 
         let server = HttpServer::new(move || {

@@ -77,6 +77,7 @@ export interface AgentEvent {
     display_preference?: string;
   };
   error?: string;
+  message?: string; // For Error events
   // Union type because 'usage' field has different shapes for different events
   usage?: {
     prompt_tokens: number;
@@ -415,7 +416,8 @@ export class AgentClient {
         handlers.onComplete?.(event.usage);
         break;
       case "error":
-        handlers.onError?.(event.error || "Unknown error");
+        // Error event uses 'message' field, not 'error' field
+        handlers.onError?.(event.message || event.error || "Unknown error");
         break;
       default:
         console.warn("Unknown event type:", event);

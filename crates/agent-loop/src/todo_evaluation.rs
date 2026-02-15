@@ -195,7 +195,7 @@ pub async fn evaluate_todo_progress(
     let tools = get_todo_evaluation_tools();
 
     // 调用 LLM（限制 output tokens）
-    match llm.chat_stream(&messages, &tools, Some(500)).await {
+    match llm.chat_stream(&messages, &tools, Some(500), None).await {
         Ok(stream) => {
             // 消费流
             let stream_output = consume_llm_stream(

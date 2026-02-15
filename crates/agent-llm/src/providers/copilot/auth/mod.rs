@@ -14,5 +14,5 @@ pub mod token;
 
 pub use cache::TokenCache;
 pub use device_code::{get_device_code, present_device_code, DeviceCodeResponse};
-pub use handler::CopilotAuthHandler;
+pub use handler::{CopilotAuthHandler, CopilotConfig};
 pub use token::{get_copilot_token, poll_access_token, CopilotToken};

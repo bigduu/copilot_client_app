@@ -7,6 +7,8 @@ use serde_json::Value;
 use std::path::PathBuf;
 use tokio::fs;
 
+use agent_llm::AVAILABLE_PROVIDERS;
+
 #[derive(Serialize)]
 struct WorkflowListItem {
     name: String,
@@ -244,18 +246,51 @@ pub async fn set_proxy_auth(
 ) -> Result<HttpResponse, AppError> {
     let username = payload.username.clone().unwrap_or_default();
     let password = payload.password.clone().unwrap_or_default();
+
+    // Store proxy auth in config
     let auth = if username.trim().is_empty() {
         None
     } else {
         Some(ProxyAuth { username, password })
     };
-    app_state
-        .copilot_client
-        .update_proxy_auth(auth)
-        .await
-        .map_err(|e| {
-            AppError::InternalError(anyhow::anyhow!("Failed to update proxy auth: {e}"))
-        })?;
+
+    // Update config file
+    let path = config_path(&app_state);
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent).await?;
+    }
+
+    // Read existing config
+    let mut config_value: Value = match fs::read_to_string(&path).await {
+        Ok(content) => {
+            let mut config: Value = serde_json::from_str(&content)?;
+            decrypt_proxy_auth(&mut config);
+            config
+        }
+        Err(_) => serde_json::json!({}),
+    };
+
+    // Update proxy auth
+    if let Some(obj) = config_value.as_object_mut() {
+        if let Some(auth) = auth {
+            obj.insert("proxy_auth".to_string(), serde_json::to_value(&auth)?);
+        } else {
+            obj.remove("proxy_auth");
+            obj.remove("proxy_auth_encrypted");
+        }
+    }
+
+    // Encrypt and save
+    let mut config_to_save = config_value.clone();
+    encrypt_proxy_auth(&mut config_to_save)?;
+    let content = serde_json::to_string_pretty(&config_to_save)?;
+    fs::write(&path, content).await?;
+
+    // Reload provider to apply new proxy settings
+    app_state.reload_provider().await.map_err(|e| {
+        AppError::InternalError(anyhow::anyhow!("Failed to reload provider after updating proxy auth: {e}"))
+    })?;
+
     Ok(HttpResponse::Ok().json(serde_json::json!({ "success": true })))
 }
 
@@ -331,6 +366,213 @@ pub async fn set_anthropic_model_mapping(
     Ok(HttpResponse::Ok().json(mapping))
 }
 
+// Provider configuration endpoints
+
+#[derive(Serialize)]
+struct ProviderConfigResponse {
+    provider: String,
+    available_providers: Vec<String>,
+    config: Value,
+}
+
+#[derive(Deserialize)]
+struct UpdateProviderRequest {
+    provider: String,
+    #[serde(default)]
+    providers: Value,
+}
+
+/// Get current provider configuration
+#[get("/bamboo/settings/provider")]
+pub async fn get_provider_config(
+    app_state: web::Data<AppState>,
+) -> Result<HttpResponse, AppError> {
+    let path = config_path(&app_state);
+
+    let config_value = match fs::read_to_string(&path).await {
+        Ok(content) => {
+            let mut config: Value = serde_json::from_str(&content)?;
+            decrypt_proxy_auth(&mut config);
+            config
+        }
+        Err(err) if err.kind() == std::io::ErrorKind::NotFound => {
+            // Return default config if file doesn't exist
+            serde_json::json!({
+                "provider": "copilot",
+                "providers": {}
+            })
+        }
+        Err(err) => return Err(AppError::StorageError(err)),
+    };
+
+    let provider = config_value
+        .get("provider")
+        .and_then(|v| v.as_str())
+        .unwrap_or("copilot")
+        .to_string();
+
+    // Get providers config (mask API keys for security)
+    let providers = config_value
+        .get("providers")
+        .cloned()
+        .unwrap_or_else(|| serde_json::json!({}));
+
+    // Mask API keys in the response
+    let masked_providers = mask_api_keys_in_providers(&providers);
+
+    let response = ProviderConfigResponse {
+        provider,
+        available_providers: AVAILABLE_PROVIDERS.iter().map(|s| s.to_string()).collect(),
+        config: masked_providers,
+    };
+
+    Ok(HttpResponse::Ok().json(response))
+}
+
+/// Mask API keys in provider config for security
+fn mask_api_keys_in_providers(providers: &Value) -> Value {
+    let mut masked = providers.clone();
+
+    if let Some(obj) = masked.as_object_mut() {
+        for (_, provider_config) in obj.iter_mut() {
+            if let Some(config_obj) = provider_config.as_object_mut() {
+                if let Some(api_key) = config_obj.get_mut("api_key") {
+                    if let Some(key_str) = api_key.as_str() {
+                        if key_str.len() > 8 {
+                            let masked_key = format!(
+                                "{}...{}",
+                                &key_str[..4],
+                                &key_str[key_str.len() - 4..]
+                            );
+                            *api_key = Value::String(masked_key);
+                        } else if !key_str.is_empty() {
+                            *api_key = Value::String("***".to_string());
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    masked
+}
+
+/// Update provider configuration
+#[post("/bamboo/settings/provider")]
+pub async fn update_provider_config(
+    app_state: web::Data<AppState>,
+    payload: web::Json<UpdateProviderRequest>,
+) -> Result<HttpResponse, AppError> {
+    let path = config_path(&app_state);
+
+    // Ensure parent directory exists
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent).await?;
+    }
+
+    // Read existing config
+    let mut existing_config: Value = match fs::read_to_string(&path).await {
+        Ok(content) => {
+            let mut config: Value = serde_json::from_str(&content)?;
+            decrypt_proxy_auth(&mut config);
+            config
+        }
+        Err(err) if err.kind() == std::io::ErrorKind::NotFound => {
+            serde_json::json!({})
+        }
+        Err(err) => return Err(AppError::StorageError(err)),
+    };
+
+    // Update provider
+    if let Some(obj) = existing_config.as_object_mut() {
+        obj.insert("provider".to_string(), Value::String(payload.provider.clone()));
+
+        // Merge providers config
+        if let Some(existing_providers) = obj.get_mut("providers") {
+            if let Some(existing_obj) = existing_providers.as_object_mut() {
+                if let Some(new_providers) = payload.providers.as_object() {
+                    for (key, value) in new_providers.iter() {
+                        // Don't overwrite with masked values
+                        if let Some(new_obj) = value.as_object() {
+                            if let Some(api_key) = new_obj.get("api_key") {
+                                if let Some(key_str) = api_key.as_str() {
+                                    if key_str.contains("***") || key_str.contains("...") {
+                                        // This is a masked key, preserve the existing one
+                                        if let Some(existing_provider) = existing_obj.get(key) {
+                                            if let Some(existing_key) = existing_provider.get("api_key") {
+                                                let mut merged = value.clone();
+                                                if let Some(merged_obj) = merged.as_object_mut() {
+                                                    merged_obj.insert("api_key".to_string(), existing_key.clone());
+                                                }
+                                                existing_obj.insert(key.clone(), merged);
+                                                continue;
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        existing_obj.insert(key.clone(), value.clone());
+                    }
+                }
+            } else {
+                obj.insert("providers".to_string(), payload.providers.clone());
+            }
+        } else {
+            obj.insert("providers".to_string(), payload.providers.clone());
+        }
+    }
+
+    // Clean empty proxy fields
+    let mut config_to_save = clean_empty_proxy_fields(existing_config.clone());
+
+    // Encrypt proxy auth if present
+    encrypt_proxy_auth(&mut config_to_save)?;
+
+    // Save to file
+    let content = serde_json::to_string_pretty(&config_to_save)?;
+    fs::write(&path, content).await?;
+
+    log::info!("Provider configuration updated to: {}", payload.provider);
+
+    Ok(HttpResponse::Ok().json(serde_json::json!({
+        "success": true,
+        "provider": payload.provider
+    })))
+}
+
+/// Reload configuration and recreate provider
+#[post("/bamboo/settings/reload")]
+pub async fn reload_provider_config(
+    app_state: web::Data<AppState>,
+) -> Result<HttpResponse, AppError> {
+    // Reload the configuration
+    let new_config = chat_core::Config::new();
+
+    // Validate the configuration
+    if let Err(e) = agent_llm::validate_provider_config(&new_config) {
+        return Ok(HttpResponse::BadRequest().json(serde_json::json!({
+            "success": false,
+            "error": e.to_string()
+        })));
+    }
+
+    // Reload the provider in AppState
+    if let Err(e) = app_state.reload_provider().await {
+        return Ok(HttpResponse::InternalServerError().json(serde_json::json!({
+            "success": false,
+            "error": format!("Failed to reload provider: {}", e)
+        })));
+    }
+
+    log::info!("Provider reloaded successfully: {}", new_config.provider);
+
+    Ok(HttpResponse::Ok().json(serde_json::json!({
+        "success": true,
+        "provider": new_config.provider
+    })))
+}
+
 pub fn config(cfg: &mut web::ServiceConfig) {
     cfg.service(list_workflows)
         .service(get_workflow)
@@ -340,5 +582,9 @@ pub fn config(cfg: &mut web::ServiceConfig) {
         .service(set_proxy_auth)
         .service(get_proxy_auth_status)
         .service(get_anthropic_model_mapping)
-        .service(set_anthropic_model_mapping);
+        .service(set_anthropic_model_mapping)
+        // Provider configuration endpoints
+        .service(get_provider_config)
+        .service(update_provider_config)
+        .service(reload_provider_config);
 }

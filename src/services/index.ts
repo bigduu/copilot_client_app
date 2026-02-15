@@ -113,3 +113,6 @@ export type {
   TokenUsage,
   ToolCallMetrics,
 } from "./metrics";
+
+// Settings Service
+export { SettingsService, settingsService } from "./config/SettingsService";

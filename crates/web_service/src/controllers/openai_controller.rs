@@ -1,6 +1,7 @@
 use crate::{error::AppError, server::AppState};
 use actix_web::{get, post, web, HttpResponse};
-use agent_llm::api::models::{ChatCompletionRequest, ChatCompletionResponse};
+use agent_llm::api::models::{ChatCompletionRequest, ChatCompletionResponse, ChatCompletionStreamChunk};
+use agent_llm::protocol::{FromProvider, ToProvider};
 use agent_llm::ProxyAuthRequiredError;
 use agent_server::state::AppState as AgentAppState;
 use bytes::Bytes;
@@ -119,11 +120,14 @@ pub async fn get_models(app_state: web::Data<AppState>) -> Result<HttpResponse, 
         }));
     }
 
-    // Fetch real models from copilot_client
-    let model_ids = match app_state.copilot_client.get_models().await {
+    // Get provider and fetch models
+    let provider = app_state.get_provider().await;
+    let model_ids = match provider.list_models().await {
         Ok(model_ids) => model_ids,
         Err(e) => {
-            if e.downcast_ref::<ProxyAuthRequiredError>().is_some() {
+            // Check if error is related to proxy auth
+            let err_msg = e.to_string();
+            if err_msg.contains("proxy") || err_msg.contains("407") {
                 return Err(AppError::ProxyAuthRequired);
             }
             return Err(AppError::InternalError(anyhow::anyhow!(
@@ -152,6 +156,144 @@ pub async fn get_models(app_state: web::Data<AppState>) -> Result<HttpResponse, 
     Ok(HttpResponse::Ok().json(response))
 }
 
+/// Convert OpenAI chat messages to internal messages
+fn convert_messages(
+    messages: Vec<agent_llm::api::models::ChatMessage>,
+) -> Result<Vec<agent_core::Message>, AppError> {
+    messages
+        .into_iter()
+        .map(|msg| agent_core::Message::from_provider(msg).map_err(|e| {
+            AppError::InternalError(anyhow::anyhow!("Failed to convert message: {}", e))
+        }))
+        .collect()
+}
+
+/// Convert OpenAI tools to internal tool schemas
+fn convert_tools(
+    tools: Option<Vec<agent_llm::api::models::Tool>>,
+) -> Result<Vec<agent_core::tools::ToolSchema>, AppError> {
+    match tools {
+        Some(tools) => tools
+            .into_iter()
+            .map(|tool| agent_core::tools::ToolSchema::from_provider(tool).map_err(|e| {
+                AppError::InternalError(anyhow::anyhow!("Failed to convert tool: {}", e))
+            }))
+            .collect(),
+        None => Ok(vec![]),
+    }
+}
+
+/// Convert LLMChunk stream to OpenAI stream format
+fn convert_chunk_to_openai(
+    chunk: agent_llm::types::LLMChunk,
+    model: &str,
+) -> Option<ChatCompletionStreamChunk> {
+    use agent_llm::api::models::*;
+
+    match chunk {
+        agent_llm::types::LLMChunk::Token(text) => {
+            Some(ChatCompletionStreamChunk {
+                id: format!("chatcmpl-{}", uuid::Uuid::new_v4()),
+                object: Some("chat.completion.chunk".to_string()),
+                created: chrono::Utc::now().timestamp() as u64,
+                model: Some(model.to_string()),
+                choices: vec![StreamChoice {
+                    index: 0,
+                    delta: StreamDelta {
+                        role: None,
+                        content: Some(text),
+                        tool_calls: None,
+                    },
+                    finish_reason: None,
+                }],
+                usage: None,
+            })
+        }
+        agent_llm::types::LLMChunk::ToolCalls(tool_calls) => {
+            let stream_tool_calls: Vec<StreamToolCall> = tool_calls
+                .into_iter()
+                .enumerate()
+                .map(|(idx, tc)| StreamToolCall {
+                    index: idx as u32,
+                    id: Some(tc.id),
+                    tool_type: Some(tc.tool_type),
+                    function: Some(StreamFunctionCall {
+                        name: Some(tc.function.name),
+                        arguments: Some(tc.function.arguments),
+                    }),
+                })
+                .collect();
+
+            Some(ChatCompletionStreamChunk {
+                id: format!("chatcmpl-{}", uuid::Uuid::new_v4()),
+                object: Some("chat.completion.chunk".to_string()),
+                created: chrono::Utc::now().timestamp() as u64,
+                model: Some(model.to_string()),
+                choices: vec![StreamChoice {
+                    index: 0,
+                    delta: StreamDelta {
+                        role: None,
+                        content: None,
+                        tool_calls: Some(stream_tool_calls),
+                    },
+                    finish_reason: None,
+                }],
+                usage: None,
+            })
+        }
+        agent_llm::types::LLMChunk::Done => {
+            Some(ChatCompletionStreamChunk {
+                id: format!("chatcmpl-{}", uuid::Uuid::new_v4()),
+                object: Some("chat.completion.chunk".to_string()),
+                created: chrono::Utc::now().timestamp() as u64,
+                model: Some(model.to_string()),
+                choices: vec![StreamChoice {
+                    index: 0,
+                    delta: StreamDelta {
+                        role: None,
+                        content: None,
+                        tool_calls: None,
+                    },
+                    finish_reason: Some("stop".to_string()),
+                }],
+                usage: None,
+            })
+        }
+    }
+}
+
+/// Build a complete response from accumulated chunks
+fn build_completion_response(
+    content: String,
+    tool_calls: Option<Vec<agent_llm::api::models::ToolCall>>,
+    model: &str,
+) -> ChatCompletionResponse {
+    use agent_llm::api::models::*;
+
+    ChatCompletionResponse {
+        id: format!("chatcmpl-{}", uuid::Uuid::new_v4()),
+        object: Some("chat.completion".to_string()),
+        created: Some(chrono::Utc::now().timestamp() as u64),
+        model: Some(model.to_string()),
+        choices: vec![ResponseChoice {
+            index: 0,
+            message: ChatMessage {
+                role: Role::Assistant,
+                content: Content::Text(content),
+                tool_calls,
+                tool_call_id: None,
+            },
+            finish_reason: Some("stop".to_string()),
+        }],
+        usage: Some(Usage {
+            prompt_tokens: 0,
+            completion_tokens: 0,
+            total_tokens: 0,
+        }),
+        system_fingerprint: None,
+    }
+}
+
 #[post("/chat/completions")]
 pub async fn chat_completions(
     app_state: web::Data<AppState>,
@@ -159,52 +301,62 @@ pub async fn chat_completions(
     req: web::Json<ChatCompletionRequest>,
 ) -> Result<HttpResponse, AppError> {
     let stream = req.stream.unwrap_or(false);
-    let mut request = req.into_inner();
+    let request = req.into_inner();
+    let model = request.model.clone();
 
-    // Enable usage tracking for streaming requests
+    // Convert messages to internal format
+    let internal_messages = convert_messages(request.messages)?;
+    let internal_tools = convert_tools(request.tools)?;
+    let max_tokens = request.parameters.get("max_tokens").and_then(|v| v.as_u64()).map(|v| v as u32);
+
     if stream {
-        request.stream_options = Some(agent_llm::api::models::StreamOptions {
-            include_usage: true,
-        });
-    }
+        let provider = app_state.get_provider().await;
 
-    if stream {
-        let (tx, rx) = mpsc::channel(10);
-        let client = app_state.copilot_client.clone();
-
-        let response = match client.send_chat_completion_request(request).await {
-            Ok(resp) => resp,
-            Err(e) => {
-                if e.downcast_ref::<ProxyAuthRequiredError>().is_some() {
-                    return Err(AppError::ProxyAuthRequired);
+        // Start streaming
+        let mut stream_result = provider
+            .chat_stream(
+                &internal_messages,
+                &internal_tools,
+                max_tokens,
+                None,
+            )
+            .await
+            .map_err(|e| {
+                let err_msg = e.to_string();
+                if err_msg.contains("proxy") || err_msg.contains("407") {
+                    AppError::ProxyAuthRequired
+                } else {
+                    AppError::InternalError(anyhow::anyhow!("LLM error: {}", e))
                 }
-                return Err(AppError::InternalError(e));
-            }
-        };
+            })?;
 
-        let status = response.status().as_u16();
-
-        if status == 407 {
-            return Err(AppError::ProxyAuthRequired);
-        }
-
-        if !response.status().is_success() {
-            let body = response.text().await.unwrap_or_default();
-            let error_message = format!("Upstream API error. Status: {}, Body: {}", status, body);
-            return Err(AppError::InternalError(anyhow::anyhow!(error_message)));
-        }
+        let (tx, rx) = mpsc::channel(10);
+        let model_clone = model.clone();
 
         // Spawn a task to handle the streaming response
         tokio::spawn(async move {
-            if let Err(e) = client.process_chat_completion_stream(response, tx).await {
-                log::error!("Failed to process stream: {}", e);
+            use futures_util::StreamExt;
+            while let Some(chunk_result) = stream_result.next().await {
+                match chunk_result {
+                    Ok(chunk) => {
+                        if let Some(openai_chunk) = convert_chunk_to_openai(chunk, &model_clone) {
+                            let chunk_str = serde_json::to_string(&openai_chunk).unwrap_or_default();
+                            if tx.send(Ok(Bytes::from(chunk_str))).await.is_err() {
+                                break;
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        log::error!("Stream error: {}", e);
+                        break;
+                    }
+                }
             }
         });
 
         let stream = ReceiverStream::new(rx).map(|res| {
             res.map(|bytes| {
-                let s = std::str::from_utf8(&bytes).unwrap_or_default();
-                let data = format!("data: {}\n\n", s);
+                let data = format!("data: {}\n\n", String::from_utf8_lossy(&bytes));
                 Bytes::from(data)
             })
             .map_err(AppError::InternalError)
@@ -214,45 +366,59 @@ pub async fn chat_completions(
             .content_type("text/event-stream")
             .streaming(stream))
     } else {
-        let response = match app_state
-            .copilot_client
-            .send_chat_completion_request(request)
+        let provider = app_state.get_provider().await;
+
+        // For non-streaming, we need to collect the stream
+        let mut stream = provider
+            .chat_stream(
+                &internal_messages,
+                &internal_tools,
+                max_tokens,
+                None,
+            )
             .await
-        {
-            Ok(resp) => resp,
-            Err(e) => {
-                if e.downcast_ref::<ProxyAuthRequiredError>().is_some() {
-                    return Err(AppError::ProxyAuthRequired);
+            .map_err(|e| {
+                let err_msg = e.to_string();
+                if err_msg.contains("proxy") || err_msg.contains("407") {
+                    AppError::ProxyAuthRequired
+                } else {
+                    AppError::InternalError(anyhow::anyhow!("LLM error: {}", e))
                 }
-                return Err(AppError::InternalError(e));
+            })?;
+
+        // Collect all chunks
+        use futures_util::StreamExt;
+        let mut content = String::new();
+        let mut tool_calls: Option<Vec<agent_llm::api::models::ToolCall>> = None;
+
+        while let Some(chunk_result) = stream.next().await {
+            match chunk_result {
+                Ok(agent_llm::types::LLMChunk::Token(text)) => {
+                    content.push_str(&text);
+                }
+                Ok(agent_llm::types::LLMChunk::ToolCalls(calls)) => {
+                    let converted_calls: Vec<agent_llm::api::models::ToolCall> = calls
+                        .into_iter()
+                        .map(|tc| agent_llm::api::models::ToolCall {
+                            id: tc.id,
+                            tool_type: tc.tool_type,
+                            function: agent_llm::api::models::FunctionCall {
+                                name: tc.function.name,
+                                arguments: tc.function.arguments,
+                            },
+                        })
+                        .collect();
+                    tool_calls = Some(converted_calls);
+                }
+                Ok(agent_llm::types::LLMChunk::Done) => break,
+                Err(e) => {
+                    return Err(AppError::InternalError(anyhow::anyhow!("Stream error: {}", e)));
+                }
             }
-        };
-
-        let status = response.status();
-        let status_code = status.as_u16();
-
-        if status_code == 407 {
-            return Err(AppError::ProxyAuthRequired);
         }
 
-        let body = response.bytes().await.map_err(|e| {
-            AppError::InternalError(anyhow::anyhow!("Failed to read response body: {}", e))
-        })?;
-
-        if !status.is_success() {
-            let error_message = format!(
-                "Upstream API error. Status: {}, Body: {}",
-                status,
-                String::from_utf8_lossy(&body)
-            );
-            return Err(AppError::InternalError(anyhow::anyhow!(error_message)));
-        }
-
-        let completion = serde_json::from_slice::<ChatCompletionResponse>(&body).map_err(|e| {
-            AppError::InternalError(anyhow::anyhow!("Failed to parse response: {}", e))
-        })?;
-
-        Ok(HttpResponse::Ok().json(completion))
+        let response = build_completion_response(content, tool_calls, &model);
+        Ok(HttpResponse::Ok().json(response))
     }
 }
 

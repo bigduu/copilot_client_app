@@ -6,7 +6,6 @@ use reqwest::StatusCode;
 use reqwest_middleware::ClientWithMiddleware;
 use serde::{Deserialize, Serialize};
 use std::{
-    collections::HashMap,
     fs::{create_dir_all, read_to_string, File},
     io::Write,
     path::PathBuf,
@@ -16,9 +15,11 @@ use std::{
 use tokio::sync::Mutex;
 use tokio::time::sleep;
 
+use super::device_code::DeviceCodeResponse;
+
 // Models for GitHub authentication flow
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub(crate) struct CopilotConfig {
+pub struct CopilotConfig {
     pub token: String,
     // Other fields are not used directly by the auth handler, but are kept for completeness
     pub annotations_enabled: bool,
@@ -133,32 +134,6 @@ mod tests {
         assert!(handler.is_copilot_token_valid(&valid));
         assert!(!handler.is_copilot_token_valid(&stale));
     }
-
-    #[test]
-    fn device_code_presentation_respects_headless_flag() {
-        let device_code = DeviceCodeResponse {
-            device_code: "device".to_string(),
-            user_code: "ABCD-EFGH".to_string(),
-            verification_uri: "https://github.com/login/device".to_string(),
-            expires_in: 900,
-            interval: 5,
-        };
-
-        let dir = tempdir().expect("tempdir");
-        let headless = CopilotAuthHandler::new(test_http_client(), dir.path().to_path_buf(), true);
-        assert!(matches!(
-            headless.device_code_presentation(&device_code),
-            DeviceCodePresentation::Headless(message)
-                if message.contains(&device_code.verification_uri)
-                    && message.contains(&device_code.user_code)
-        ));
-
-        let gui = CopilotAuthHandler::new(test_http_client(), dir.path().to_path_buf(), false);
-        assert_eq!(
-            gui.device_code_presentation(&device_code),
-            DeviceCodePresentation::Gui
-        );
-    }
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -169,33 +144,24 @@ pub(crate) struct Endpoints {
     pub telemetry: Option<String>,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub(crate) struct DeviceCodeResponse {
-    pub device_code: String,
-    pub user_code: String,
-    pub verification_uri: String,
-    pub expires_in: u64,
-    pub interval: u64,
-}
-
-#[derive(Debug, Serialize, Deserialize, Clone)]
+/// Access token response from GitHub
+#[derive(Debug, Deserialize)]
 pub(crate) struct AccessTokenResponse {
     pub access_token: Option<String>,
     pub token_type: Option<String>,
-    pub expires_in: Option<u64>,
-    pub interval: Option<u64>,
     pub scope: Option<String>,
     pub error: Option<String>,
+    #[serde(rename = "error_description")]
+    pub error_description: Option<String>,
 }
 impl AccessTokenResponse {
     pub(crate) fn from_token(token: String) -> Self {
         Self {
             access_token: Some(token),
             token_type: None,
-            expires_in: None,
-            interval: None,
             scope: None,
             error: None,
+            error_description: None,
         }
     }
 }
@@ -230,6 +196,11 @@ impl CopilotAuthHandler {
         }
     }
 
+    /// Get app data directory
+    pub fn app_data_dir(&self) -> &PathBuf {
+        &self.app_data_dir
+    }
+
     /// Create handler with custom GitHub API base URL (for testing)
     #[cfg(test)]
     fn with_github_api_base_url(mut self, url: impl Into<String>) -> Self {
@@ -242,17 +213,6 @@ impl CopilotAuthHandler {
     fn with_github_login_base_url(mut self, url: impl Into<String>) -> Self {
         self.github_login_base_url = url.into();
         self
-    }
-
-    fn device_code_presentation(&self, device_code: &DeviceCodeResponse) -> DeviceCodePresentation {
-        if self.headless_auth {
-            DeviceCodePresentation::Headless(format!(
-                "GitHub Device Authorization (headless)\nVerification URL: {}\nUser Code: {}\n",
-                device_code.verification_uri, device_code.user_code
-            ))
-        } else {
-            DeviceCodePresentation::Gui
-        }
     }
 
     pub async fn authenticate(&self) -> anyhow::Result<String> {
@@ -272,55 +232,14 @@ impl CopilotAuthHandler {
         // Acquire global lock to ensure sequential execution
         let _guard = CHAT_TOKEN_LOCK.lock().await;
 
-        // Create the directory if it doesn't exist
-        create_dir_all(&self.app_data_dir)?;
-        info!("The app dir is {:?}", self.app_data_dir.clone());
-
-        let token_path = self.app_data_dir.join(".token");
-        let copilot_token_path = self.app_data_dir.join(".copilot_token.json");
-
-        if let Some(cached_config) = self.read_cached_copilot_config(&copilot_token_path) {
-            if self.is_copilot_token_valid(&cached_config) {
-                return Ok(cached_config.token);
-            }
-            let _ = std::fs::remove_file(&copilot_token_path);
+        // Try silent authentication first
+        if let Some(token) = self.try_get_chat_token_silent().await? {
+            return Ok(token);
         }
 
-        if let Ok(token) = std::env::var("COPILOT_API_KEY") {
-            let trimmed = token.trim();
-            if !trimmed.is_empty() {
-                return Ok(trimmed.to_string());
-            }
-        }
-
-        //read the access token from the .token file if exists don't get the device code and access token
-        if let Some(access_token_str) = Self::read_access_token(&token_path) {
-            let access_token = AccessTokenResponse::from_token(access_token_str);
-            // Delegate to auth_handler (reqwest-retry handles retries automatically)
-            match self.get_copilot_token(access_token).await {
-                Ok(copilot_config) => {
-                    self.write_cached_copilot_config(&copilot_token_path, &copilot_config)?;
-                    return Ok(copilot_config.token);
-                }
-                Err(e) => {
-                    //remove the .token file
-                    std::fs::remove_file(&token_path)?;
-                    info!(
-                        "Failed to get copilot config, will get the device code and access token: {e}"
-                    );
-                }
-            };
-        }
-        // Delegate to auth_handler (reqwest-retry handles retries automatically)
-        let device_code = self.get_device_code().await?;
-        // Delegate to auth_handler (reqwest-retry handles retries automatically)
-        let access_token = self.get_access_token(device_code).await?;
-        //make sure the .token file is writable and write the access token to it
-        let mut file = File::create(&token_path)?;
-        file.write_all(access_token.clone().access_token.unwrap().as_bytes())?;
-        // Delegate to auth_handler (reqwest-retry handles retries automatically)
-        let copilot_config = self.get_copilot_token(access_token).await?;
-        self.write_cached_copilot_config(&copilot_token_path, &copilot_config)?;
+        // Need interactive authentication
+        let device_code = self.start_authentication().await?;
+        let copilot_config = self.complete_authentication(&device_code).await?;
         Ok(copilot_config.token)
     }
 
@@ -362,15 +281,15 @@ impl CopilotAuthHandler {
     }
 
     pub(super) async fn get_device_code(&self) -> anyhow::Result<DeviceCodeResponse> {
-        let params = HashMap::from([
-            ("client_id", "Iv1.b507a08c87ecfe98"),
-            ("scope", "read:user"),
-        ]);
+        let params = [("client_id", "Iv1.b507a08c87ecfe98"), ("scope", "read:user")];
         let url = format!("{}/login/device/code", self.github_login_base_url);
+
         let response = self
             .client
             .post(&url)
-            .query(&params)
+            .header("Accept", "application/json")
+            .header("User-Agent", "BambooCopilot/1.0")
+            .form(&params)
             .send()
             .await?;
 
@@ -378,51 +297,149 @@ impl CopilotAuthHandler {
             return Err(anyhow!(ProxyAuthRequiredError));
         }
 
+        let status = response.status();
+        if !status.is_success() {
+            let text = response.text().await.unwrap_or_default();
+            return Err(anyhow!(
+                "Device code request failed: HTTP {} - {}",
+                status,
+                text
+            ));
+        }
+
         Ok(response.json::<DeviceCodeResponse>().await?)
+    }
+
+    /// Start authentication - get device code
+    /// If headless_auth is false, prints instructions to console
+    /// Always returns device code info for caller to display
+    pub async fn start_authentication(&self) -> anyhow::Result<DeviceCodeResponse> {
+        let device_code = self.get_device_code().await?;
+
+        if self.headless_auth {
+            // CLI mode: print to console
+            println!("\n╔════════════════════════════════════════════════════════════╗");
+            println!("║     🔐 GitHub Copilot Authorization Required              ║");
+            println!("╚════════════════════════════════════════════════════════════╝");
+            println!();
+            println!("  1. Open your browser and navigate to:");
+            println!("     {}", device_code.verification_uri);
+            println!();
+            println!("  2. Enter the following code:");
+            println!();
+            println!("     ┌─────────────────────────┐");
+            println!("     │  {:^23} │", device_code.user_code);
+            println!("     └─────────────────────────┘");
+            println!();
+            println!("  3. Click 'Authorize' and wait...");
+            println!();
+            println!(
+                "  ⏳ Waiting for authorization (expires in {} seconds)...",
+                device_code.expires_in
+            );
+            println!();
+        }
+
+        Ok(device_code)
+    }
+
+    /// Complete authentication - poll for access token and exchange for copilot token
+    pub async fn complete_authentication(
+        &self,
+        device_code: &DeviceCodeResponse,
+    ) -> anyhow::Result<CopilotConfig> {
+        let access_token = self.get_access_token(device_code).await?;
+
+        // Extract access token string before passing to get_copilot_token
+        let access_token_str = access_token
+            .access_token
+            .clone()
+            .ok_or_else(|| anyhow!("Access token not found"))?;
+
+        let copilot_config = self.get_copilot_token(access_token).await?;
+
+        // Write tokens to disk
+        let token_path = self.app_data_dir.join(".token");
+        let copilot_token_path = self.app_data_dir.join(".copilot_token.json");
+
+        // Write access token
+        let mut file = File::create(&token_path)?;
+        file.write_all(access_token_str.as_bytes())?;
+
+        // Write copilot config
+        self.write_cached_copilot_config(&copilot_token_path, &copilot_config)?;
+
+        Ok(copilot_config)
+    }
+
+    /// Try to get chat token silently (from cache or env, without triggering device flow)
+    pub async fn try_get_chat_token_silent(&self) -> anyhow::Result<Option<String>> {
+        let copilot_token_path = self.app_data_dir.join(".copilot_token.json");
+
+        // Check cached copilot token
+        if let Some(cached_config) = self.read_cached_copilot_config(&copilot_token_path) {
+            if self.is_copilot_token_valid(&cached_config) {
+                return Ok(Some(cached_config.token));
+            }
+        }
+
+        // Check env var
+        if let Ok(token) = std::env::var("COPILOT_API_KEY") {
+            let trimmed = token.trim();
+            if !trimmed.is_empty() {
+                return Ok(Some(trimmed.to_string()));
+            }
+        }
+
+        // Check access token file and try to exchange
+        let token_path = self.app_data_dir.join(".token");
+        if let Some(access_token_str) = Self::read_access_token(&token_path) {
+            let access_token = AccessTokenResponse::from_token(access_token_str);
+            match self.get_copilot_token(access_token).await {
+                Ok(copilot_config) => {
+                    self.write_cached_copilot_config(&copilot_token_path, &copilot_config)?;
+                    return Ok(Some(copilot_config.token));
+                }
+                Err(_) => {
+                    // Invalid access token, remove it
+                    let _ = std::fs::remove_file(&token_path);
+                }
+            }
+        }
+
+        Ok(None)
     }
 
     pub(super) async fn get_access_token(
         &self,
-        device_code: DeviceCodeResponse,
+        device_code: &DeviceCodeResponse,
     ) -> anyhow::Result<AccessTokenResponse> {
-        let params = HashMap::from([
+        let params = [
             ("client_id", "Iv1.b507a08c87ecfe98"),
             ("device_code", &device_code.device_code),
             ("grant_type", "urn:ietf:params:oauth:grant-type:device_code"),
-            ("expires_in", "3600"),
-        ]);
-        match self.device_code_presentation(&device_code) {
-            DeviceCodePresentation::Headless(message) => {
-                println!("{message}");
-                info!("{message}");
-            }
-            DeviceCodePresentation::Gui => {
-                use webbrowser;
-                webbrowser::open(&device_code.verification_uri)?;
-                use arboard::Clipboard;
-                let mut clipboard = Clipboard::new()?;
-                clipboard.set_text(device_code.user_code.clone())?;
+        ];
 
-                let dialog_message = format!(
-                    "User code '{}' has been copied to your clipboard. Please paste it into the GitHub page that will open next.",
-                    device_code.user_code
-                );
-                rfd::AsyncMessageDialog::new()
-                    .set_title("GitHub Device Authorization")
-                    .set_description(&dialog_message)
-                    .set_level(rfd::MessageLevel::Info)
-                    .set_buttons(rfd::MessageButtons::Ok)
-                    .show()
-                    .await;
-            }
+        let poll_interval = Duration::from_secs(device_code.interval.max(5));
+        let max_duration = Duration::from_secs(device_code.expires_in);
+        let start = std::time::Instant::now();
+
+        if !self.headless_auth {
+            println!("  🔄 Polling for authorization...");
         }
 
         loop {
+            if start.elapsed() > max_duration {
+                return Err(anyhow!("❌ Device code expired. Please try again."));
+            }
+
             let url = format!("{}/login/oauth/access_token", self.github_login_base_url);
             let response = self
                 .client
                 .post(&url)
-                .query(&params)
+                .header("Accept", "application/json")
+                .header("User-Agent", "BambooCopilot/1.0")
+                .form(&params)
                 .send()
                 .await?;
 
@@ -431,10 +448,43 @@ impl CopilotAuthHandler {
             }
 
             let response = response.json::<AccessTokenResponse>().await?;
-            if response.access_token.is_some() {
-                return Ok(response);
+
+            if let Some(token) = response.access_token {
+                if !self.headless_auth {
+                    println!("  ✅ Access token received!");
+                }
+                return Ok(AccessTokenResponse::from_token(token));
             }
-            sleep(Duration::from_secs(10)).await;
+
+            if let Some(error) = &response.error {
+                match error.as_str() {
+                    "authorization_pending" => {
+                        if self.headless_auth {
+                            print!(".");
+                            std::io::Write::flush(&mut std::io::stdout()).ok();
+                        }
+                    }
+                    "slow_down" => {
+                        if !self.headless_auth {
+                            println!("\n  ⚠️  Server requested slower polling...");
+                        }
+                        sleep(Duration::from_secs(device_code.interval + 5)).await;
+                        continue;
+                    }
+                    "expired_token" => {
+                        return Err(anyhow!("❌ Device code expired. Please try again."));
+                    }
+                    "access_denied" => {
+                        return Err(anyhow!("❌ Authorization denied by user."));
+                    }
+                    _ => {
+                        let desc = response.error_description.as_deref().unwrap_or("");
+                        return Err(anyhow!("❌ Auth error: {} - {}", error, desc));
+                    }
+                }
+            }
+
+            sleep(poll_interval).await;
         }
     }
 
@@ -451,6 +501,8 @@ impl CopilotAuthHandler {
             .client
             .get(url)
             .header("Authorization", format!("token {}", actual_github_token))
+            .header("Accept", "application/json")
+            .header("User-Agent", "BambooCopilot/1.0")
             .send()
             .await?;
 
@@ -458,9 +510,29 @@ impl CopilotAuthHandler {
             return Err(anyhow!(ProxyAuthRequiredError));
         }
 
+        let status = response.status();
+        if !status.is_success() {
+            let text = response.text().await.unwrap_or_default();
+            return Err(anyhow!(
+                "Copilot token request failed: HTTP {} - {}",
+                status,
+                text
+            ));
+        }
+
         let body = response.bytes().await?;
         match serde_json::from_slice::<CopilotConfig>(&body) {
-            Ok(copilot_config) => Ok(copilot_config),
+            Ok(copilot_config) => {
+                if !copilot_config.chat_enabled {
+                    return Err(anyhow!(
+                        "❌ Copilot chat is not enabled for this account."
+                    ));
+                }
+                if !self.headless_auth {
+                    println!("  ✅ Copilot token received!");
+                }
+                Ok(copilot_config)
+            }
             Err(_) => {
                 let body_str = String::from_utf8_lossy(&body);
                 let error_msg = format!("Failed to get copilot config: {body_str}");
@@ -471,31 +543,126 @@ impl CopilotAuthHandler {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-enum DeviceCodePresentation {
-    Headless(String),
-    Gui,
-}
-
 #[cfg(test)]
 mod retry_tests {
     use super::*;
     use std::sync::atomic::{AtomicUsize, Ordering};
-    use wiremock::matchers::{method, path};
-    use wiremock::{Mock, MockServer, ResponseTemplate};
+    use std::sync::Mutex as StdMutex;
 
-    fn create_test_client_with_retry() -> Arc<ClientWithMiddleware> {
+    use http;
+    use reqwest::Method;
+    use reqwest_middleware::{ClientBuilder, Middleware, Next, Result as MiddlewareResult};
+    use reqwest_retry::{policies::ExponentialBackoff, RetryTransientMiddleware};
+
+    #[derive(Clone)]
+    struct MockReply {
+        status: u16,
+        body: String,
+        content_type: Option<&'static str>,
+    }
+
+    impl MockReply {
+        fn text(status: u16, body: impl Into<String>) -> Self {
+            Self {
+                status,
+                body: body.into(),
+                content_type: Some("application/json"),
+            }
+        }
+
+        fn json(status: u16, value: serde_json::Value) -> Self {
+            Self {
+                status,
+                body: value.to_string(),
+                content_type: Some("application/json"),
+            }
+        }
+    }
+
+    #[derive(Clone)]
+    struct MockResponder {
+        expected_method: Method,
+        expected_path: String,
+        call_count: Arc<AtomicUsize>,
+        replies: Arc<StdMutex<Vec<MockReply>>>,
+    }
+
+    impl MockResponder {
+        fn new(
+            expected_method: Method,
+            expected_path: impl Into<String>,
+            call_count: Arc<AtomicUsize>,
+            replies: Vec<MockReply>,
+        ) -> Self {
+            Self {
+                expected_method,
+                expected_path: expected_path.into(),
+                call_count,
+                replies: Arc::new(StdMutex::new(replies)),
+            }
+        }
+    }
+
+    #[async_trait::async_trait]
+    impl Middleware for MockResponder {
+        async fn handle(
+            &self,
+            req: reqwest::Request,
+            _extensions: &mut http::Extensions,
+            _next: Next<'_>,
+        ) -> MiddlewareResult<reqwest::Response> {
+            assert_eq!(
+                req.method(),
+                &self.expected_method,
+                "unexpected method for {}",
+                req.url()
+            );
+            assert_eq!(
+                req.url().path(),
+                self.expected_path.as_str(),
+                "unexpected path for {}",
+                req.url()
+            );
+
+            let idx = self.call_count.fetch_add(1, Ordering::SeqCst);
+            let reply = {
+                let mut guard = self.replies.lock().expect("lock");
+                guard
+                    .get(0)
+                    .cloned()
+                    .unwrap_or_else(|| panic!("no mock reply left for call #{idx}"))
+            };
+
+            // Pop after cloning so we can include `idx` in the panic above without borrow issues.
+            {
+                let mut guard = self.replies.lock().expect("lock");
+                guard.remove(0);
+            }
+
+            let mut builder = http::Response::builder().status(reply.status);
+            if let Some(ct) = reply.content_type {
+                builder = builder.header("content-type", ct);
+            }
+
+            let http_response = builder.body(reply.body).expect("http response");
+            Ok(reqwest::Response::from(http_response))
+        }
+    }
+
+    fn create_test_client_with_retry(mock: MockResponder) -> Arc<ClientWithMiddleware> {
         use reqwest::Client as ReqwestClient;
-        use reqwest_middleware::ClientBuilder;
-        use reqwest_retry::{policies::ExponentialBackoff, RetryTransientMiddleware};
 
-        let retry_policy = ExponentialBackoff::builder().build_with_max_retries(3);
+        // Use a zero-delay retry policy to keep tests fast and deterministic.
+        let retry_policy = ExponentialBackoff::builder()
+            .retry_bounds(Duration::from_millis(0), Duration::from_millis(0))
+            .build_with_max_retries(3);
 
-        let client = ReqwestClient::builder().no_proxy().build().expect("client");
+        let client = ReqwestClient::builder().build().expect("client");
 
         Arc::new(
             ClientBuilder::new(client)
                 .with(RetryTransientMiddleware::new_with_policy(retry_policy))
+                .with(mock)
                 .build(),
         )
     }
@@ -537,20 +704,18 @@ mod retry_tests {
     /// Test server error retries (integration test)
     #[tokio::test]
     async fn test_auth_retry_on_server_error() {
-        let mock_server = MockServer::start().await;
         let request_count = Arc::new(AtomicUsize::new(0));
-        let counter = request_count.clone();
 
-        // Mock GitHub token endpoint that fails twice then succeeds
-        Mock::given(method("GET"))
-            .and(path("/copilot_internal/v2/token"))
-            .respond_with(move |_req: &wiremock::Request| {
-                let count = counter.fetch_add(1, Ordering::SeqCst);
-                if count < 2 {
-                    ResponseTemplate::new(503)
-                        .set_body_string(r#"{"error": "Service Unavailable"}"#)
-                } else {
-                    ResponseTemplate::new(200).set_body_json(serde_json::json!({
+        let mock = MockResponder::new(
+            Method::GET,
+            "/copilot_internal/v2/token",
+            request_count.clone(),
+            vec![
+                MockReply::text(503, r#"{"error":"Service Unavailable"}"#),
+                MockReply::text(503, r#"{"error":"Service Unavailable"}"#),
+                MockReply::json(
+                    200,
+                    serde_json::json!({
                         "token": "test-copilot-token",
                         "expires_at": (SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs() + 3600),
                         "annotations_enabled": true,
@@ -574,17 +739,15 @@ mod retry_tests {
                         "vsc_electron_fetcher_v2": true,
                         "xcode": false,
                         "xcode_chat": false
-                    }))
-                }
-            })
-            .expect(3)
-            .mount(&mock_server)
-            .await;
+                    }),
+                ),
+            ],
+        );
 
-        let client = create_test_client_with_retry();
+        let client = create_test_client_with_retry(mock);
         let temp_dir = tempfile::tempdir().expect("tempdir");
         let handler = CopilotAuthHandler::new(client, temp_dir.path().to_path_buf(), true)
-            .with_github_api_base_url(mock_server.uri());
+            .with_github_api_base_url("http://mock.local");
 
         // Create a valid access token
         let access_token = AccessTokenResponse {
@@ -612,24 +775,19 @@ mod retry_tests {
     /// Test that auth requests fail fast on 401 (no retry)
     #[tokio::test]
     async fn test_auth_no_retry_on_unauthorized() {
-        let mock_server = MockServer::start().await;
         let request_count = Arc::new(AtomicUsize::new(0));
-        let counter = request_count.clone();
 
-        Mock::given(method("GET"))
-            .and(path("/copilot_internal/v2/token"))
-            .respond_with(move |_req: &wiremock::Request| {
-                counter.fetch_add(1, Ordering::SeqCst);
-                ResponseTemplate::new(401).set_body_string(r#"{"error": "Unauthorized"}"#)
-            })
-            .expect(1) // Should only be called once
-            .mount(&mock_server)
-            .await;
+        let mock = MockResponder::new(
+            Method::GET,
+            "/copilot_internal/v2/token",
+            request_count.clone(),
+            vec![MockReply::text(401, r#"{"error":"Unauthorized"}"#)],
+        );
 
-        let client = create_test_client_with_retry();
+        let client = create_test_client_with_retry(mock);
         let temp_dir = tempfile::tempdir().expect("tempdir");
         let handler = CopilotAuthHandler::new(client, temp_dir.path().to_path_buf(), true)
-            .with_github_api_base_url(mock_server.uri());
+            .with_github_api_base_url("http://mock.local");
 
         let access_token = AccessTokenResponse {
             access_token: Some("invalid-token".to_string()),
@@ -648,34 +806,32 @@ mod retry_tests {
     /// Test device code endpoint retry
     #[tokio::test]
     async fn test_device_code_retry() {
-        let mock_server = MockServer::start().await;
         let request_count = Arc::new(AtomicUsize::new(0));
-        let counter = request_count.clone();
 
-        Mock::given(method("POST"))
-            .and(path("/login/device/code"))
-            .respond_with(move |_req: &wiremock::Request| {
-                let count = counter.fetch_add(1, Ordering::SeqCst);
-                if count < 2 {
-                    ResponseTemplate::new(503)
-                } else {
-                    ResponseTemplate::new(200).set_body_json(serde_json::json!({
+        let mock = MockResponder::new(
+            Method::POST,
+            "/login/device/code",
+            request_count.clone(),
+            vec![
+                MockReply::text(503, ""),
+                MockReply::text(503, ""),
+                MockReply::json(
+                    200,
+                    serde_json::json!({
                         "device_code": "test-device-code",
                         "user_code": "ABCD-EFGH",
                         "verification_uri": "https://github.com/login/device",
                         "expires_in": 900,
                         "interval": 5
-                    }))
-                }
-            })
-            .expect(3)
-            .mount(&mock_server)
-            .await;
+                    }),
+                ),
+            ],
+        );
 
-        let client = create_test_client_with_retry();
+        let client = create_test_client_with_retry(mock);
         let temp_dir = tempfile::tempdir().expect("tempdir");
         let handler = CopilotAuthHandler::new(client, temp_dir.path().to_path_buf(), true)
-            .with_github_login_base_url(mock_server.uri());
+            .with_github_login_base_url("http://mock.local");
 
         // Call the actual method - it should retry and eventually succeed
         let result = handler.get_device_code().await;
@@ -692,7 +848,12 @@ mod retry_tests {
     #[test]
     fn test_token_cache_validation() {
         let temp_dir = tempfile::tempdir().expect("tempdir");
-        let client = create_test_client_with_retry();
+        let client = create_test_client_with_retry(MockResponder::new(
+            Method::GET,
+            "/__unused__",
+            Arc::new(AtomicUsize::new(0)),
+            vec![],
+        ));
         let handler = CopilotAuthHandler::new(client, temp_dir.path().to_path_buf(), true);
 
         // Valid token (expires in 1 hour)
@@ -730,7 +891,12 @@ mod retry_tests {
     #[test]
     fn test_cached_copilot_config_with_retry_client() {
         let dir = tempfile::tempdir().expect("tempdir");
-        let client = create_test_client_with_retry();
+        let client = create_test_client_with_retry(MockResponder::new(
+            Method::GET,
+            "/__unused__",
+            Arc::new(AtomicUsize::new(0)),
+            vec![],
+        ));
         let handler = CopilotAuthHandler::new(client, dir.path().to_path_buf(), false);
         let token_path = dir.path().join(".copilot_token.json");
 

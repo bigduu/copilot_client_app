@@ -23,6 +23,7 @@ import SystemSettingsKeywordMaskingTab from "./SystemSettingsKeywordMaskingTab";
 import SystemSettingsWorkflowsTab from "./SystemSettingsWorkflowsTab";
 import SystemSettingsMcpTab from "./SystemSettingsMcpTab";
 import SystemSettingsMetricsTab from "./SystemSettingsMetricsTab";
+import { ProviderSettings } from "../ProviderSettings";
 import { SkillManager } from "../../../../components/Skill";
 
 const { Text } = Typography;
@@ -242,6 +243,11 @@ const SystemSettingsPage = ({
                   darkModeKey={DARK_MODE_KEY}
                 />
               ),
+            },
+            {
+              key: "provider",
+              label: "Provider",
+              children: <ProviderSettings />,
             },
             {
               key: "masking",

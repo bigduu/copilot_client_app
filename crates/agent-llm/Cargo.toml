@@ -7,7 +7,7 @@ edition = "2021"
 agent-core = { path = "../agent-core" }
 agent-metrics = { path = "../agent-metrics" }
 chat_core = { path = "../chat_core" }
-reqwest = { workspace = true, features = ["gzip", "rustls-tls"] }
+reqwest = { workspace = true, default-features = false, features = ["json", "stream", "gzip", "rustls-tls"] }
 reqwest-retry = "0.7"
 reqwest-middleware = { version = "0.4", features = ["json"] }
 tokio = { workspace = true }
@@ -38,3 +38,4 @@ tauri-dialog = ["dep:tauri"]
 wiremock = { workspace = true }
 tokio-test = { workspace = true }
 tempfile = { workspace = true }
+http = "1"

@@ -134,16 +134,39 @@ export const useAgentChat = ({
 
           onError: async (errorMessage: string) => {
             console.error("Agent error:", errorMessage);
-            
+
+            // Check if it's a Copilot authentication error
+            const isAuthError = errorMessage.includes("Not authenticated") ||
+                               errorMessage.includes("Authentication error") ||
+                               errorMessage.includes("Please run authenticate()");
+
+            let errorContent: string;
+
+            if (isAuthError) {
+              errorContent = `🔐 **Authentication Required**
+
+Copilot is not authenticated. Please follow these steps:
+
+1. Go to **Settings** → **Provider Settings**
+2. Select **GitHub Copilot**
+3. Click **"Authenticate Copilot"**
+4. Follow the instructions to complete authentication
+
+After authentication, start a new conversation.`;
+            } else {
+              errorContent = `❌ **Error**: ${errorMessage}`;
+            }
+
             // Add error message
             await addMessage(chatId, {
               id: `error-${Date.now()}`,
               role: "assistant",
-              content: `❌ **Error**: ${errorMessage}`,
+              content: errorContent,
               createdAt: new Date().toISOString(),
               isError: true,
+              isAuthError,
             });
-            
+
             streamingMessageIdRef.current = null;
             streamingContentRef.current = "";
           },

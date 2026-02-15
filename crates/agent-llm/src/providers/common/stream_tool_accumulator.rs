@@ -1,14 +1,15 @@
 use crate::models::{FunctionCall, StreamToolCall, ToolCall};
 use std::collections::HashMap;
 
-/// Accumulates streaming tool call fragments into complete tool calls
+/// Accumulates streaming tool call fragments into complete tool calls.
 ///
-/// The GitHub Copilot API sends tool calls across multiple streaming chunks:
+/// Some OpenAI-compatible providers (e.g. GitHub Copilot) can send tool calls across
+/// multiple streaming chunks:
 /// - First chunk contains metadata (id, type, function name)
 /// - Subsequent chunks contain only argument fragments
 ///
-/// This accumulator collects all fragments by index and converts them
-/// to complete ToolCall objects when the stream finishes.
+/// This accumulator collects all fragments by index and converts them into complete
+/// [`ToolCall`] objects when the stream finishes.
 #[derive(Debug, Default)]
 pub struct StreamToolAccumulator {
     /// Maps tool call index to accumulated data
@@ -28,10 +29,10 @@ impl StreamToolAccumulator {
         Self::default()
     }
 
-    /// Process a streaming chunk's tool calls
+    /// Process a streaming chunk's tool calls.
     ///
-    /// Merges the data from this chunk into the accumulated state.
-    /// Fields that are already set won't be overwritten.
+    /// Merges the data from this chunk into the accumulated state. Fields that are already set
+    /// won't be overwritten.
     pub fn process_chunk(&mut self, stream_calls: &[StreamToolCall]) {
         for call in stream_calls {
             let entry = self
@@ -44,7 +45,6 @@ impl StreamToolAccumulator {
                     arguments: String::new(),
                 });
 
-            // Update fields from this chunk
             if let Some(id) = &call.id {
                 entry.id = Some(id.clone());
             }
@@ -62,9 +62,8 @@ impl StreamToolAccumulator {
         }
     }
 
-    /// Convert accumulated data to complete ToolCall objects
+    /// Convert accumulated data into complete [`ToolCall`] objects, sorted by index.
     ///
-    /// Returns a vector of complete tool calls, sorted by index.
     /// Incomplete tool calls (missing required fields) are filtered out.
     pub fn into_tool_calls(self) -> Vec<ToolCall> {
         let mut calls: Vec<_> = self.tool_calls.into_iter().collect();
@@ -85,17 +84,17 @@ impl StreamToolAccumulator {
             .collect()
     }
 
-    /// Check if any tool calls are being accumulated
+    /// Check if any tool calls are being accumulated.
     pub fn has_tool_calls(&self) -> bool {
         !self.tool_calls.is_empty()
     }
 
-    /// Get the current number of tool calls being accumulated
+    /// Get the current number of tool calls being accumulated.
     pub fn len(&self) -> usize {
         self.tool_calls.len()
     }
 
-    /// Check if the accumulator is empty
+    /// Check if the accumulator is empty.
     pub fn is_empty(&self) -> bool {
         self.tool_calls.is_empty()
     }
@@ -238,3 +237,4 @@ mod tests {
         );
     }
 }
+
